@@ -57,6 +57,49 @@ then closes the pipe and sets `DrainTimedOut`, so the captured text may be
 incomplete even though the state is `Exited`. Timeouts and drain grace periods
 use the `TimeProvider` passed to `ProcessRunner`.
 
+## Standard input and environment
+
+Existing requests inherit stdin and the parent environment. For unattended tools,
+close stdin so a read receives EOF, or supply a bounded immutable byte payload:
+
+```csharp
+var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(30))
+{
+    StandardInput = ProcessStandardInput.FromBytes(
+        Encoding.UTF8.GetBytes(document), limitBytes: 64 * 1024),
+    InheritEnvironment = false,
+};
+var request = new ProcessRequest(
+    absoluteToolPath,
+    new[] { "transform" },
+    environment: new Dictionary<string, string?> { ["LANG"] = "C.UTF-8" },
+    options: options);
+ProcessResult result = await runner.RunAsync(request, cancellationToken);
+```
+
+Use `ProcessStandardInput.Closed` for immediate EOF and
+`ProcessStandardInput.Inherit` to retain interactive input. `FromBytes` validates
+the payload before copying it: the default limit is 1 MiB, and the hard maximum
+is 16 MiB. Bytes are written without text conversion or a BOM and stdin is closed
+after the payload, including an empty payload. Writing and both output drains
+run concurrently; cancellation and timeout also stop a blocked input write.
+A child may close stdin or exit before consuming the payload; its exit state and
+code remain authoritative rather than turning a broken pipe into an execution
+failure. A successful exit therefore does not prove that every input byte was
+consumed.
+
+With `InheritEnvironment = false`, the child starts with an empty environment
+before the request's explicit overrides are applied. Include variables required
+by your tool or runtime, such as `DOTNET_ROOT` for an apphost on a custom .NET
+installation. Prefer absolute executable paths. Bare executable names use the
+request's explicit `PATH`; without a match they resolve relative to the caller's
+current directory instead of falling back to the parent's `PATH`. Environment
+removal entries (`null`) and child overrides never change the parent environment.
+
+The [ProcessInput tool-chain example](../../../examples/command-line/ProcessInput)
+passes bounded output between two tools and closes stdin for a health check,
+with an explicitly isolated child environment.
+
 ## Windows batch files
 
 Windows starts `.bat` and `.cmd` files through `cmd.exe`, which parses the

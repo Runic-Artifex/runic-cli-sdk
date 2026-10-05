@@ -18,6 +18,8 @@ public sealed class ProcessExecutionOptions
     /// <summary>The hard ceiling for post-termination drain grace.</summary>
     public static readonly TimeSpan MaximumDrainGracePeriod = TimeSpan.FromMinutes(1);
 
+    private ProcessStandardInput standardInput = ProcessStandardInput.Inherit;
+
     private static readonly TimeSpan MaximumTimerDuration = TimeSpan.FromMilliseconds(4294967294);
 
     /// <summary>Initializes process execution options.</summary>
@@ -77,6 +79,21 @@ public sealed class ProcessExecutionOptions
         StandardErrorEncoding = standardErrorEncoding ?? new UTF8Encoding(false, false);
         AllowWindowsBatchFiles = allowWindowsBatchFiles;
     }
+
+    /// <summary>Gets the child input mode. Inherits the caller's stdin by default.</summary>
+    /// <exception cref="ArgumentNullException">The input is null.</exception>
+    public ProcessStandardInput StandardInput
+    {
+        get => standardInput;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            standardInput = value;
+        }
+    }
+
+    /// <summary>Gets whether the child inherits the parent environment before request overrides are applied.</summary>
+    public bool InheritEnvironment { get; init; } = true;
 
     /// <summary>Gets the maximum execution time.</summary>
     public TimeSpan Timeout { get; }

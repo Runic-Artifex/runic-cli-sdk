@@ -30,6 +30,16 @@ internal static class Program
         ("both output caps retain bounded bytes and count all observed bytes", BothOutputCapsAreEnforcedAsync),
         ("zero output caps still drain both channels", ZeroOutputCapsStillDrainAsync),
         ("output cap configuration rejects invalid bounds", OutputCapConfigurationRejectsInvalidBoundsAsync),
+        ("input configuration enforces bounds and unchanged defaults", InputConfigurationEnforcesBoundsAsync),
+        ("bounded input is copied and reaches EOF without text conversion", BoundedInputIsCopiedAsync),
+        ("closed and empty input send EOF", ClosedInputSendsEofAsync),
+        ("default stdin is inherited by nested child", DefaultInputIsInheritedAsync),
+        ("large duplex input and output pressure cannot deadlock", DuplexInputIsDrainedAsync),
+        ("blocked stdin and silent child remain timeout and cancellation safe", BlockedInputIsCancellableAsync),
+        ("descendant-held stdin does not block parent exit", DescendantHeldInputDoesNotBlockAsync),
+        ("early child exit tolerates a broken input pipe", EarlyExitToleratesBrokenInputAsync),
+        ("environment inheritance isolation overrides and removal are explicit", EnvironmentInheritanceIsExplicitAsync),
+        ("isolated executable resolution uses only supplied PATH", IsolatedPathResolutionIsExplicitAsync),
         ("timeout terminates the child and is distinct", TimeoutIsDistinctAsync),
         ("external cancellation terminates the child and is distinct", ExternalCancellationIsDistinctAsync),
         ("pre-cancellation does not start a child", PreCancellationDoesNotStartAsync),
@@ -245,6 +255,242 @@ internal static class Program
             () => _ = new ProcessExecutionOptions(
                 standardErrorLimitBytes: ProcessExecutionOptions.MaximumOutputLimitBytes + 1));
         return Task.CompletedTask;
+    }
+
+    private static Task InputConfigurationEnforcesBoundsAsync()
+    {
+        var defaults = new ProcessExecutionOptions();
+        TestAssert.Equal(ProcessStandardInputMode.Inherit, defaults.StandardInput.Mode);
+        TestAssert.True(defaults.InheritEnvironment);
+        TestAssert.Throws<ArgumentNullException>(() => _ = new ProcessExecutionOptions { StandardInput = null! });
+        TestAssert.Throws<ArgumentOutOfRangeException>(() => ProcessStandardInput.FromBytes(new byte[1], 0));
+        TestAssert.Throws<ArgumentOutOfRangeException>(() => ProcessStandardInput.FromBytes(ReadOnlyMemory<byte>.Empty, -1));
+        TestAssert.Throws<ArgumentOutOfRangeException>(() => ProcessStandardInput.FromBytes(
+            ReadOnlyMemory<byte>.Empty, ProcessStandardInput.MaximumInputLimitBytes + 1));
+        TestAssert.Throws<ArgumentOutOfRangeException>(() => ProcessStandardInput.FromBytes(
+            new byte[ProcessStandardInput.DefaultInputLimitBytes + 1]));
+        TestAssert.Equal(ProcessStandardInput.MaximumInputLimitBytes,
+            ProcessStandardInput.FromBytes(new byte[ProcessStandardInput.MaximumInputLimitBytes],
+                ProcessStandardInput.MaximumInputLimitBytes).ByteCount);
+        return Task.CompletedTask;
+    }
+
+    private static async Task BoundedInputIsCopiedAsync()
+    {
+        byte[] payload = [0, 1, 127, 128, 255, 13, 10];
+        string expected = Convert.ToBase64String(payload);
+        var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10))
+        {
+            StandardInput = ProcessStandardInput.FromBytes(payload, payload.Length),
+        };
+        Array.Fill(payload, (byte)42);
+        ProcessResult result = await RunChildAsync(options, "input-echo").ConfigureAwait(false);
+        AssertExited(result, 0);
+        TestAssert.Equal(expected, result.StandardOutput.Text);
+        TestAssert.Equal(payload.Length, options.StandardInput.ByteCount);
+        TestAssert.Equal(ProcessStandardInputMode.BoundedBytes, options.StandardInput.Mode);
+    }
+
+    private static async Task ClosedInputSendsEofAsync()
+    {
+        foreach (ProcessStandardInput input in new[] { ProcessStandardInput.Closed,
+            ProcessStandardInput.FromBytes(ReadOnlyMemory<byte>.Empty, 0) })
+        {
+            ProcessResult result = await RunChildAsync(
+                new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10)) { StandardInput = input },
+                "input-echo").ConfigureAwait(false);
+            AssertExited(result, 0);
+            TestAssert.Equal(string.Empty, result.StandardOutput.Text);
+        }
+    }
+
+    private static async Task DefaultInputIsInheritedAsync()
+    {
+        byte[] payload = Encoding.UTF8.GetBytes("inherited input\n");
+        ProcessResult result = await RunChildAsync(
+            new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10))
+            {
+                StandardInput = ProcessStandardInput.FromBytes(payload),
+            }, "input-inherit").ConfigureAwait(false);
+        AssertExited(result, 0);
+        TestAssert.Equal(Convert.ToBase64String(payload), result.StandardOutput.Text);
+    }
+
+    private static async Task DuplexInputIsDrainedAsync()
+    {
+        const int count = 2 * 1024 * 1024;
+        byte[] payload = new byte[count];
+        Array.Fill(payload, (byte)'I');
+        var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(15),
+            standardOutputLimitBytes: 128, standardErrorLimitBytes: 256)
+        {
+            StandardInput = ProcessStandardInput.FromBytes(payload, count),
+        };
+        ProcessResult result = await RunChildAsync(options, "input-duplex",
+            count.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+        AssertExited(result, 0);
+        AssertOutput(result.StandardOutput, 2L * count, 128, 'O', truncated: true);
+        AssertOutput(result.StandardError, count, 256, 'E', truncated: true);
+    }
+
+    private static async Task BlockedInputIsCancellableAsync()
+    {
+        ProcessStandardInput input = ProcessStandardInput.FromBytes(
+            new byte[2 * 1024 * 1024], 2 * 1024 * 1024);
+        foreach (bool cancel in new[] { false, true })
+        {
+            var options = new ProcessExecutionOptions(
+                timeout: cancel ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(250),
+                drainGracePeriod: TimeSpan.FromSeconds(1)) { StandardInput = input };
+            using var cancellation = new CancellationTokenSource();
+            if (cancel)
+            {
+                cancellation.CancelAfter(TimeSpan.FromMilliseconds(250));
+            }
+
+            var elapsed = Stopwatch.StartNew();
+            ProcessResult result = await CreateRunner().RunAsync(
+                CreateChildRequest(options, "sleep", "30000"), cancellation.Token).ConfigureAwait(false);
+            AssertTerminated(result, cancel ? ProcessState.Cancelled : ProcessState.TimedOut);
+            TestAssert.Equal(0L, result.StandardOutput.ObservedByteCount);
+            TestAssert.Equal(0L, result.StandardError.ObservedByteCount);
+            TestAssert.True(elapsed.Elapsed < TimeSpan.FromSeconds(5), "Blocked stdin delayed cancellation.");
+        }
+    }
+
+    private static async Task DescendantHeldInputDoesNotBlockAsync()
+    {
+        string markerPath = Path.Combine(Path.GetTempPath(), $"rcli-input-holder-{Guid.NewGuid():N}.txt");
+        var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10),
+            drainGracePeriod: TimeSpan.FromMilliseconds(300))
+        {
+            StandardInput = ProcessStandardInput.FromBytes(new byte[2 * 1024 * 1024], 2 * 1024 * 1024),
+        };
+        try
+        {
+            ProcessResult result = await RunChildAsync(options, "orphan-input-holder", markerPath).ConfigureAwait(false);
+            AssertExited(result, 0);
+            TestAssert.Equal("READY", result.StandardOutput.Text.Trim());
+            TestAssert.False(result.StandardOutput.DrainTimedOut);
+            TestAssert.False(result.StandardError.DrainTimedOut);
+            TestAssert.True(result.Duration < TimeSpan.FromSeconds(5), "Descendant-held stdin delayed parent exit.");
+        }
+        finally
+        {
+            if (File.Exists(markerPath))
+            {
+                TryKillProcess(int.Parse(await File.ReadAllTextAsync(markerPath).ConfigureAwait(false),
+                    CultureInfo.InvariantCulture));
+                File.Delete(markerPath);
+            }
+        }
+    }
+
+    private static async Task EarlyExitToleratesBrokenInputAsync()
+    {
+        var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10))
+        {
+            StandardInput = ProcessStandardInput.FromBytes(new byte[2 * 1024 * 1024], 2 * 1024 * 1024),
+        };
+        ProcessResult result = await RunChildAsync(options, "pressure", "5", "7", "23").ConfigureAwait(false);
+        AssertExited(result, 23);
+        TestAssert.Equal("OOOOO", result.StandardOutput.Text);
+        TestAssert.Equal("EEEEEEE", result.StandardError.Text);
+        TestAssert.Null(result.Fault);
+    }
+
+    private static async Task EnvironmentInheritanceIsExplicitAsync()
+    {
+        string inheritedName = $"RCLI_PROCESS_INHERITED_{Guid.NewGuid():N}";
+        string removedName = $"RCLI_PROCESS_REMOVED_{Guid.NewGuid():N}";
+        Environment.SetEnvironmentVariable(inheritedName, "parent-secret");
+        Environment.SetEnvironmentVariable(removedName, "remove-me");
+        try
+        {
+            foreach (bool inherit in new[] { true, false })
+            {
+                var environment = RuntimeEnvironment();
+                environment[removedName] = null;
+                environment["RCLI_PROCESS_EXPLICIT"] = "explicit-value";
+                var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10))
+                {
+                    InheritEnvironment = inherit,
+                    StandardInput = ProcessStandardInput.Closed,
+                };
+                ProcessResult result = await CreateRunner().RunAsync(new ProcessRequest(
+                    ChildProcessFixture.ExecutablePath,
+                    ChildProcessFixture.CreateArguments("environment", inheritedName, removedName,
+                        "RCLI_PROCESS_EXPLICIT"), environment: environment, options: options)).ConfigureAwait(false);
+                AssertExited(result, 0);
+                TestAssert.SequenceEqual(new[] { inherit ? "parent-secret" : "<missing>", "<missing>", "explicit-value" },
+                    result.StandardOutput.Text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+            }
+
+            var overridden = RuntimeEnvironment();
+            overridden[inheritedName] = "child-value";
+            ProcessResult overriddenResult = await CreateRunner().RunAsync(new ProcessRequest(
+                ChildProcessFixture.ExecutablePath, ChildProcessFixture.CreateArguments("environment", inheritedName),
+                environment: overridden)).ConfigureAwait(false);
+            AssertExited(overriddenResult, 0);
+            TestAssert.Equal("child-value", overriddenResult.StandardOutput.Text.Trim());
+            TestAssert.Equal("parent-secret", Environment.GetEnvironmentVariable(inheritedName));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(inheritedName, null);
+            Environment.SetEnvironmentVariable(removedName, null);
+        }
+    }
+
+    private static Dictionary<string, string?> RuntimeEnvironment()
+    {
+        var result = new Dictionary<string, string?>();
+        foreach (string name in new[] { "DOTNET_ROOT", "DOTNET_ROOT_X64", "DOTNET_ROOT_ARM64" })
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (value is not null)
+            {
+                result[name] = value;
+            }
+        }
+
+        return result;
+    }
+
+    private static async Task IsolatedPathResolutionIsExplicitAsync()
+    {
+        var platform = new ProcessPlatform(false, _ => true, _ => "/inherited-tools");
+        var policy = new CountingAllowPolicy();
+        var runner = new ProcessRunner(policy, null, null, platform);
+        var options = new ProcessExecutionOptions { InheritEnvironment = false };
+        await runner.RunAsync(new ProcessRequest("rcli-nonexistent-tool", options: options)).ConfigureAwait(false);
+        TestAssert.Equal(Path.GetFullPath("rcli-nonexistent-tool"), policy.LastFileName);
+        await runner.RunAsync(new ProcessRequest("rcli-nonexistent-tool", environment:
+            new Dictionary<string, string?> { ["PATH"] = "/explicit-tools" }, options: options)).ConfigureAwait(false);
+        TestAssert.Equal(Path.GetFullPath("/explicit-tools/rcli-nonexistent-tool"), policy.LastFileName);
+
+        string? previousPath = Environment.GetEnvironmentVariable("PATH");
+        try
+        {
+            string name = Path.GetFileName(ChildProcessFixture.ExecutablePath);
+            string directory = Path.GetDirectoryName(ChildProcessFixture.ExecutablePath)!;
+            Environment.SetEnvironmentVariable("PATH", directory);
+            ProcessResult isolated = await CreateRunner().RunAsync(new ProcessRequest(name,
+                ChildProcessFixture.CreateArguments("pressure", "1", "1", "0"),
+                environment: RuntimeEnvironment(), options: options)).ConfigureAwait(false);
+            TestAssert.Equal(ProcessState.StartFailed, isolated.State);
+            TestAssert.Equal(ProcessStartFailureCategory.NotFound, isolated.StartFailureCategory);
+            var environment = RuntimeEnvironment();
+            environment["PATH"] = directory;
+            ProcessResult supplied = await CreateRunner().RunAsync(new ProcessRequest(name,
+                ChildProcessFixture.CreateArguments("pressure", "1", "1", "0"),
+                environment: environment, options: options)).ConfigureAwait(false);
+            AssertExited(supplied, 0);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", previousPath);
+        }
     }
 
     private static async Task TimeoutIsDistinctAsync()

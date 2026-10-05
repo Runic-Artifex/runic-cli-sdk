@@ -22,10 +22,15 @@ internal static class ChildProcessFixture
         return args[1] switch
         {
             "echo-arguments" => EchoArguments(args.AsSpan(2)),
+            "input-echo" => await EchoInputAsync().ConfigureAwait(false),
+            "input-duplex" => await DuplexAsync(args).ConfigureAwait(false),
+            "input-inherit" => await InheritInputAsync().ConfigureAwait(false),
+            "environment" => EchoEnvironment(args),
             "pressure" => await WritePressureAsync(args).ConfigureAwait(false),
             "sleep" => await SleepAsync(args).ConfigureAwait(false),
             "tree-parent" => await RunTreeParentAsync(args).ConfigureAwait(false),
             "tree-leaf" => await RunTreeLeafAsync(args).ConfigureAwait(false),
+            "orphan-input-holder" => await StartPipeHolderAsync(args, isolateOutputs: true).ConfigureAwait(false),
             "orphan-pipe-holder" => await StartPipeHolderAsync(args).ConfigureAwait(false),
             _ => 97,
         };
@@ -50,6 +55,46 @@ internal static class ChildProcessFixture
         foreach (string argument in arguments)
         {
             Console.WriteLine(Convert.ToBase64String(Encoding.UTF8.GetBytes(argument)));
+        }
+
+        return 0;
+    }
+
+    private static async Task<int> EchoInputAsync()
+    {
+        using var input = new MemoryStream();
+        await Console.OpenStandardInput().CopyToAsync(input).ConfigureAwait(false);
+        Console.Write(Convert.ToBase64String(input.ToArray()));
+        return 0;
+    }
+
+    private static async Task<int> DuplexAsync(string[] args)
+    {
+        int count = ParseNonNegativeInt32(args, 2);
+        // Fill both output pipes before reading input: a runner that awaits its input write first deadlocks.
+        await Task.WhenAll(
+            WriteBytesAsync(Console.OpenStandardOutput(), (byte)'O', count, 4096),
+            WriteBytesAsync(Console.OpenStandardError(), (byte)'E', count, 4096)).ConfigureAwait(false);
+        await Console.OpenStandardInput().CopyToAsync(Console.OpenStandardOutput()).ConfigureAwait(false);
+        return 0;
+    }
+
+    private static async Task<int> InheritInputAsync()
+    {
+        var runner = new ProcessRunner(new LocalExecutablePolicy());
+        ProcessResult result = await runner.RunAsync(new ProcessRequest(
+            ExecutablePath,
+            CreateArguments("input-echo"),
+            options: new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10)))).ConfigureAwait(false);
+        Console.Write(result.StandardOutput.Text);
+        return result.State == ProcessState.Exited ? result.ExitCode ?? 96 : 95;
+    }
+
+    private static int EchoEnvironment(string[] args)
+    {
+        for (int index = 2; index < args.Length; index++)
+        {
+            Console.WriteLine(Environment.GetEnvironmentVariable(args[index]) ?? "<missing>");
         }
 
         return 0;
@@ -106,7 +151,7 @@ internal static class ChildProcessFixture
     }
 
     // Starts a descendant that inherits stdout/stderr and exits while the descendant keeps them open.
-    private static async Task<int> StartPipeHolderAsync(string[] args)
+    private static async Task<int> StartPipeHolderAsync(string[] args, bool isolateOutputs = false)
     {
         string markerPath = args[2];
         using var process = new Process();
@@ -116,6 +161,8 @@ internal static class ChildProcessFixture
             UseShellExecute = false,
         };
         process.StartInfo.ArgumentList.Add(ChildSwitch);
+        process.StartInfo.RedirectStandardOutput = isolateOutputs;
+        process.StartInfo.RedirectStandardError = isolateOutputs;
         process.StartInfo.ArgumentList.Add("sleep");
         process.StartInfo.ArgumentList.Add("30000");
 
