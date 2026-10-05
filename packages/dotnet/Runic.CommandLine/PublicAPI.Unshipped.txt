@@ -106,6 +106,7 @@ namespace Runic.CommandLine
         public string[] Examples { get; set; }
 
         public string? Description { get; set; }
+        public string? DescriptionKey { get; set; }
 
         public CommandAttribute(string name);
         public string Name { get; }
@@ -126,6 +127,7 @@ namespace Runic.CommandLine
         public bool Sensitive { get; set; }
 
         public string? Description { get; set; }
+        public string? DescriptionKey { get; set; }
 
         public ArgumentAttribute();
         public ArgumentAttribute(string id);
@@ -148,6 +150,7 @@ namespace Runic.CommandLine
         public bool Sensitive { get; set; }
 
         public string? Description { get; set; }
+        public string? DescriptionKey { get; set; }
 
         public OptionAttribute(string name, params string[] aliases);
         public bool AllowMultipleOccurrences { get; set; }
@@ -227,8 +230,10 @@ namespace Runic.CommandLine
     public sealed class CommandOutputDispatcher : Runic.CommandLine.ICommandOutcomeSink
     {
         public CommandOutputDispatcher();
+        public Runic.CommandLine.ICommandTextResolver? TextResolver { get; init; }
         public System.Threading.Tasks.ValueTask WriteAsync<T>(Runic.CommandLine.CommandDescriptor command, Runic.CommandLine.CommandExecutionContext context, Runic.CommandLine.CommandOutcome<T> outcome, Runic.CommandLine.ICommandResultCodec<T> codec, int exitCode, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic> diagnostics, System.Threading.CancellationToken cancellationToken);
         public static System.Threading.Tasks.ValueTask DispatchAsync<T>(Runic.CommandLine.CommandOutputMode mode, Runic.CommandLine.ICommandConsole console, System.Globalization.CultureInfo culture, Runic.CommandLine.CommandResponse<T> response, Runic.CommandLine.ICommandResultCodec<T> codec, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+        public static System.Threading.Tasks.ValueTask DispatchAsync<T>(Runic.CommandLine.CommandOutputMode mode, Runic.CommandLine.ICommandConsole console, System.Globalization.CultureInfo culture, Runic.CommandLine.CommandResponse<T> response, Runic.CommandLine.ICommandResultCodec<T> codec, Runic.CommandLine.CommandTextContext textContext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
     }
     public sealed class CommandProtocolException : System.Exception
     {
@@ -361,6 +366,8 @@ namespace Runic.CommandLine
     public sealed class CommandApp
     {
         public CommandApp(Runic.CommandLine.CommandCatalog catalog);
+        public System.Globalization.CultureInfo? Culture { get; init; }
+        public Runic.CommandLine.ICommandTextResolver? TextResolver { get; init; }
         public string Name { get; init; }
         public string? CompletionExecutableName { get; init; }
         public string Version { get; init; }
@@ -415,15 +422,18 @@ namespace Runic.CommandLine
     public static class CommandHelpFormatter
     {
         public static string Format(Runic.CommandLine.CommandCatalog catalog, string applicationName, Runic.CommandLine.CommandPath path, string outputOptionName = "--output");
+        public static string Format(Runic.CommandLine.CommandCatalog catalog, string applicationName, Runic.CommandLine.CommandPath path, Runic.CommandLine.CommandTextContext context, string outputOptionName = "--output");
     }
     public interface ICommandHelpPresenter
     {
         System.Threading.Tasks.ValueTask WriteAsync(Runic.CommandLine.CommandCatalog catalog, string applicationName, Runic.CommandLine.CommandPath path, string outputOptionName, Runic.CommandLine.ICommandConsole console, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask WriteAsync(Runic.CommandLine.CommandCatalog catalog, string applicationName, Runic.CommandLine.CommandPath path, string outputOptionName, Runic.CommandLine.CommandTextContext textContext, Runic.CommandLine.ICommandConsole console, System.Threading.CancellationToken cancellationToken);
     }
     public static class CommandCompletion
     {
         public static string Generate(Runic.CommandLine.CommandCatalog catalog, string executable, string shell);
         public static string Generate(Runic.CommandLine.CommandCatalog catalog, string executable, string shell, string outputOptionName);
+        public static Runic.CommandLine.CommandCompletionResult Query(Runic.CommandLine.CommandCatalog catalog, System.Collections.Generic.IReadOnlyList<string> words, string outputOptionName = "--output");
     }
     public interface ICommandValueConverter<T>
     {
@@ -450,6 +460,7 @@ namespace Runic.CommandLine
     public sealed class CommandPresentation
     {
         public CommandPresentation();
+        public Runic.CommandLine.ICommandTextResolver? TextResolver { get; init; }
         public System.Action<System.Exception>? ExceptionObserver { get; init; }
         public string Name { get; init; }
         public string Version { get; init; }
@@ -489,4 +500,28 @@ namespace Runic.CommandLine
         Directory = 2,
     }
     public delegate System.Threading.Tasks.ValueTask CommandHumanPresenter<in T>(T value, Runic.CommandLine.ICommandConsole console, System.Globalization.CultureInfo culture, System.Threading.CancellationToken cancellationToken);
+}
+
+namespace Runic.CommandLine
+{
+    public interface ICommandTextResolver
+    {
+        string? Resolve(string key, System.Globalization.CultureInfo culture, System.Collections.Generic.IReadOnlyList<string> arguments);
+    }
+    public sealed class CommandTextContext
+    {
+        public CommandTextContext(System.Globalization.CultureInfo culture, Runic.CommandLine.ICommandTextResolver? resolver = null);
+        public System.Globalization.CultureInfo Culture { get; }
+        public Runic.CommandLine.ICommandTextResolver? Resolver { get; }
+        public static Runic.CommandLine.CommandTextContext English { get; }
+        public string Resolve(string? key, string fallback, System.Collections.Generic.IReadOnlyList<string>? arguments = null);
+        public string Description(Runic.CommandLine.CommandHelp help, string? descriptionKey);
+        public Runic.CommandLine.CommandDiagnostic Localize(Runic.CommandLine.CommandDiagnostic diagnostic);
+    }
+    public sealed class CommandCompletionResult
+    {
+        public System.Collections.Generic.IReadOnlyList<string> Candidates { get; }
+        public Runic.CommandLine.CommandPathKind PathKind { get; }
+        public string ValuePrefix { get; }
+    }
 }

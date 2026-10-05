@@ -11,5 +11,6 @@ namespace Runic.CommandLine.Spectre
     public sealed class SpectreHelpPresenter : Runic.CommandLine.ICommandHelpPresenter
     {
         public SpectreHelpPresenter();
+        public System.Threading.Tasks.ValueTask WriteAsync(Runic.CommandLine.CommandCatalog catalog, string applicationName, Runic.CommandLine.CommandPath path, string outputOptionName, Runic.CommandLine.CommandTextContext textContext, Runic.CommandLine.ICommandConsole console, System.Threading.CancellationToken cancellationToken);
     }
 }

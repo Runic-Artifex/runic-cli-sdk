@@ -28,7 +28,12 @@ public sealed class CommandApp
     /// <summary>Gets or sets the exit policy, including parser errors.</summary>
     public IExitCodePolicy ExitCodePolicy { get; init; } = DefaultExitCodePolicy.Instance;
     /// <summary>Gets or sets the outcome presenter.</summary>
-    public ICommandOutcomeSink OutcomeSink { get; init; } = new CommandOutputDispatcher();
+    public ICommandOutcomeSink OutcomeSink { get => _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver }; init => _outcomeSink = value; }
+    private readonly ICommandOutcomeSink? _outcomeSink;
+    /// <summary>Gets or sets the invocation culture. Otherwise the current culture is captured at invocation time.</summary>
+    public CultureInfo? Culture { get; init; }
+    /// <summary>Gets or sets optional text resolution for framework help and diagnostics.</summary>
+    public ICommandTextResolver? TextResolver { get; init; }
     /// <summary>Gets or sets explicit parse settings. Otherwise output configuration is read at invocation time.</summary>
     public ParseSettings? ParseSettings { get; init; }
     /// <summary>Gets or sets an observer for internal exceptions; these are never displayed to users.</summary>
@@ -51,15 +56,16 @@ public sealed class CommandApp
         if (HandleCancelKeyPress) System.Console.CancelKeyPress += handler;
         try
         {
+            CultureInfo culture = CultureInfo.ReadOnly((CultureInfo)(Culture ?? CultureInfo.CurrentCulture).Clone());
             var presentation = new CommandPresentation
             {
                 Name = Name, Version = Version, CompletionExecutableName = CompletionExecutableName,
-                HelpPresenter = HelpPresenter, FormatHelp = FormatHelp, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = ExceptionObserver,
+                TextResolver = TextResolver, HelpPresenter = HelpPresenter, FormatHelp = FormatHelp, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = ExceptionObserver,
             };
             ParseSettings settings = ParseSettings ?? new ParseSettings(Environment.GetEnvironmentVariable(CommandOutputClassifier.EnvironmentVariableName)) { GetEnvironmentVariable = Environment.GetEnvironmentVariable };
             if (args.Length == 2 && args[0] == "completion" && !_catalog.TryGetCommand("completion", out _))
             {
-                return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, args[1], settings.TransportOutputOptionName, Console, cancellation.Token), cancellation.Token).ConfigureAwait(false);
+                return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, args[1], settings.TransportOutputOptionName, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
             }
             ParseOutcome parsed = PortableCommandSyntaxAdapter.Instance.Parse(_catalog, args.Length == 0 && _catalog.DefaultCommand is null ? ["--help"] : args, settings);
             string requestId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
@@ -70,7 +76,7 @@ public sealed class CommandApp
                     : ScopeFactory ?? EmptyScopeFactory.Instance;
                 var executor = new CommandExecutor(scopes, ExitCodePolicy, Observer);
                 CommandExecutionResult result = await executor.ExecuteAsync(
-                    new CommandExecutionRequest(parsed.Invocation!, Console, CultureInfo.CurrentCulture, requestId) { ExceptionObserver = ExceptionObserver },
+                    new CommandExecutionRequest(parsed.Invocation!, Console, culture, requestId) { ExceptionObserver = ExceptionObserver },
                     OutcomeSink, cancellation.Token).ConfigureAwait(false);
                 return result.ExitCode;
             }
@@ -78,7 +84,7 @@ public sealed class CommandApp
             if (PresentFrameworkRequest is not null)
                 return await presentation.GuardAsync(() => PresentFrameworkRequest(parsed, Console, cancellation.Token), cancellation.Token).ConfigureAwait(false);
             return await presentation.GuardAsync(() => presentation.WriteAsync(_catalog, parsed, settings.TransportOutputOptionName,
-                Console, CultureInfo.CurrentCulture, requestId, cancellation.Token), cancellation.Token).ConfigureAwait(false);
+                Console, culture, requestId, cancellation.Token), cancellation.Token).ConfigureAwait(false);
         }
         finally
         {

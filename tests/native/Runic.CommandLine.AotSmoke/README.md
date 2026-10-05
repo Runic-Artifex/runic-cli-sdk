@@ -6,5 +6,7 @@ It uses the source generator, an application-owned source-generated JSON
 context, and invariant decimal binding without handwritten binders, factories,
 or codecs.
 
-Run `Invoke-AotSmoke.ps1` to perform restore, managed execution, `win-x64`
+Run `Invoke-AotSmoke.ps1` to perform restore, managed execution, host-runtime
 NativeAOT publication, and native execution.
+Use `-RuntimeIdentifier <rid>` for an explicit compatible host target. CI checks
+`linux-x64`, `win-x64` and `osx-arm64` on their corresponding operating systems.

@@ -336,10 +336,51 @@ The command's declared result payload identity and source-generated JSON metadat
 remain unchanged. The delegate only runs in human mode. Register against a
 canonical command path; a mismatched result type is a catalog validation error.
 
-Completion scripts add filesystem hints for visible, non-sensitive path options
-and aliases, including directory-only hints. Bash and PowerShell also handle
-`--option=value`. Other candidate lists remain static across the catalog; this is
-not a context-aware CLI parser embedded in each shell. Install scripts explicitly
-in your shell's completion setup (Zsh requires `compinit`); Runic never modifies
-shell profiles. The shell's ordinary filename fallback serves positional paths.
+Completion scripts use catalog context to select commands and aliases, visible
+options and the choices for the current option or positional argument. Native
+Bash, Zsh, fish and PowerShell wrappers support separated and `--option=value`
+forms, safely dequote typed prefixes and preserve literal choices containing
+spaces. Filesystem completion follows visible, non-sensitive path metadata on
+options and positional arguments, including aliases and directory-only hints.
+The generated scripts request files through catalog path hints; shells may apply
+their own default filesystem fallback. The generated scripts require no Python
+runtime. Install scripts explicitly in your shell's
+completion setup (Zsh requires `compinit`); Runic never modifies shell profiles.
+
+`CommandCompletion.Query(catalog, words, outputOptionName)` provides the same
+context query for integrations. Exclude the executable from `words`; the final
+word is the current prefix, or an empty string after trailing whitespace. Existing
+`Generate` overloads remain available.
 See the [complete examples](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/README.md).
+
+## Explicit culture and localized presentation
+
+Set `CommandApp.Culture` and `CommandApp.TextResolver` to resolve help and
+framework/execution diagnostics without selecting a localization library. The
+culture defaults to `CultureInfo.CurrentCulture` captured when an invocation
+starts; framework prose remains English when no resolver is installed. Direct
+`CommandHelpFormatter.Format` calls retain an English default and have an
+additive overload accepting `CommandTextContext`. Hosted presentation uses the
+culture passed to `CommandLineHostingAdapter.PresentAsync` and the resolver on
+its `CommandPresentation`. Configure `CommandOutputDispatcher.TextResolver` for
+a custom or hosted execution sink.
+
+`ICommandTextResolver.Resolve` receives a key, culture and ordered safe argument
+list, and returns null when it cannot resolve the key. Command, argument and
+option attributes accept `DescriptionKey`; `Description` remains the literal
+fallback. Diagnostic messages resolve their `MessageKey` and `Arguments`.
+Faults without a matching diagnostic use `faults.{code}` with no arguments.
+Translations change presentation text, including JSON messages, while command
+spellings, canonical paths, diagnostic codes/keys and protocol/payload identities
+remain unchanged. The existing sanitizers still apply to resolved text.
+
+See the maintained [English/German example](../../../examples/command-line/localized/README.md)
+using public, independently versioned Translations packages. It is optional;
+this package does not reference Translations.
+
+Converters and validators must be closed, accessible class or struct types
+implementing `ICommandValueConverter<T>` or `ICommandValueValidator<T>` for the
+exact parameter type, with concrete static implementations. Generator diagnostics
+point to invalid attributes. Boolean options are presence flags: they support
+validators but reject converters. List binding converts supported element types
+and rejects aggregate converters; list validators receive the full bound list.

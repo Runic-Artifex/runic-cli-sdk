@@ -114,7 +114,7 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
         decision.ValidateOwner(_decisionOwner);
         if (decision.Kind == HostedCommandLineDecisionKind.Completion)
-            return Presentation.GuardAsync(() => Presentation.WriteCompletionAsync(_catalog, decision.Arguments[1], decision.LaunchInput.TransportOutputOptionName, console, cancellationToken), cancellationToken);
+            return Presentation.GuardAsync(() => Presentation.WriteCompletionAsync(_catalog, decision.Arguments[1], decision.LaunchInput.TransportOutputOptionName, console, culture, cancellationToken), cancellationToken);
         if (decision.Kind is not (HostedCommandLineDecisionKind.Help or HostedCommandLineDecisionKind.Version or HostedCommandLineDecisionKind.Invalid) || decision.ParseOutcome is null)
             throw new InvalidOperationException("Presentation requires a framework decision created by this adapter.");
         return Presentation.GuardAsync(() => Presentation.WriteAsync(_catalog, decision.ParseOutcome, decision.LaunchInput.TransportOutputOptionName,

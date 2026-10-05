@@ -13,6 +13,8 @@ public sealed class CommandAttribute : Attribute
     public string Name { get; }
     /// <summary>Gets or sets whether this entry is hidden from discovery.</summary>
     public bool Hidden { get; set; }
+    /// <summary>Gets or sets the localization key for descriptive help; Description supplies its fallback.</summary>
+    public string? DescriptionKey { get; set; }
     /// <summary>Gets or sets descriptive help.</summary>
     public string? Description { get; set; }
     /// <summary>Gets or sets extended command help.</summary>
@@ -33,6 +35,8 @@ public sealed class ArgumentAttribute : Attribute
 {
     /// <summary>Gets or sets whether this entry is hidden from discovery.</summary>
     public bool Hidden { get; set; }
+    /// <summary>Gets or sets the localization key for descriptive help; Description supplies its fallback.</summary>
+    public string? DescriptionKey { get; set; }
     /// <summary>Gets or sets descriptive help.</summary>
     public string? Description { get; set; }
     /// <summary>Gets or sets path completion and validation metadata.</summary>
@@ -80,6 +84,8 @@ public sealed class OptionAttribute : Attribute
     public string? EnvironmentVariable { get; set; }
     /// <summary>Gets or sets whether this entry is hidden from discovery.</summary>
     public bool Hidden { get; set; }
+    /// <summary>Gets or sets the localization key for descriptive help; Description supplies its fallback.</summary>
+    public string? DescriptionKey { get; set; }
     /// <summary>Gets or sets descriptive help.</summary>
     public string? Description { get; set; }
     /// <summary>Gets or sets path completion and validation metadata.</summary>

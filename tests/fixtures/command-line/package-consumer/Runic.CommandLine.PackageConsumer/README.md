@@ -5,6 +5,10 @@ Run `pwsh -NoProfile -File Invoke-PackageConsumer.ps1 -PackageVersion <version>
 The script consumes the existing candidate feed and restores the template consumer
 into a fresh package cache. It proves managed and host-runtime NativeAOT execution
 on the selected platform. It does not rebuild or repack the candidates.
+All four exact-version candidate package files must exist before the run starts.
+The committed version in `eng/Versions.props` is a candidate authority, not evidence
+of NuGet publication. Source mapping prevents fallback to a published Command Line
+package, even if that version also exists on NuGet.
 
 The consumer uses the optional Spectre package and CommandApp with a built-in string codec,
 as well as the kernel's packaged method-first analyzer,
@@ -30,6 +34,9 @@ execution.
 
 The same run copies the maintained `hello-world` and command-tree tutorial C#
 sources outside the checkout and builds them with PackageReferences. It executes
-the greeting and hosted service, help and empty-input UI-selection paths. This
+the [package-only quick-start](../../../../../README.md#package-only-quick-start)
+greeting in human and JSON modes and help, with assertions on the output. The
+hello-world project references only the core package. It also executes hosted
+service, help and empty-input UI-selection paths in the command-tree example. This
 checks that the tutorials need no repository-only generator/build imports.
 The application UI branch is a console fixture; it does not open a desktop window.

@@ -13,3 +13,5 @@ for project in \
   examples/command-line/Tests/HelloCli.ExampleTests.csproj; do
   dotnet run --project "$project" -c Release --no-build
 done
+dotnet run --project examples/command-line/ProcessInput/ProcessInput.csproj -c Release --no-build -- stone and gold
+python3 examples/command-line/localized/verify.py --configuration Release

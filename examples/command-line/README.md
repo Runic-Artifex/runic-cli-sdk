@@ -1,13 +1,17 @@
 # From one command to an application
 
-Use the SDK development environment for the checkout commands below. For a
-package-based application, reference matching versions of `Runic.CommandLine`
-and optionally `Runic.CommandLine.Spectre`; the core package includes its source
-generator. The follow-up APIs are unreleased and are not in 0.2.0-preview.1.
+Start with the [package-only quick-start](../../README.md#package-only-quick-start):
+install the core package, write one command method, then run human or JSON output.
+The current `0.6.0-preview.2` candidate is distinct from the published
+`0.6.0-preview.1`; these sources are checked against the candidate, not assumed
+to work against earlier package APIs. Use matching versions of `Runic.CommandLine`
+and optional `Runic.CommandLine.Spectre`.
 The [package-consumer check](../../tests/fixtures/command-line/package-consumer/Runic.CommandLine.PackageConsumer/README.md)
 compiles these tutorial sources against packed NuGet artifacts outside the checkout.
 
-Use the SDK development environment. Each step below is a maintained, compiled
+For the checkout commands below, use this repository's pinned .NET environment
+(`direnv exec . <command>` on NixOS after reviewing and allowing `.envrc`).
+Each step below is a maintained, compiled
 example; there is no supporting implementation hidden outside the linked files.
 
 ## 1. One-file hello world
@@ -18,6 +22,7 @@ no scope, console, binder, handler factory, DTO or JSON context.
 
 ```sh
 dotnet run --project examples/command-line/hello-world -- Ada --count 2
+dotnet run --project examples/command-line/hello-world -- Ada --count 2 --output=json
 dotnet run --project examples/command-line/hello-world -- --help
 ```
 
@@ -82,6 +87,32 @@ and a JSON envelope without starting a process or replacing the parser.
 
 ```sh
 dotnet run --project examples/command-line/Tests
+```
+
+## 6. Bounded local tools
+
+[`ProcessInput`](ProcessInput/README.md) chains application-owned normalize,
+count and health tools. It supplies bounded UTF-8 stdin, closes stdin for the
+health command, explicitly supplies each isolated child environment and limits
+stdout, stderr and elapsed time. Ctrl+C cancels the chain.
+
+```sh
+dotnet run --project examples/command-line/ProcessInput -c Release -- stone and gold
+```
+
+The result is `Normalized: STONE AND GOLD`, `Word count: 3` and `Health: ready`.
+
+## 7. Localized presentation
+
+[`localized`](localized/README.md) adds optional English/German text resolution
+through Runic Translations. The core Command Line package stays dependency-free;
+the example selects culture through `RCLI_EXAMPLE_CULTURE` while keeping command
+tokens and JSON protocol identifiers stable. Command Line and Translations use
+their own package versions.
+
+```sh
+RCLI_EXAMPLE_CULTURE=en dotnet run --project examples/command-line/localized -- --help
+RCLI_EXAMPLE_CULTURE=de dotnet run --project examples/command-line/localized -- --help
 ```
 
 ## Before and after in the first-party tools

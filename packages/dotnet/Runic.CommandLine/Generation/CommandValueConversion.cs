@@ -16,7 +16,8 @@ public interface ICommandValueValidator<T>
     static abstract bool IsValid(T value);
 }
 
-/// <summary>Selects a custom parameter converter implementing ICommandValueConverter.</summary>
+/// <summary>Selects a closed, accessible converter implementing ICommandValueConverter for the exact parameter type.</summary>
+/// <remarks>Only scalar value-taking arguments and options support converters. Boolean flags and list parameters do not.</remarks>
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class ConvertWithAttribute(Type converterType) : Attribute
 {

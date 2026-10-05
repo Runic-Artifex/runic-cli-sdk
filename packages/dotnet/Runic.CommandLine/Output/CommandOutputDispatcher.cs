@@ -10,6 +10,9 @@ namespace Runic.CommandLine;
 /// <summary>Dispatches semantic command responses to human or machine presentation.</summary>
 public sealed class CommandOutputDispatcher : ICommandOutcomeSink
 {
+    /// <summary>Gets optional text resolution for execution diagnostics. Culture comes from the invocation context.</summary>
+    public ICommandTextResolver? TextResolver { get; init; }
+
     /// <inheritdoc />
     public ValueTask WriteAsync<T>(
         CommandDescriptor command,
@@ -35,6 +38,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             outcome,
             diagnostics);
 
+        response = new CommandTextContext(context.Culture, TextResolver).Localize(response);
         return context.OutputMode == CommandOutputMode.Human &&
             !outcome.IsSuccess &&
             outcome.HumanOutput is { Length: > 0 } humanOutput
@@ -101,6 +105,16 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
+    }
+
+    /// <summary>Writes a response with explicit text resolution while preserving machine identities and the existing sanitizer.</summary>
+    public static ValueTask DispatchAsync<T>(CommandOutputMode mode, ICommandConsole console, CultureInfo culture,
+        CommandResponse<T> response, ICommandResultCodec<T> codec, CommandTextContext textContext,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(textContext);
+        ArgumentNullException.ThrowIfNull(response);
+        return DispatchAsync(mode, console, culture, textContext.Localize(response), codec, cancellationToken);
     }
 
     private static async ValueTask WriteHumanAsync<T>(
