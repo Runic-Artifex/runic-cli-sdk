@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <RunicCommandLineVersion>0.6.0-preview.2</RunicCommandLineVersion>
+    <Version Condition="'$(Version)' == ''">$(RunicCommandLineVersion)</Version>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">$(RunicCommandLineVersion)</PackageVersion>
+  </PropertyGroup>
+</Project>

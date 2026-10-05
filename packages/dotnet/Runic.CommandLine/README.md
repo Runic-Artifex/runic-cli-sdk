@@ -46,7 +46,7 @@ greet Ada` emits one versioned response. An application without a default comman
 shows help for an empty invocation; the lower-level parser retains its existing
 empty-input classification for hosted UI launch decisions.
 
-See the runnable [command-line example](https://github.com/Runic-Artifex/runic-sdk/blob/main/examples/command-line/README.md).
+See the runnable [command-line example](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/README.md).
 
 ## Method-first inputs and results
 
@@ -164,7 +164,7 @@ if (parse.Kind == ParseOutcomeKind.Invocation && parse.Invocation is not null)
 
 `console` is your `ICommandConsole` implementation and `executor` is a
 `CommandExecutor` configured with your `ICommandExecutionScopeFactory`. See the
-[complete runnable example](https://github.com/Runic-Artifex/runic-sdk/tree/main/tests/native/Runic.CommandLine.AotSmoke)
+[complete runnable example](https://github.com/Runic-Artifex/runic-cli-sdk/tree/main/tests/native/Runic.CommandLine.AotSmoke)
 for implementations of the binder, handler, source-generated codec, scope, and
 console.
 
@@ -189,10 +189,10 @@ success is the only semantic outcome that maps to exit code zero.
 ## Documentation and support
 
 Read the [Runic Command Line documentation](https://docs.runic-artifex.eu/products/runic-command-line/),
-see [examples](https://github.com/Runic-Artifex/runic-sdk/tree/main/tests/dotnet/Runic.CommandLine.Tests),
-or [report an issue](https://github.com/Runic-Artifex/runic-sdk/issues).
+see [examples](https://github.com/Runic-Artifex/runic-cli-sdk/tree/main/tests/dotnet/Runic.CommandLine.Tests),
+or [report an issue](https://github.com/Runic-Artifex/runic-cli-sdk/issues).
 Runic.CommandLine is maintained by Runic Artifex and licensed under the
-[MIT License](https://github.com/Runic-Artifex/runic-sdk/blob/main/LICENSE).
+[MIT License](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/LICENSE).
 
 ## Commands inside a Runic application
 
@@ -260,7 +260,7 @@ stay out of public faults. If you customize exit codes, supply the same policy t
 `CommandExecutor` and `Presentation.ExitCodePolicy`. An explicit empty-input UI
 policy wins even when the catalog declares a default command.
 
-See the runnable [hosted example](https://github.com/Runic-Artifex/runic-sdk/blob/main/examples/command-line/HostedExample.cs)
+See the runnable [hosted example](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/HostedExample.cs)
 for service injection and the complete launch flow. The example's UI branch is a
 console placeholder for an application's existing UI launcher.
 
@@ -342,4 +342,4 @@ and aliases, including directory-only hints. Bash and PowerShell also handle
 not a context-aware CLI parser embedded in each shell. Install scripts explicitly
 in your shell's completion setup (Zsh requires `compinit`); Runic never modifies
 shell profiles. The shell's ordinary filename fallback serves positional paths.
-See the [complete examples](https://github.com/Runic-Artifex/runic-sdk/blob/main/examples/command-line/README.md).
+See the [complete examples](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/README.md).

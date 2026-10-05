@@ -1,0 +1,56 @@
+name: Publish preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact SemVer preview version
+        required: true
+        type: string
+
+concurrency:
+  group: publish-preview-${{ inputs.version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    if: github.repository == 'Runic-Artifex/runic-cli-sdk' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: preview
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Validate version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ inputs.version }}'
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
+          expected_version="$(sed -n 's:.*<RunicCommandLineVersion>\(.*\)</RunicCommandLineVersion>.*:\1:p' eng/Versions.props)"
+          test -n "$expected_version"
+          test "$version" = "$expected_version"
+      - run: ./eng/test.sh
+      - run: ./eng/pack.sh '${{ inputs.version }}' artifacts/packages
+      - run: ./eng/verify-packages.sh '${{ inputs.version }}' artifacts/packages
+      - id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: Publish packages
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          for package in artifacts/packages/*.nupkg; do
+            dotnet nuget push "$package" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_API_KEY" --skip-duplicate
+          done
+      - name: Create GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create 'v${{ inputs.version }}' artifacts/packages/*.nupkg --prerelease --generate-notes

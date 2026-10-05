@@ -1,0 +1,8 @@
+<Project>
+  <ItemGroup>
+    <RunicShippingProject Include="$(MSBuildThisFileDirectory)../../packages/dotnet/Runic.CommandLine/Runic.CommandLine.csproj" PackageId="Runic.CommandLine" />
+    <RunicShippingProject Include="$(MSBuildThisFileDirectory)../../packages/dotnet/Runic.CommandLine.Processes/Runic.CommandLine.Processes.csproj" PackageId="Runic.CommandLine.Processes" />
+    <RunicShippingProject Include="$(MSBuildThisFileDirectory)../../packages/dotnet/Runic.CommandLine.Spectre/Runic.CommandLine.Spectre.csproj" PackageId="Runic.CommandLine.Spectre" />
+    <RunicShippingProject Include="$(MSBuildThisFileDirectory)../../packages/dotnet/Runic.CommandLine.Testing/Runic.CommandLine.Testing.csproj" PackageId="Runic.CommandLine.Testing" />
+  </ItemGroup>
+</Project>

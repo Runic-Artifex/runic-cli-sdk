@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/TestResults/
+**/artifacts/
+/artifacts/
+/.cache/
+/.direnv/
+**/.packages/
+**/coverage/
+*.binlog
+*.trx
+*.nupkg
+*.snupkg

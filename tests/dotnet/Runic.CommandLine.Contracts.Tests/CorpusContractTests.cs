@@ -139,7 +139,7 @@ internal static class CorpusContractTests
         DirectoryInfo? directory = new(startPath);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "RunicSdk.Core.slnx")))
+            if (File.Exists(Path.Combine(directory.FullName, "Runic.CommandLine.slnx")))
             {
                 return directory.FullName;
             }

@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/packages/">
+    <Project Path="packages/dotnet/Runic.CommandLine/Runic.CommandLine.csproj" />
+    <Project Path="packages/dotnet/Runic.CommandLine.Generators/Runic.CommandLine.Generators.csproj" />
+    <Project Path="packages/dotnet/Runic.CommandLine.Processes/Runic.CommandLine.Processes.csproj" />
+    <Project Path="packages/dotnet/Runic.CommandLine.Spectre/Runic.CommandLine.Spectre.csproj" />
+    <Project Path="packages/dotnet/Runic.CommandLine.Testing/Runic.CommandLine.Testing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/dotnet/Runic.CommandLine.Contracts.Tests/Runic.CommandLine.Contracts.Tests.csproj" />
+    <Project Path="tests/dotnet/Runic.CommandLine.Hosting.Tests/Runic.CommandLine.Hosting.Tests.csproj" />
+    <Project Path="tests/dotnet/Runic.CommandLine.Processes.Tests/Runic.CommandLine.Processes.Tests.csproj" />
+    <Project Path="tests/dotnet/Runic.CommandLine.Tests/Runic.CommandLine.Tests.csproj" />
+    <Project Path="tests/native/Runic.CommandLine.AotSmoke/Runic.CommandLine.AotSmoke.csproj" />
+    <Project Path="examples/command-line/Tests/HelloCli.ExampleTests.csproj" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/command-line/HelloCli.csproj" />
+    <Project Path="examples/command-line/hello-world/HelloWorld.csproj" />
+    <Project Path="tests/fixtures/command-line/CommandLine.Kernel/CommandLine.Kernel.csproj" />
+  </Folder>
+</Solution>
