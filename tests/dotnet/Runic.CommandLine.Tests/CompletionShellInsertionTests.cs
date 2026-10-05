@@ -50,7 +50,25 @@ internal static partial class CompletionHelpTests
                     return prompt()
                 try:
                     prompt()
-                    if shell == 'zsh': submit('autoload -Uz compinit; compinit -D; unsetopt beep')
+                    if shell == 'zsh':
+                        # Exercise hosted runners with unsafe site completions; exclude them rather than bypass the audit.
+                        unsafe = os.path.join(os.getcwd(), 'unsafe-fpath')
+                        os.mkdir(unsafe)
+                        os.chmod(unsafe, 0o777)
+                        with open(os.path.join(unsafe, '_runic_untrusted'), 'w') as entry:
+                            entry.write('#compdef runic-untrusted\nreturn 97\n')
+                        initialization = (
+                            'fpath=(' + shlex.quote(unsafe) + ' $fpath); '
+                            'autoload -Uz compinit; compinit -i -D; unsetopt beep; '
+                            'typeset -i unsafe_seen=0; '
+                            'for completion_dir in $fpath; do '
+                            'if [[ "$completion_dir" == ' + shlex.quote(unsafe) + ' ]]; then unsafe_seen=1; fi; done; '
+                            'if (( unsafe_seen || ${+_comps[runic-untrusted]} )); then '
+                            'print -r -- __UNSAFE_INCLUDED__; else print -r -- __AUDIT_OK__; fi'
+                        )
+                        initialized = submit(initialization)
+                        if '\n__AUDIT_OK__\r\n' not in initialized:
+                            raise AssertionError('Insecure completions were not excluded: ' + repr(initialized))
                     submit('source ' + shlex.quote(sys.argv[1]) + '; fixture() { printf "\\n__COUNT__%s\\n" "$#"; for value in "$@"; do printf "__VALUE__%s\\n" "$value"; done; }')
                     cases = [
                         ('fixture cfg write --mode care\t', 4, 'careful mode'),
