@@ -20,11 +20,14 @@
         in {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              bashInteractive
               git
               curl
               dotnet
               python3
               powershell
+              fish
+              zsh
               clang
               pkg-config
               zlib

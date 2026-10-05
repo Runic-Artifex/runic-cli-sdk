@@ -49,6 +49,8 @@ namespace Runic.CommandLine.Processes
         public const int MaximumOutputLimitBytes = 16777216;
         public ProcessExecutionOptions(System.TimeSpan? timeout = null, int standardOutputLimitBytes = 1048576, int standardErrorLimitBytes = 1048576, System.TimeSpan? drainGracePeriod = null, System.Text.Encoding? standardOutputEncoding = null, System.Text.Encoding? standardErrorEncoding = null, bool allowWindowsBatchFiles = false);
         public bool AllowWindowsBatchFiles { get; }
+        public bool InheritEnvironment { get; init; }
+        public Runic.CommandLine.Processes.ProcessStandardInput StandardInput { get; init; }
         public int StandardErrorLimitBytes { get; }
         public System.Text.Encoding StandardErrorEncoding { get; }
         public int StandardOutputLimitBytes { get; }
@@ -84,6 +86,22 @@ namespace Runic.CommandLine.Processes
         public string FileName { get; }
         public Runic.CommandLine.Processes.ProcessExecutionOptions Options { get; }
         public string? WorkingDirectory { get; }
+    }
+    public enum ProcessStandardInputMode
+    {
+        BoundedBytes = 2,
+        Closed = 1,
+        Inherit = 0,
+    }
+    public sealed class ProcessStandardInput
+    {
+        public const int DefaultInputLimitBytes = 1048576;
+        public const int MaximumInputLimitBytes = 16777216;
+        public int ByteCount { get; }
+        public Runic.CommandLine.Processes.ProcessStandardInputMode Mode { get; }
+        public static Runic.CommandLine.Processes.ProcessStandardInput Closed { get; }
+        public static Runic.CommandLine.Processes.ProcessStandardInput Inherit { get; }
+        public static Runic.CommandLine.Processes.ProcessStandardInput FromBytes(System.ReadOnlyMemory<byte> bytes, int limitBytes = 1048576);
     }
     public sealed class ProcessResult
     {

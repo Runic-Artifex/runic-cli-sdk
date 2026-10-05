@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  managed-and-pack:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -17,10 +17,58 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
-      - run: ./eng/verify.sh
+      - name: Install completion shell prerequisites
+        run: sudo apt-get update && sudo apt-get install -y fish zsh
+      - run: ./eng/test.sh
+      - run: ./eng/pack.sh "$(./eng/package-version.sh)" artifacts/packages
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: command-line-packages
           path: artifacts/packages
-          if-no-files-found: ignore
+          if-no-files-found: error
+          retention-days: 7
+
+  native-aot:
+    needs: managed-and-pack
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rid: linux-x64
+          - os: windows-2025
+            rid: win-x64
+          - os: macos-15
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: command-line-packages
+          path: artifacts/packages
+      - name: Install Linux NativeAOT prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+      - name: Check macOS NativeAOT prerequisites
+        if: runner.os == 'macOS'
+        run: xcrun --find clang
+      - name: Check Windows NativeAOT prerequisites
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installation = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0 -or -not $installation) { throw 'Visual C++ build tools are required.' }
+          Write-Host "Using Visual C++ build tools from $installation"
+      - name: Source and candidate package NativeAOT smoke
+        shell: pwsh
+        run: |
+          ./tests/native/Runic.CommandLine.AotSmoke/Invoke-AotSmoke.ps1 -Configuration Release -RuntimeIdentifier '${{ matrix.rid }}'
+          [xml] $versions = Get-Content eng/Versions.props
+          $version = [string] $versions.Project.PropertyGroup.RunicCommandLineVersion
+          ./tests/fixtures/command-line/package-consumer/Runic.CommandLine.PackageConsumer/Invoke-PackageConsumer.ps1 -Configuration Release -RuntimeIdentifier '${{ matrix.rid }}' -PackageVersion $version -PackageDirectory artifacts/packages

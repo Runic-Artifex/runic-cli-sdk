@@ -10,10 +10,15 @@ public sealed class SpectreHelpPresenter : ICommandHelpPresenter
 {
     /// <inheritdoc />
     public async ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName, ICommandConsole console, CancellationToken cancellationToken)
+        => await WriteAsync(catalog, applicationName, path, outputOptionName, CommandTextContext.English, console, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName,
+        CommandTextContext textContext, ICommandConsole console, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(console);
         var presenter = console as SpectreCommandConsole ?? new SpectreCommandConsole(console);
-        string text = CommandHelpFormatter.Format(catalog, applicationName, path, outputOptionName);
+        string text = CommandHelpFormatter.Format(catalog, applicationName, path, textContext, outputOptionName);
         // Keep the plain and styled forms textually equivalent, including under redirection.
         string[] lines = text.TrimEnd('\n').Split('\n');
         foreach (string line in lines)

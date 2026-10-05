@@ -1,0 +1,28 @@
+commands {
+  greet = Eine Person begrüßen
+}
+arguments {
+  name = Name der zu begrüßenden Person
+}
+help {
+  optionsPlaceholder = Optionen
+  commandPlaceholder = Befehl
+  required = erforderlich
+  completion = Shell-Vervollständigung für bash, zsh, fish oder PowerShell erzeugen
+
+  usage = Aufruf
+  commands = Befehle
+  arguments = Argumente
+  options = Optionen
+  showHelp = Hilfe anzeigen
+  showVersion = Version anzeigen
+  selectOutput = Ausgabeformat wählen
+}
+diagnostics {
+  unknownOption = Eine unbekannte Option wurde angegeben.
+}
+app {
+  greeting =
+    .input {$name :string}
+    {{Hallo {$name}}}
+}

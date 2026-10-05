@@ -14,6 +14,8 @@ public sealed class CommandPresentation
     public string Version { get; init; } = "0.0.0";
     /// <summary>Gets the executable name used by completion scripts.</summary>
     public string? CompletionExecutableName { get; init; }
+    /// <summary>Gets optional text resolution for help and framework diagnostics; the caller supplies culture per invocation.</summary>
+    public ICommandTextResolver? TextResolver { get; init; }
     /// <summary>Gets the human help renderer.</summary>
     public ICommandHelpPresenter? HelpPresenter { get; init; }
     /// <summary>Gets an optional application-specific help formatter.</summary>
@@ -47,13 +49,15 @@ public sealed class CommandPresentation
     private static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException or AccessViolationException or AppDomainUnloadedException or BadImageFormatException;
 
-    internal async ValueTask<int> WriteCompletionAsync(CommandCatalog catalog, string shell, string outputOptionName, ICommandConsole console, CancellationToken cancellationToken)
+    internal async ValueTask<int> WriteCompletionAsync(CommandCatalog catalog, string shell, string outputOptionName, ICommandConsole console, CultureInfo culture, CancellationToken cancellationToken)
     {
         string script;
         try { script = CommandCompletion.Generate(catalog, CompletionExecutableName ?? Name, shell, outputOptionName); }
         catch (ArgumentException)
         {
-            await console.WriteErrorAsync("Choose a completion shell: bash, zsh, fish or powershell.\n".AsMemory(), cancellationToken).ConfigureAwait(false);
+            string message = new CommandTextContext(culture, TextResolver).Resolve("completion.invalid-shell", "Choose a completion shell: bash, zsh, fish or powershell.");
+            message = CommandFaultSanitizer.ContainsTechnicalContent(message) ? "The diagnostic content was redacted." : CommandFaultSanitizer.SanitizeRequiredText(message);
+            await console.WriteErrorAsync((message + "\n").AsMemory(), cancellationToken).ConfigureAwait(false);
             return ExitCodePolicy.GetExitCode(CommandExitCategory.Usage);
         }
         await console.WriteOutBytesAsync(System.Text.Encoding.UTF8.GetBytes(script), cancellationToken).ConfigureAwait(false);
@@ -63,9 +67,10 @@ public sealed class CommandPresentation
     internal async ValueTask<int> WriteAsync(CommandCatalog catalog, ParseOutcome parsed, string outputOptionName,
         ICommandConsole console, CultureInfo culture, string requestId, CancellationToken cancellationToken)
     {
+        var textContext = new CommandTextContext(culture, TextResolver);
         if (parsed.Kind == ParseOutcomeKind.Help && parsed.OutputClassification?.Mode == CommandOutputMode.Human && HelpPresenter is not null && FormatHelp is null)
         {
-            await HelpPresenter.WriteAsync(catalog, Name, parsed.HelpRequest!.Path, outputOptionName, console, cancellationToken).ConfigureAwait(false);
+            await HelpPresenter.WriteAsync(catalog, Name, parsed.HelpRequest!.Path, outputOptionName, textContext, console, cancellationToken).ConfigureAwait(false);
             return 0;
         }
         CommandResponse<string> response;
@@ -79,11 +84,11 @@ public sealed class CommandPresentation
         else
         {
             string text = parsed.Kind == ParseOutcomeKind.Version ? Version :
-                FormatHelp?.Invoke(parsed.HelpRequest!.Path) ?? CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, outputOptionName);
+                FormatHelp?.Invoke(parsed.HelpRequest!.Path) ?? CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, textContext, outputOptionName);
             response = CommandResponse.Succeeded(requestId, parsed.Kind == ParseOutcomeKind.Version ? "version" : "help", CommandResultCodecs.String.PayloadType, text);
         }
         await CommandOutputDispatcher.DispatchAsync(parsed.OutputClassification?.Mode ?? CommandOutputMode.Human,
-            console, culture, response, CommandResultCodecs.String, cancellationToken).ConfigureAwait(false);
+            console, culture, response, CommandResultCodecs.String, textContext, cancellationToken).ConfigureAwait(false);
         return response.ExitCode;
     }
 }

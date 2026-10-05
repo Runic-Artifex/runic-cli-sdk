@@ -30,11 +30,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version='${{ inputs.version }}'
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
-          expected_version="$(sed -n 's:.*<RunicCommandLineVersion>\(.*\)</RunicCommandLineVersion>.*:\1:p' eng/Versions.props)"
-          test -n "$expected_version"
+          version="$(./eng/package-version.sh "$RUNIC_RELEASE_VERSION")"
+          expected_version="$(./eng/package-version.sh)"
           test "$version" = "$expected_version"
+        env:
+          RUNIC_RELEASE_VERSION: ${{ inputs.version }}
       - run: ./eng/test.sh
       - run: ./eng/pack.sh '${{ inputs.version }}' artifacts/packages
       - run: ./eng/verify-packages.sh '${{ inputs.version }}' artifacts/packages

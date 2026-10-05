@@ -187,6 +187,14 @@ public sealed class ProcessRunner : IProcessRunner
             cancellationToken,
             timeout?.Token ?? CancellationToken.None);
 
+        using var inputStop = CancellationTokenSource.CreateLinkedTokenSource(linked.Token);
+        Stream? inputStream = effectiveRequest.Options.StandardInput.Mode == ProcessStandardInputMode.Inherit
+            ? null
+            : process.StandardInput.BaseStream;
+        Task inputTask = inputStream is null
+            ? Task.CompletedTask
+            : WriteInputAsync(inputStream, effectiveRequest.Options.StandardInput.Bytes, inputStop.Token);
+
         try
         {
             await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
@@ -211,16 +219,26 @@ public sealed class ProcessRunner : IProcessRunner
             termination.Request();
         }
 
+        // A child may exit without reading all input, or a descendant may inherit the read end.
+        // Stop input independently of output draining and never wait for it before observing exit.
+        inputStop.Cancel();
+        if (inputStream is not null)
+        {
+            TryClose(inputStream);
+        }
+
         DrainOutcome drain = state is ProcessState.Cancelled or ProcessState.TimedOut or ProcessState.ExecutionFailed
             ? await AwaitTerminationAndDrainAsync(
                 process,
                 stdoutTask,
                 stderrTask,
+                inputTask,
                 effectiveRequest.Options.DrainGracePeriod).ConfigureAwait(false)
             : await AwaitDrainAsync(
                 process,
                 stdoutTask,
                 stderrTask,
+                inputTask,
                 effectiveRequest.Options.DrainGracePeriod).ConfigureAwait(false);
 
         ProcessOutput standardOutput = GetOutput(stdoutTask, drain.StandardOutputTimedOut);
@@ -251,7 +269,7 @@ public sealed class ProcessRunner : IProcessRunner
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            RedirectStandardInput = false,
+            RedirectStandardInput = request.Options.StandardInput.Mode != ProcessStandardInputMode.Inherit,
             CreateNoWindow = true,
             StandardOutputEncoding = request.Options.StandardOutputEncoding,
             StandardErrorEncoding = request.Options.StandardErrorEncoding,
@@ -265,6 +283,11 @@ public sealed class ProcessRunner : IProcessRunner
         for (int index = 0; index < request.Arguments.Count; index++)
         {
             startInfo.ArgumentList.Add(request.Arguments[index]);
+        }
+
+        if (!request.Options.InheritEnvironment)
+        {
+            startInfo.Environment.Clear();
         }
 
         foreach (System.Collections.Generic.KeyValuePair<string, string?> pair in request.Environment)
@@ -314,7 +337,7 @@ public sealed class ProcessRunner : IProcessRunner
         string? pathValue = GetEffectiveEnvironmentValue(request, "PATH");
         if (string.IsNullOrWhiteSpace(pathValue))
         {
-            return request.FileName;
+            return UnresolvedExecutable(request);
         }
 
         string[] extensions = GetExecutableExtensions(request.FileName, request);
@@ -334,8 +357,12 @@ public sealed class ProcessRunner : IProcessRunner
             }
         }
 
-        return request.FileName;
+        return UnresolvedExecutable(request);
     }
+
+    private static string UnresolvedExecutable(ProcessRequest request) =>
+        // Process.Start can otherwise search the parent PATH even after Environment.Clear().
+        request.Options.InheritEnvironment ? request.FileName : Path.GetFullPath(request.FileName);
 
     private string[] GetExecutableExtensions(string fileName, ProcessRequest request)
     {
@@ -365,7 +392,7 @@ public sealed class ProcessRunner : IProcessRunner
             }
         }
 
-        return platform.GetEnvironmentVariable(name);
+        return request.Options.InheritEnvironment ? platform.GetEnvironmentVariable(name) : null;
     }
 
     // Windows starts .bat and .cmd files through cmd.exe, which re-parses the command line and
@@ -414,6 +441,31 @@ public sealed class ProcessRunner : IProcessRunner
         string extension = Path.GetExtension(fileName.TrimEnd('.', ' '));
         return string.Equals(extension, ".bat", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(extension, ".cmd", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task WriteInputAsync(
+        Stream stream,
+        ReadOnlyMemory<byte> bytes,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!bytes.IsEmpty)
+            {
+                int count = Math.Min(bytes.Length, BufferSize);
+                await stream.WriteAsync(bytes[..count], cancellationToken).ConfigureAwait(false);
+                bytes = bytes[count..];
+            }
+        }
+        catch (Exception exception) when (!IsFatal(exception))
+        {
+            // Early exit, a child closing stdin, and cancellation can all break the write pipe.
+            // The child's observed lifecycle and exit code remain authoritative.
+        }
+        finally
+        {
+            TryClose(stream);
+        }
     }
 
     private static async Task<CapturedOutput> DrainAsync(Stream stream, int limit, Encoding encoding)
@@ -468,12 +520,14 @@ public sealed class ProcessRunner : IProcessRunner
         Process process,
         Task<CapturedOutput> stdoutTask,
         Task<CapturedOutput> stderrTask,
+        Task inputTask,
         TimeSpan gracePeriod)
     {
         Task all = Task.WhenAll(
             IgnoreFailureAsync(process.WaitForExitAsync(CancellationToken.None)),
             IgnoreFailureAsync(stdoutTask),
-            IgnoreFailureAsync(stderrTask));
+            IgnoreFailureAsync(stderrTask),
+            IgnoreFailureAsync(inputTask));
         try
         {
             await all.WaitAsync(gracePeriod, timeProvider).ConfigureAwait(false);
@@ -481,7 +535,7 @@ public sealed class ProcessRunner : IProcessRunner
         }
         catch (TimeoutException)
         {
-            return await ClosePipesAsync(process, stdoutTask, stderrTask).ConfigureAwait(false);
+            return await ClosePipesAsync(process, stdoutTask, stderrTask, inputTask).ConfigureAwait(false);
         }
     }
 
@@ -489,9 +543,10 @@ public sealed class ProcessRunner : IProcessRunner
         Process process,
         Task<CapturedOutput> stdoutTask,
         Task<CapturedOutput> stderrTask,
+        Task inputTask,
         TimeSpan gracePeriod)
     {
-        Task drains = Task.WhenAll(stdoutTask, stderrTask);
+        Task drains = Task.WhenAll(stdoutTask, stderrTask, inputTask);
         try
         {
             await drains.WaitAsync(gracePeriod, timeProvider).ConfigureAwait(false);
@@ -500,20 +555,21 @@ public sealed class ProcessRunner : IProcessRunner
         catch (TimeoutException)
         {
             // A descendant that inherited a pipe can hold it open after the child exits.
-            return await ClosePipesAsync(process, stdoutTask, stderrTask).ConfigureAwait(false);
+            return await ClosePipesAsync(process, stdoutTask, stderrTask, inputTask).ConfigureAwait(false);
         }
     }
 
     private async Task<DrainOutcome> ClosePipesAsync(
         Process process,
         Task<CapturedOutput> stdoutTask,
-        Task<CapturedOutput> stderrTask)
+        Task<CapturedOutput> stderrTask,
+        Task inputTask)
     {
         var outcome = new DrainOutcome(!stdoutTask.IsCompleted, !stderrTask.IsCompleted);
         TryClose(process.StandardOutput.BaseStream);
         TryClose(process.StandardError.BaseStream);
 
-        Task drains = Task.WhenAll(stdoutTask, stderrTask);
+        Task drains = Task.WhenAll(stdoutTask, stderrTask, inputTask);
         await Task.WhenAny(drains, Task.Delay(TimeSpan.FromMilliseconds(100), timeProvider)).ConfigureAwait(false);
         return outcome;
     }
