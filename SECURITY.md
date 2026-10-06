@@ -29,6 +29,18 @@ repositories:
 [runic-translations-sdk](https://github.com/Runic-Artifex/runic-translations-sdk/security) and
 [runic-site](https://github.com/Runic-Artifex/runic-site/security).
 
+## Verifying releases
+
+Every published NuGet package and GitHub release asset has a signed
+build-provenance attestation, and each release has a CycloneDX SBOM that is
+attached to the release and attested for its packages. Verify a file with
+`gh attestation verify <file> -R Runic-Artifex/runic-cli-sdk`. Packages
+downloaded from NuGet.org carry NuGet.org's repository signature and therefore
+differ from the attested bytes; verify the copy attached to the GitHub release
+instead. See [verifying a release](eng/release/README.md#verifying-a-release).
+
+## Dependency audits
+
 Verification builds fail on NuGet packages with known vulnerabilities, and the
 weekly [dependency audit workflow](.github/workflows/dependency-audit.yml) reports
 vulnerabilities disclosed between pushes.

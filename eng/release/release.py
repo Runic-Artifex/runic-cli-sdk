@@ -3,6 +3,7 @@
 
 find-ci        find the green ci.yml push run on main for GITHUB_SHA and its artifact
 prepare        check the downloaded packages against the version and commit; write an inventory
+describe       write the CycloneDX SBOM of the packages (local, deterministic for a commit)
 verify         check packages against an inventory written by prepare, the version and the CI run
 release-check  check that tag and GitHub release do not belong to another commit (read-only)
 release        create the GitHub prerelease, or finish one that already exists for this commit
@@ -19,6 +20,9 @@ import urllib.request
 import zipfile
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sbom  # noqa: E402
 
 REPOSITORY = 'Runic-Artifex/runic-cli-sdk'
 CI_WORKFLOW = '.github/workflows/ci.yml'
@@ -147,6 +151,20 @@ def verify(directory, manifest, commit, version, ci_run_id):
         raise ReleaseError('Packages differ from the candidate inventory')
 
 
+def sbom_name(version):
+    return f"{REPOSITORY.split('/')[1]}-{package_version(version)}.cdx.json"
+
+
+def describe(directory, version, commit, output, epoch):
+    """Write the SBOM of exactly the release packages; the same inputs give the same bytes."""
+    packages = [Path(directory) / package['file'] for package in scan(directory, version, commit)]
+    bom = sbom.build(REPOSITORY, package_version(version), commit, epoch, packages)
+    path = Path(output) / sbom_name(version)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(bom, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+    return path
+
+
 def gh_failure(what, result):
     return ReleaseError(f"{what} failed: {(result.stderr or '').strip() or f'exit {result.returncode}'}")
 
@@ -218,8 +236,11 @@ def release_check(version, commit, run=subprocess.run):
 
 def create_release(version, commit, files, run=subprocess.run):
     # A rerun after a partial publication keeps a release of this exact tag and
-    # commit, uploads only assets it is missing and publishes a matching draft,
-    # so tag-latest can still run.
+    # commit, uploads only assets a draft is missing and publishes it, so
+    # tag-latest can still run. A published release is never changed: with
+    # immutable releases its assets cannot be added, so a published release
+    # missing an asset (for example one created before the SBOM existed) is kept
+    # as it is with a warning. The attestations still cover the missing files.
     tag = f'v{version}'
     found = existing_release(version, commit, run)
     if found is None:
@@ -229,6 +250,11 @@ def create_release(version, commit, files, run=subprocess.run):
         missing = [file for file in files if Path(file).name not in present]
         if not missing and not found.get('isDraft'):
             return f'GitHub release {tag} already exists for {commit} with every asset.'
+        if not found.get('isDraft'):
+            names = ', '.join(Path(file).name for file in missing)
+            print(f'::warning title=Published release kept unchanged::GitHub release {tag} is published without {names}; '
+                  'published releases are not modified, so these assets are not added.')
+            return f'GitHub release {tag} already exists for {commit}; kept unchanged without {names}.'
         if missing and run(['gh', 'release', 'upload', tag, *missing, '--repo', REPOSITORY]).returncode != 0:
             raise ReleaseError(f'Could not complete GitHub release {tag}.')
         command = ['gh', 'release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--prerelease'] if found.get('isDraft') else None
@@ -239,6 +265,10 @@ def create_release(version, commit, files, run=subprocess.run):
 
 def head():
     return subprocess.run(['git', 'rev-parse', 'HEAD'], check=True, capture_output=True, text=True).stdout.strip()
+
+
+def commit_time(commit):
+    return int(subprocess.run(['git', 'show', '-s', '--format=%ct', commit], check=True, capture_output=True, text=True).stdout)
 
 
 def main(argv):
@@ -256,13 +286,25 @@ def main(argv):
     elif command == 'verify' and len(args) == 4:
         directory, inventory, version, ci_run_id = args
         verify(directory, json.loads(Path(inventory).read_text(encoding='utf-8')), head(), version, ci_run_id)
+    elif command == 'describe' and len(args) == 3:
+        directory, version, output = args
+        commit = head()
+        path = describe(directory, version, commit, output, commit_time(commit))
+        with open(os.environ.get('GITHUB_OUTPUT', os.devnull), 'a', encoding='utf-8') as github_output:
+            github_output.write(f'sbom={path.name}\n')
+        print(f'Described {version} in {path}')
     elif command == 'release-check' and len(args) == 1:
         print(release_check(args[0], head()))
-    elif command == 'release' and len(args) == 2:
-        print(create_release(args[0], head(), sorted(str(path) for path in Path(args[1]).glob('*.nupkg'))))
+    elif command == 'release' and len(args) >= 2:
+        version, directory, *assets = args
+        for asset in assets:
+            if not Path(asset).is_file():
+                raise ReleaseError(f'Missing release asset {asset}')
+        print(create_release(version, head(), sorted(str(path) for path in Path(directory).glob('*.nupkg')) + assets))
     else:
         raise ReleaseError('Use find-ci, prepare <packages> <version> <ci-run-id> <inventory>, '
-                           'verify <packages> <inventory> <version> <ci-run-id>, release-check <version>, or release <version> <packages>')
+                           'verify <packages> <inventory> <version> <ci-run-id>, describe <packages> <version> <output>, '
+                           'release-check <version>, or release <version> <packages> [assets...]')
 
 
 if __name__ == '__main__':
