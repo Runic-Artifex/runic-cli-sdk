@@ -116,29 +116,55 @@ class CandidatePackages(unittest.TestCase):
 
 
 class ReleaseCheck(unittest.TestCase):
-    def fake(self, release_exists=False, tag=None, draft=False, assets=()):
+    def fake(self, release_exists=False, tag=None, draft=False, assets=(), target=SHA, annotated=False, tag_error=False, release_error=False):
         calls = []
 
         def run_command(args, **_):
             calls.append(args)
             if args[:3] == ['gh', 'release', 'view']:
-                body = {'url': 'u', 'isDraft': draft, 'assets': [{'name': name} for name in assets]}
-                return SimpleNamespace(returncode=0 if release_exists else 1, stdout=json.dumps(body))
+                if release_error:
+                    return SimpleNamespace(returncode=1, stdout='', stderr='HTTP 502: Bad Gateway')
+                body = {'url': 'u', 'isDraft': draft, 'targetCommitish': target, 'assets': [{'name': name} for name in assets]}
+                return SimpleNamespace(returncode=0 if release_exists else 1, stdout=json.dumps(body), stderr='' if release_exists else 'release not found')
             if args[:2] == ['gh', 'api']:
-                return SimpleNamespace(returncode=0 if tag else 1, stdout=f'{tag}\n')
-            return SimpleNamespace(returncode=0, stdout='')
+                if tag_error:
+                    return SimpleNamespace(returncode=1, stdout='', stderr='gh: Server Error (HTTP 502)')
+                if not tag:
+                    return SimpleNamespace(returncode=1, stdout='', stderr='gh: Not Found (HTTP 404)')
+                if annotated and '/git/ref/tags/' in args[2]:
+                    return SimpleNamespace(returncode=0, stdout='tag ' + 'e' * 40 + '\n', stderr='')
+                return SimpleNamespace(returncode=0, stdout=f'commit {tag}\n', stderr='')
+            return SimpleNamespace(returncode=0, stdout='', stderr='')
         return run_command, calls
 
     def test_check_only_reads_and_accepts_only_this_commit(self):
         run_command, calls = self.fake()
         self.assertIn('Would create', release.release_check('1.2.3', SHA, run_command))
-        self.assertEqual([args[:3] for args in calls], [['gh', 'release', 'view'], ['gh', 'api', f'repos/{release.REPOSITORY}/commits/v1.2.3']])
+        self.assertEqual([args[:3] for args in calls], [['gh', 'release', 'view'], ['gh', 'api', f'repos/{release.REPOSITORY}/git/ref/tags/v1.2.3']])
         self.assertIn('Would create', release.release_check('1.2.3', SHA, self.fake(tag=SHA)[0]))
         self.assertIn('already exists for', release.release_check('1.2.3', SHA, self.fake(release_exists=True, tag=SHA)[0]))
+        self.assertIn('resume the draft', release.release_check('1.2.3', SHA, self.fake(release_exists=True, draft=True)[0]))
         for fake, message in [(self.fake(release_exists=True, tag='b' * 40), 'belongs to'), (self.fake(tag='b' * 40), 'belongs to'),
-                              (self.fake(release_exists=True, tag=SHA, draft=True), 'draft'), (self.fake(release_exists=True), 'no tag')]:
+                              (self.fake(release_exists=True, draft=True, target='main'), 'targets main'),
+                              (self.fake(release_exists=True), 'no tag')]:
             with self.assertRaisesRegex(release.ReleaseError, message):
                 release.release_check('1.2.3', SHA, fake[0])
+
+    def test_only_404_means_absent(self):
+        for fake, message in [(self.fake(tag_error=True), 'Tag lookup for v1.2.3 failed: gh: Server Error'),
+                              (self.fake(release_error=True), 'Release lookup for v1.2.3 failed')]:
+            run_command, calls = fake
+            with self.assertRaisesRegex(release.ReleaseError, message):
+                release.release_check('1.2.3', SHA, run_command)
+            with self.assertRaisesRegex(release.ReleaseError, message):
+                release.create_release('1.2.3', SHA, ['p/A.1.2.3.nupkg'], run_command)
+            self.assertFalse(any(args[:3] in (['gh', 'release', 'create'], ['gh', 'release', 'upload']) for args in calls))
+
+    def test_annotated_tag_resolves_to_its_commit(self):
+        run_command, calls = self.fake(tag=SHA, annotated=True)
+        self.assertIn('Would create', release.release_check('1.2.3', SHA, run_command))
+        self.assertEqual([args[2] for args in calls if args[:2] == ['gh', 'api']],
+                         [f'repos/{release.REPOSITORY}/git/ref/tags/v1.2.3', f'repos/{release.REPOSITORY}/git/tags/{"e" * 40}'])
 
     def test_rerun_keeps_a_release_of_this_commit_and_uploads_only_missing_assets(self):
         files = ['p/A.1.2.3.nupkg', 'p/B.1.2.3.nupkg']
@@ -156,6 +182,14 @@ class ReleaseCheck(unittest.TestCase):
         with self.assertRaisesRegex(release.ReleaseError, 'belongs to'):
             release.create_release('1.2.3', SHA, files, run_command)
         self.assertFalse(any(args[:3] == ['gh', 'release', 'create'] for args in calls))
+
+    def test_rerun_resumes_a_draft_of_this_commit(self):
+        files = ['p/A.1.2.3.nupkg', 'p/B.1.2.3.nupkg']
+        run_command, calls = self.fake(release_exists=True, draft=True, assets=['A.1.2.3.nupkg'])
+        self.assertIn('Completed', release.create_release('1.2.3', SHA, files, run_command))
+        self.assertEqual([args[:3] for args in calls[-2:]], [['gh', 'release', 'upload'], ['gh', 'release', 'edit']])
+        self.assertIn('--draft=false', calls[-1])
+        self.assertNotIn(['gh', 'release', 'create'], [args[:3] for args in calls])
 
 
 class PublishDryRun(unittest.TestCase):

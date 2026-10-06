@@ -147,23 +147,70 @@ def verify(directory, manifest, commit, version, ci_run_id):
         raise ReleaseError('Packages differ from the candidate inventory')
 
 
-def existing_release(version, commit, run):
-    """The published release of this exact tag and commit, None if absent; fails for any other release or tag."""
-    tag = f'v{version}'
-    release = run(['gh', 'release', 'view', tag, '--repo', REPOSITORY, '--json', 'isDraft,url,assets'], capture_output=True, text=True)
-    tagged = run(['gh', 'api', f'repos/{REPOSITORY}/commits/{tag}', '--jq', '.sha'], capture_output=True, text=True)
-    if tagged.returncode == 0 and tagged.stdout.strip() != commit:
-        raise ReleaseError(f'Tag {tag} belongs to {tagged.stdout.strip()}, not {commit}.')
-    if release.returncode != 0:
+def gh_failure(what, result):
+    return ReleaseError(f"{what} failed: {(result.stderr or '').strip() or f'exit {result.returncode}'}")
+
+
+def tag_commit(tag, run):
+    """The commit a tag points at, or None only when GitHub answers 404 for the tag ref.
+
+    git/ref/tags/<tag> matches exactly that tag (commits/<ref> would also match a
+    branch); annotated tags are followed to their commit. Any other error fails.
+    """
+    path = f'repos/{REPOSITORY}/git/ref/tags/{tag}'
+    for depth in range(5):
+        result = run(['gh', 'api', path, '--jq', '.object.type + " " + .object.sha'], capture_output=True, text=True)
+        if result.returncode != 0:
+            if depth == 0 and 'HTTP 404' in (result.stderr or ''):
+                return None
+            raise gh_failure(f'Tag lookup for {tag}', result)
+        kind, _, sha = result.stdout.strip().partition(' ')
+        if not re.fullmatch(r'[0-9a-f]{40}', sha):
+            raise ReleaseError(f'Tag lookup for {tag} returned no object')
+        if kind == 'commit':
+            return sha
+        if kind != 'tag':
+            raise ReleaseError(f'Tag {tag} points at a {kind}, not a commit')
+        path = f'repos/{REPOSITORY}/git/tags/{sha}'
+    raise ReleaseError(f'Tag {tag} nests too many annotated tags')
+
+
+def find_release(tag, run):
+    """The release for a tag (drafts included), or None only when gh reports it not found."""
+    result = run(['gh', 'release', 'view', tag, '--repo', REPOSITORY, '--json', 'isDraft,url,assets,targetCommitish'],
+                 capture_output=True, text=True)
+    if result.returncode == 0:
+        return json.loads(result.stdout)
+    if re.search(r'release not found|HTTP 404', result.stderr or ''):
         return None
-    found = json.loads(release.stdout)
-    if found.get('isDraft') or tagged.returncode != 0:
-        raise ReleaseError(f"GitHub release {tag} ({found.get('url')}) is a draft or has no tag; publish or delete it first.")
-    return found
+    raise gh_failure(f'Release lookup for {tag}', result)
+
+
+def existing_release(version, commit, run):
+    """The release of this exact tag and commit (a draft targeting this commit included), None if absent.
+
+    Fails for a release or tag of any other commit and for any lookup error.
+    """
+    tag = f'v{version}'
+    release = find_release(tag, run)
+    tagged = tag_commit(tag, run)
+    if tagged is not None and tagged != commit:
+        raise ReleaseError(f'Tag {tag} belongs to {tagged}, not {commit}.')
+    if release is None:
+        return None
+    if release.get('isDraft'):
+        if release.get('targetCommitish') != commit:
+            raise ReleaseError(f"Draft release {tag} ({release.get('url')}) targets {release.get('targetCommitish')}, not {commit}.")
+        return release
+    if tagged is None:
+        raise ReleaseError(f"GitHub release {tag} ({release.get('url')}) has no tag; delete it first.")
+    return release
 
 
 def release_check(version, commit, run=subprocess.run):
     found = existing_release(version, commit, run)
+    if found and found.get('isDraft'):
+        return f"Would resume the draft release v{version} for {commit} ({found.get('url')})."
     if found:
         return f"GitHub release v{version} already exists for {commit} ({found.get('url')}); a rerun keeps it."
     return f'Would create the prerelease v{version} at {commit}.'
@@ -171,7 +218,8 @@ def release_check(version, commit, run=subprocess.run):
 
 def create_release(version, commit, files, run=subprocess.run):
     # A rerun after a partial publication keeps a release of this exact tag and
-    # commit and only uploads assets it is missing, so tag-latest can still run.
+    # commit, uploads only assets it is missing and publishes a matching draft,
+    # so tag-latest can still run.
     tag = f'v{version}'
     found = existing_release(version, commit, run)
     if found is None:
@@ -179,11 +227,13 @@ def create_release(version, commit, files, run=subprocess.run):
     else:
         present = {asset.get('name') for asset in found.get('assets') or []}
         missing = [file for file in files if Path(file).name not in present]
-        if not missing:
+        if not missing and not found.get('isDraft'):
             return f'GitHub release {tag} already exists for {commit} with every asset.'
-        command = ['gh', 'release', 'upload', tag, *missing, '--repo', REPOSITORY]
-    if run(command).returncode != 0:
-        raise ReleaseError(f'Could not {"create" if found is None else "complete"} GitHub release {tag}.')
+        if missing and run(['gh', 'release', 'upload', tag, *missing, '--repo', REPOSITORY]).returncode != 0:
+            raise ReleaseError(f'Could not complete GitHub release {tag}.')
+        command = ['gh', 'release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--prerelease'] if found.get('isDraft') else None
+    if command and run(command).returncode != 0:
+        raise ReleaseError(f'Could not {"create" if found is None else "publish"} GitHub release {tag}.')
     return f'{"Created" if found is None else "Completed"} GitHub release {tag} at {commit}.'
 
 

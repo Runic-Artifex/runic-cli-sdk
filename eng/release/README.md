@@ -25,8 +25,9 @@ The workflow does not test or pack again. Its `candidate` job (`contents: read`,
   `release-candidate-<run id>` artifact.
 - `publish-nuget.py --dry-run` reports which packages are missing on NuGet.org and
   fails if a published version has different contents.
-- `release-check` fails if the tag or an existing GitHub release points at another
-  commit, or the release is a draft. A release of this exact tag and commit is kept.
+- `release-check` fails if the tag (looked up exactly, annotated tags followed) or
+  an existing GitHub release points at another commit, or a lookup fails for any
+  reason other than not found. A release or draft of this exact commit is kept.
 
 A dry run ends there, without OIDC, a NuGet push, a tag or a release. Otherwise the
 `publish` job, the only one in the `preview` environment and the only one with
@@ -34,8 +35,8 @@ A dry run ends there, without OIDC, a NuGet push, a tag or a release. Otherwise 
 against the candidate inventory, requested version and CI run (`release.py verify`),
 publishes only missing packages and creates the GitHub prerelease at the dispatched
 commit from those exact files (`release.py release`). A rerun after a partial
-publication keeps an existing release of this tag and commit and uploads only
-missing assets. `eng/release/test_release.py` pins this contract and runs in CI.
+publication keeps an existing release of this tag and commit, uploads only
+missing assets and publishes a matching draft. `eng/release/test_release.py` pins this contract and runs in CI.
 
 After publication, update the documentation catalog in `runic-site` (see
 "Release catalogs" in its `docs/README.md`). The workflow does not push to other
