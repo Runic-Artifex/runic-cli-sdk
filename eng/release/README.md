@@ -21,22 +21,54 @@ The workflow does not test or pack again. Its `candidate` job (`contents: read`,
 - `actions/download-artifact` downloads it by id (`artifact-ids`, `run-id`,
   `github-token`); a re-upload under the same name gets a new id, so it cannot swap the bytes.
 - `prepare` requires exactly the four packages at the requested version, packed from
-  the dispatched commit for this repository, and records their hashes in the
-  `release-candidate-<run id>` artifact.
+  the dispatched commit for this repository, and records their hashes.
+- `describe` writes `runic-cli-sdk-<version>.cdx.json`, a CycloneDX 1.6 SBOM of
+  those packages (`sbom.py`, standard library only; it reads package metadata and
+  executes nothing). It is deterministic for a commit. The inventory and SBOM are
+  uploaded as the `release-candidate-<run id>` artifact, and their `sha256sum`
+  lines are passed to `publish` as the job output `release-sha256`.
 - `publish-nuget.py --dry-run` reports which packages are missing on NuGet.org and
   fails if a published version has different contents.
 - `release-check` fails if the tag (looked up exactly, annotated tags followed) or
   an existing GitHub release points at another commit, or a lookup fails for any
   reason other than not found. A release or draft of this exact commit is kept.
 
-A dry run ends there, without OIDC, a NuGet push, a tag or a release. Otherwise the
-`publish` job, the only one in the `preview` environment and the only one with
-`id-token: write` and `contents: write`, downloads the same artifact, checks it
-against the candidate inventory, requested version and CI run (`release.py verify`),
-publishes only missing packages and creates the GitHub prerelease at the dispatched
-commit from those exact files (`release.py release`). A rerun after a partial
-publication keeps an existing release of this tag and commit, uploads only
-missing assets and publishes a matching draft. `eng/release/test_release.py` pins this contract and runs in CI.
+A dry run ends there, without OIDC, an attestation, a NuGet push, a tag or a
+release. Otherwise the `publish` job, the only one in the `preview` environment
+and the only one with `id-token: write`, `attestations: write` and
+`contents: write`, downloads the same artifact and candidate files, checks the
+files against `release-sha256` and the packages against the candidate inventory,
+requested version and CI run (`release.py verify`). Before anything is published
+it attests those verified bytes: `actions/attest-build-provenance` covers the four
+packages and the SBOM, and `actions/attest` attaches the SBOM to the packages. It
+then publishes only missing packages and creates the GitHub prerelease at the
+dispatched commit from those exact packages and the SBOM (`release.py release`). A
+rerun after a partial publication keeps an existing release of this tag and
+commit, uploads only missing assets and publishes a matching draft.
+`eng/release/test_release.py` and `test_sbom.py` pin this contract and run in CI.
+
+## Verifying a release
+
+Every package and the SBOM of each release have a signed build-provenance
+attestation from `publish-preview.yml` on `main`; the packages also have an SBOM
+attestation. Verify with the GitHub CLI (`gh auth login` first):
+
+```sh
+version=0.7.0-preview.1
+gh release download "v$version" -R Runic-Artifex/runic-cli-sdk
+gh attestation verify "Runic.CommandLine.$version.nupkg" -R Runic-Artifex/runic-cli-sdk \
+  --signer-workflow Runic-Artifex/runic-cli-sdk/.github/workflows/publish-preview.yml
+gh attestation verify "runic-cli-sdk-$version.cdx.json" -R Runic-Artifex/runic-cli-sdk
+# The SBOM attestation (CycloneDX); the release asset is the same document.
+gh attestation verify "Runic.CommandLine.$version.nupkg" -R Runic-Artifex/runic-cli-sdk \
+  --predicate-type https://cyclonedx.org/bom
+```
+
+NuGet.org adds its repository signature (`.signature.p7s`) to every package it
+accepts, so a `.nupkg` downloaded from NuGet.org has different bytes from the
+attested one and does not verify by itself. Verify the copy attached to the GitHub
+release; every entry of the NuGet.org package except `.signature.p7s` is identical
+to it, and `dotnet nuget verify --all <package>` checks the NuGet.org signature.
 
 After publication, update the documentation catalog in `runic-site` (see
 "Release catalogs" in its `docs/README.md`). The workflow does not push to other

@@ -250,6 +250,54 @@ class PublishWorkflow(unittest.TestCase):
         self.assertLess(publish.index('publish-nuget.py'), publish.index('release.py release "$VERSION"'))
         self.assertIn('overwrite: true', candidate)
 
+    def test_only_publish_attests_verified_bytes_before_publishing(self):
+        candidate, publish = job(self.text, 'candidate'), job(self.text, 'publish')
+        self.assertNotIn('actions/attest', candidate)
+        self.assertNotIn('attestations:', candidate)
+        self.assertNotIn('attestations', self.text.split('\njobs:\n')[0])
+        self.assertIn('    permissions:\n      contents: write\n      id-token: write\n      attestations: write\n      actions: read\n', publish)
+        provenance = re.search(r'uses: actions/attest-build-provenance@([0-9a-f]{40}) # v4\.2\.2\n        with:\n((?:          .*\n)+)', publish)
+        sbom_attestation = re.search(r'uses: actions/attest@([0-9a-f]{40}) # v4\.2\.2\n        with:\n((?:          .*\n)+)', publish)
+        self.assertTrue(provenance and sbom_attestation)
+        self.assertEqual(provenance.group(2), '          subject-path: |\n            artifacts/packages/*.nupkg\n'
+                                              '            artifacts/release/${{ needs.candidate.outputs.sbom }}\n')
+        self.assertEqual(sbom_attestation.group(2), '          subject-path: artifacts/packages/*.nupkg\n'
+                                                    '          sbom-path: artifacts/release/${{ needs.candidate.outputs.sbom }}\n')
+        first = publish.index('actions/attest')
+        self.assertLess(publish.index('sha256sum --check --strict'), publish.index('release.py verify'))
+        self.assertLess(publish.index('release.py verify'), first)
+        for write in ['NuGet/login', 'publish-nuget.py', 'release.py release "$VERSION"']:
+            self.assertGreater(publish.index(write), first)
+
+    def test_candidate_describes_the_release_and_hands_its_files_to_publish_by_hash(self):
+        candidate, publish = job(self.text, 'candidate'), job(self.text, 'publish')
+        self.assertIn('release-sha256: ${{ steps.describe.outputs.sha256 }}', candidate)
+        self.assertIn('sbom: ${{ steps.describe.outputs.sbom }}', candidate)
+        self.assertIn('python3 eng/release/release.py describe artifacts/packages "$VERSION" artifacts/release', candidate)
+        self.assertIn('(cd artifacts/release && sha256sum -- *)', candidate)
+        self.assertLess(candidate.index('release.py describe'), candidate.index('actions/upload-artifact'))
+        self.assertIn('name: release-candidate-${{ github.run_id }}\n          path: artifacts/release\n', candidate)
+        self.assertIn('working-directory: artifacts/release\n        env:\n          RELEASE_SHA256: ${{ needs.candidate.outputs.release-sha256 }}', publish)
+        self.assertLess(publish.index('name: release-candidate-'), publish.index('sha256sum --check --strict'))
+        self.assertIn('release.py release "$VERSION" artifacts/packages "artifacts/release/$SBOM"', publish)
+
+    def test_release_uploads_the_sbom_with_the_packages(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ['B.1.2.3.nupkg', 'A.1.2.3.nupkg']:
+                (Path(directory) / name).write_text(name)
+            asset = Path(directory) / 'runic-cli-sdk-1.2.3.cdx.json'
+            asset.write_text('{}')
+            uploaded = []
+            original, release.create_release = release.create_release, lambda version, commit, files: uploaded.extend(files) or 'ok'
+            original_head, release.head = release.head, lambda: SHA
+            try:
+                release.main(['release', '1.2.3', directory, str(asset)])
+                with self.assertRaisesRegex(release.ReleaseError, 'Missing release asset'):
+                    release.main(['release', '1.2.3', directory, str(asset) + '.missing'])
+            finally:
+                release.create_release, release.head = original, original_head
+            self.assertEqual(uploaded, [str(Path(directory) / 'A.1.2.3.nupkg'), str(Path(directory) / 'B.1.2.3.nupkg'), str(asset)])
+
 
 if __name__ == '__main__':
     unittest.main()
