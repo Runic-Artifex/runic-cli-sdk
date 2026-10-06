@@ -1,0 +1,55 @@
+name: Dependency audit
+
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  # Reports newly disclosed vulnerabilities between pushes. Upgrades remain
+  # deliberate decisions; this workflow never changes dependencies.
+  nuget:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+      - name: Check NuGet packages for known vulnerabilities
+        run: |
+          mkdir -p artifacts/dependency-audit
+          report=artifacts/dependency-audit/nuget-vulnerable.json
+          dotnet restore Runic.CommandLine.slnx
+          dotnet list Runic.CommandLine.slnx package --vulnerable --include-transitive --format json > "$report"
+          python3 - "$report" <<'PY'
+          import json, sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          found = sorted({f"{project['path']}: {package['id']} {package['resolvedVersion']}"
+              for project in report.get("projects", [])
+              for framework in project.get("frameworks", [])
+              for package in framework.get("topLevelPackages", []) + framework.get("transitivePackages", [])})
+          print("\n".join(found))
+          sys.exit(1 if found else 0)
+          PY
+          echo "No known vulnerable NuGet packages."
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: dependency-audit-${{ github.run_id }}
+          path: artifacts/dependency-audit
+          if-no-files-found: ignore
+          retention-days: 30

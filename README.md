@@ -95,6 +95,13 @@ package validation against the release in
 `RunicCommandLinePackageValidationBaselineVersion` (`eng/Versions.props`). After a
 release, move the unshipped entries into the shipped files and advance the baseline.
 
+Changes reach `main` through pull requests. The `verify` job in
+[CI](.github/workflows/ci.yml) always reports and passes only when every other CI
+job passed; it is the check to require before merging. CI also lints workflows
+with actionlint and requires remote actions pinned to a full commit SHA followed by
+a `# vX.Y.Z` comment; update both together from the tag's commit. Report
+vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
 ## Releases
 
 The four NuGet package identities release together, independently from the

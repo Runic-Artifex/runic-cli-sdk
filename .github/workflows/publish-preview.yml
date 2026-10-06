@@ -22,8 +22,10 @@ jobs:
     runs-on: ubuntu-24.04
     environment: preview
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           global-json-file: global.json
       - name: Validate version
@@ -39,7 +41,7 @@ jobs:
       - run: ./eng/pack.sh '${{ inputs.version }}' artifacts/packages
       - run: ./eng/verify-packages.sh '${{ inputs.version }}' artifacts/packages
       - id: nuget-login
-        uses: NuGet/login@v1
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
           user: ${{ vars.NUGET_USER }}
       - name: Publish packages
