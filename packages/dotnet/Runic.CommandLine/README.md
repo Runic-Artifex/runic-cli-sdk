@@ -86,11 +86,18 @@ runtime assembly discovery are intentionally outside the generated model.
 
 ## Presentation and testing
 
-`CommandApp` owns parsing, output environment selection, help, version, Ctrl+C,
-execution and exit mapping. Configure `ScopeFactory`, `ExitCodePolicy`,
+`CommandApp` owns parsing, output environment selection, help, version, process
+signals, execution and exit mapping. Configure `ScopeFactory`, `ExitCodePolicy`,
 `OutcomeSink`, or `PresentFrameworkRequest` to preserve existing application
-contracts during migration. Set `HandleCancelKeyPress = false` when an embedding
-host already owns process signals.
+contracts during migration.
+
+Ctrl+C (SIGINT), SIGTERM and SIGQUIT (Ctrl+Break on Windows) cancel the
+invocation's token, so a handler that honors it stops gracefully and returns the
+`Cancelled` exit code; service managers that send SIGTERM get the same graceful
+stop. A second signal while the invocation still runs exits the process at once
+with 128 plus the signal number (130 for Ctrl+C, 143 for SIGTERM, 131 for
+SIGQUIT). Set `HandleCancelKeyPress = false` when an embedding host already owns
+process signals; the runtime's default signal handling then applies.
 
 Install optional `Runic.CommandLine.Spectre`, then set `Console = new
 SpectreCommandConsole()` and `HelpPresenter = new SpectreHelpPresenter()`.
@@ -104,11 +111,13 @@ incidental output to stderr and disables reads. Direct process-global Console
 writes remain the application's responsibility. `ExceptionObserver` receives
 internal failures for application logging while public faults remain sanitized.
 
-`completion bash|zsh|fish|powershell` generates static word-list completions from
-the catalog. Set `CompletionExecutableName` when the help-facing name contains
-spaces (for example, `dotnet runic`). These scripts offer declared commands,
-options and simple choices; they do not perform dynamic filesystem or service
-lookups and do not restrict candidates to the current subcommand.
+`completion bash|zsh|fish|powershell` generates context-aware completion scripts
+from the catalog. Set `CompletionExecutableName` when the help-facing name contains
+spaces (for example, `dotnet runic`). Candidates follow the current command path,
+its visible options and the choices or path hints for the current value; the
+scripts do not perform service lookups. See
+[discovery, validation and custom results](#discovery-validation-and-custom-results)
+for the shell details.
 
 `Runic.CommandLine.Testing` supplies `CommandAppTester`, a configurable
 `TestCommandConsole` with queued input, and strict JSON frame assertions. Supply
@@ -247,7 +256,7 @@ handler defaults. Output-format selection continues to use the separate captured
 `Classify` creates no service scope. `PresentAsync` handles scoped help, version,
 usage failures and `completion bash|zsh|fish|powershell`, also without a scope.
 Help and errors respect human/JSON output selection; completion intentionally
-writes the raw script. Completion remains a static word list. Existing hosts
+writes the raw script, the same context-aware script `CommandApp` produces. Existing hosts
 may keep their own presenters and use the decision's public diagnostics instead.
 `PresentAsync` accepts framework decisions created by that same adapter and
 rejects UI and invocation decisions. It is available on the concrete adapter;

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -40,7 +42,11 @@ public sealed class CommandApp
     public Action<Exception>? ExceptionObserver { get; init; }
     /// <summary>Gets or sets an execution lifecycle observer.</summary>
     public ICommandExecutionObserver? Observer { get; init; }
-    /// <summary>Gets or sets whether process Ctrl+C cancels the invocation.</summary>
+    /// <summary>
+    /// Gets or sets whether process termination requests cancel the invocation: Ctrl+C (SIGINT), SIGTERM and
+    /// SIGQUIT (Ctrl+Break on Windows). A second request while the invocation is still running exits the process
+    /// immediately with 128 plus the signal number, for example 130 after a second Ctrl+C.
+    /// </summary>
     public bool HandleCancelKeyPress { get; init; } = true;
     /// <summary>Gets or sets a renderer for human catalog help.</summary>
     public ICommandHelpPresenter? HelpPresenter { get; init; }
@@ -52,8 +58,7 @@ public sealed class CommandApp
     {
         ArgumentNullException.ThrowIfNull(args);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; cancellation.Cancel(); };
-        if (HandleCancelKeyPress) System.Console.CancelKeyPress += handler;
+        ProcessSignalCancellation? signals = HandleCancelKeyPress ? new ProcessSignalCancellation(cancellation) : null;
         try
         {
             CultureInfo culture = CultureInfo.ReadOnly((CultureInfo)(Culture ?? CultureInfo.CurrentCulture).Clone());
@@ -88,8 +93,50 @@ public sealed class CommandApp
         }
         finally
         {
-            if (HandleCancelKeyPress) System.Console.CancelKeyPress -= handler;
+            signals?.Dispose();
         }
+    }
+
+    /// <summary>Cancels on the first termination signal and forces exit on the next one.</summary>
+    private sealed class ProcessSignalCancellation : IDisposable
+    {
+        private readonly CancellationTokenSource _cancellation;
+        private readonly List<PosixSignalRegistration> _registrations = new(3);
+        private int _received;
+
+        internal ProcessSignalCancellation(CancellationTokenSource cancellation)
+        {
+            _cancellation = cancellation;
+            Register(PosixSignal.SIGINT);
+            Register(PosixSignal.SIGQUIT);
+            Register(PosixSignal.SIGTERM);
+        }
+
+        public void Dispose()
+        {
+            foreach (PosixSignalRegistration registration in _registrations) registration.Dispose();
+        }
+
+        private void Register(PosixSignal signal)
+        {
+            try { _registrations.Add(PosixSignalRegistration.Create(signal, Handle)); }
+            catch (PlatformNotSupportedException) { }
+        }
+
+        private void Handle(PosixSignalContext context)
+        {
+            if (Interlocked.Increment(ref _received) > 1) Environment.Exit(ForcedExitCode(context.Signal));
+            context.Cancel = true;
+            try { _ = _cancellation.CancelAsync(); }
+            catch (ObjectDisposedException) { }
+        }
+
+        private static int ForcedExitCode(PosixSignal signal) => signal switch
+        {
+            PosixSignal.SIGINT => 130,
+            PosixSignal.SIGQUIT => 131,
+            _ => 143,
+        };
     }
 
     private sealed class InvocationScopeFactory(Func<ParsedInvocation, ICommandExecutionScopeFactory> create, ParsedInvocation invocation) : ICommandExecutionScopeFactory

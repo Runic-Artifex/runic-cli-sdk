@@ -1,5 +1,11 @@
 using Runic.CommandLine.Tests;
 
+if (SignalTests.IsChildInvocation(args))
+    return await SignalTests.RunChildAsync(args[1]);
+
+if (args.Contains("--signals", StringComparer.Ordinal))
+    return await TestRunner.RunAsync(SignalTests.All);
+
 if (args.Contains("--completion-help", StringComparer.Ordinal))
     return await TestRunner.RunAsync(CompletionHelpTests.All);
 
@@ -11,6 +17,7 @@ return await TestRunner.RunAsync(
     AuthoringMetadataTests.All,
     LocalizationTests.All,
     ApplicationTests.All,
+    SignalTests.All,
     GrammarCorpusTests.All,
     ParserAdversarialTests.All,
     OutputClassificationCorpusTests.All,
