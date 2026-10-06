@@ -38,12 +38,16 @@ jobs:
           python3 - "$report" <<'PY'
           import json, sys
           report = json.load(open(sys.argv[1], encoding="utf-8"))
+          problems = [f"{problem.get('project', 'restore')}: {problem.get('text', problem)}"
+              for problem in report.get("problems", []) if str(problem.get("level", "")).lower() == "error"]
           found = sorted({f"{project['path']}: {package['id']} {package['resolvedVersion']}"
               for project in report.get("projects", [])
               for framework in project.get("frameworks", [])
               for package in framework.get("topLevelPackages", []) + framework.get("transitivePackages", [])})
+          for line in problems:
+              print(f"Audit problem: {line}")
           print("\n".join(found))
-          sys.exit(1 if found else 0)
+          sys.exit(1 if found or problems else 0)
           PY
           echo "No known vulnerable NuGet packages."
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

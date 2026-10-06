@@ -99,6 +99,12 @@ with 128 plus the signal number (130 for Ctrl+C, 143 for SIGTERM, 131 for
 SIGQUIT). Set `HandleCancelKeyPress = false` when an embedding host already owns
 process signals; the runtime's default signal handling then applies.
 
+The exit codes follow the Unix 128-plus-signal convention; Windows uses the same
+values. On Windows, Ctrl+C and Ctrl+Break map to SIGINT and SIGQUIT, and SIGTERM
+corresponds to the system shutdown event. Windows may end the process as soon as
+the shutdown handler returns, so cleanup that must finish before shutdown cannot
+rely on the cancelled handler completing.
+
 Install optional `Runic.CommandLine.Spectre`, then set `Console = new
 SpectreCommandConsole()` and `HelpPresenter = new SpectreHelpPresenter()`.
 The adapter supports literal text, Spectre renderables, progress, and prompts.

@@ -104,7 +104,16 @@ internal static class SignalTests
             child._process.Start();
             child._process.BeginOutputReadLine();
             child._process.BeginErrorReadLine();
-            await child.WaitForLineAsync("ready").ConfigureAwait(false);
+            try
+            {
+                await child.WaitForLineAsync("ready").ConfigureAwait(false);
+            }
+            catch
+            {
+                await child.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+
             return child;
         }
 

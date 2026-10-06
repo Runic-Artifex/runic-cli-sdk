@@ -21,6 +21,8 @@ jobs:
     if: github.repository == 'Runic-Artifex/runic-cli-sdk' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment: preview
+    env:
+      VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -32,14 +34,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="$(./eng/package-version.sh "$RUNIC_RELEASE_VERSION")"
+          version="$(./eng/package-version.sh "$VERSION")"
           expected_version="$(./eng/package-version.sh)"
           test "$version" = "$expected_version"
-        env:
-          RUNIC_RELEASE_VERSION: ${{ inputs.version }}
       - run: ./eng/test.sh
-      - run: ./eng/pack.sh '${{ inputs.version }}' artifacts/packages
-      - run: ./eng/verify-packages.sh '${{ inputs.version }}' artifacts/packages
+      - run: ./eng/pack.sh "$VERSION" artifacts/packages
+      - run: ./eng/verify-packages.sh "$VERSION" artifacts/packages
       - id: nuget-login
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
@@ -51,4 +51,4 @@ jobs:
       - name: Create GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create 'v${{ inputs.version }}' artifacts/packages/*.nupkg --prerelease --generate-notes
+        run: gh release create "v$VERSION" artifacts/packages/*.nupkg --prerelease --generate-notes
