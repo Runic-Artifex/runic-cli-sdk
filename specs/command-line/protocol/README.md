@@ -100,7 +100,12 @@ A diagnostic contains every key below in this output order:
 ```
 
 - `code` is exactly `RCLI` followed by four ASCII digits other than
-  `0000`.
+  `0000`. `RCLI8000` through `RCLI8999` are reserved for applications: this
+  library and its generators never emit them, so an application can define
+  its own diagnostics there without colliding with library codes. Every other
+  `RCLI` code belongs to the library. Within the application range, each
+  application documents its own codes; a client distinguishes applications by
+  `command` and `payloadType`, not by code.
 - `kind` is a stable symbolic identity of at most 128 UTF-8 bytes matching
   `[a-z][a-z0-9-]*`, without consecutive or trailing hyphens.
 - `commandPath` is the ordered canonical path. The catalog root is an empty
