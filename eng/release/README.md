@@ -5,6 +5,7 @@ Command Line releases its four NuGet packages together: `Runic.CommandLine`,
 `Runic.CommandLine.Testing`. The generator is embedded in the core package and
 does not have a public package identity.
 
+Record behavior changes that need consumer action in `eng/release/notes/<version>.md`.
 Set the intended SemVer preview in `eng/Versions.props`, run `./eng/verify.sh`,
 then dispatch **Publish preview** on `main` with the same version. The workflow
 verifies and packs the source, publishes only packages that do not already exist,

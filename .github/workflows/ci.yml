@@ -9,19 +9,45 @@ permissions:
   contents: read
 
 jobs:
+  workflows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Lint workflows
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "$ACTIONLINT_SHA256  $archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+      - name: Require pinned remote actions
+        run: |
+          if grep -rnE '^\s*(- )?uses:\s*[^.][^@]*@' .github/workflows | grep -vE '@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Pin every remote action to a full commit SHA followed by '# vX.Y.Z'."
+            exit 1
+          fi
+
   managed-and-pack:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           global-json-file: global.json
       - name: Install completion shell prerequisites
         run: sudo apt-get update && sudo apt-get install -y fish zsh
       - run: ./eng/test.sh
       - run: ./eng/pack.sh "$(./eng/package-version.sh)" artifacts/packages
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: command-line-packages
           path: artifacts/packages
@@ -44,11 +70,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           global-json-file: global.json
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: command-line-packages
           path: artifacts/packages
@@ -72,3 +100,23 @@ jobs:
           [xml] $versions = Get-Content eng/Versions.props
           $version = [string] $versions.Project.PropertyGroup.RunicCommandLineVersion
           ./tests/fixtures/command-line/package-consumer/Runic.CommandLine.PackageConsumer/Invoke-PackageConsumer.ps1 -Configuration Release -RuntimeIdentifier '${{ matrix.rid }}' -PackageVersion $version -PackageDirectory artifacts/packages
+
+  # The single required status check: it always reports, and fails unless every job passed.
+  verify:
+    name: verify
+    if: always()
+    needs: [workflows, managed-and-pack, native-aot]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every verification job to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          IFS=',' read -ra results <<< "$RESULTS"
+          for result in "${results[@]}"; do
+            if [[ "$result" != success ]]; then
+              echo "Verification is incomplete: $RESULTS"
+              exit 1
+            fi
+          done

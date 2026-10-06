@@ -86,6 +86,22 @@ packages. It reads the candidate version from `eng/Versions.props`, or accepts
 defaults to the host runtime. CI packs once and runs source and candidate consumer
 NativeAOT checks on Linux x64, Windows x64 and macOS Arm64, one native job at a time.
 
+Each package tracks its public API in `PublicAPI.Shipped.txt` (the last published
+release) and `PublicAPI.Unshipped.txt` (changes since then), checked by
+`Microsoft.CodeAnalysis.PublicApiAnalyzers`. A verification build fails on an
+undeclared API change: add new members to `PublicAPI.Unshipped.txt` (the IDE code
+fix for RS0016 does this) and mark removals with `*REMOVED*`. Packing also runs
+package validation against the release in
+`RunicCommandLinePackageValidationBaselineVersion` (`eng/Versions.props`). After a
+release, move the unshipped entries into the shipped files and advance the baseline.
+
+Changes reach `main` through pull requests. The `verify` job in
+[CI](.github/workflows/ci.yml) always reports and passes only when every other CI
+job passed; it is the check to require before merging. CI also lints workflows
+with actionlint and requires remote actions pinned to a full commit SHA followed by
+a `# vX.Y.Z` comment; update both together from the tag's commit. Report
+vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
 ## Releases
 
 The four NuGet package identities release together, independently from the

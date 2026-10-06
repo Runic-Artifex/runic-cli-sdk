@@ -6,7 +6,13 @@
     <EnableAotAnalyzer Condition="'$(EnableAotAnalyzer)' == ''">false</EnableAotAnalyzer>
     <IsTrimmable>true</IsTrimmable>
     <IsAotCompatible>true</IsAotCompatible>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion Condition="'$(PackageValidationBaselineVersion)' == ''">$(RunicPackageValidationBaselineVersion)</PackageValidationBaselineVersion>
   </PropertyGroup>
+  <!-- The analyzer package adds PublicAPI.Shipped.txt and PublicAPI.Unshipped.txt as analyzer inputs; they are never packed. -->
+  <ItemGroup Condition="'$(RunicPolicyShippingProject)' == 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
   <Target Name="ValidateRunicBuildMode" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(RunicBuildMode)' != 'Development' and '$(RunicBuildMode)' != 'Verification'" Text="$(RunicBuildModeProperty) must be either Development or Verification." />
   </Target>

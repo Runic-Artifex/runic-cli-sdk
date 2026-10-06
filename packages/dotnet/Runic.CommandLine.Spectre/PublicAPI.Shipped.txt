@@ -1,0 +1,17 @@
+#nullable enable
+Runic.CommandLine.Spectre.SpectreCommandConsole
+Runic.CommandLine.Spectre.SpectreCommandConsole.IsErrorRedirected.get -> bool
+Runic.CommandLine.Spectre.SpectreCommandConsole.IsInputRedirected.get -> bool
+Runic.CommandLine.Spectre.SpectreCommandConsole.IsInteractive.get -> bool
+Runic.CommandLine.Spectre.SpectreCommandConsole.IsOutputRedirected.get -> bool
+Runic.CommandLine.Spectre.SpectreCommandConsole.PromptAsync(string! prompt, string? fallback = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string?>
+Runic.CommandLine.Spectre.SpectreCommandConsole.ReadLineAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+Runic.CommandLine.Spectre.SpectreCommandConsole.SpectreCommandConsole(Runic.CommandLine.ICommandConsole? inner = null, int? width = null, bool? color = null, bool? unicode = null) -> void
+Runic.CommandLine.Spectre.SpectreCommandConsole.WithProgressAsync(string! description, System.Func<System.IProgress<double>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! operation, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Runic.CommandLine.Spectre.SpectreCommandConsole.WriteAsync(Spectre.Console.Rendering.IRenderable! value, bool standardError = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Spectre.SpectreCommandConsole.WriteErrorAsync(System.ReadOnlyMemory<char> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Spectre.SpectreCommandConsole.WriteOutAsync(System.ReadOnlyMemory<char> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Spectre.SpectreCommandConsole.WriteOutBytesAsync(System.ReadOnlyMemory<byte> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Spectre.SpectreHelpPresenter
+Runic.CommandLine.Spectre.SpectreHelpPresenter.SpectreHelpPresenter() -> void
+Runic.CommandLine.Spectre.SpectreHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

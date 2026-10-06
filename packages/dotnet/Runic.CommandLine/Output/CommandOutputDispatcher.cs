@@ -108,6 +108,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
     }
 
     /// <summary>Writes a response with explicit text resolution while preserving machine identities and the existing sanitizer.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "The required CommandTextContext parameter keeps calls unambiguous; the earlier overload is unchanged.")]
     public static ValueTask DispatchAsync<T>(CommandOutputMode mode, ICommandConsole console, CultureInfo culture,
         CommandResponse<T> response, ICommandResultCodec<T> codec, CommandTextContext textContext,
         CancellationToken cancellationToken = default)

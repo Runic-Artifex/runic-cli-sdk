@@ -1,0 +1,49 @@
+#nullable enable
+override Runic.CommandLine.Testing.CommandAppTestResult.Equals(object? obj) -> bool
+override Runic.CommandLine.Testing.CommandAppTestResult.GetHashCode() -> int
+override Runic.CommandLine.Testing.CommandAppTestResult.ToString() -> string!
+Runic.CommandLine.Testing.CommandAppTester
+Runic.CommandLine.Testing.CommandAppTester.CommandAppTester(System.Func<Runic.CommandLine.Testing.TestCommandConsole!, Runic.CommandLine.CommandApp!>! createApp) -> void
+Runic.CommandLine.Testing.CommandAppTester.RunAsync(string![]! args, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Runic.CommandLine.Testing.CommandAppTestResult!>!
+Runic.CommandLine.Testing.CommandAppTestResult
+Runic.CommandLine.Testing.CommandAppTestResult.<Clone>$() -> Runic.CommandLine.Testing.CommandAppTestResult!
+Runic.CommandLine.Testing.CommandAppTestResult.CommandAppTestResult(int ExitCode, string! StandardOutput, string! StandardError) -> void
+Runic.CommandLine.Testing.CommandAppTestResult.Deconstruct(out int ExitCode, out string! StandardOutput, out string! StandardError) -> void
+Runic.CommandLine.Testing.CommandAppTestResult.Equals(Runic.CommandLine.Testing.CommandAppTestResult? other) -> bool
+Runic.CommandLine.Testing.CommandAppTestResult.ExitCode.get -> int
+Runic.CommandLine.Testing.CommandAppTestResult.ExitCode.init -> void
+Runic.CommandLine.Testing.CommandAppTestResult.StandardError.get -> string!
+Runic.CommandLine.Testing.CommandAppTestResult.StandardError.init -> void
+Runic.CommandLine.Testing.CommandAppTestResult.StandardOutput.get -> string!
+Runic.CommandLine.Testing.CommandAppTestResult.StandardOutput.init -> void
+Runic.CommandLine.Testing.CommandTestCancellation
+Runic.CommandLine.Testing.CommandTestEnvelope
+Runic.CommandLine.Testing.CommandTestEnvironment
+Runic.CommandLine.Testing.CommandTestInvocation
+Runic.CommandLine.Testing.TestCommandConsole
+Runic.CommandLine.Testing.TestCommandConsole.IsErrorRedirected.get -> bool
+Runic.CommandLine.Testing.TestCommandConsole.IsErrorRedirected.init -> void
+Runic.CommandLine.Testing.TestCommandConsole.IsInputRedirected.get -> bool
+Runic.CommandLine.Testing.TestCommandConsole.IsInputRedirected.init -> void
+Runic.CommandLine.Testing.TestCommandConsole.IsInteractive.get -> bool
+Runic.CommandLine.Testing.TestCommandConsole.IsInteractive.init -> void
+Runic.CommandLine.Testing.TestCommandConsole.IsOutputRedirected.get -> bool
+Runic.CommandLine.Testing.TestCommandConsole.IsOutputRedirected.init -> void
+Runic.CommandLine.Testing.TestCommandConsole.QueueInput(string? line) -> void
+Runic.CommandLine.Testing.TestCommandConsole.ReadLineAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+Runic.CommandLine.Testing.TestCommandConsole.StandardError.get -> string!
+Runic.CommandLine.Testing.TestCommandConsole.StandardOutput.get -> string!
+Runic.CommandLine.Testing.TestCommandConsole.TestCommandConsole() -> void
+Runic.CommandLine.Testing.TestCommandConsole.WriteErrorAsync(System.ReadOnlyMemory<char> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Testing.TestCommandConsole.WriteOutAsync(System.ReadOnlyMemory<char> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Testing.TestCommandConsole.WriteOutBytesAsync(System.ReadOnlyMemory<byte> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Testing.TestExecutionScopeFactory
+Runic.CommandLine.Testing.TestExecutionScopeFactory.CreateScope() -> Runic.CommandLine.ICommandExecutionScope!
+Runic.CommandLine.Testing.TestExecutionScopeFactory.TestExecutionScopeFactory(System.IServiceProvider! services) -> void
+static Runic.CommandLine.Testing.CommandAppTestResult.operator !=(Runic.CommandLine.Testing.CommandAppTestResult? left, Runic.CommandLine.Testing.CommandAppTestResult? right) -> bool
+static Runic.CommandLine.Testing.CommandAppTestResult.operator ==(Runic.CommandLine.Testing.CommandAppTestResult? left, Runic.CommandLine.Testing.CommandAppTestResult? right) -> bool
+static Runic.CommandLine.Testing.CommandTestCancellation.CancelledToken.get -> System.Threading.CancellationToken
+static Runic.CommandLine.Testing.CommandTestEnvelope.Parse(string! json) -> System.Text.Json.JsonDocument!
+static Runic.CommandLine.Testing.CommandTestEnvironment.ParseSettings(string? output = null) -> Runic.CommandLine.ParseSettings!
+static Runic.CommandLine.Testing.CommandTestInvocation.Parse(Runic.CommandLine.CommandCatalog! catalog, params string![]! args) -> Runic.CommandLine.ParsedInvocation!
+static Runic.CommandLine.Testing.CommandTestInvocation.Parse(Runic.CommandLine.CommandCatalog! catalog, Runic.CommandLine.ParseSettings! settings, params string![]! args) -> Runic.CommandLine.ParsedInvocation!
