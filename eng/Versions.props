@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
     <RunicCommandLineVersion>0.6.0-preview.2</RunicCommandLineVersion>
+    <!-- Last published release; package validation compares candidates with it. -->
+    <RunicCommandLinePackageValidationBaselineVersion>0.6.0-preview.1</RunicCommandLinePackageValidationBaselineVersion>
     <Version Condition="'$(Version)' == ''">$(RunicCommandLineVersion)</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(RunicCommandLineVersion)</PackageVersion>
   </PropertyGroup>

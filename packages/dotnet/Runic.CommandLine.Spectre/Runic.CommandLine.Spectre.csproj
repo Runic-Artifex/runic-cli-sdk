@@ -12,7 +12,6 @@
     <ProjectReference Include="../Runic.CommandLine/Runic.CommandLine.csproj" />
     <PackageReference Include="Spectre.Console" />
     <None Include="README.md" Pack="true" PackagePath="" />
-    <None Include="PublicAPI.Unshipped.txt" Pack="true" PackagePath="" />
   </ItemGroup>
   <Import Project="../../../eng/build/command-line.targets" />
 </Project>

@@ -18,7 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="PublicAPI.Unshipped.txt" Pack="true" PackagePath="" />
     <None Include="README.md" Pack="true" PackagePath="" />
     <None Include="../Runic.CommandLine.Generators/bin/$(Configuration)/$(RunicCommandLineGeneratorTargetFramework)/Runic.CommandLine.Generators.dll"
           Pack="true"

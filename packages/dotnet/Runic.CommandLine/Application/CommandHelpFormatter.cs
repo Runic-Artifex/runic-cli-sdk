@@ -14,6 +14,7 @@ public static class CommandHelpFormatter
     }
 
     /// <summary>Formats help using invocation-local culture and text resolution.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "The required CommandTextContext parameter keeps calls unambiguous; the earlier overload is unchanged.")]
     public static string Format(CommandCatalog catalog, string applicationName, CommandPath path, CommandTextContext context, string outputOptionName = "--output")
     {
         ArgumentNullException.ThrowIfNull(context);

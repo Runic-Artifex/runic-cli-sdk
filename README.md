@@ -86,6 +86,15 @@ packages. It reads the candidate version from `eng/Versions.props`, or accepts
 defaults to the host runtime. CI packs once and runs source and candidate consumer
 NativeAOT checks on Linux x64, Windows x64 and macOS Arm64, one native job at a time.
 
+Each package tracks its public API in `PublicAPI.Shipped.txt` (the last published
+release) and `PublicAPI.Unshipped.txt` (changes since then), checked by
+`Microsoft.CodeAnalysis.PublicApiAnalyzers`. A verification build fails on an
+undeclared API change: add new members to `PublicAPI.Unshipped.txt` (the IDE code
+fix for RS0016 does this) and mark removals with `*REMOVED*`. Packing also runs
+package validation against the release in
+`RunicCommandLinePackageValidationBaselineVersion` (`eng/Versions.props`). After a
+release, move the unshipped entries into the shipped files and advance the baseline.
+
 ## Releases
 
 The four NuGet package identities release together, independently from the
