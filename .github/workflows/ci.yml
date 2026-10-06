@@ -32,6 +32,8 @@ jobs:
             echo "Pin every remote action to a full commit SHA followed by '# vX.Y.Z'."
             exit 1
           fi
+      - name: Test release tooling
+        run: python3 -m unittest discover -s eng/release -v
 
   managed-and-pack:
     runs-on: ubuntu-24.04
@@ -52,7 +54,8 @@ jobs:
           name: command-line-packages
           path: artifacts/packages
           if-no-files-found: error
-          retention-days: 7
+          # Publish preview reuses this artifact of the push run on main.
+          retention-days: 30
 
   native-aot:
     needs: managed-and-pack

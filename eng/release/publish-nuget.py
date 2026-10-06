@@ -50,11 +50,14 @@ def equal(local, registry):
 
 
 def main():
-    if len(sys.argv) != 4:
-        raise RuntimeError('Usage: publish-nuget.py <package-directory> <source> <api-key>')
-    directory = Path(sys.argv[1])
-    source = sys.argv[2]
-    api_key = sys.argv[3]
+    # --dry-run performs the registry comparison and reports what would be pushed.
+    arguments = [argument for argument in sys.argv[1:] if argument != '--dry-run']
+    dry_run = len(arguments) < len(sys.argv) - 1
+    if len(arguments) != (2 if dry_run else 3):
+        raise RuntimeError('Usage: publish-nuget.py <package-directory> <source> <api-key> | <package-directory> <source> --dry-run')
+    directory = Path(arguments[0])
+    source = arguments[1]
+    api_key = None if dry_run else arguments[2]
     for package in sorted(directory.glob('*.nupkg')):
         name, version = identity(package)
         package_id = name.lower()
@@ -65,6 +68,9 @@ def main():
                 if not equal(package, registered):
                     raise RuntimeError(f'Registry content differs for {name} {version}; choose a new version.')
                 print(f'{name} {version} already matches NuGet.org.')
+                continue
+            if dry_run:
+                print(f'Would publish {name} {version}.')
                 continue
             result = subprocess.run([
                 'dotnet', 'nuget', 'push', str(package), '--source', source, '--api-key', api_key
