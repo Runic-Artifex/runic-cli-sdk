@@ -111,5 +111,45 @@ class ReleaseSbom(unittest.TestCase):
             self.assertEqual(edges['vsix:runic-artifex/fixture@0.0.1'], ['pkg:npm/vscode-languageclient@10.1.2'])
 
 
+class HostileMetadata(unittest.TestCase):
+    """Oversized entries and document type declarations are refused; a versionless dependency is accepted."""
+    large = 17 * 1024 * 1024
+
+    def test_refuses_oversized_zip_and_tar_entries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / f'Large.{VERSION}.nupkg'
+            with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as package:
+                package.writestr('Large.nuspec', f'<package><metadata><id>Large</id><version>{VERSION}</version></metadata></package>')
+                package.writestr('tools/Large.deps.json', ' ' * self.large)
+            with self.assertRaisesRegex(ValueError, 'Large.deps.json is larger than 16777216 bytes'):
+                sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [path])
+            npm = Path(directory) / 'large.tgz'
+            with tarfile.open(npm, 'w:gz') as archive:
+                info = tarfile.TarInfo('package/package.json')
+                info.size = self.large
+                archive.addfile(info, io.BytesIO(b' ' * self.large))
+            with self.assertRaisesRegex(ValueError, 'package/package.json is larger than 16777216 bytes'):
+                sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [npm])
+
+    def test_refuses_document_type_declarations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = nupkg(directory, 'Doctype')
+            with zipfile.ZipFile(path, 'w') as package:
+                package.writestr('Doctype.nuspec', '<?xml version="1.0"?><!DOCTYPE package [<!ENTITY big "x">]>'
+                                 f'<package><metadata><id>Doctype</id><version>{VERSION}</version></metadata></package>')
+            with self.assertRaisesRegex(ValueError, 'must not declare a document type or entities'):
+                sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [path])
+
+    def test_versionless_dependency_has_no_range(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = nupkg(directory, 'Floating', extra='<dependencies><group><dependency id="Any.Version" /></group></dependencies>')
+            bom = sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [path])
+            components = {item['bom-ref']: item for item in bom['components']}
+            self.assertEqual(components['pkg:nuget/Any.Version'], {'type': 'library', 'bom-ref': 'pkg:nuget/Any.Version',
+                                                                   'name': 'Any.Version', 'purl': 'pkg:nuget/Any.Version'})
+            edges = {item['ref']: item['dependsOn'] for item in bom['dependencies']}
+            self.assertEqual(edges[f'pkg:nuget/Floating@{VERSION}'], ['pkg:nuget/Any.Version'])
+
+
 if __name__ == '__main__':
     unittest.main()

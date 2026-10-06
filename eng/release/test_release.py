@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -166,15 +167,18 @@ class ReleaseCheck(unittest.TestCase):
         self.assertEqual([args[2] for args in calls if args[:2] == ['gh', 'api']],
                          [f'repos/{release.REPOSITORY}/git/ref/tags/v1.2.3', f'repos/{release.REPOSITORY}/git/tags/{"e" * 40}'])
 
-    def test_rerun_keeps_a_release_of_this_commit_and_uploads_only_missing_assets(self):
+    def test_rerun_keeps_a_release_of_this_commit_and_completes_only_a_draft(self):
         files = ['p/A.1.2.3.nupkg', 'p/B.1.2.3.nupkg']
         run_command, calls = self.fake()
         self.assertIn('Created', release.create_release('1.2.3', SHA, files, run_command))
         self.assertEqual(calls[-1][:3], ['gh', 'release', 'create'])
         self.assertEqual(calls[-1][calls[-1].index('--target') + 1], SHA)
+        # A published release is never modified (immutable releases reject new assets): warn and keep it.
         run_command, calls = self.fake(release_exists=True, tag=SHA, assets=['A.1.2.3.nupkg'])
-        self.assertIn('Completed', release.create_release('1.2.3', SHA, files, run_command))
-        self.assertEqual(calls[-1][:5], ['gh', 'release', 'upload', 'v1.2.3', 'p/B.1.2.3.nupkg'])
+        with unittest.mock.patch('builtins.print') as printed:
+            self.assertIn('kept unchanged without B.1.2.3.nupkg', release.create_release('1.2.3', SHA, files, run_command))
+        self.assertIn('::warning', printed.call_args.args[0])
+        self.assertFalse(any(args[:3] in (['gh', 'release', 'create'], ['gh', 'release', 'upload'], ['gh', 'release', 'edit']) for args in calls))
         run_command, calls = self.fake(release_exists=True, tag=SHA, assets=['A.1.2.3.nupkg', 'B.1.2.3.nupkg'])
         self.assertIn('every asset', release.create_release('1.2.3', SHA, files, run_command))
         self.assertFalse(any(args[:3] in (['gh', 'release', 'create'], ['gh', 'release', 'upload']) for args in calls))

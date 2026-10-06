@@ -236,8 +236,11 @@ def release_check(version, commit, run=subprocess.run):
 
 def create_release(version, commit, files, run=subprocess.run):
     # A rerun after a partial publication keeps a release of this exact tag and
-    # commit, uploads only assets it is missing and publishes a matching draft,
-    # so tag-latest can still run.
+    # commit, uploads only assets a draft is missing and publishes it, so
+    # tag-latest can still run. A published release is never changed: with
+    # immutable releases its assets cannot be added, so a published release
+    # missing an asset (for example one created before the SBOM existed) is kept
+    # as it is with a warning. The attestations still cover the missing files.
     tag = f'v{version}'
     found = existing_release(version, commit, run)
     if found is None:
@@ -247,6 +250,11 @@ def create_release(version, commit, files, run=subprocess.run):
         missing = [file for file in files if Path(file).name not in present]
         if not missing and not found.get('isDraft'):
             return f'GitHub release {tag} already exists for {commit} with every asset.'
+        if not found.get('isDraft'):
+            names = ', '.join(Path(file).name for file in missing)
+            print(f'::warning title=Published release kept unchanged::GitHub release {tag} is published without {names}; '
+                  'published releases are not modified, so these assets are not added.')
+            return f'GitHub release {tag} already exists for {commit}; kept unchanged without {names}.'
         if missing and run(['gh', 'release', 'upload', tag, *missing, '--repo', REPOSITORY]).returncode != 0:
             raise ReleaseError(f'Could not complete GitHub release {tag}.')
         command = ['gh', 'release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--prerelease'] if found.get('isDraft') else None

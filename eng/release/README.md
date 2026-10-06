@@ -44,7 +44,11 @@ packages and the SBOM, and `actions/attest` attaches the SBOM to the packages. I
 then publishes only missing packages and creates the GitHub prerelease at the
 dispatched commit from those exact packages and the SBOM (`release.py release`). A
 rerun after a partial publication keeps an existing release of this tag and
-commit, uploads only missing assets and publishes a matching draft.
+commit; for a draft it uploads only missing assets and publishes it. A published
+release is never modified, since immutable releases reject new assets: if it lacks
+an asset (for example a release created before the SBOM existed), the step keeps it
+unchanged and reports the missing files as a workflow warning instead of failing,
+so the rest of the publication can finish. The attestations still cover those files.
 `eng/release/test_release.py` and `test_sbom.py` pin this contract and run in CI.
 
 ## Verifying a release
