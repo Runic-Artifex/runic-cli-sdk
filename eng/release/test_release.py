@@ -46,10 +46,11 @@ class CiRunSelection(unittest.TestCase):
             release.select_ci_run([run(5, conclusion='failure')], release.REPOSITORY, SHA)
 
     def test_single_unexpired_artifact_of_that_run(self):
-        artifact = {'name': release.ARTIFACT, 'expired': False, 'workflow_run': {'id': 7, 'head_sha': SHA}}
+        artifact = {'id': 70, 'name': release.ARTIFACT, 'expired': False, 'workflow_run': {'id': 7, 'head_sha': SHA}}
         self.assertIs(release.select_artifact([artifact, {**artifact, 'name': 'other'}], run(7)), artifact)
         for artifacts, message in [([], 'no single'), ([{**artifact, 'expired': True}], 'expired'),
-                                   ([{**artifact, 'workflow_run': {'id': 7, 'head_sha': 'c' * 40}}], 'different')]:
+                                   ([{**artifact, 'workflow_run': {'id': 7, 'head_sha': 'c' * 40}}], 'different'),
+                                   ([{**artifact, 'id': None}], 'no id')]:
             with self.assertRaisesRegex(release.ReleaseError, message):
                 release.select_artifact(artifacts, run(7))
 
@@ -59,11 +60,12 @@ class CiRunSelection(unittest.TestCase):
         def api(repository, path, token):
             calls.append(path)
             if '/artifacts' in path:
-                return {'artifacts': [{'name': release.ARTIFACT, 'expired': False, 'workflow_run': {'id': 8, 'head_sha': SHA}}]}
+                return {'artifacts': [{'id': 80, 'name': release.ARTIFACT, 'expired': False, 'workflow_run': {'id': 8, 'head_sha': SHA}}]}
             return {'workflow_runs': [run(8)]}
         found = release.find_ci_packages(release.REPOSITORY, SHA, 't', api)
         self.assertEqual(found['run-id'], '8')
         self.assertEqual(found['artifact'], release.ARTIFACT)
+        self.assertEqual(found['artifact-id'], '80')
         self.assertRegex(calls[0], rf'^actions/workflows/ci.yml/runs\?head_sha={SHA}&event=push&branch=main')
         with self.assertRaisesRegex(release.ReleaseError, 'full commit SHA'):
             release.find_ci_packages(release.REPOSITORY, 'main', 't', api)
@@ -84,13 +86,17 @@ class CandidatePackages(unittest.TestCase):
             self.pack(directory)
             manifest = release.prepare(directory, '1.2.3-preview.1+build.4', SHA, '42')
             self.assertEqual([p['name'] for p in manifest['packages']], release.PACKAGES)
-            release.verify(directory, manifest, SHA)
+            release.verify(directory, manifest, SHA, '1.2.3-preview.1+build.4', '42')
             with self.assertRaisesRegex(release.ReleaseError, 'Inventory is for'):
-                release.verify(directory, manifest, 'b' * 40)
+                release.verify(directory, manifest, 'b' * 40, '1.2.3-preview.1+build.4', '42')
+            with self.assertRaisesRegex(release.ReleaseError, 'version'):
+                release.verify(directory, manifest, SHA, '1.2.3-preview.2', '42')
+            with self.assertRaisesRegex(release.ReleaseError, 'CI run'):
+                release.verify(directory, manifest, SHA, '1.2.3-preview.1+build.4', '43')
             with zipfile.ZipFile(Path(directory) / 'Runic.CommandLine.1.2.3-preview.1.nupkg', 'a') as package:
                 package.writestr('extra.txt', 'changed')
             with self.assertRaisesRegex(release.ReleaseError, 'differ from the candidate'):
-                release.verify(directory, manifest, SHA)
+                release.verify(directory, manifest, SHA, '1.2.3-preview.1+build.4', '42')
 
     def test_rejects_wrong_version_commit_repository_or_set(self):
         cases = [({'commit': 'b' * 40}, 'packed from'), ({'url': 'https://github.com/obsolete/repo'}, 'names repository'),
@@ -110,26 +116,46 @@ class CandidatePackages(unittest.TestCase):
 
 
 class ReleaseCheck(unittest.TestCase):
-    def fake(self, release_exists=False, tag=None):
+    def fake(self, release_exists=False, tag=None, draft=False, assets=()):
         calls = []
 
         def run_command(args, **_):
             calls.append(args)
-            if args[:2] == ['gh', 'release']:
-                return SimpleNamespace(returncode=0 if release_exists else 1, stdout=json.dumps({'url': 'u'}))
-            return SimpleNamespace(returncode=0 if tag else 1, stdout=f'{tag}\n')
+            if args[:3] == ['gh', 'release', 'view']:
+                body = {'url': 'u', 'isDraft': draft, 'assets': [{'name': name} for name in assets]}
+                return SimpleNamespace(returncode=0 if release_exists else 1, stdout=json.dumps(body))
+            if args[:2] == ['gh', 'api']:
+                return SimpleNamespace(returncode=0 if tag else 1, stdout=f'{tag}\n')
+            return SimpleNamespace(returncode=0, stdout='')
         return run_command, calls
 
-    def test_only_reads_and_refuses_conflicts(self):
+    def test_check_only_reads_and_accepts_only_this_commit(self):
         run_command, calls = self.fake()
         self.assertIn('Would create', release.release_check('1.2.3', SHA, run_command))
-        self.assertEqual([args[:2] for args in calls], [['gh', 'release'], ['gh', 'api']])
-        self.assertEqual(calls[0][2], 'view')
+        self.assertEqual([args[:3] for args in calls], [['gh', 'release', 'view'], ['gh', 'api', f'repos/{release.REPOSITORY}/commits/v1.2.3']])
         self.assertIn('Would create', release.release_check('1.2.3', SHA, self.fake(tag=SHA)[0]))
-        with self.assertRaisesRegex(release.ReleaseError, 'already exists'):
-            release.release_check('1.2.3', SHA, self.fake(release_exists=True)[0])
+        self.assertIn('already exists for', release.release_check('1.2.3', SHA, self.fake(release_exists=True, tag=SHA)[0]))
+        for fake, message in [(self.fake(release_exists=True, tag='b' * 40), 'belongs to'), (self.fake(tag='b' * 40), 'belongs to'),
+                              (self.fake(release_exists=True, tag=SHA, draft=True), 'draft'), (self.fake(release_exists=True), 'no tag')]:
+            with self.assertRaisesRegex(release.ReleaseError, message):
+                release.release_check('1.2.3', SHA, fake[0])
+
+    def test_rerun_keeps_a_release_of_this_commit_and_uploads_only_missing_assets(self):
+        files = ['p/A.1.2.3.nupkg', 'p/B.1.2.3.nupkg']
+        run_command, calls = self.fake()
+        self.assertIn('Created', release.create_release('1.2.3', SHA, files, run_command))
+        self.assertEqual(calls[-1][:3], ['gh', 'release', 'create'])
+        self.assertEqual(calls[-1][calls[-1].index('--target') + 1], SHA)
+        run_command, calls = self.fake(release_exists=True, tag=SHA, assets=['A.1.2.3.nupkg'])
+        self.assertIn('Completed', release.create_release('1.2.3', SHA, files, run_command))
+        self.assertEqual(calls[-1][:5], ['gh', 'release', 'upload', 'v1.2.3', 'p/B.1.2.3.nupkg'])
+        run_command, calls = self.fake(release_exists=True, tag=SHA, assets=['A.1.2.3.nupkg', 'B.1.2.3.nupkg'])
+        self.assertIn('every asset', release.create_release('1.2.3', SHA, files, run_command))
+        self.assertFalse(any(args[:3] in (['gh', 'release', 'create'], ['gh', 'release', 'upload']) for args in calls))
+        run_command, calls = self.fake(release_exists=True, tag='b' * 40)
         with self.assertRaisesRegex(release.ReleaseError, 'belongs to'):
-            release.release_check('1.2.3', SHA, self.fake(tag='b' * 40)[0])
+            release.create_release('1.2.3', SHA, files, run_command)
+        self.assertFalse(any(args[:3] == ['gh', 'release', 'create'] for args in calls))
 
 
 class PublishDryRun(unittest.TestCase):
@@ -161,6 +187,9 @@ class PublishWorkflow(unittest.TestCase):
             body = job(self.text, name)
             self.assertNotRegex(body, r'eng/(test|pack|verify|verify-packages|verify-candidate)\.sh')
             self.assertIn('run-id: ${{', body)
+            self.assertIn('artifact-ids: ${{', body)
+            self.assertIn('merge-multiple: true', body)
+            self.assertNotRegex(body, r'\n\s+name: \$\{\{')
             self.assertIn('github-token: ${{ github.token }}', body)
             self.assertIn('actions: read', body)
         self.assertIn('python3 eng/release/release.py find-ci', job(self.text, 'candidate'))
@@ -174,6 +203,7 @@ class PublishWorkflow(unittest.TestCase):
         self.assertNotIn('contents: write', candidate)
         self.assertNotIn('NuGet/login', candidate)
         self.assertNotIn('gh release create', candidate)
+        self.assertNotIn('release.py release ', candidate)
         self.assertIn('publish-nuget.py artifacts/packages https://api.nuget.org/v3/index.json --dry-run', candidate)
         self.assertIn('release.py release-check', candidate)
         self.assertIn('if: ${{ !inputs.dry-run }}', publish)
@@ -181,8 +211,10 @@ class PublishWorkflow(unittest.TestCase):
         self.assertIn('id-token: write', publish)
         self.assertNotIn('--dry-run', publish)
         self.assertNotIn('id-token', self.text.split('\njobs:\n')[0])
+        self.assertIn('release.py verify artifacts/packages artifacts/release/packages.json "$VERSION" "$CI_RUN_ID"', publish)
         self.assertLess(publish.index('release.py verify'), publish.index('publish-nuget.py'))
-        self.assertLess(publish.index('publish-nuget.py'), publish.index('gh release create'))
+        self.assertLess(publish.index('publish-nuget.py'), publish.index('release.py release "$VERSION"'))
+        self.assertIn('overwrite: true', candidate)
 
 
 if __name__ == '__main__':

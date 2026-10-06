@@ -3,8 +3,9 @@
 
 find-ci        find the green ci.yml push run on main for GITHUB_SHA and its artifact
 prepare        check the downloaded packages against the version and commit; write an inventory
-verify         check packages against an inventory written by prepare
+verify         check packages against an inventory written by prepare, the version and the CI run
 release-check  check that tag and GitHub release do not belong to another commit (read-only)
+release        create the GitHub prerelease, or finish one that already exists for this commit
 """
 import hashlib
 import json
@@ -57,6 +58,8 @@ def select_artifact(artifacts, run):
     origin = artifact.get('workflow_run') or {}
     if origin.get('id') != run['id'] or origin.get('head_sha') != run['head_sha']:
         raise ReleaseError('The artifact belongs to a different run or commit.')
+    if not isinstance(artifact.get('id'), int) or artifact['id'] <= 0:
+        raise ReleaseError('The artifact has no id.')
     return artifact
 
 
@@ -76,7 +79,9 @@ def find_ci_packages(repository, sha, token, api=github_api):
     query = urllib.parse.urlencode({'head_sha': sha, 'event': 'push', 'branch': 'main', 'per_page': 100})
     run = select_ci_run(api(repository, f'actions/workflows/ci.yml/runs?{query}', token)['workflow_runs'], repository, sha)
     artifact = select_artifact(api(repository, f"actions/runs/{run['id']}/artifacts?name={ARTIFACT}", token)['artifacts'], run)
-    return {'run-id': str(run['id']), 'run-url': run['html_url'], 'artifact': artifact['name']}
+    # Download by id: re-uploading under the same name creates a new id, so the
+    # bytes downloaded later are exactly the artifact selected here.
+    return {'run-id': str(run['id']), 'run-url': run['html_url'], 'artifact': artifact['name'], 'artifact-id': str(artifact['id'])}
 
 
 def nuspec(path):
@@ -129,24 +134,57 @@ def prepare(directory, version, commit, ci_run_id):
             'ciRunId': ci_run_id, 'packages': scan(directory, version, commit)}
 
 
-def verify(directory, manifest, commit):
+def verify(directory, manifest, commit, version, ci_run_id):
     if manifest.get('schema') != SCHEMA or manifest.get('repository') != REPOSITORY:
         raise ReleaseError('Not a Command Line release inventory')
     if manifest.get('source') != commit:
         raise ReleaseError(f"Inventory is for {manifest.get('source')}, not {commit}")
+    if manifest.get('version') != version:
+        raise ReleaseError(f"Inventory is for version {manifest.get('version')}, not {version}")
+    if manifest.get('ciRunId') != ci_run_id:
+        raise ReleaseError(f"Inventory is for CI run {manifest.get('ciRunId')}, not {ci_run_id}")
     if scan(directory, manifest['version'], commit) != manifest['packages']:
         raise ReleaseError('Packages differ from the candidate inventory')
 
 
-def release_check(version, commit, run=subprocess.run):
+def existing_release(version, commit, run):
+    """The published release of this exact tag and commit, None if absent; fails for any other release or tag."""
     tag = f'v{version}'
-    release = run(['gh', 'release', 'view', tag, '--repo', REPOSITORY, '--json', 'isDraft,url'], capture_output=True, text=True)
-    if release.returncode == 0:
-        raise ReleaseError(f'GitHub release {tag} already exists ({json.loads(release.stdout)["url"]}); publish a new version.')
+    release = run(['gh', 'release', 'view', tag, '--repo', REPOSITORY, '--json', 'isDraft,url,assets'], capture_output=True, text=True)
     tagged = run(['gh', 'api', f'repos/{REPOSITORY}/commits/{tag}', '--jq', '.sha'], capture_output=True, text=True)
     if tagged.returncode == 0 and tagged.stdout.strip() != commit:
         raise ReleaseError(f'Tag {tag} belongs to {tagged.stdout.strip()}, not {commit}.')
-    return f'Would create the prerelease {tag} at {commit}.'
+    if release.returncode != 0:
+        return None
+    found = json.loads(release.stdout)
+    if found.get('isDraft') or tagged.returncode != 0:
+        raise ReleaseError(f"GitHub release {tag} ({found.get('url')}) is a draft or has no tag; publish or delete it first.")
+    return found
+
+
+def release_check(version, commit, run=subprocess.run):
+    found = existing_release(version, commit, run)
+    if found:
+        return f"GitHub release v{version} already exists for {commit} ({found.get('url')}); a rerun keeps it."
+    return f'Would create the prerelease v{version} at {commit}.'
+
+
+def create_release(version, commit, files, run=subprocess.run):
+    # A rerun after a partial publication keeps a release of this exact tag and
+    # commit and only uploads assets it is missing, so tag-latest can still run.
+    tag = f'v{version}'
+    found = existing_release(version, commit, run)
+    if found is None:
+        command = ['gh', 'release', 'create', tag, *files, '--repo', REPOSITORY, '--target', commit, '--prerelease', '--generate-notes']
+    else:
+        present = {asset.get('name') for asset in found.get('assets') or []}
+        missing = [file for file in files if Path(file).name not in present]
+        if not missing:
+            return f'GitHub release {tag} already exists for {commit} with every asset.'
+        command = ['gh', 'release', 'upload', tag, *missing, '--repo', REPOSITORY]
+    if run(command).returncode != 0:
+        raise ReleaseError(f'Could not {"create" if found is None else "complete"} GitHub release {tag}.')
+    return f'{"Created" if found is None else "Completed"} GitHub release {tag} at {commit}.'
 
 
 def head():
@@ -158,19 +196,23 @@ def main(argv):
     if command == 'find-ci':
         found = find_ci_packages(os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_SHA'], os.environ['GH_TOKEN'])
         with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-            output.write(f"run-id={found['run-id']}\nartifact={found['artifact']}\n")
-        print(f"Reusing {found['artifact']} from {found['run-url']}")
+            output.write(f"run-id={found['run-id']}\nartifact-id={found['artifact-id']}\n")
+        print(f"Reusing {found['artifact']} (artifact {found['artifact-id']}) from {found['run-url']}")
     elif command == 'prepare' and len(args) == 4:
         directory, version, ci_run_id, output = args
         manifest = prepare(directory, version, head(), ci_run_id)
         Path(output).write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
         print(f"Verified {len(manifest['packages'])} packages for {version} at {manifest['source']}")
-    elif command == 'verify' and len(args) == 2:
-        verify(args[0], json.loads(Path(args[1]).read_text(encoding='utf-8')), head())
+    elif command == 'verify' and len(args) == 4:
+        directory, inventory, version, ci_run_id = args
+        verify(directory, json.loads(Path(inventory).read_text(encoding='utf-8')), head(), version, ci_run_id)
     elif command == 'release-check' and len(args) == 1:
         print(release_check(args[0], head()))
+    elif command == 'release' and len(args) == 2:
+        print(create_release(args[0], head(), sorted(str(path) for path in Path(args[1]).glob('*.nupkg'))))
     else:
-        raise ReleaseError('Use find-ci, prepare <packages> <version> <ci-run-id> <inventory>, verify <packages> <inventory>, or release-check <version>')
+        raise ReleaseError('Use find-ci, prepare <packages> <version> <ci-run-id> <inventory>, '
+                           'verify <packages> <inventory> <version> <ci-run-id>, release-check <version>, or release <version> <packages>')
 
 
 if __name__ == '__main__':

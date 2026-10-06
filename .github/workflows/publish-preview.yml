@@ -33,7 +33,7 @@ jobs:
       actions: read
     outputs:
       ci-run-id: ${{ steps.ci.outputs.run-id }}
-      artifact: ${{ steps.ci.outputs.artifact }}
+      artifact-id: ${{ steps.ci.outputs.artifact-id }}
     env:
       VERSION: ${{ inputs.version }}
     steps:
@@ -52,9 +52,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 eng/release/release.py find-ci
+      # By id, so a re-upload under the same name cannot change the downloaded bytes.
+      # merge-multiple extracts the single artifact directly into path.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ${{ steps.ci.outputs.artifact }}
+          artifact-ids: ${{ steps.ci.outputs.artifact-id }}
+          merge-multiple: true
           path: artifacts/packages
           run-id: ${{ steps.ci.outputs.run-id }}
           github-token: ${{ github.token }}
@@ -71,6 +74,7 @@ jobs:
           path: artifacts/release/packages.json
           if-no-files-found: error
           retention-days: 30
+          overwrite: true
       - name: Check NuGet without publishing
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: python3 eng/release/publish-nuget.py artifacts/packages https://api.nuget.org/v3/index.json --dry-run
@@ -101,7 +105,8 @@ jobs:
           global-json-file: global.json
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ${{ needs.candidate.outputs.artifact }}
+          artifact-ids: ${{ needs.candidate.outputs.artifact-id }}
+          merge-multiple: true
           path: artifacts/packages
           run-id: ${{ needs.candidate.outputs.ci-run-id }}
           github-token: ${{ github.token }}
@@ -110,7 +115,9 @@ jobs:
           name: release-candidate-${{ github.run_id }}
           path: artifacts/release
       - name: Verify packages against the candidate inventory
-        run: python3 eng/release/release.py verify artifacts/packages artifacts/release/packages.json
+        env:
+          CI_RUN_ID: ${{ needs.candidate.outputs.ci-run-id }}
+        run: python3 eng/release/release.py verify artifacts/packages artifacts/release/packages.json "$VERSION" "$CI_RUN_ID"
       - id: nuget-login
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
@@ -122,6 +129,6 @@ jobs:
       - name: Create GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "v$VERSION" artifacts/packages/*.nupkg --target "$GITHUB_SHA" --prerelease --generate-notes
+        run: python3 eng/release/release.py release "$VERSION" artifacts/packages
       - name: Note the documentation catalog step
         run: echo "Published $VERSION. Update the docs catalog in runic-site (see eng/release/README.md)." >> "$GITHUB_STEP_SUMMARY"
