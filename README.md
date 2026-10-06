@@ -83,7 +83,10 @@ direnv exec . ./eng/verify.sh
 runs the NativeAOT source smoke and an isolated consumer against the packed
 packages. It reads the candidate version from `eng/Versions.props`, or accepts
 `./eng/verify.sh <version> [package-directory] [runtime-identifier]`. NativeAOT
-defaults to the host runtime. CI packs once and runs source and candidate consumer
+defaults to the host runtime. `./eng/verify-candidate.sh` with the same arguments
+packs and checks only the candidate packages. Packing builds the set in a staging
+directory and replaces the output directory only when every package succeeded, so a
+failed or interrupted pack keeps the previous set. CI packs once and runs source and candidate consumer
 NativeAOT checks on Linux x64, Windows x64 and macOS Arm64, one native job at a time.
 
 Each package tracks its public API in `PublicAPI.Shipped.txt` (the last published

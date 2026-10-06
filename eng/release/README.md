@@ -23,6 +23,11 @@ and its corresponding archive names.
 It does not create a distinct NuGet release. Dispatch equality still compares
 the complete committed and requested version strings.
 
+`./eng/verify-candidate.sh [version] [package-directory] [runtime-identifier]`
+packs a fresh candidate set and runs the isolated consumer against it once.
+`eng/pack.sh` stages the packages beside the output directory and replaces it only
+after all four packages exist; an interrupted pack leaves the previous set.
+
 To verify existing candidate artifacts without rebuilding or packing them:
 
 ```sh
