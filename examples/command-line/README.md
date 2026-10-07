@@ -2,8 +2,8 @@
 
 Start with the [package-only quick-start](../../README.md#package-only-quick-start):
 install the core package, write one command method, then run human or JSON output.
-The current `0.6.0-preview.2` candidate is distinct from the published
-`0.6.0-preview.1`; these sources are checked against the candidate, not assumed
+The current `0.6.0-preview.3` candidate is distinct from the published
+`0.6.0-preview.2`; these sources are checked against the candidate, not assumed
 to work against earlier package APIs. Use matching versions of `Runic.CommandLine`
 and optional `Runic.CommandLine.Spectre`.
 The [package-consumer check](../../tests/fixtures/command-line/package-consumer/Runic.CommandLine.PackageConsumer/README.md)

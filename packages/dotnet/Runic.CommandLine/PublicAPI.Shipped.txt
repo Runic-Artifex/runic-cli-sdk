@@ -635,3 +635,37 @@ virtual Runic.CommandLine.CommandHumanPresenter<T>.Invoke(T value, Runic.Command
 ~override Runic.CommandLine.CommandOutputClassification.ToString() -> string
 ~override Runic.CommandLine.CommandUnit.Equals(object obj) -> bool
 ~override Runic.CommandLine.CommandUnit.ToString() -> string
+Runic.CommandLine.ArgumentAttribute.DescriptionKey.get -> string?
+Runic.CommandLine.ArgumentAttribute.DescriptionKey.set -> void
+Runic.CommandLine.CommandApp.Culture.get -> System.Globalization.CultureInfo?
+Runic.CommandLine.CommandApp.Culture.init -> void
+Runic.CommandLine.CommandApp.TextResolver.get -> Runic.CommandLine.ICommandTextResolver?
+Runic.CommandLine.CommandApp.TextResolver.init -> void
+Runic.CommandLine.CommandAttribute.DescriptionKey.get -> string?
+Runic.CommandLine.CommandAttribute.DescriptionKey.set -> void
+Runic.CommandLine.CommandCompletionResult
+Runic.CommandLine.CommandCompletionResult.Candidates.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Runic.CommandLine.CommandCompletionResult.PathKind.get -> Runic.CommandLine.CommandPathKind
+Runic.CommandLine.CommandCompletionResult.ValuePrefix.get -> string!
+Runic.CommandLine.CommandOutputDispatcher.TextResolver.get -> Runic.CommandLine.ICommandTextResolver?
+Runic.CommandLine.CommandOutputDispatcher.TextResolver.init -> void
+Runic.CommandLine.CommandPresentation.TextResolver.get -> Runic.CommandLine.ICommandTextResolver?
+Runic.CommandLine.CommandPresentation.TextResolver.init -> void
+Runic.CommandLine.CommandTextContext
+Runic.CommandLine.CommandTextContext.CommandTextContext(System.Globalization.CultureInfo! culture, Runic.CommandLine.ICommandTextResolver? resolver = null) -> void
+Runic.CommandLine.CommandTextContext.Culture.get -> System.Globalization.CultureInfo!
+Runic.CommandLine.CommandTextContext.Description(Runic.CommandLine.CommandHelp! help, string? descriptionKey) -> string!
+Runic.CommandLine.CommandTextContext.Localize(Runic.CommandLine.CommandDiagnostic! diagnostic) -> Runic.CommandLine.CommandDiagnostic!
+Runic.CommandLine.CommandTextContext.Resolve(string? key, string! fallback, System.Collections.Generic.IReadOnlyList<string!>? arguments = null) -> string!
+Runic.CommandLine.CommandTextContext.Resolver.get -> Runic.CommandLine.ICommandTextResolver?
+Runic.CommandLine.ICommandHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName, Runic.CommandLine.CommandTextContext! textContext, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.ICommandTextResolver
+Runic.CommandLine.ICommandTextResolver.Resolve(string! key, System.Globalization.CultureInfo! culture, System.Collections.Generic.IReadOnlyList<string!>! arguments) -> string?
+Runic.CommandLine.OptionAttribute.DescriptionKey.get -> string?
+Runic.CommandLine.OptionAttribute.DescriptionKey.set -> void
+static Runic.CommandLine.CommandCompletion.Query(Runic.CommandLine.CommandCatalog! catalog, System.Collections.Generic.IReadOnlyList<string!>! words, string! outputOptionName = "--output") -> Runic.CommandLine.CommandCompletionResult!
+static Runic.CommandLine.CommandHelpFormatter.Format(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, Runic.CommandLine.CommandTextContext! context, string! outputOptionName = "--output", int width = 80) -> string!
+static Runic.CommandLine.CommandOutputDispatcher.DispatchAsync<T>(Runic.CommandLine.CommandOutputMode mode, Runic.CommandLine.ICommandConsole! console, System.Globalization.CultureInfo! culture, Runic.CommandLine.CommandResponse<T>! response, Runic.CommandLine.ICommandResultCodec<T>! codec, Runic.CommandLine.CommandTextContext! textContext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandTextContext.English.get -> Runic.CommandLine.CommandTextContext!
+const Runic.CommandLine.CommandHelpFormatter.DefaultWidth = 80 -> int
+const Runic.CommandLine.CommandHelpFormatter.MinimumWidth = 20 -> int

@@ -10,8 +10,8 @@ Use .NET 10. Create a console project and install the core package, which includ
 the source generator. This method-first example is maintained in
 [`hello-world/Program.cs`](examples/command-line/hello-world/Program.cs).
 
-The committed `0.6.0-preview.2` is a **candidate**, not a published-version promise.
-On 2026-10-05 NuGet lists `0.6.0-preview.1` as the latest published version;
+The committed `0.6.0-preview.3` is a **candidate**, not a published-version promise.
+On 2026-10-07 NuGet lists `0.6.0-preview.2` as the latest published version;
 the tutorial APIs here are verified against the candidate. Download the
 `command-line-packages` artifact from a successful CI run and extract it to an
 absolute directory, then replace `/absolute/path/to/candidate-feed` below.
@@ -20,7 +20,7 @@ No source checkout or project references are needed.
 ```sh
 dotnet new console --framework net10.0 --name HelloCli
 cd HelloCli
-dotnet add package Runic.CommandLine --version 0.6.0-preview.2 --source /absolute/path/to/candidate-feed
+dotnet add package Runic.CommandLine --version 0.6.0-preview.3 --source /absolute/path/to/candidate-feed
 ```
 
 Replace `Program.cs` with:
@@ -109,8 +109,8 @@ vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 The four NuGet package identities release together, independently from the
 Runic SDK. See [the release guide](eng/release/README.md). The first standalone
-release candidate is `0.6.0-preview.2`; package consumers on earlier SDK previews may
-continue to use `0.6.0-preview.1` until they adopt the new release.
+release is `0.6.0-preview.2`; package consumers on earlier SDK previews may
+continue to use `0.6.0-preview.1` until they adopt it.
 
 ## History
 
