@@ -100,6 +100,8 @@ internal static class HelpLayoutTests
         var console = new SpectreCommandConsole(inner, width: 60, color: false);
         await new SpectreHelpPresenter().WriteAsync(Catalog(), "fixture", new CommandPath(["export"]), "--output", console, CancellationToken.None);
         string expected = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, "--output", 60);
-        AssertEx.Equal(expected, inner.StandardOutput.Replace("\r\n", "\n", StringComparison.Ordinal));
+        // Spectre may still style headings when it detects a CI terminal; compare the visible text.
+        string visible = System.Text.RegularExpressions.Regex.Replace(inner.StandardOutput, "\u001b\\[[0-9;]*m", "");
+        AssertEx.Equal(expected, visible.Replace("\r\n", "\n", StringComparison.Ordinal));
     }
 }
