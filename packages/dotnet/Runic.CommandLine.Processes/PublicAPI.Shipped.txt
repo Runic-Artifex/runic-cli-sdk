@@ -74,3 +74,19 @@ static readonly Runic.CommandLine.Processes.ProcessExecutionOptions.DefaultDrain
 static readonly Runic.CommandLine.Processes.ProcessExecutionOptions.MaximumDrainGracePeriod -> System.TimeSpan
 static Runic.CommandLine.Processes.ExecutablePolicyDecision.Allow() -> Runic.CommandLine.Processes.ExecutablePolicyDecision!
 static Runic.CommandLine.Processes.ExecutablePolicyDecision.Reject(string! code, string! message) -> Runic.CommandLine.Processes.ExecutablePolicyDecision!
+const Runic.CommandLine.Processes.ProcessStandardInput.DefaultInputLimitBytes = 1048576 -> int
+const Runic.CommandLine.Processes.ProcessStandardInput.MaximumInputLimitBytes = 16777216 -> int
+Runic.CommandLine.Processes.ProcessExecutionOptions.InheritEnvironment.get -> bool
+Runic.CommandLine.Processes.ProcessExecutionOptions.InheritEnvironment.init -> void
+Runic.CommandLine.Processes.ProcessExecutionOptions.StandardInput.get -> Runic.CommandLine.Processes.ProcessStandardInput!
+Runic.CommandLine.Processes.ProcessExecutionOptions.StandardInput.init -> void
+Runic.CommandLine.Processes.ProcessStandardInput
+Runic.CommandLine.Processes.ProcessStandardInput.ByteCount.get -> int
+Runic.CommandLine.Processes.ProcessStandardInput.Mode.get -> Runic.CommandLine.Processes.ProcessStandardInputMode
+Runic.CommandLine.Processes.ProcessStandardInputMode
+Runic.CommandLine.Processes.ProcessStandardInputMode.BoundedBytes = 2 -> Runic.CommandLine.Processes.ProcessStandardInputMode
+Runic.CommandLine.Processes.ProcessStandardInputMode.Closed = 1 -> Runic.CommandLine.Processes.ProcessStandardInputMode
+Runic.CommandLine.Processes.ProcessStandardInputMode.Inherit = 0 -> Runic.CommandLine.Processes.ProcessStandardInputMode
+static Runic.CommandLine.Processes.ProcessStandardInput.Closed.get -> Runic.CommandLine.Processes.ProcessStandardInput!
+static Runic.CommandLine.Processes.ProcessStandardInput.FromBytes(System.ReadOnlyMemory<byte> bytes, int limitBytes = 1048576) -> Runic.CommandLine.Processes.ProcessStandardInput!
+static Runic.CommandLine.Processes.ProcessStandardInput.Inherit.get -> Runic.CommandLine.Processes.ProcessStandardInput!

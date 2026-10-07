@@ -15,3 +15,4 @@ Runic.CommandLine.Spectre.SpectreCommandConsole.WriteOutBytesAsync(System.ReadOn
 Runic.CommandLine.Spectre.SpectreHelpPresenter
 Runic.CommandLine.Spectre.SpectreHelpPresenter.SpectreHelpPresenter() -> void
 Runic.CommandLine.Spectre.SpectreHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Spectre.SpectreHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName, Runic.CommandLine.CommandTextContext! textContext, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

@@ -36,3 +36,15 @@ RCLI9026 | Runic.CommandLine | Error | AllowMultipleValues does not match the pa
 RCLI9027 | Runic.CommandLine | Error | Occurrence policy on a scalar option
 RCLI9028 | Runic.CommandLine | Error | Invalid generated command result metadata
 RCLI9029 | Runic.CommandLine | Error | Multiple default commands
+
+## Release 0.6.0.2
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|-------
+RCLI9030 | Runic.CommandLine | Error | Invalid command converter
+RCLI9031 | Runic.CommandLine | Error | Invalid command validator
+RCLI9032 | Runic.CommandLine | Error | Converter on a Boolean flag
+RCLI9033 | Runic.CommandLine | Error | Conversion metadata on an unbound parameter
+RCLI9034 | Runic.CommandLine | Error | Converter on a list parameter
