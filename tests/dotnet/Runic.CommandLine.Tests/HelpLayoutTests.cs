@@ -15,6 +15,9 @@ internal static class HelpLayoutTests
         new("help/row-description-lines-continue-under-the-column", RowDescriptionLines),
         new("help/wide-characters-use-two-cells-and-may-break", WideCharacters),
         new("help/notes-fit-narrow-widths", NotesFitNarrowWidths),
+        new("help/row-descriptions-wrap-after-double-spaces", RowDescriptionsWrapAfterDoubleSpaces),
+        new("help/unpaired-surrogates-do-not-fail", UnpairedSurrogates),
+        new("help/explicit-spectre-width-is-used-as-given", ExplicitSpectreWidth),
     ];
 
     private static readonly HashSet<string> UnbreakableTerms =
@@ -174,7 +177,7 @@ internal static class HelpLayoutTests
               --mode <mode>  First line of the description,
                              long enough to wrap.
                              Second line
-                               indented   example
+                             indented example
 
                              After a blank line
                              [default: fast]
@@ -240,5 +243,37 @@ internal static class HelpLayoutTests
             AssertEx.True(help.Contains("[default:", StringComparison.Ordinal) && help.Contains(value + "]", StringComparison.Ordinal), help);
         }
         return ValueTask.CompletedTask;
+    }
+
+    private static ValueTask RowDescriptionsWrapAfterDoubleSpaces()
+    {
+        string help = Convert(null, "Selects the mode.  The default mode is fast and suits most inputs.", 40);
+        AssertEx.True(help.Contains("""
+              --mode <mode>  Selects the mode. The
+                             default mode is fast
+            """.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal), help);
+        return ValueTask.CompletedTask;
+    }
+
+    private static ValueTask UnpairedSurrogates()
+    {
+        foreach (string text in new[] { "Bad \uD800 text", "Bad\uDC00text", "末尾\uD800", "\uD800\u0301 x" })
+        {
+            string help = Convert(text, text, 40);
+            AssertEx.True(help.Contains("Usage: fixture", StringComparison.Ordinal), help);
+            AssertEx.True(help.Contains("[default: fast]", StringComparison.Ordinal), help);
+        }
+        return ValueTask.CompletedTask;
+    }
+
+    private static async ValueTask ExplicitSpectreWidth()
+    {
+        // A terminal-looking console with an explicit width: the presenter must not subtract the terminal margin.
+        var inner = new TestCommandConsole { IsOutputRedirected = false };
+        var console = new SpectreCommandConsole(inner, width: 60, color: false);
+        await new SpectreHelpPresenter().WriteAsync(Catalog(), "fixture", new CommandPath(["export"]), "--output", console, CancellationToken.None);
+        string expected = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, "--output", 60);
+        string visible = System.Text.RegularExpressions.Regex.Replace(inner.StandardOutput, "\u001b\\[[0-9;]*m", "");
+        AssertEx.Equal(expected, visible.Replace("\r\n", "\n", StringComparison.Ordinal));
     }
 }

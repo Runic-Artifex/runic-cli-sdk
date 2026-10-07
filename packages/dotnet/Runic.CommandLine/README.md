@@ -108,13 +108,15 @@ rely on the cancelled handler completing.
 Help wraps descriptions at word boundaries and continues them under the
 description column. Width is measured in terminal cells: East Asian wide and
 fullwidth characters take two cells and may break between characters; combining
-marks take none. A description line that is indented or contains a run of
-spaces, such as a list, aligned columns or a code block in `LongDescription`,
-is printed as written. On an interactive terminal help uses the terminal width
+marks take none. A `LongDescription` line that is indented or contains a run of
+three or more spaces, such as a list, aligned columns or a code block, is
+printed as written; other text, including every summary and parameter
+description, wraps (an explicit newline still starts a new line). On an interactive terminal help uses the terminal width
 less one column; redirected, machine and test output use
 `CommandHelpFormatter.DefaultWidth` (80 columns). `SpectreHelpPresenter` uses its
-`SpectreCommandConsole` width instead: the terminal width less one column, or
-100 columns when output is redirected. `CommandHelpFormatter.Format` accepts an
+`SpectreCommandConsole` width instead: a width passed to its constructor as
+given, otherwise the terminal width less one column, or 100 columns when output
+is redirected. `CommandHelpFormatter.Format` accepts an
 explicit `width`.
 
 Install optional `Runic.CommandLine.Spectre`, then set `Console = new

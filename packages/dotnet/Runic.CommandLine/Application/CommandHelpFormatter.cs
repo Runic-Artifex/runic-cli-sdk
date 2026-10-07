@@ -33,7 +33,7 @@ public static class CommandHelpFormatter
     /// <param name="width">
     /// The maximum line width in terminal cells. Descriptions wrap at word boundaries (and between wide East Asian
     /// characters) and continue under their description column; a single word longer than the available space is
-    /// not split. Description lines that are indented or contain a run of spaces are kept as written.
+    /// not split. LongDescription lines that are indented or contain a run of three or more spaces are kept as written.
     /// </param>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "The required CommandTextContext parameter keeps calls unambiguous; the earlier overload is unchanged.")]
     public static string Format(CommandCatalog catalog, string applicationName, CommandPath path, CommandTextContext context, string outputOptionName = "--output", int width = DefaultWidth)
@@ -64,12 +64,12 @@ public static class CommandHelpFormatter
         if (command is not null && context.Description(command.Help, command.DescriptionKey) is { Length: > 0 } description)
         {
             text.Append('\n');
-            AppendParagraphs(text, description, width);
+            AppendParagraphs(text, description, width, preformatted: false);
         }
         if (command?.Help.LongDescription is { } details)
         {
             text.Append('\n');
-            AppendParagraphs(text, details, width);
+            AppendParagraphs(text, details, width, preformatted: true);
         }
         var rows = new List<Row>();
         foreach (CommandDescriptor child in (command?.Subcommands ?? catalog.Commands).Where(child => !child.Help.Hidden))
@@ -124,7 +124,7 @@ public static class CommandHelpFormatter
     }
 
     // A noncharacter that never occurs in presentation text joins the words of one note.
-    private const char NoBreak = '￿';
+    private const char NoBreak = '\uFFFF';
 
     private static void AppendSection(StringBuilder text, string heading, List<Row> rows, int width)
     {
@@ -153,17 +153,17 @@ public static class CommandHelpFormatter
             }
             if (termCells > termWidth) text.Append('\n').Append(' ', column);
             else text.Append(' ', column - 2 - termCells);
-            AppendBlock(text, body.ToString(), column, width);
+            AppendBlock(text, body.ToString(), column, width, preformatted: false);
         }
     }
 
-    private static void AppendParagraphs(StringBuilder text, string value, int width) => AppendBlock(text, value, 0, width);
+    private static void AppendParagraphs(StringBuilder text, string value, int width, bool preformatted) => AppendBlock(text, value, 0, width, preformatted);
 
     // Appends text whose first line starts at the current position, which is column 'indent'. Each source line
-    // continues at 'indent'. A line that is indented or contains a run of spaces is preformatted (a list, aligned
-    // columns or a code block) and is kept verbatim. Other lines wrap, and a list item's continuation lines hang
-    // under its text.
-    private static void AppendBlock(StringBuilder text, string value, int indent, int width)
+    // continues at 'indent' and wraps, and a list item's continuation lines hang under its text. When 'preformatted'
+    // is set (LongDescription), a line that is indented or contains a run of three or more spaces is a list, aligned
+    // columns or a code block and is kept verbatim.
+    private static void AppendBlock(StringBuilder text, string value, int indent, int width, bool preformatted)
     {
         string[] lines = value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
         for (int index = 0; index < lines.Length; index++)
@@ -176,7 +176,7 @@ public static class CommandHelpFormatter
                 continue;
             }
             if (index > 0) text.Append(' ', indent);
-            if (char.IsWhiteSpace(line[0]) || line.Contains("  ", StringComparison.Ordinal))
+            if (preformatted && (char.IsWhiteSpace(line[0]) || line.Contains("   ", StringComparison.Ordinal)))
             {
                 text.Append(line.Replace(NoBreak, ' ')).Append('\n');
                 continue;
@@ -248,7 +248,7 @@ public static class CommandHelpFormatter
             int index = 0;
             while (index < word.Length)
             {
-                Rune rune = Rune.GetRuneAt(word, index);
+                Rune rune = RuneAt(word, index, out int length);
                 if (IsWide(rune.Value))
                 {
                     if (index > runStart)
@@ -256,15 +256,15 @@ public static class CommandHelpFormatter
                         Add(word[runStart..index], spaceBefore);
                         spaceBefore = false;
                     }
-                    int end = index + rune.Utf16SequenceLength;
+                    int end = index + length;
                     // Keep combining marks with the wide character they modify.
-                    while (end < word.Length && Rune.GetRuneAt(word, end) is var next && CellWidth(next) == 0) end += next.Utf16SequenceLength;
+                    while (end < word.Length && CellWidth(RuneAt(word, end, out int next)) == 0) end += next;
                     Add(word[index..end], spaceBefore);
                     spaceBefore = false;
                     runStart = index = end;
                     continue;
                 }
-                index += rune.Utf16SequenceLength;
+                index += length;
             }
             if (runStart < word.Length) Add(word[runStart..], spaceBefore);
         }
@@ -273,7 +273,7 @@ public static class CommandHelpFormatter
 
     private const string ClosingPunctuation = "、。，．）」』】〕〉》！？：；";
 
-    // Terminal cells: wide and fullwidth characters take two, combining marks and format characters none.
+    // Terminal cells: wide and fullwidth characters take two, combining marks and other format characters none.
     private static int CellWidth(string value)
     {
         int cells = 0;
@@ -281,21 +281,46 @@ public static class CommandHelpFormatter
         return cells;
     }
 
+    // Decodes one scalar; an unpaired surrogate becomes U+FFFD and advances by one UTF-16 unit.
+    private static Rune RuneAt(string value, int index, out int length)
+    {
+        if (Rune.DecodeFromUtf16(value.AsSpan(index), out Rune rune, out length) == System.Buffers.OperationStatus.Done) return rune;
+        length = 1;
+        return Rune.ReplacementChar;
+    }
+
     private static int CellWidth(Rune rune)
     {
-        if (rune.Value == NoBreak) return 1;
+        // Tab, the no-break sentinel and the soft hyphen (which terminals draw) take one cell.
+        if (rune.Value is '\t' or NoBreak or 0x00AD) return 1;
         if (Rune.GetUnicodeCategory(rune) is UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format or UnicodeCategory.Control) return 0;
         return IsWide(rune.Value) ? 2 : 1;
     }
 
-    // The East Asian Wide and Fullwidth blocks (Unicode UAX #11), plus the common emoji blocks that terminals draw two cells wide.
-    private static bool IsWide(int value) => value >= 0x1100 && (
-        value <= 0x115F || value is 0x231A or 0x231B or 0x2329 or 0x232A ||
-        (value >= 0x2E80 && value <= 0x303E) || (value >= 0x3041 && value <= 0x33FF) || (value >= 0x3400 && value <= 0x4DBF) ||
-        (value >= 0x4E00 && value <= 0x9FFF) || (value >= 0xA000 && value <= 0xA4CF) || (value >= 0xA960 && value <= 0xA97F) ||
-        (value >= 0xAC00 && value <= 0xD7A3) || (value >= 0xF900 && value <= 0xFAFF) || (value >= 0xFE10 && value <= 0xFE19) ||
-        (value >= 0xFE30 && value <= 0xFE6F) || (value >= 0xFF00 && value <= 0xFF60) || (value >= 0xFFE0 && value <= 0xFFE6) ||
-        (value >= 0x1F300 && value <= 0x1F64F) || (value >= 0x1F900 && value <= 0x1F9FF) || (value >= 0x20000 && value <= 0x3FFFD));
+    // East Asian Wide and Fullwidth ranges (Unicode UAX #11): CJK, Hangul, kana, fullwidth forms and emoji with
+    // default emoji presentation. Pairs of inclusive bounds in ascending order; an approximation for terminals,
+    // which may differ for some symbols.
+    private static ReadOnlySpan<int> WideRanges =>
+    [
+        0x1100, 0x115F, 0x231A, 0x231B, 0x2329, 0x232A, 0x23E9, 0x23EC, 0x23F0, 0x23F0, 0x23F3, 0x23F3, 0x25FD, 0x25FE,
+        0x2614, 0x2615, 0x2648, 0x2653, 0x267F, 0x267F, 0x2693, 0x2693, 0x26A1, 0x26A1, 0x26AA, 0x26AB, 0x26BD, 0x26BE,
+        0x26C4, 0x26C5, 0x26CE, 0x26CE, 0x26D4, 0x26D4, 0x26EA, 0x26EA, 0x26F2, 0x26F3, 0x26F5, 0x26F5, 0x26FA, 0x26FA,
+        0x26FD, 0x26FD, 0x2705, 0x2705, 0x270A, 0x270B, 0x2728, 0x2728, 0x274C, 0x274C, 0x274E, 0x274E, 0x2753, 0x2755,
+        0x2757, 0x2757, 0x2795, 0x2797, 0x27B0, 0x27B0, 0x27BF, 0x27BF, 0x2B1B, 0x2B1C, 0x2B50, 0x2B50, 0x2B55, 0x2B55,
+        0x2E80, 0x303E, 0x3041, 0x33FF, 0x3400, 0x4DBF, 0x4E00, 0x9FFF, 0xA000, 0xA4CF, 0xA960, 0xA97F, 0xAC00, 0xD7A3,
+        0xF900, 0xFAFF, 0xFE10, 0xFE19, 0xFE30, 0xFE6F, 0xFF00, 0xFF60, 0xFFE0, 0xFFE6,
+        0x16FE0, 0x1B2FF, 0x1F004, 0x1F004, 0x1F0CF, 0x1F0CF, 0x1F18E, 0x1F18E, 0x1F191, 0x1F19A, 0x1F200, 0x1F2FF,
+        0x1F300, 0x1F64F, 0x1F680, 0x1F6FF, 0x1F7E0, 0x1F7EB, 0x1F900, 0x1F9FF, 0x1FA70, 0x1FAFF,
+        0x20000, 0x2FFFD, 0x30000, 0x3FFFD,
+    ];
+
+    private static bool IsWide(int value)
+    {
+        ReadOnlySpan<int> ranges = WideRanges;
+        for (int index = 0; index < ranges.Length && value >= ranges[index]; index += 2)
+            if (value <= ranges[index + 1]) return true;
+        return false;
+    }
 
     private static IEnumerable<string> ConcatAliases(this string[] names, IReadOnlyList<string> aliases)
     {
