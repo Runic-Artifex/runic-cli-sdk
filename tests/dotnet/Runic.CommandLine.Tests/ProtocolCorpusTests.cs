@@ -11,7 +11,7 @@ internal static class ProtocolCorpusTests
         "invalid-structures.json",
         CorpusJsonContext.Default.SemanticProtocolCorpus);
     private static readonly string[] ExampleNames =
-        ["success", "command-fault", "validation", "host-fault", "cancelled"];
+        ["success", "command-fault", "validation", "host-fault", "cancelled", "redacted-fault"];
 
     public static IReadOnlyList<TestCase> All { get; } = CreateTests();
 
@@ -135,6 +135,15 @@ internal static class ProtocolCorpusTests
             "cancelled" => Failure(
                 "req-copy-0005", "copy", 4, "RCLI4000",
                 "The command was cancelled.", retryable: true),
+            "redacted-fault" => Failure(
+                "req-pack-0006", "pack", 10, "RCLI8001",
+                "Could not read /home/ada/assets/atlas.png.",
+                new Dictionary<string, string>
+                {
+                    ["asset"] = "/home/ada/assets/atlas.png",
+                    ["reason"] = "missing-file",
+                    ["/home/ada/assets"] = "dropped",
+                }),
             _ => throw new InvalidOperationException($"Unknown protocol example '{name}'."),
         };
 

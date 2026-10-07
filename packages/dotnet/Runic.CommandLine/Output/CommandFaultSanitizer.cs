@@ -43,7 +43,10 @@ internal static class CommandFaultSanitizer
             }
 
             string key = SanitizeScalar(detail.Key, MaximumDetailKeyLength);
-            if (string.IsNullOrWhiteSpace(key) || details.ContainsKey(key))
+            // A key is an identifier, not a redactable value: a key with
+            // technical content is dropped together with its value.
+            if (string.IsNullOrWhiteSpace(key) || details.ContainsKey(key) ||
+                ContainsTechnicalContent(detail.Key) || ContainsTechnicalContent(key))
             {
                 continue;
             }

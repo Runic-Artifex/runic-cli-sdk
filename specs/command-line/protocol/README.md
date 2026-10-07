@@ -132,21 +132,28 @@ values, absolute internal paths, line breaks, terminal controls, or Unicode
 control characters. Unexpected exceptions are logged only to an authorized
 diagnostic sink and map to the sanitized `RCLI5000` host fault.
 
-A writer sanitizes each fault before output, human or JSON:
+A writer sanitizes each fault before output, human or JSON. Its check for
+technical content is a heuristic, not a guarantee: it matches only the
+case-sensitive substrings `Exception`, `/home/`, `/Users/`, `/root/`,
+`/tmp/` and `\\`, and an ASCII drive letter followed by `:\` or `:/` (for example
+`C:\` or `c:/`). Other absolute paths, such as `/var/folders/...`,
+`/srv/...` or `/nix/store/...`, are not redacted, so producers remain
+responsible for keeping such text out of faults.
 
 - A code that does not satisfy the identifier rule replaces the whole fault
   with `RCLI5000` and the message `The command failed unexpectedly.`, with no
   details and `retryable` false.
 - A well-formed code is kept, whether it is a library `RCLI` code, an
   application-range `RCLI8xxx` code, or an application's own prefix such as
-  `RAS1001`. If the message contains technical content (an exception type
-  name, an absolute internal or UNC path, or a drive-letter path) or is empty
-  after control characters are removed, only the message is replaced with
-  `The command failed; details were redacted.`. Details and `retryable` are
-  sanitized as usual.
-- Each detail value with technical content becomes `[redacted]`; other
-  details are kept after control characters are removed and length limits
-  applied.
+  `RAS1001`. If the message contains technical content or is empty after
+  control characters are removed, only the message is replaced with
+  `The command failed; details were redacted.` (see
+  [`examples/redacted-fault.json`](examples/redacted-fault.json)). Details and
+  `retryable` are sanitized as usual.
+- A detail whose key contains technical content is dropped with its value.
+- Each remaining detail value with technical content becomes `[redacted]`;
+  other details are kept after control characters are removed and length
+  limits applied.
 
 Sanitization never changes `exitCode`, which comes from the command's exit
 category rather than from the fault code.

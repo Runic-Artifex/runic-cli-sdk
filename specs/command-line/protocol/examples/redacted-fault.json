@@ -1,0 +1,1 @@
+{"protocol":"runic.commandline/1","requestId":"req-pack-0006","command":"pack","success":false,"exitCode":10,"payloadType":null,"payload":null,"fault":{"code":"RCLI8001","message":"The command failed; details were redacted.","details":{"asset":"[redacted]","reason":"missing-file"},"retryable":false},"diagnostics":[]}

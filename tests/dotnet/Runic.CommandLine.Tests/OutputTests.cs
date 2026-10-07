@@ -19,6 +19,8 @@ internal static class OutputTests
         new("output/faults-and-diagnostics-are-sanitized", Sanitization),
         new("output/unsafe-fault-message-keeps-well-formed-code", UnsafeMessageKeepsWellFormedCode),
         new("output/invalid-fault-code-collapses-to-rcli5000", InvalidCodeCollapsesToSoftwareFailure),
+        new("output/unsafe-fault-detail-keys-are-dropped", UnsafeDetailKeysAreDropped),
+        new("output/control-only-fault-message-is-redacted", ControlOnlyMessageIsRedacted),
         new("output/fault-details-use-ordinal-order", DetailOrdering),
         new("output/source-generated-payload-round-trips", SourceGeneratedRoundTrip),
         new("output/reader-accepts-unknown-additive-members", ReaderAcceptsAdditiveMembers),
@@ -32,6 +34,7 @@ internal static class OutputTests
         new("output/dispatcher-human-unsafe-fault-keeps-code", DispatcherHumanUnsafeFaultKeepsCode),
         new("output/dispatcher-writes-success-diagnostics-to-human-stderr", DispatcherHumanSuccessDiagnostics),
         new("output/dispatcher-does-not-repeat-a-fault-diagnostic", DispatcherDoesNotRepeatFaultDiagnostic),
+        new("output/dispatcher-does-not-repeat-a-redacted-fault-diagnostic", DispatcherDoesNotRepeatRedactedFaultDiagnostic),
     ];
 
     private static ValueTask JsonFramePurity()
@@ -380,6 +383,61 @@ internal static class OutputTests
         AssertEx.Equal("RAS1001: The command failed; details were redacted.\n", console.StandardError);
     }
 
+    private static ValueTask UnsafeDetailKeysAreDropped()
+    {
+        var fault = new CommandFault(
+            "RAS1001",
+            "The asset could not be packed.",
+            new Dictionary<string, string>
+            {
+                ["innerException"] = "value",
+                ["/home/ada"] = "value",
+                ["C:/x"] = "value",
+                [@"\\server"] = "value",
+                ["reason"] = "missing-file",
+            });
+        byte[] frame = CommandJsonEnvelopeWriter.Serialize(
+            CommandResponse.Failed<TestResult>("req-keys", "pack", 10, fault),
+            TestJsonContext.Default.TestResult);
+        string json = Encoding.UTF8.GetString(frame);
+        AssertEx.True(!json.Contains("Exception", StringComparison.Ordinal), "An unsafe detail key was written.");
+        AssertEx.True(!json.Contains("/home/", StringComparison.Ordinal), "An unsafe detail key was written.");
+        AssertEx.True(!json.Contains("C:/", StringComparison.Ordinal), "An unsafe detail key was written.");
+
+        CommandResponse<TestResult> roundTrip = CommandJsonEnvelopeReader.Read(
+            frame, TestCodec.Identity, TestJsonContext.Default.TestResult);
+        AssertEx.Equal("RAS1001", roundTrip.Fault!.Code);
+        AssertEx.Equal("The asset could not be packed.", roundTrip.Fault.Message);
+        AssertEx.Equal(1, roundTrip.Fault.Details.Count);
+        AssertEx.Equal("missing-file", roundTrip.Fault.Details["reason"]);
+        return ValueTask.CompletedTask;
+    }
+
+    private static ValueTask ControlOnlyMessageIsRedacted()
+    {
+        CommandFault sanitized = CommandResponse.Failed<TestResult>(
+            "req-control", "pack", 10, new CommandFault("RAS1001", "\u001b\u0007\u0000")).Fault!;
+        AssertEx.Equal("RAS1001", sanitized.Code);
+        AssertEx.Equal("The command failed; details were redacted.", sanitized.Message);
+        return ValueTask.CompletedTask;
+    }
+
+    private static async ValueTask DispatcherDoesNotRepeatRedactedFaultDiagnostic()
+    {
+        var console = new MemoryCommandConsole();
+        var fault = new CommandFault("RCLI8001", "Could not read /home/ada/atlas.png.");
+        var diagnostic = new CommandDiagnostic(
+            "RCLI8001", "asset-missing", "Could not read /home/ada/atlas.png.",
+            CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Error);
+        await CommandOutputDispatcher.DispatchAsync(
+            CommandOutputMode.Human,
+            console,
+            CultureInfo.InvariantCulture,
+            CommandResponse.Failed<TestResult>("req-human-redacted", "pack", 10, fault, [diagnostic]),
+            new TestCodec());
+
+        AssertEx.Equal("RCLI8001: The diagnostic content was redacted.\n", console.StandardError);
+    }
 
     private static byte[] SuccessFrame() => CommandJsonEnvelopeWriter.Serialize(
         CommandResponse.Succeeded(
