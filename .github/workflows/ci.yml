@@ -46,7 +46,7 @@ jobs:
         with:
           global-json-file: global.json
       - name: Install completion shell prerequisites
-        run: sudo apt-get update && sudo apt-get install -y fish zsh
+        run: eng/ci/apt-install.sh fish zsh
       - run: ./eng/test.sh
       - run: ./eng/pack.sh "$(./eng/package-version.sh)" artifacts/packages
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -85,7 +85,7 @@ jobs:
           path: artifacts/packages
       - name: Install Linux NativeAOT prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+        run: eng/ci/apt-install.sh clang zlib1g-dev
       - name: Check macOS NativeAOT prerequisites
         if: runner.os == 'macOS'
         run: xcrun --find clang
