@@ -177,13 +177,26 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         IReadOnlyList<CommandDiagnostic> diagnostics,
         CommandFault fault)
     {
+        // The fault was sanitized when the response was created, so its raw
+        // message is gone. A redacted fault message and a redacted diagnostic
+        // message with the same code describe the same failure; the redacted
+        // diagnostic line already reports it.
+        bool faultRedacted = string.Equals(
+            fault.Message, CommandFaultSanitizer.RedactedFaultMessage, StringComparison.Ordinal);
         foreach (CommandDiagnostic diagnostic in diagnostics)
         {
-            string message = CommandFaultSanitizer.ContainsTechnicalContent(diagnostic.Message)
+            if (!string.Equals(diagnostic.Code, fault.Code, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            bool diagnosticRedacted = CommandFaultSanitizer.ContainsTechnicalContent(diagnostic.Message);
+            string message = diagnosticRedacted
                 ? "The diagnostic content was redacted."
                 : CommandFaultSanitizer.SanitizeRequiredText(diagnostic.Message);
-            if (string.Equals(diagnostic.Code, fault.Code, StringComparison.Ordinal) &&
-                string.Equals(message, fault.Message, StringComparison.Ordinal))
+            diagnosticRedacted |= string.IsNullOrWhiteSpace(CommandFaultSanitizer.SanitizeText(diagnostic.Message));
+            if (string.Equals(message, fault.Message, StringComparison.Ordinal) ||
+                (faultRedacted && diagnosticRedacted))
             {
                 return true;
             }
