@@ -1,5 +1,6 @@
 """Tests for the release SBOM: python3 -m unittest discover -s eng/release"""
 import base64
+import contextlib
 import hashlib
 import io
 import json
@@ -103,12 +104,37 @@ class ReleaseSbom(unittest.TestCase):
                 archive.writestr('extension.vsixmanifest', '<PackageManifest xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">'
                                  '<Metadata><Identity Id="fixture" Version="0.0.1" Publisher="runic-artifex" /></Metadata></PackageManifest>')
                 archive.writestr('extension/package.json', json.dumps({'dependencies': {'vscode-languageclient': '10.1.2'}}))
-            bom = sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [npm, vsix])
+            bom = sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [npm, vsix], {'fixture.vsix': '0.0.1'})
             edges = {item['ref']: item['dependsOn'] for item in bom['dependencies']}
             npm_ref = f'pkg:npm/%40runic-artifex/fixture@{VERSION}'
             self.assertEqual(edges['release'], [npm_ref, 'vsix:runic-artifex/fixture@0.0.1'])
             self.assertEqual(edges[npm_ref], ['pkg:npm/svelte#>=5 <6'])
             self.assertEqual(edges['vsix:runic-artifex/fixture@0.0.1'], ['pkg:npm/vscode-languageclient@10.1.2'])
+
+    def test_every_artifact_declares_the_release_version_unless_artifact_version_names_its_own(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = nupkg(directory, 'Runic.CommandLine')
+            vsix = Path(directory) / 'fixture.vsix'
+            with zipfile.ZipFile(vsix, 'w') as archive:
+                archive.writestr('extension.vsixmanifest', '<PackageManifest xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">'
+                                 '<Metadata><Identity Id="fixture" Version="0.0.1" Publisher="runic-artifex" /></Metadata></PackageManifest>')
+            # A VSIX is not exempt: without its mapped version it must declare the release version.
+            with self.assertRaisesRegex(ValueError, f'fixture.vsix is version 0.0.1, not {VERSION}'):
+                sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [package, vsix])
+            with self.assertRaisesRegex(ValueError, 'fixture.vsix is version 0.0.1, not 0.0.2'):
+                sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [package, vsix], {'fixture.vsix': '0.0.2'})
+            with self.assertRaisesRegex(ValueError, '--artifact-version names no artifact: other.vsix'):
+                sbom.build(release.REPOSITORY, VERSION, SHA, EPOCH, [package, vsix], {'fixture.vsix': '0.0.1', 'other.vsix': '1'})
+            output = Path(directory) / 'sbom.json'
+            with contextlib.redirect_stdout(io.StringIO()):
+                sbom.main(['--repository', release.REPOSITORY, '--version', VERSION, '--source', SHA, '--epoch', str(EPOCH),
+                           '--output', str(output), '--artifact-version', 'fixture.vsix=0.0.1', str(package), str(vsix)])
+            self.assertIn('vsix:runic-artifex/fixture@0.0.1', json.loads(output.read_text())['dependencies'][0]['dependsOn'])
+            stderr = io.StringIO()
+            with self.assertRaises(SystemExit), contextlib.redirect_stderr(stderr):
+                sbom.main(['--repository', release.REPOSITORY, '--version', VERSION, '--source', SHA, '--epoch', str(EPOCH),
+                           '--output', str(output), '--artifact-version', 'fixture.vsix', str(vsix)])
+            self.assertIn('expects one FILE_NAME=VERSION', stderr.getvalue())
 
 
 class HostileMetadata(unittest.TestCase):
