@@ -7,13 +7,14 @@ if (args.Contains("--signals", StringComparer.Ordinal))
     return await TestRunner.RunAsync(SignalTests.All);
 
 if (args.Contains("--completion-help", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(CompletionHelpTests.All);
+    return await TestRunner.RunAsync(CompletionHelpTests.All, HelpLayoutTests.All);
 
 if (args.Contains("--authoring-localization", StringComparer.Ordinal))
     return await TestRunner.RunAsync(AuthoringMetadataTests.All, LocalizationTests.All);
 
 return await TestRunner.RunAsync(
     CompletionHelpTests.All,
+    HelpLayoutTests.All,
     AuthoringMetadataTests.All,
     LocalizationTests.All,
     ApplicationTests.All,
@@ -23,6 +24,7 @@ return await TestRunner.RunAsync(
     OutputClassificationCorpusTests.All,
     CatalogTests.All,
     DiagnosticBoundaryTests.All,
+    DiagnosticCodeRangeTests.All,
     DispatcherTests.All,
     OutputTests.All,
     ProtocolCorpusTests.All,

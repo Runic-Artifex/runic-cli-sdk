@@ -105,6 +105,20 @@ corresponds to the system shutdown event. Windows may end the process as soon as
 the shutdown handler returns, so cleanup that must finish before shutdown cannot
 rely on the cancelled handler completing.
 
+Help wraps descriptions at word boundaries and continues them under the
+description column. Width is measured in terminal cells: East Asian wide and
+fullwidth characters take two cells and may break between characters; combining
+marks take none. A `LongDescription` line that is indented or contains a run of
+three or more spaces, such as a list, aligned columns or a code block, is
+printed as written; other text, including every summary and parameter
+description, wraps (an explicit newline still starts a new line). On an interactive terminal help uses the terminal width
+less one column; redirected, machine and test output use
+`CommandHelpFormatter.DefaultWidth` (80 columns). `SpectreHelpPresenter` uses its
+`SpectreCommandConsole` width instead: a width passed to its constructor as
+given, otherwise the terminal width less one column, or 100 columns when output
+is redirected. `CommandHelpFormatter.Format` accepts an
+explicit `width`.
+
 Install optional `Runic.CommandLine.Spectre`, then set `Console = new
 SpectreCommandConsole()` and `HelpPresenter = new SpectreHelpPresenter()`.
 The adapter supports literal text, Spectre renderables, progress, and prompts.
@@ -205,6 +219,8 @@ success is the only semantic outcome that maps to exit code zero.
 
 Read the [Runic Command Line documentation](https://docs.runic-artifex.eu/products/runic-command-line/),
 see [examples](https://github.com/Runic-Artifex/runic-cli-sdk/tree/main/tests/dotnet/Runic.CommandLine.Tests),
+look up a [source generator diagnostic](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/diagnostics.md)
+(each `RCLI9xxx` error links to its section),
 or [report an issue](https://github.com/Runic-Artifex/runic-cli-sdk/issues).
 Runic.CommandLine is maintained by Runic Artifex and licensed under the
 [MIT License](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/LICENSE).

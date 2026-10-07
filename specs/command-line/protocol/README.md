@@ -69,7 +69,9 @@ escaped source characters.
   MUST report an unsupported or mismatched identifier as a protocol failure,
   not as a command fault.
 - Fault and diagnostic codes are 1 to 64 ASCII bytes matching
-  `[A-Z][A-Z0-9_.-]*`. Codes owned by this library use `RCLI####`.
+  `[A-Z][A-Z0-9_.-]*`. Codes owned by this library use `RCLI####`, except
+  the application range `RCLI8000` through `RCLI8999`, which the library never
+  emits (see [Diagnostic object](#diagnostic-object)).
 
 The protocol deliberately defines no JSON Schema `$id` and assigns no domain
 name. Payload owners choose their own type identifier within their documented

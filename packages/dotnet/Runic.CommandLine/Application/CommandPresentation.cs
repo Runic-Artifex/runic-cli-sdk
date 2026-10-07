@@ -84,11 +84,28 @@ public sealed class CommandPresentation
         else
         {
             string text = parsed.Kind == ParseOutcomeKind.Version ? Version :
-                FormatHelp?.Invoke(parsed.HelpRequest!.Path) ?? CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, textContext, outputOptionName);
+                FormatHelp?.Invoke(parsed.HelpRequest!.Path) ?? CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, textContext, outputOptionName,
+                    HelpWidth(console, parsed.OutputClassification?.Mode ?? CommandOutputMode.Human));
             response = CommandResponse.Succeeded(requestId, parsed.Kind == ParseOutcomeKind.Version ? "version" : "help", CommandResultCodecs.String.PayloadType, text);
         }
         await CommandOutputDispatcher.DispatchAsync(parsed.OutputClassification?.Mode ?? CommandOutputMode.Human,
             console, culture, response, CommandResultCodecs.String, textContext, cancellationToken).ConfigureAwait(false);
         return response.ExitCode;
+    }
+
+    // Human help on the process terminal follows its width, one column short so a full line never triggers the
+    // legacy Windows console's automatic wrap. Redirected, test and machine output use the fixed default.
+    private static int HelpWidth(ICommandConsole console, CommandOutputMode mode)
+    {
+        if (mode != CommandOutputMode.Human || console is not SystemCommandConsole || console.IsOutputRedirected) return CommandHelpFormatter.DefaultWidth;
+        try
+        {
+            int width = Console.WindowWidth - 1;
+            return width >= CommandHelpFormatter.MinimumWidth ? width : CommandHelpFormatter.DefaultWidth;
+        }
+        catch (Exception exception) when (exception is System.IO.IOException or PlatformNotSupportedException)
+        {
+            return CommandHelpFormatter.DefaultWidth;
+        }
     }
 }

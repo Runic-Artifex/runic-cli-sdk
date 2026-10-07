@@ -6,7 +6,21 @@
     <RootNamespace>Runic.CommandLine.Generators</RootNamespace>
     <IsPackable>false</IsPackable>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- RS1041 warns that a net10.0 analyzer cannot load in a compiler host running on .NET Framework.
+         The generator deliberately targets the repository's .NET 10 framework and ships in a net10.0-only
+         package, so it requires a Roslyn host on .NET 10 (the .NET 10 SDK compiler and IDE language servers).
+         A build whose compiler runs on .NET Framework, such as Visual Studio's MSBuild without the SDK's
+         compiler, cannot load it: it reports CS8032 and the generated catalog is missing. -->
+    <NoWarn>$(NoWarn);RS1041</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Analyzer-authoring rules, including release tracking for the generator's diagnostic IDs (RS2000-RS2008).
+         The compiler assemblies still come from the SDK below; this package adds only analyzers. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="Microsoft.CodeAnalysis">

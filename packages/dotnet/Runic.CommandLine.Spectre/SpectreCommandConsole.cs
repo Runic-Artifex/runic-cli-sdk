@@ -21,15 +21,22 @@ public sealed class SpectreCommandConsole : ICommandConsole
     {
         if (width is < 20) throw new ArgumentOutOfRangeException(nameof(width));
         _inner = inner ?? new SystemCommandConsole();
-        _width = width ?? TerminalWidth(_inner);
+        int? terminal = width is null ? TerminalWidth(_inner) : null;
+        _width = width ?? terminal ?? 100;
+        IsTerminalWidth = terminal is not null;
         _unicode = unicode ?? (Environment.GetEnvironmentVariable("TERM") != "dumb" && System.Console.OutputEncoding.CodePage is 65001 or 1200 or 1201);
         _color = color ?? (!_inner.IsOutputRedirected && Environment.GetEnvironmentVariable("NO_COLOR") is null && Environment.GetEnvironmentVariable("TERM") != "dumb");
     }
-    private static int TerminalWidth(ICommandConsole console)
+    internal int Width => _width;
+
+    // True when the width was measured from a terminal rather than passed explicitly or defaulted to 100 columns.
+    internal bool IsTerminalWidth { get; }
+
+    private static int? TerminalWidth(ICommandConsole console)
     {
-        if (console.IsOutputRedirected) return 100;
-        try { return System.Console.WindowWidth >= 20 ? System.Console.WindowWidth : 100; }
-        catch (Exception exception) when (exception is IOException or PlatformNotSupportedException) { return 100; }
+        if (console.IsOutputRedirected) return null;
+        try { return System.Console.WindowWidth >= 20 ? System.Console.WindowWidth : null; }
+        catch (Exception exception) when (exception is IOException or PlatformNotSupportedException) { return null; }
     }
 
     /// <inheritdoc />
