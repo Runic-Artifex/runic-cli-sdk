@@ -55,10 +55,9 @@ Human output is two `Hello, Ada!` lines. JSON output is one `runic.commandline/1
 envelope with `success: true` and a string `payload` containing those lines.
 The built-in string codec supplies both formats; no JSON context is needed here.
 
-After the candidate is published, install that exact version from NuGet by
-omitting `--source`. To use an already published release now, choose a version
-listed on [NuGet](https://www.nuget.org/packages/Runic.CommandLine) and consult
-that package's README for its supported API. Optional packages must use the same
+For another published release, choose a version listed on
+[NuGet](https://www.nuget.org/packages/Runic.CommandLine) and consult that
+package's README for its supported API. Optional packages must use the same
 Command Line version.
 
 | Package | Purpose |
