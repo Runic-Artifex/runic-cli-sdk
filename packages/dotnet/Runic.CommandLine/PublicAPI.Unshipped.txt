@@ -28,6 +28,8 @@ Runic.CommandLine.ICommandTextResolver.Resolve(string! key, System.Globalization
 Runic.CommandLine.OptionAttribute.DescriptionKey.get -> string?
 Runic.CommandLine.OptionAttribute.DescriptionKey.set -> void
 static Runic.CommandLine.CommandCompletion.Query(Runic.CommandLine.CommandCatalog! catalog, System.Collections.Generic.IReadOnlyList<string!>! words, string! outputOptionName = "--output") -> Runic.CommandLine.CommandCompletionResult!
-static Runic.CommandLine.CommandHelpFormatter.Format(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, Runic.CommandLine.CommandTextContext! context, string! outputOptionName = "--output") -> string!
+static Runic.CommandLine.CommandHelpFormatter.Format(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, Runic.CommandLine.CommandTextContext! context, string! outputOptionName = "--output", int width = 80) -> string!
 static Runic.CommandLine.CommandOutputDispatcher.DispatchAsync<T>(Runic.CommandLine.CommandOutputMode mode, Runic.CommandLine.ICommandConsole! console, System.Globalization.CultureInfo! culture, Runic.CommandLine.CommandResponse<T>! response, Runic.CommandLine.ICommandResultCodec<T>! codec, Runic.CommandLine.CommandTextContext! textContext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 static Runic.CommandLine.CommandTextContext.English.get -> Runic.CommandLine.CommandTextContext!
+const Runic.CommandLine.CommandHelpFormatter.DefaultWidth = 80 -> int
+const Runic.CommandLine.CommandHelpFormatter.MinimumWidth = 20 -> int

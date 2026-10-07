@@ -18,7 +18,8 @@ public sealed class SpectreHelpPresenter : ICommandHelpPresenter
     {
         ArgumentNullException.ThrowIfNull(console);
         var presenter = console as SpectreCommandConsole ?? new SpectreCommandConsole(console);
-        string text = CommandHelpFormatter.Format(catalog, applicationName, path, textContext, outputOptionName);
+        // Wrap to the presenter width so Spectre never rewraps a line and loses the description column.
+        string text = CommandHelpFormatter.Format(catalog, applicationName, path, textContext, outputOptionName, presenter.Width);
         // Keep the plain and styled forms textually equivalent, including under redirection.
         string[] lines = text.TrimEnd('\n').Split('\n');
         foreach (string line in lines)

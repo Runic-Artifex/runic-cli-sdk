@@ -105,6 +105,12 @@ corresponds to the system shutdown event. Windows may end the process as soon as
 the shutdown handler returns, so cleanup that must finish before shutdown cannot
 rely on the cancelled handler completing.
 
+Help wraps descriptions at word boundaries and continues them under the
+description column. On an interactive terminal it uses the terminal width;
+redirected, machine and test output use `CommandHelpFormatter.DefaultWidth`
+(80 columns). `CommandHelpFormatter.Format` accepts an explicit `width`, and
+`SpectreHelpPresenter` uses its console's width.
+
 Install optional `Runic.CommandLine.Spectre`, then set `Console = new
 SpectreCommandConsole()` and `HelpPresenter = new SpectreHelpPresenter()`.
 The adapter supports literal text, Spectre renderables, progress, and prompts.
@@ -205,6 +211,8 @@ success is the only semantic outcome that maps to exit code zero.
 
 Read the [Runic Command Line documentation](https://docs.runic-artifex.eu/products/runic-command-line/),
 see [examples](https://github.com/Runic-Artifex/runic-cli-sdk/tree/main/tests/dotnet/Runic.CommandLine.Tests),
+look up a [source generator diagnostic](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/diagnostics.md)
+(each `RCLI9xxx` error links to its section),
 or [report an issue](https://github.com/Runic-Artifex/runic-cli-sdk/issues).
 Runic.CommandLine is maintained by Runic Artifex and licensed under the
 [MIT License](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/LICENSE).

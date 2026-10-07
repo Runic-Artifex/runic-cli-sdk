@@ -25,6 +25,8 @@ public sealed class SpectreCommandConsole : ICommandConsole
         _unicode = unicode ?? (Environment.GetEnvironmentVariable("TERM") != "dumb" && System.Console.OutputEncoding.CodePage is 65001 or 1200 or 1201);
         _color = color ?? (!_inner.IsOutputRedirected && Environment.GetEnvironmentVariable("NO_COLOR") is null && Environment.GetEnvironmentVariable("TERM") != "dumb");
     }
+    internal int Width => _width;
+
     private static int TerminalWidth(ICommandConsole console)
     {
         if (console.IsOutputRedirected) return 100;
