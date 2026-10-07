@@ -93,13 +93,14 @@ public sealed class CommandPresentation
         return response.ExitCode;
     }
 
-    // Human help on the process terminal follows its width; redirected, test and machine output use the fixed default.
+    // Human help on the process terminal follows its width, one column short so a full line never triggers the
+    // legacy Windows console's automatic wrap. Redirected, test and machine output use the fixed default.
     private static int HelpWidth(ICommandConsole console, CommandOutputMode mode)
     {
         if (mode != CommandOutputMode.Human || console is not SystemCommandConsole || console.IsOutputRedirected) return CommandHelpFormatter.DefaultWidth;
         try
         {
-            int width = Console.WindowWidth;
+            int width = Console.WindowWidth - 1;
             return width >= CommandHelpFormatter.MinimumWidth ? width : CommandHelpFormatter.DefaultWidth;
         }
         catch (Exception exception) when (exception is System.IO.IOException or PlatformNotSupportedException)

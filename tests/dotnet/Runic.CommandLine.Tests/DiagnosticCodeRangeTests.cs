@@ -5,9 +5,6 @@ using System.Reflection.PortableExecutable;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Runic.CommandLine.Generators;
-using Runic.CommandLine.Processes;
-using Runic.CommandLine.Spectre;
-using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
@@ -19,15 +16,29 @@ internal static partial class DiagnosticCodeRangeTests
         new("diagnostics/generator-rules-link-to-documented-sections", GeneratorRulesLinkToDocumentation),
     ];
 
-    // Every RCLI code the libraries and the generator can emit is a string literal in one of these assemblies.
-    private static readonly Assembly[] ShippedAssemblies =
-    [
-        typeof(CommandApp).Assembly,
-        typeof(ProcessRunner).Assembly,
-        typeof(SpectreHelpPresenter).Assembly,
-        typeof(TestCommandConsole).Assembly,
-        typeof(CommandLineGenerator).Assembly,
-    ];
+    // Every RCLI code the libraries and the generator can emit is a string literal in a shipped assembly. The packages
+    // come from eng/build/shipping-projects.props, and a new package fails this test until this project references it; the
+    // generator ships inside Runic.CommandLine's analyzers folder rather than as its own package.
+    private static IEnumerable<string> ShippedAssemblyPaths()
+    {
+        var shipping = System.Xml.Linq.XDocument.Load(Path.Combine(RepositoryRoot(), "eng", "build", "shipping-projects.props"));
+        string[] packages = shipping.Descendants("RunicShippingProject").Select(static item => (string)item.Attribute("PackageId")!).ToArray();
+        AssertEx.True(packages.Length > 0, "No shipping projects found.");
+        foreach (string package in packages)
+        {
+            string path = Path.Combine(AppContext.BaseDirectory, package + ".dll");
+            AssertEx.True(File.Exists(path), package + " is shipped but not referenced by the test project, so it cannot be scanned.");
+            yield return path;
+        }
+        yield return typeof(CommandLineGenerator).Assembly.Location;
+    }
+
+    private static string RepositoryRoot()
+    {
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "Runic.CommandLine.slnx"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("Repository root not found.");
+        return root;
+    }
 
     [GeneratedRegex(@"RCLI[0-9]{4}")]
     private static partial Regex CodePattern();
@@ -35,9 +46,9 @@ internal static partial class DiagnosticCodeRangeTests
     private static ValueTask LibraryNeverEmitsApplicationRange()
     {
         var codes = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (Assembly assembly in ShippedAssemblies)
+        foreach (string path in ShippedAssemblyPaths())
         {
-            using var stream = File.OpenRead(assembly.Location);
+            using var stream = File.OpenRead(path);
             using var pe = new PEReader(stream);
             MetadataReader reader = pe.GetMetadataReader();
             for (UserStringHandle handle = MetadataTokens.UserStringHandle(1); !handle.IsNil; handle = reader.GetNextHandle(handle))
@@ -61,9 +72,7 @@ internal static partial class DiagnosticCodeRangeTests
             .Select(static field => (DiagnosticDescriptor)field.GetValue(null)!)
             .ToArray();
         AssertEx.True(descriptors.Length >= 20, "Expected the generator's descriptors.");
-        string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "Runic.CommandLine.slnx"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("Repository root not found.");
-        string document = File.ReadAllText(Path.Combine(root, "docs", "guides", "command-line", "diagnostics.md"));
+        string document = File.ReadAllText(Path.Combine(RepositoryRoot(), "docs", "guides", "command-line", "diagnostics.md"));
         const string prefix = "https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/diagnostics.md#";
         foreach (DiagnosticDescriptor descriptor in descriptors)
         {

@@ -11,7 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="../../../packages/dotnet/Runic.CommandLine.Testing/Runic.CommandLine.Testing.csproj" />
     <ProjectReference Include="../../../packages/dotnet/Runic.CommandLine.Spectre/Runic.CommandLine.Spectre.csproj" />
-    <!-- Referenced only so the code-range test can scan every shipped assembly. -->
+    <!-- The code-range test scans every package in eng/build/shipping-projects.props, so each must be referenced. -->
     <ProjectReference Include="../../../packages/dotnet/Runic.CommandLine.Processes/Runic.CommandLine.Processes.csproj" />
     <ProjectReference Include="../../../packages/dotnet/Runic.CommandLine.Generators/Runic.CommandLine.Generators.csproj" OutputItemType="Analyzer" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />

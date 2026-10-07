@@ -18,8 +18,10 @@ public sealed class SpectreHelpPresenter : ICommandHelpPresenter
     {
         ArgumentNullException.ThrowIfNull(console);
         var presenter = console as SpectreCommandConsole ?? new SpectreCommandConsole(console);
-        // Wrap to the presenter width so Spectre never rewraps a line and loses the description column.
-        string text = CommandHelpFormatter.Format(catalog, applicationName, path, textContext, outputOptionName, presenter.Width);
+        // Wrap to the presenter width so Spectre never rewraps a line and loses the description column. On a terminal,
+        // stay one column short so a full line never triggers the legacy Windows console's automatic wrap.
+        int width = presenter.IsOutputRedirected ? presenter.Width : Math.Max(CommandHelpFormatter.MinimumWidth, presenter.Width - 1);
+        string text = CommandHelpFormatter.Format(catalog, applicationName, path, textContext, outputOptionName, width);
         // Keep the plain and styled forms textually equivalent, including under redirection.
         string[] lines = text.TrimEnd('\n').Split('\n');
         foreach (string line in lines)
