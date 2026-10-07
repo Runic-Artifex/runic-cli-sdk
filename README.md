@@ -10,18 +10,21 @@ Use .NET 10. Create a console project and install the core package, which includ
 the source generator. This method-first example is maintained in
 [`hello-world/Program.cs`](examples/command-line/hello-world/Program.cs).
 
-The committed `0.6.0-preview.3` is a **candidate**, not a published-version promise.
-On 2026-10-07 NuGet lists `0.6.0-preview.2` as the latest published version;
-the tutorial APIs here are verified against the candidate. Download the
-`command-line-packages` artifact from a successful CI run and extract it to an
-absolute directory, then replace `/absolute/path/to/candidate-feed` below.
-No source checkout or project references are needed.
+Install the published `0.6.0-preview.2` from NuGet. No source checkout or project
+references are needed.
 
 ```sh
 dotnet new console --framework net10.0 --name HelloCli
 cd HelloCli
-dotnet add package Runic.CommandLine --version 0.6.0-preview.3 --source /absolute/path/to/candidate-feed
+dotnet add package Runic.CommandLine --version 0.6.0-preview.2
 ```
+
+To try the unreleased candidate from `main` (`0.6.0-preview.3`, the version in
+`eng/Versions.props`), download the `command-line-packages` artifact from a
+successful CI run, extract it to an absolute directory and add the package from
+there instead:
+`dotnet add package Runic.CommandLine --version 0.6.0-preview.3 --source /absolute/path/to/candidate-feed`.
+CI checks this tutorial against the candidate packages.
 
 Replace `Program.cs` with:
 
@@ -52,10 +55,9 @@ Human output is two `Hello, Ada!` lines. JSON output is one `runic.commandline/1
 envelope with `success: true` and a string `payload` containing those lines.
 The built-in string codec supplies both formats; no JSON context is needed here.
 
-After the candidate is published, install that exact version from NuGet by
-omitting `--source`. To use an already published release now, choose a version
-listed on [NuGet](https://www.nuget.org/packages/Runic.CommandLine) and consult
-that package's README for its supported API. Optional packages must use the same
+For another published release, choose a version listed on
+[NuGet](https://www.nuget.org/packages/Runic.CommandLine) and consult that
+package's README for its supported API. Optional packages must use the same
 Command Line version.
 
 | Package | Purpose |
