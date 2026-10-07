@@ -130,6 +130,10 @@ JSON output reserves stdout for the envelope. The injected handler console route
 incidental output to stderr and disables reads. Direct process-global Console
 writes remain the application's responsibility. `ExceptionObserver` receives
 internal failures for application logging while public faults remain sanitized.
+A fault whose message contains a path or exception name keeps its well-formed
+code (for example `RCLI8001` or `RAS1001`); only the message is replaced with
+`The command failed; details were redacted.`. A malformed code becomes
+`RCLI5000`.
 
 `completion bash|zsh|fish|powershell` generates context-aware completion scripts
 from the catalog. Set `CompletionExecutableName` when the help-facing name contains

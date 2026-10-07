@@ -17,6 +17,8 @@ internal static class OutputTests
         new("output/json-frame-is-one-pure-utf8-object", JsonFramePurity),
         new("output/json-property-order-is-deterministic", DeterministicPropertyOrder),
         new("output/faults-and-diagnostics-are-sanitized", Sanitization),
+        new("output/unsafe-fault-message-keeps-well-formed-code", UnsafeMessageKeepsWellFormedCode),
+        new("output/invalid-fault-code-collapses-to-rcli5000", InvalidCodeCollapsesToSoftwareFailure),
         new("output/fault-details-use-ordinal-order", DetailOrdering),
         new("output/source-generated-payload-round-trips", SourceGeneratedRoundTrip),
         new("output/reader-accepts-unknown-additive-members", ReaderAcceptsAdditiveMembers),
@@ -27,6 +29,7 @@ internal static class OutputTests
         new("output/writer-rejects-payload-over-one-mebibyte", WriterRejectsOversizedPayload),
         new("output/dispatcher-keeps-json-off-stderr", DispatcherJsonChannels),
         new("output/dispatcher-keeps-human-fault-off-stdout", DispatcherHumanChannels),
+        new("output/dispatcher-human-unsafe-fault-keeps-code", DispatcherHumanUnsafeFaultKeepsCode),
         new("output/dispatcher-writes-success-diagnostics-to-human-stderr", DispatcherHumanSuccessDiagnostics),
         new("output/dispatcher-does-not-repeat-a-fault-diagnostic", DispatcherDoesNotRepeatFaultDiagnostic),
     ];
@@ -287,6 +290,96 @@ internal static class OutputTests
 
         AssertEx.Equal("RCLI3000: Expected failure.\n", console.StandardError);
     }
+
+    private static ValueTask UnsafeMessageKeepsWellFormedCode()
+    {
+        foreach (string code in new[] { "RCLI3001", "RCLI8042", "RAS1001", "ACME.IO_FAILURE-2" })
+        {
+            var fault = new CommandFault(
+                code,
+                "Could not read /home/ada/project/assets/atlas.png.",
+                new Dictionary<string, string>
+                {
+                    ["path"] = "/home/ada/project/assets/atlas.png",
+                    ["reason"] = "missing-file",
+                },
+                retryable: true);
+            CommandResponse<TestResult> response =
+                CommandResponse.Failed<TestResult>("req-keep", "pack", 10, fault);
+            AssertEx.Equal(10, response.ExitCode);
+            AssertEx.Equal(code, response.Fault!.Code);
+
+            byte[] frame = CommandJsonEnvelopeWriter.Serialize(response, TestJsonContext.Default.TestResult);
+            string json = Encoding.UTF8.GetString(frame);
+            AssertEx.True(!json.Contains("/home/", StringComparison.Ordinal), "The unsafe path leaked into JSON.");
+            using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1));
+            AssertEx.Equal(10, document.RootElement.GetProperty("exitCode").GetInt32());
+            JsonElement written = document.RootElement.GetProperty("fault");
+            AssertEx.Equal(code, written.GetProperty("code").GetString());
+            AssertEx.Equal(
+                "The command failed; details were redacted.",
+                written.GetProperty("message").GetString());
+            AssertEx.Equal("[redacted]", written.GetProperty("details").GetProperty("path").GetString());
+            AssertEx.Equal("missing-file", written.GetProperty("details").GetProperty("reason").GetString());
+            AssertEx.True(written.GetProperty("retryable").GetBoolean());
+
+            CommandResponse<TestResult> roundTrip = CommandJsonEnvelopeReader.Read(
+                frame, TestCodec.Identity, TestJsonContext.Default.TestResult);
+            AssertEx.Equal(code, roundTrip.Fault!.Code);
+        }
+
+        foreach (string message in new[] { "System.IO.IOException: denied", @"C:\Users\ada\atlas.png", @"\\server\share", "/tmp/runic/x" })
+        {
+            CommandFault sanitized = CommandResponse.Failed<TestResult>(
+                "req-keep", "pack", 10, new CommandFault("RAS1001", message)).Fault!;
+            AssertEx.Equal("RAS1001", sanitized.Code);
+            AssertEx.Equal("The command failed; details were redacted.", sanitized.Message);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    private static ValueTask InvalidCodeCollapsesToSoftwareFailure()
+    {
+        foreach (string code in new[] { "ras1001", "1001", "RAS 1001", "RAS/1001", "RAS\u001b1001", new string('A', 65) })
+        {
+            var fault = new CommandFault(
+                code,
+                "A safe message.",
+                new Dictionary<string, string> { ["reason"] = "kept-only-with-a-valid-code" });
+            CommandResponse<TestResult> response =
+                CommandResponse.Failed<TestResult>("req-invalid", "pack", 10, fault);
+            AssertEx.Equal(10, response.ExitCode);
+            AssertEx.Equal("RCLI5000", response.Fault!.Code);
+            AssertEx.Equal("The command failed unexpectedly.", response.Fault.Message);
+            AssertEx.Equal(0, response.Fault.Details.Count);
+
+            byte[] frame = CommandJsonEnvelopeWriter.Serialize(response, TestJsonContext.Default.TestResult);
+            using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1));
+            AssertEx.Equal(10, document.RootElement.GetProperty("exitCode").GetInt32());
+            AssertEx.Equal("RCLI5000", document.RootElement.GetProperty("fault").GetProperty("code").GetString());
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    private static async ValueTask DispatcherHumanUnsafeFaultKeepsCode()
+    {
+        var console = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(
+            CommandOutputMode.Human,
+            console,
+            CultureInfo.InvariantCulture,
+            CommandResponse.Failed<TestResult>(
+                "req-human-unsafe",
+                "pack",
+                10,
+                new CommandFault("RAS1001", "Could not read /home/ada/atlas.png.")),
+            new TestCodec());
+        AssertEx.Equal(string.Empty, console.StandardOutput);
+        AssertEx.Equal("RAS1001: The command failed; details were redacted.\n", console.StandardError);
+    }
+
 
     private static byte[] SuccessFrame() => CommandJsonEnvelopeWriter.Serialize(
         CommandResponse.Succeeded(

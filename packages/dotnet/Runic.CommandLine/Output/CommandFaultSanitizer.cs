@@ -13,16 +13,25 @@ internal static class CommandFaultSanitizer
     private const int MaximumDetailKeyLength = 64;
     private const int MaximumDetailValueLength = 1_024;
 
+    internal const string RedactedFaultMessage = "The command failed; details were redacted.";
+
     internal static CommandFault Sanitize(CommandFault fault)
     {
         ArgumentNullException.ThrowIfNull(fault);
 
-        string code = SanitizeScalar(fault.Code, MaximumCodeLength);
-        string message = SanitizeScalar(fault.Message, MaximumMessageLength);
-        if (!IsSafeCode(code) || string.IsNullOrWhiteSpace(message) ||
-            ContainsTechnicalContent(fault.Message))
+        // A well-formed code is a stable identity, not presentation text, so it
+        // survives an unsafe message and only the message is replaced. A code
+        // that is not well-formed cannot be trusted and collapses to RCLI5000.
+        string code = fault.Code;
+        if (!IsSafeCode(code))
         {
             return SoftwareFailure();
+        }
+
+        string message = SanitizeScalar(fault.Message, MaximumMessageLength);
+        if (string.IsNullOrWhiteSpace(message) || ContainsTechnicalContent(fault.Message))
+        {
+            message = RedactedFaultMessage;
         }
 
         var details = new SortedDictionary<string, string>(StringComparer.Ordinal);

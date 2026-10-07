@@ -132,6 +132,25 @@ values, absolute internal paths, line breaks, terminal controls, or Unicode
 control characters. Unexpected exceptions are logged only to an authorized
 diagnostic sink and map to the sanitized `RCLI5000` host fault.
 
+A writer sanitizes each fault before output, human or JSON:
+
+- A code that does not satisfy the identifier rule replaces the whole fault
+  with `RCLI5000` and the message `The command failed unexpectedly.`, with no
+  details and `retryable` false.
+- A well-formed code is kept, whether it is a library `RCLI` code, an
+  application-range `RCLI8xxx` code, or an application's own prefix such as
+  `RAS1001`. If the message contains technical content (an exception type
+  name, an absolute internal or UNC path, or a drive-letter path) or is empty
+  after control characters are removed, only the message is replaced with
+  `The command failed; details were redacted.`. Details and `retryable` are
+  sanitized as usual.
+- Each detail value with technical content becomes `[redacted]`; other
+  details are kept after control characters are removed and length limits
+  applied.
+
+Sanitization never changes `exitCode`, which comes from the command's exit
+category rather than from the fault code.
+
 ## Compatibility
 
 A version-1 reader MUST ignore unknown fields at the envelope, fault,
