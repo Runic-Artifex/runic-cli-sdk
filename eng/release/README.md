@@ -74,9 +74,31 @@ attested one and does not verify by itself. Verify the copy attached to the GitH
 release; every entry of the NuGet.org package except `.signature.p7s` is identical
 to it, and `dotnet nuget verify --all <package>` checks the NuGet.org signature.
 
-After publication, update the documentation catalog in `runic-site` (see
+## After publication
+
+In a pull request in this repository:
+
+1. Move each package's `PublicAPI.Unshipped.txt` entries into
+   `PublicAPI.Shipped.txt`. A `*REMOVED*` entry is not moved: delete it together
+   with the Shipped line it names.
+2. Move the rows of
+   `packages/dotnet/Runic.CommandLine.Generators/AnalyzerReleases.Unshipped.md` into
+   `AnalyzerReleases.Shipped.md` under a `## Release` header for the published
+   version (0.6.0-preview.N is 0.6.0.N; see the mapping at the top of that file).
+3. Set `RunicCommandLinePackageValidationBaselineVersion` in `eng/Versions.props`
+   to the published version and delete any `CompatibilitySuppressions.xml` files,
+   which describe breaks from the old baseline.
+4. Set `RunicCommandLineVersion` to the next candidate and update the candidate
+   and published versions named in `README.md` and `examples/command-line/README.md`.
+
+Then update the documentation catalog in `runic-site`: set the Command Line
+product's `version` and `releaseNotes` in `docs/src/lib/docs-data.ts` (see
 "Release catalogs" in its `docs/README.md`). The workflow does not push to other
-repositories; the publish summary repeats this reminder.
+repositories; the publish summary repeats this reminder. Runic SDK pins Command
+Line in its `Directory.Packages.props`; adopting the new version there is a
+separate pull request in `runic-sdk`.
+
+## Versions and local verification
 
 `eng/Versions.props` is the committed candidate authority; it does not mean the
 version exists on NuGet. `./eng/package-version.sh` prints that version.
