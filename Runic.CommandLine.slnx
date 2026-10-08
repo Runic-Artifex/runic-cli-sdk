@@ -13,12 +13,16 @@
     <Project Path="tests/dotnet/Runic.CommandLine.Tests/Runic.CommandLine.Tests.csproj" />
     <Project Path="tests/native/Runic.CommandLine.AotSmoke/Runic.CommandLine.AotSmoke.csproj" />
     <Project Path="examples/command-line/Tests/HelloCli.ExampleTests.csproj" />
+    <Project Path="examples/command-line/wpf/Tests/ReportApp.Tests.csproj" />
   </Folder>
   <Folder Name="/examples/">
     <Project Path="examples/command-line/HelloCli.csproj" />
     <Project Path="examples/command-line/hello-world/HelloWorld.csproj" />
     <Project Path="examples/command-line/localized/LocalizedCli.csproj" />
     <Project Path="examples/command-line/ProcessInput/ProcessInput.csproj" />
+    <Project Path="examples/command-line/wpf/ReportApp.Core/ReportApp.Core.csproj" />
+    <Project Path="examples/command-line/wpf/ReportApp.Commands/ReportApp.Commands.csproj" />
+    <Project Path="examples/command-line/wpf/ReportApp.Cli/ReportApp.Cli.csproj" />
     <Project Path="tests/fixtures/command-line/CommandLine.Kernel/CommandLine.Kernel.csproj" />
   </Folder>
 </Solution>

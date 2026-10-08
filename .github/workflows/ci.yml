@@ -104,11 +104,39 @@ jobs:
           $version = [string] $versions.Project.PropertyGroup.RunicCommandLineVersion
           ./tests/fixtures/command-line/package-consumer/Runic.CommandLine.PackageConsumer/Invoke-PackageConsumer.ps1 -Configuration Release -RuntimeIdentifier '${{ matrix.rid }}' -PackageVersion $version -PackageDirectory artifacts/packages
 
+  wpf-example:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+      - name: Build the WPF example and its console companion
+        run: |
+          dotnet build examples/command-line/wpf/ReportApp.Wpf/ReportApp.Wpf.csproj -c Release -p:RunicCommandLineBuildMode=Verification
+          dotnet build examples/command-line/wpf/ReportApp.Cli/ReportApp.Cli.csproj -c Release -p:RunicCommandLineBuildMode=Verification
+      - name: Smoke the built executables
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'items.txt'
+          & examples/command-line/wpf/ReportApp.Cli/bin/Release/net10.0/reportcli.exe items list > $out
+          if ($LASTEXITCODE -ne 0) { throw "reportcli exited with $LASTEXITCODE" }
+          if (-not (Select-String -Path $out -Pattern 'Rune stone: 3' -Quiet)) { throw 'reportcli output is missing the expected item.' }
+          # The GUI executable must not start a window or block on a command launch.
+          $gui = Start-Process -FilePath examples/command-line/wpf/ReportApp.Wpf/bin/Release/net10.0-windows/ReportApp.exe -ArgumentList 'items','list' -PassThru
+          if (-not $gui.WaitForExit(30000)) { $gui.Kill(); throw 'ReportApp.exe blocked on a command launch.' }
+          if ($gui.ExitCode -ne 64) { throw "ReportApp.exe exited with $($gui.ExitCode), expected 64." }
+      - name: Run the example CLI tests on Windows
+        run: dotnet run --project examples/command-line/wpf/Tests/ReportApp.Tests.csproj -c Release -p:RunicCommandLineBuildMode=Verification
+
   # The single required status check: it always reports, and fails unless every job passed.
   verify:
     name: verify
     if: always()
-    needs: [workflows, managed-and-pack, native-aot]
+    needs: [workflows, managed-and-pack, native-aot, wpf-example]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
