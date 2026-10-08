@@ -1,9 +1,8 @@
 using Runic.CommandLine.Examples.ReportApp;
-using Runic.CommandLine.Hosting;
 using Runic.CommandLine.Testing;
 
 // The handlers run against the same IReportService the window uses; no process or window is started.
-var app = new CommandAppTester(console => ReportCommandApp.Create(new ReportService(), console));
+var app = new CommandAppTester(console => ReportCommandApp.Create(ReportComposition.CreateReportService(), console));
 
 var all = await app.RunAsync(["items", "list"]);
 if (all.ExitCode != 0 || !all.StandardOutput.Contains("Iron ingot: 40") || !all.StandardOutput.Contains("Rune stone: 3")) return 1;
@@ -33,10 +32,13 @@ using var frame = CommandTestEnvelope.Parse(machine.StandardOutput);
 if (machine.ExitCode != 0 || !frame.RootElement.GetProperty("success").GetBoolean()) return 8;
 
 // The WPF executable's pre-startup decision.
-if (ReportCommandApp.Classify([]) != HostedCommandLineDecisionKind.UserInterface) return 9;
-if (ReportCommandApp.Classify(["items", "list"]) != HostedCommandLineDecisionKind.Invocation) return 10;
-if (ReportCommandApp.Classify(["--help"]) != HostedCommandLineDecisionKind.Help) return 11;
-if (ReportCommandApp.Classify(["nonsense"]) != HostedCommandLineDecisionKind.Invalid) return 12;
+if (ReportCommandApp.Classify([]) != ReportLaunchMode.UserInterface) return 9;
+if (ReportCommandApp.Classify(["items", "list"]) != ReportLaunchMode.Command) return 10;
+if (ReportCommandApp.Classify(["--help"]) != ReportLaunchMode.Command) return 11;
+if (ReportCommandApp.Classify(["nonsense"]) != ReportLaunchMode.UserInterface) return 12;
+if (ReportCommandApp.Classify(["C:\\x.rpt"]) != ReportLaunchMode.UserInterface) return 13;
+if (ReportCommandApp.Classify(["report", "export"]) != ReportLaunchMode.Command) return 14;
+if (ReportCommandApp.Classify(["--version"]) != ReportLaunchMode.Command) return 15;
 
-Console.WriteLine("Twelve WPF-companion CLI checks passed.");
+Console.WriteLine("WPF-companion CLI checks passed.");
 return 0;

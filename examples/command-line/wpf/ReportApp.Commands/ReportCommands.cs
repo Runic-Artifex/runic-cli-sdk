@@ -15,8 +15,9 @@ internal static class ReportCommands
         return string.Join('\n', items.Select(item => $"{item.Name}: {item.Quantity}"));
     }
 
-    // Defaulted parameters cannot precede the required argument, so the token stays ahead of it.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "The required argument and defaulted option must follow the token for generated binding.")]
+    // A defaulted CancellationToken parameter is rejected by the generator (RCLI9022), and a non-defaulted
+    // one cannot follow the defaulted --overwrite option, so the token precedes the argument and options.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "The generator rejects a defaulted token (RCLI9022).")]
     [Command("report export", Description = "Export the inventory report as CSV.")]
     internal static async Task<string> Export([FromServices] IReportService reports, CancellationToken cancellationToken,
         [Argument(Description = "Destination CSV path.")] string path,
@@ -36,14 +37,25 @@ public static class ReportCommandApp
         ScopeFactory = new ReportScopes(reports), Name = "reportcli", Version = "1.0.0", Console = console,
     };
 
+    private static readonly string[] CommandRoots = ["items", "report"];
+
     /// <summary>
-    /// Decides, before any window exists, whether a launch is a command or the normal UI. No arguments
-    /// selects the UI; anything else is parsed as a command (help, version and errors included).
+    /// Decides, before any window exists, whether a launch is a command or the normal UI. Only a known command,
+    /// help, version or completion request (or a known command with invalid arguments) is a command. Everything
+    /// else, including a document path from a file association, starts the UI. The trade-off: a mistyped
+    /// command name opens the window instead of reporting an error.
     /// </summary>
-    public static HostedCommandLineDecisionKind Classify(IReadOnlyList<string> args)
+    public static ReportLaunchMode Classify(IReadOnlyList<string> args)
     {
         var adapter = new CommandLineHostingAdapter(GeneratedCommandCatalog.Create(), new CommandExecutor(new ReportScopes(null)));
-        return adapter.Classify(new HostedCommandLineLaunchInput(args, emptyInputFallback: EmptyInputFallback.UserInterface)).Kind;
+        var kind = adapter.Classify(new HostedCommandLineLaunchInput(args, emptyInputFallback: EmptyInputFallback.UserInterface)).Kind;
+        return kind switch
+        {
+            HostedCommandLineDecisionKind.Invocation or HostedCommandLineDecisionKind.Help
+                or HostedCommandLineDecisionKind.Version or HostedCommandLineDecisionKind.Completion => ReportLaunchMode.Command,
+            HostedCommandLineDecisionKind.Invalid when Array.IndexOf(CommandRoots, args[0]) >= 0 => ReportLaunchMode.Command,
+            _ => ReportLaunchMode.UserInterface,
+        };
     }
 
     private sealed class ReportScopes(IReportService? reports) : ICommandExecutionScopeFactory
@@ -58,4 +70,14 @@ public static class ReportCommandApp
         // The application owns its services; the scope owns nothing.
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
+}
+
+/// <summary>What a launch of the GUI executable should do.</summary>
+public enum ReportLaunchMode
+{
+    /// <summary>Start the window; the application handles its own arguments.</summary>
+    UserInterface,
+
+    /// <summary>A command-line request, served by the console executable.</summary>
+    Command,
 }

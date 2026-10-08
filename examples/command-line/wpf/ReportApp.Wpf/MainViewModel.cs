@@ -31,9 +31,20 @@ public sealed class MainViewModel
     }
 }
 
+// Not an MVVM template: just enough of a ViewModel to show a service call from the UI.
 internal sealed class AsyncRelay(Func<Task> execute) : ICommand
 {
     public event EventHandler? CanExecuteChanged { add { } remove { } }
     public bool CanExecute(object? parameter) => true;
-    public async void Execute(object? parameter) => await execute();
+
+    // ICommand.Execute is void, so this is an event-handler-style async void. Exceptions are caught because
+    // an unobserved one would crash the process; a real application would report them to the user.
+    public async void Execute(object? parameter)
+    {
+        try { await execute(); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            System.Windows.MessageBox.Show(exception.Message, "Inventory");
+        }
+    }
 }
