@@ -115,6 +115,19 @@ RCLI_EXAMPLE_CULTURE=en dotnet run --project examples/command-line/localized -- 
 RCLI_EXAMPLE_CULTURE=de dotnet run --project examples/command-line/localized -- --help
 ```
 
+## 8. Adding a CLI to a WPF application
+
+[`wpf`](wpf) shows a WPF application on .NET 10 gaining CLI access to its existing
+services without changing its UI: shared services, a command layer using
+`[FromServices]`, a sibling console executable (recommended over attaching a
+console to a `WinExe`) and an optional pre-startup launch classifier. Read the
+[guide](../../docs/guides/command-line/wpf.md).
+
+```sh
+dotnet run --project examples/command-line/wpf/ReportApp.Cli -- items list --max-quantity 10
+dotnet run --project examples/command-line/wpf/Tests
+```
+
 ## Before and after in the first-party tools
 
 The comparison baseline is SDK commit `81c1f8b5`, before the CLI follow-up.

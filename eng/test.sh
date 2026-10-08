@@ -10,7 +10,8 @@ for project in \
   tests/dotnet/Runic.CommandLine.Hosting.Tests/Runic.CommandLine.Hosting.Tests.csproj \
   tests/dotnet/Runic.CommandLine.Processes.Tests/Runic.CommandLine.Processes.Tests.csproj \
   tests/dotnet/Runic.CommandLine.Tests/Runic.CommandLine.Tests.csproj \
-  examples/command-line/Tests/HelloCli.ExampleTests.csproj; do
+  examples/command-line/Tests/HelloCli.ExampleTests.csproj \
+  examples/command-line/wpf/Tests/ReportApp.Tests.csproj; do
   dotnet run --project "$project" -c Release --no-build
 done
 dotnet run --project examples/command-line/ProcessInput/ProcessInput.csproj -c Release --no-build -- stone and gold
