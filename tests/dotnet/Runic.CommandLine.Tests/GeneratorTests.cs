@@ -1,7 +1,11 @@
 using System.Collections.Immutable;
+using System.Reflection;
+using System.Runtime.Loader;
+using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Runic.CommandLine.Generators;
+using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
@@ -26,6 +30,7 @@ internal static class GeneratorTests
     [
         new("generator/unchanged-commands-are-cached", UnchangedCommandsAreCached),
         new("generator/parameter-errors-use-distinct-diagnostics", ParameterErrorsUseDistinctDiagnostics),
+        new("generator/custom-result-contexts-compile-and-execute", CustomResultContexts),
     ];
 
     private static ValueTask UnchangedCommandsAreCached()
@@ -89,6 +94,59 @@ internal static class GeneratorTests
             diagnostics.All(static diagnostic => diagnostic.Location.GetLineSpan().StartLinePosition.Line > 0),
             "Generator diagnostics lost their source locations.");
         return ValueTask.CompletedTask;
+    }
+
+    private static async ValueTask CustomResultContexts()
+    {
+        foreach (bool hasDefault in new[] { false, true })
+        {
+            string source = $$"""
+                using System;
+                using System.Text.Json;
+                using System.Text.Json.Serialization;
+                using System.Text.Json.Serialization.Metadata;
+                using Runic.CommandLine;
+
+                [JsonSerializable(typeof(int))]
+                internal sealed class CustomContext : JsonSerializerContext
+                {
+                    {{(hasDefault ? "public static CustomContext Default { get; } = new(new JsonSerializerOptions { NumberHandling = JsonNumberHandling.WriteAsString });" : "")}}
+                    public CustomContext() : this(new JsonSerializerOptions()) { }
+                    public CustomContext(JsonSerializerOptions options) : base(options) { }
+                    protected override JsonSerializerOptions? GeneratedSerializerOptions => null;
+                    public override JsonTypeInfo? GetTypeInfo(Type type) => type == typeof(int)
+                        ? JsonMetadataServices.CreateValueInfo<int>(Options, JsonMetadataServices.Int32Converter)
+                        : null;
+                }
+
+                internal static class Commands
+                {
+                    [Command("custom"), CommandResult("sample.custom-context/1", typeof(CustomContext))]
+                    public static int Custom() => 42;
+                }
+                """;
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new CommandLineGenerator());
+            driver.RunGeneratorsAndUpdateCompilation(CreateCompilation(source), out Compilation compiled, out var diagnostics);
+            AssertEx.Equal(0, diagnostics.Length, string.Join("\n", diagnostics));
+            using var bytes = new MemoryStream();
+            var emitted = compiled.Emit(bytes);
+            AssertEx.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+            bytes.Position = 0;
+            var loader = new AssemblyLoadContext("custom-result-context", isCollectible: true);
+            try
+            {
+                Assembly assembly = loader.LoadFromStream(bytes);
+                var catalog = (CommandCatalog)assembly.GetType("Runic.CommandLine.Generated.GeneratedCommandCatalog")!.GetMethod("Create")!.Invoke(null, [null])!;
+                var console = new TestCommandConsole();
+                var app = new CommandApp(catalog) { Console = console, HandleCancelKeyPress = false };
+                AssertEx.Equal(0, await app.RunAsync(["custom", "--output=json"]));
+                using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
+                JsonElement payload = frame.RootElement.GetProperty("payload");
+                if (hasDefault) AssertEx.Equal("42", payload.GetString());
+                else AssertEx.Equal(42, payload.GetInt32());
+            }
+            finally { loader.Unload(); }
+        }
     }
 
     private static CSharpCompilation CreateCompilation(string source)
