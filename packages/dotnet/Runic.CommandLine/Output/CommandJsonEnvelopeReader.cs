@@ -162,6 +162,7 @@ public static class CommandJsonEnvelopeReader
             }
 
             CommandFault fault = ReadFault(faultElement);
+            CommandFailureData? failureData = ReadFailureData(faultElement);
             return CommandResponse<T>.Read(
                 requestId,
                 command,
@@ -170,7 +171,8 @@ public static class CommandJsonEnvelopeReader
                 null,
                 default,
                 fault,
-                diagnostics);
+                diagnostics,
+                failureData);
         }
         catch (CommandProtocolException)
         {
@@ -269,6 +271,26 @@ public static class CommandJsonEnvelopeReader
         }
 
         return new CommandFault(code, message, details, retryable);
+    }
+
+    private static CommandFailureData? ReadFailureData(JsonElement fault)
+    {
+        if (!fault.TryGetProperty("data", out JsonElement element)) return null;
+        RequireObject(element, "fault.data");
+        RejectDuplicateMembers(element, "fault.data");
+        string dataType = RequireString(element, "type");
+        try
+        {
+            return CommandFailureData.Read(dataType, RequireProperty(element, "payload"));
+        }
+        catch (ArgumentException exception)
+        {
+            throw Error("invalid-failure-data", "The declared failure data identity or JSON value is invalid.", exception);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw Error("invalid-failure-data", "The declared failure data JSON value is invalid.", exception);
+        }
     }
 
     private static void ValidateDepth(ReadOnlySpan<byte> json)

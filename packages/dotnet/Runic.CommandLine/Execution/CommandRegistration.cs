@@ -119,11 +119,13 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
 
                 if (!binding.IsSuccess)
                 {
-                    outcome = CommandOutcome.Failure<TResult>(
+                    outcome = new CommandOutcome<TResult>(false,
                         binding.ExitCategory,
+                        default,
                         binding.Fault!,
                         binding.Diagnostics,
-                        binding.HumanOutput);
+                        binding.HumanOutput,
+                        binding.FailureData);
                     diagnostics = outcome.Diagnostics;
                 }
                 else

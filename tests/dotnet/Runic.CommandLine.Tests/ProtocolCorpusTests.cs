@@ -11,7 +11,7 @@ internal static class ProtocolCorpusTests
         "invalid-structures.json",
         CorpusJsonContext.Default.SemanticProtocolCorpus);
     private static readonly string[] ExampleNames =
-        ["success", "command-fault", "validation", "host-fault", "cancelled", "redacted-fault"];
+        ["success", "command-fault", "validation", "host-fault", "cancelled", "redacted-fault", "declared-failure"];
 
     public static IReadOnlyList<TestCase> All { get; } = CreateTests();
 
@@ -44,6 +44,8 @@ internal static class ProtocolCorpusTests
         AssertEx.Equal(512, manifest.Limits.CommandBytes);
         AssertEx.Equal(128, manifest.Limits.PayloadTypeBytes);
         AssertEx.Equal(64, manifest.Limits.DiagnosticCount);
+        AssertEx.Equal(CommandFailureData.MaximumPayloadBytes, manifest.Limits.FailureDataPayloadBytes);
+        AssertEx.Equal(CommandFailureData.MaximumPayloadDepth, manifest.Limits.FailureDataPayloadDepth);
         AssertEx.Equal(15, manifest.Fixtures.Single(static fixture => fixture.Id == "protocol.wire-inputs").CaseCount);
         AssertEx.Equal(23, manifest.Fixtures.Single(static fixture => fixture.Id == "protocol.invalid-structures").CaseCount);
         return ValueTask.CompletedTask;
@@ -144,6 +146,11 @@ internal static class ProtocolCorpusTests
                     ["reason"] = "missing-file",
                     ["/home/ada/assets"] = "dropped",
                 }),
+            "declared-failure" => CommandJsonEnvelopeWriter.Serialize(
+                CommandResponse.FailedWithData<ExportPayload>("req-clone-0006", "clone", 4,
+                    new CommandFault("RCLI4000", "The clone was cancelled."),
+                    CommandFailureData.Create("sample.clone-recovery/1", new RecoveryReport("/tmp/Project copy", "feature/tmp/fix", true),
+                        RecoveryJsonContext.Default.RecoveryReport)), CorpusJsonContext.Default.ExportPayload),
             _ => throw new InvalidOperationException($"Unknown protocol example '{name}'."),
         };
 

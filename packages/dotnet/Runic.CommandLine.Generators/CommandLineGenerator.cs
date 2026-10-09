@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Runic.CommandLine.Generators;
@@ -413,7 +414,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             shape is ResultShape.Unit or ResultShape.UnitTask ? "global::Runic.CommandLine.CommandUnit" : Type(result),
             shape,
             payloadType,
-            jsonContext is null ? null : Type(jsonContext),
+            jsonContext is null ? null : JsonContextInstance(jsonContext),
             customText,
             registration.ToString(),
             string.Join(", ", boundParameters.Select(p => ParameterType(p.Symbol) + " " + EscapeIdentifier(p.Symbol.Name))),
@@ -460,7 +461,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             case ResultShape.OutcomeTask: case ResultShape.OutcomeValueTask: source.Append("return await ").Append(invocation).Append(".ConfigureAwait(false);"); break;
         }
         source.Append(" } }").AppendLine();
-        if (command.JsonContextType is null)
+        if (command.JsonContextInstance is null)
         {
             string codec = command.Shape is ResultShape.Unit or ResultShape.UnitTask ? "Unit" : "String";
             source.Append("    private static class __Codec").Append(index).Append(" { public static global::Runic.CommandLine.ICommandResultCodec<").Append(result).Append("> Instance => global::Runic.CommandLine.CommandResultCodecs.").Append(codec).AppendLine("; }");
@@ -469,7 +470,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         string humanBody = command.CustomText
             ? "console.WriteOutAsync(global::System.MemoryExtensions.AsMemory(global::System.String.Concat(global::System.Convert.ToString(value, culture) ?? string.Empty, \"\\n\")), cancellationToken)"
             : "global::Runic.CommandLine.CommandResultFormatter.WriteHumanAsync(value, TypeInfo, console, cancellationToken)";
-        source.Append("    private sealed class __Codec").Append(index).Append(" : global::Runic.CommandLine.ICommandResultCodec<").Append(result).AppendLine("> { public static __Codec" + index + " Instance { get; } = new(); public string PayloadType => " + Literal(command.PayloadType) + "; public global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<" + result + "> TypeInfo => (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<" + result + ">)new " + command.JsonContextType + "().GetTypeInfo(typeof(" + result + "))!; public global::System.Threading.Tasks.ValueTask WriteHumanAsync(" + result + " value, global::Runic.CommandLine.ICommandConsole console, global::System.Globalization.CultureInfo culture, global::System.Threading.CancellationToken cancellationToken) => " + humanBody + "; }");
+        source.Append("    private sealed class __Codec").Append(index).Append(" : global::Runic.CommandLine.ICommandResultCodec<").Append(result).AppendLine("> { public static __Codec" + index + " Instance { get; } = new(); public string PayloadType => " + Literal(command.PayloadType) + "; public global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<" + result + "> TypeInfo => (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<" + result + ">)" + command.JsonContextInstance + ".GetTypeInfo(typeof(" + result + "))!; public global::System.Threading.Tasks.ValueTask WriteHumanAsync(" + result + " value, global::Runic.CommandLine.ICommandConsole console, global::System.Globalization.CultureInfo culture, global::System.Threading.CancellationToken cancellationToken) => " + humanBody + "; }");
     }
 
     private static string NamedBool(AttributeData metadata, string name) => metadata.NamedArguments.Any(p => p.Key == name && p.Value.Value is true) ? "true" : "false";
@@ -608,6 +609,18 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             attribute.AttributeClass.ContainingNamespace.ToDisplayString() == "System.Text.Json.Serialization" &&
             attribute.ConstructorArguments.Length != 0 &&
             SymbolEqualityComparer.Default.Equals(attribute.ConstructorArguments[0].Value as ITypeSymbol, result));
+    private static string JsonContextInstance(INamedTypeSymbol context)
+    {
+        bool hasDefault = context.GetMembers("Default").OfType<IPropertySymbol>().Any(property =>
+            property.IsStatic && property.GetMethod is { } getter && IsAccessible(getter) &&
+            SymbolEqualityComparer.Default.Equals(property.Type, context));
+        // Other generators' output is absent from this compilation. A partial context
+        // without its own GetTypeInfo implementation receives Default from System.Text.Json.
+        bool awaitsGeneration = context.DeclaringSyntaxReferences.Any(reference =>
+            reference.GetSyntax() is TypeDeclarationSyntax declaration && declaration.Modifiers.Any(SyntaxKind.PartialKeyword)) &&
+            !context.GetMembers("GetTypeInfo").OfType<IMethodSymbol>().Any(static method => method.IsOverride && !method.IsAbstract);
+        return hasDefault || awaitsGeneration ? Type(context) + ".Default" : "new " + Type(context) + "()";
+    }
     private static bool IsIdentifier(string? value)
     {
         if (string.IsNullOrEmpty(value) || value[0] is < 'a' or > 'z') return false;
@@ -686,7 +699,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         string ResultType,
         ResultShape Shape,
         string PayloadType,
-        string? JsonContextType,
+        string? JsonContextInstance,
         bool CustomText,
         string Registration,
         string OptionsParameters,

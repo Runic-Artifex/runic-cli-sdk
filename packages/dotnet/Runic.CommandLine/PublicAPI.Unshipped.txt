@@ -1,1 +1,11 @@
 #nullable enable
+const Runic.CommandLine.CommandFailureData.MaximumPayloadBytes = 65536 -> int
+const Runic.CommandLine.CommandFailureData.MaximumPayloadDepth = 24 -> int
+Runic.CommandLine.CommandFailureData
+Runic.CommandLine.CommandFailureData.Type.get -> string!
+Runic.CommandLine.CommandFailureData.TryGet<T>(string! expectedType, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>! typeInfo, out T? value) -> bool
+Runic.CommandLine.CommandOutcome<T>.FailureData.get -> Runic.CommandLine.CommandFailureData?
+Runic.CommandLine.CommandResponse<T>.FailureData.get -> Runic.CommandLine.CommandFailureData?
+static Runic.CommandLine.CommandFailureData.Create<T>(string! dataType, T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>! typeInfo) -> Runic.CommandLine.CommandFailureData!
+static Runic.CommandLine.CommandOutcome.FailureWithData<T>(Runic.CommandLine.CommandExitCategory category, Runic.CommandLine.CommandFault! fault, Runic.CommandLine.CommandFailureData! failureData, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null, string? humanOutput = null) -> Runic.CommandLine.CommandOutcome<T>!
+static Runic.CommandLine.CommandResponse.FailedWithData<T>(string! requestId, string! command, int exitCode, Runic.CommandLine.CommandFault! fault, Runic.CommandLine.CommandFailureData! failureData, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null) -> Runic.CommandLine.CommandResponse<T>!

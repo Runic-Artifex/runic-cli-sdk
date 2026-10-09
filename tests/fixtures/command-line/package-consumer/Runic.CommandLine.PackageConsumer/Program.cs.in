@@ -15,7 +15,7 @@ namespace Runic.CommandLine.PackageConsumer;
 
 internal static class Program
 {
-    private static async Task<int> Main()
+    private static async Task<int> Main(string[] launchArgs)
     {
         var adapter = new CommandLineHostingAdapter(
             GeneratedCommandCatalog.Create(),
@@ -187,9 +187,41 @@ internal static class Program
         if (runnerExit != 0) return 95;
         using (JsonDocument ping = JsonDocument.Parse(runnerConsole.StandardOutput))
             if (ping.RootElement.GetProperty("payload").GetString() != "pong") return 96;
-        Console.Out.Write(console.StandardOutput);
+        var recoveryConsole = new BufferCommandConsole();
+        int recoveryExit = await new CommandApp(GeneratedCommandCatalog.Create())
+        { Console = recoveryConsole, HandleCancelKeyPress = false }.RunAsync(["recover", "--output=json"]).ConfigureAwait(false);
+        if (recoveryExit != CommandExitCodes.Cancelled || recoveryConsole.StandardError.Length != 0) return 100;
+        CommandResponse<ConsumerRecovery> recoveryResponse = CommandJsonEnvelopeReader.Read(
+            Encoding.UTF8.GetBytes(recoveryConsole.StandardOutput), "runic.consumer-recovery/1", RecoveryJsonContext.Default.ConsumerRecovery);
+        if (recoveryResponse.Success || recoveryResponse.ExitCode != CommandExitCodes.Cancelled ||
+            recoveryResponse.PayloadType is not null || recoveryResponse.Payload is not null ||
+            recoveryResponse.Fault?.Code != "RCLI3000" ||
+            recoveryResponse.FailureData is not { } recoveryData ||
+            !recoveryData.TryGet("runic.consumer-recovery/1", RecoveryJsonContext.Default.ConsumerRecovery, out ConsumerRecovery? recovery) ||
+            recovery != RecoveryReport) return 101;
+        if (recoveryData.TryGet("runic.consumer-recovery/2", RecoveryJsonContext.Default.ConsumerRecovery, out _)) return 102;
+        using (JsonDocument recoveryJson = JsonDocument.Parse(recoveryConsole.StandardOutput))
+            if (recoveryJson.RootElement.GetProperty("fault").GetProperty("data").GetProperty("payload").GetProperty("retainedDirectory").GetString() != RecoveryReport.RetainedDirectory) return 103;
+
+        var configuredConsole = new BufferCommandConsole();
+        int configuredExit = await new CommandApp(GeneratedCommandCatalog.Create())
+        { Console = configuredConsole, HandleCancelKeyPress = false }.RunAsync(["recover", "--success", "--output=json"]).ConfigureAwait(false);
+        using (JsonDocument configured = JsonDocument.Parse(configuredConsole.StandardOutput))
+            if (configuredExit != 0 || configured.RootElement.GetProperty("payload").GetProperty("retainedDirectory").GetString() != RecoveryReport.RetainedDirectory) return 104;
+
+        Console.Out.Write(Array.IndexOf(launchArgs, "--emit-recovery-frame") >= 0 ? recoveryConsole.StandardOutput : console.StandardOutput);
         return 0;
     }
+
+    private static readonly ConsumerRecovery RecoveryReport = new("/tmp/Feature branch/目录/e\u0301\nfile\t\u001b.dll", "feature/tmp/修复", true);
+
+    [Command("recover")]
+    [CommandResult("runic.consumer-recovery/1", typeof(RecoveryJsonContext))]
+    internal static CommandOutcome<ConsumerRecovery> Recover([Option("--success")] bool success) => success
+        ? CommandOutcome.Success(RecoveryReport)
+        : CommandOutcome.FailureWithData<ConsumerRecovery>(CommandExitCategory.Cancelled,
+            new CommandFault("RCLI3000", "The operation was cancelled."),
+            CommandFailureData.Create("runic.consumer-recovery/1", RecoveryReport, RecoveryJsonContext.Default.ConsumerRecovery));
 
     [Command("ping")]
     internal static string Ping() => "pong";
@@ -239,6 +271,12 @@ internal sealed record ConsumerResult(string Message);
 
 [JsonSerializable(typeof(ConsumerResult))]
 internal sealed partial class ConsumerJsonContext : JsonSerializerContext;
+
+internal sealed record ConsumerRecovery(string RetainedDirectory, string TargetBranch, bool ObservationComplete);
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(ConsumerRecovery))]
+internal sealed partial class RecoveryJsonContext : JsonSerializerContext;
 
 internal sealed class BufferCommandConsole : ICommandConsole
 {

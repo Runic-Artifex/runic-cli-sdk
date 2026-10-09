@@ -24,6 +24,8 @@ application-owned human stdout report and diagnostics/fault on stderr, while
 proving that the same report is absent from the JSON failure envelope.
 It also proves a generated-catalog parse failure retains an explicit JSON
 transport classification while redacting the unknown option value.
+It also exercises declared typed recovery data with exact path/target identities,
+nonzero cancellation, identity-checked reading, and generated JSON context defaults.
 
 Per-run artifacts use a short uniquely named directory below the OS temporary
 directory so the isolated package cache and NativeAOT output stay bounded.
@@ -40,3 +42,15 @@ hello-world project references only the core package. It also executes hosted
 service, help and empty-input UI-selection paths in the command-tree example. This
 checks that the tutorials need no repository-only generator/build imports.
 The application UI branch is a console fixture; it does not open a desktop window.
+
+For focused managed verification of declared failure data and protocol
+compatibility, run `pwsh -NoProfile -File Invoke-DeclaredFailureConsumer.ps1
+-PackageVersion <distinct-candidate-version> -PackageDirectory <candidate-feed>`.
+This runs the package consumer above, emits its typed failure frame, and reads it
+with an independent project pinned to the published `0.6.0-preview.2` package.
+The earlier reader must ignore `fault.data` while retaining the safe fault,
+null success payload, and nonzero exit. Candidate source mapping prevents a
+published-package fallback. Use a distinct candidate version with the existing
+NuGet cache (including the caller's `NUGET_PACKAGES` setting); this check creates
+no fresh dependency cache and removes its temporary projects/frame afterward.
+It packs no packages and performs no NativeAOT publish or tutorial matrix.
