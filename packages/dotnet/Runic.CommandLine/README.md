@@ -139,6 +139,66 @@ values become `[redacted]`, matching detail keys are dropped, and a malformed
 code becomes `RCLI5000`. Other paths such as `/var/folders`, `/srv` or
 `/nix/store` are not detected, so keep them out of faults yourself.
 
+### Declared domain failure and recovery data
+
+When a failed or cancelled command must return an exact retained directory or
+target identity, declare a bounded domain DTO separately from presentation text:
+
+```csharp
+var recovery = CommandFailureData.Create(
+    "sample.clone-recovery/1", report, RecoveryJsonContext.Default.CloneRecovery);
+return CommandOutcome.FailureWithData<CloneResult>(
+    CommandExitCategory.Cancelled,
+    new CommandFault("CLONE_CANCELLED", "The clone was cancelled. Inspect the retained directory."),
+    recovery,
+    humanOutput: "Inspect the retained directory before retrying.\n");
+```
+
+`RecoveryJsonContext` is the application's source-generated `JsonSerializerContext`
+with `[JsonSerializable(typeof(CloneRecovery))]`; use its `Default` metadata to
+preserve configured property names and other JSON defaults. A generated command
+keeps its existing `[CommandResult]` declaration for its success DTO. The failure
+factory explicitly declares the separate identity and JSON contract; no extra
+generator attribute or reflection is required.
+
+The immutable snapshot preserves declared domain values exactly, including paths
+and target names that resemble technical text. Include only fields intended for
+the command's consumer. Keep secrets, exception/log text, and unrelated internal
+state out of the domain DTO. Ordinary fault messages, details, and diagnostics
+continue through their sanitizer. Human output uses the existing fault and
+optional `humanOutput`; data is not printed automatically.
+
+JSON uses the optional `fault.data` member:
+`{"type":"sample.clone-recovery/1","payload":{...}}`. The protocol remains
+`runic.commandline/1`, with failure `payloadType` and `payload` both null and a
+nonzero exit. Existing version-1 readers ignore the extension. Ordinary failures
+retain their exact wire format. Upgrade producer and consumer independently;
+retain any application-specific legacy detail encoding only while old consumers
+still require it.
+
+`CommandJsonEnvelopeReader.Read` retains validated data on `response.FailureData`.
+Decode only an identity the application understands:
+
+```csharp
+if (response.FailureData is { } data &&
+    data.TryGet("sample.clone-recovery/1", RecoveryJsonContext.Default.CloneRecovery,
+        out CloneRecovery? recovery))
+{
+    // Interpret the application's recovery contract; retain the failed exit.
+}
+```
+
+`TryGet` returns false for an unknown identity so callers can present the ordinary
+fault. A matching identity with an incompatible shape raises
+`CommandProtocolException` with `failure-data-shape-mismatch`. Decoding follows
+the supplied context's settings: mark required fields and
+configure nullability or unknown-member handling there when the domain contract
+requires those checks. A type identity alone does not make missing fields invalid.
+Snapshots are limited to 65,536 UTF-8 JSON bytes and 24 nested objects/arrays; the complete
+response keeps its one-mebibyte/32-level limits. Malformed, duplicate, or
+oversized data is refused without truncation. Recovery data and `retryable` never
+authorize an automatic retry.
+
 `completion bash|zsh|fish|powershell` generates context-aware completion scripts
 from the catalog. Set `CompletionExecutableName` when the help-facing name contains
 spaces (for example, `dotnet runic`). Candidates follow the current command path,

@@ -64,6 +64,6 @@ public sealed class CommandTextContext
         if (fault is not null && ReferenceEquals(fault, response.Fault))
             fault = new CommandFault(fault.Code, Resolve("faults." + fault.Code, fault.Message), fault.Details, fault.Retryable);
         return CommandResponse<T>.Read(response.RequestId, response.Command, response.Success, response.ExitCode,
-            response.PayloadType, response.Payload, fault, diagnostics);
+            response.PayloadType, response.Payload, fault, diagnostics, response.FailureData);
     }
 }

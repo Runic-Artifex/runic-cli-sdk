@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
@@ -22,7 +21,8 @@ public static class CommandJsonEnvelopeWriter
         ArgumentNullException.ThrowIfNull(response);
         ArgumentNullException.ThrowIfNull(payloadTypeInfo);
 
-        var buffer = new BoundedBufferWriter(CommandJsonEnvelopeReader.DefaultMaximumFrameBytes - 1);
+        var buffer = new CommandJsonBufferWriter(CommandJsonEnvelopeReader.DefaultMaximumFrameBytes - 1,
+            "frame-too-large", "The serialized command response exceeds the maximum frame size.");
         using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions
         {
             Indented = false,
@@ -85,7 +85,7 @@ public static class CommandJsonEnvelopeWriter
             writer.WriteNull("payloadType");
             writer.WriteNull("payload");
             writer.WritePropertyName("fault");
-            WriteFault(writer, response.Fault!);
+            WriteFault(writer, response.Fault!, response.FailureData);
         }
 
         writer.WritePropertyName("diagnostics");
@@ -99,7 +99,7 @@ public static class CommandJsonEnvelopeWriter
         writer.WriteEndObject();
     }
 
-    private static void WriteFault(Utf8JsonWriter writer, CommandFault unsafeFault)
+    private static void WriteFault(Utf8JsonWriter writer, CommandFault unsafeFault, CommandFailureData? failureData)
     {
         CommandFault fault = CommandFaultSanitizer.Sanitize(unsafeFault);
         writer.WriteStartObject();
@@ -117,6 +117,11 @@ public static class CommandJsonEnvelopeWriter
 
         writer.WriteEndObject();
         writer.WriteBoolean("retryable", fault.Retryable);
+        if (failureData is not null)
+        {
+            writer.WritePropertyName("data");
+            failureData.Write(writer);
+        }
         writer.WriteEndObject();
     }
 
@@ -216,56 +221,4 @@ public static class CommandJsonEnvelopeWriter
         _ => throw new ArgumentOutOfRangeException(nameof(severity)),
     };
 
-    private sealed class BoundedBufferWriter : IBufferWriter<byte>
-    {
-        private readonly ArrayBufferWriter<byte> _inner = new();
-        private readonly int _maximumBytes;
-
-        internal BoundedBufferWriter(int maximumBytes) => _maximumBytes = maximumBytes;
-
-        internal int WrittenCount => _inner.WrittenCount;
-
-        internal ReadOnlySpan<byte> WrittenSpan => _inner.WrittenSpan;
-
-        public void Advance(int count)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(count);
-            if (count > _maximumBytes - _inner.WrittenCount)
-            {
-                throw FrameTooLarge();
-            }
-
-            _inner.Advance(count);
-        }
-
-        public Memory<byte> GetMemory(int sizeHint = 0)
-        {
-            int available = Available(sizeHint);
-            Memory<byte> memory = _inner.GetMemory(Math.Max(sizeHint, 1));
-            return memory[..Math.Min(memory.Length, available)];
-        }
-
-        public Span<byte> GetSpan(int sizeHint = 0)
-        {
-            int available = Available(sizeHint);
-            Span<byte> span = _inner.GetSpan(Math.Max(sizeHint, 1));
-            return span[..Math.Min(span.Length, available)];
-        }
-
-        private int Available(int sizeHint)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(sizeHint);
-            int remaining = _maximumBytes - _inner.WrittenCount;
-            if (remaining == 0 || sizeHint > remaining)
-            {
-                throw FrameTooLarge();
-            }
-
-            return remaining;
-        }
-
-        private static CommandProtocolException FrameTooLarge() => new(
-            "frame-too-large",
-            "The serialized command response exceeds the maximum frame size.");
-    }
 }

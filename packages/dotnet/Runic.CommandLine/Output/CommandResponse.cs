@@ -20,7 +20,8 @@ public sealed class CommandResponse<T>
         string? payloadType,
         T? payload,
         CommandFault? fault,
-        IReadOnlyList<CommandDiagnostic>? diagnostics)
+        IReadOnlyList<CommandDiagnostic>? diagnostics,
+        CommandFailureData? failureData = null)
     {
         CommandResponseValidation.ValidateRequestId(requestId, nameof(requestId));
         CommandResponseValidation.ValidateCommand(command, nameof(command));
@@ -37,6 +38,9 @@ public sealed class CommandResponse<T>
             {
                 throw new ArgumentException("A successful response cannot contain a fault.", nameof(fault));
             }
+
+            if (failureData is not null)
+                throw new ArgumentException("A successful response cannot contain failure data.", nameof(failureData));
         }
         else
         {
@@ -61,6 +65,7 @@ public sealed class CommandResponse<T>
         Payload = payload;
         Fault = fault is null ? null : CommandFaultSanitizer.Sanitize(fault);
         Diagnostics = CopyDiagnostics(diagnostics);
+        FailureData = failureData;
     }
 
     /// <summary>Gets the caller-supplied or generated opaque request identifier.</summary>
@@ -84,6 +89,9 @@ public sealed class CommandResponse<T>
     /// <summary>Gets the sanitized command fault for a failed response.</summary>
     public CommandFault? Fault { get; }
 
+    /// <summary>Gets the optional, immutable domain data carried by the machine fault extension.</summary>
+    public CommandFailureData? FailureData { get; }
+
     /// <summary>Gets the ordered, consumer-safe diagnostics.</summary>
     public IReadOnlyList<CommandDiagnostic> Diagnostics { get; }
 
@@ -100,8 +108,9 @@ public sealed class CommandResponse<T>
         string command,
         int exitCode,
         CommandFault fault,
-        IReadOnlyList<CommandDiagnostic>? diagnostics = null) =>
-        new(requestId, command, false, exitCode, null, default, fault, diagnostics);
+        IReadOnlyList<CommandDiagnostic>? diagnostics = null,
+        CommandFailureData? failureData = null) =>
+        new(requestId, command, false, exitCode, null, default, fault, diagnostics, failureData);
 
     internal static CommandResponse<T> FromOutcome(
         string requestId,
@@ -125,7 +134,7 @@ public sealed class CommandResponse<T>
 
         return outcome.IsSuccess
             ? Succeeded(requestId, command, payloadType, outcome.Value, diagnostics)
-            : Failed(requestId, command, exitCode, outcome.Fault!, diagnostics);
+            : Failed(requestId, command, exitCode, outcome.Fault!, diagnostics, outcome.FailureData);
     }
 
     internal static CommandResponse<T> Read(
@@ -136,8 +145,9 @@ public sealed class CommandResponse<T>
         string? payloadType,
         T? payload,
         CommandFault? fault,
-        IReadOnlyList<CommandDiagnostic> diagnostics) =>
-        new(requestId, command, success, exitCode, payloadType, payload, fault, diagnostics);
+        IReadOnlyList<CommandDiagnostic> diagnostics,
+        CommandFailureData? failureData = null) =>
+        new(requestId, command, success, exitCode, payloadType, payload, fault, diagnostics, failureData);
 
     private static IReadOnlyList<CommandDiagnostic> CopyDiagnostics(
         IReadOnlyList<CommandDiagnostic>? diagnostics)
@@ -315,6 +325,19 @@ public static class CommandResponse
         CommandFault fault,
         IReadOnlyList<CommandDiagnostic>? diagnostics = null) =>
         CommandResponse<T>.Failed(requestId, command, exitCode, fault, diagnostics);
+
+    /// <summary>Creates a failed response with separately declared domain data and a sanitized fault.</summary>
+    public static CommandResponse<T> FailedWithData<T>(
+        string requestId,
+        string command,
+        int exitCode,
+        CommandFault fault,
+        CommandFailureData failureData,
+        IReadOnlyList<CommandDiagnostic>? diagnostics = null)
+    {
+        ArgumentNullException.ThrowIfNull(failureData);
+        return CommandResponse<T>.Failed(requestId, command, exitCode, fault, diagnostics, failureData);
+    }
 
     /// <summary>Maps a frozen semantic outcome to a protocol response.</summary>
     public static CommandResponse<T> FromOutcome<T>(

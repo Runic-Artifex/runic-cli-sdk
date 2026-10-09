@@ -27,7 +27,8 @@ public sealed class CommandOutcome<T>
         T? value,
         CommandFault? fault,
         IReadOnlyList<CommandDiagnostic>? diagnostics,
-        string? humanOutput)
+        string? humanOutput,
+        CommandFailureData? failureData = null)
     {
         IsSuccess = isSuccess;
         ExitCategory = exitCategory;
@@ -35,6 +36,7 @@ public sealed class CommandOutcome<T>
         Fault = fault;
         Diagnostics = CopyDiagnostics(diagnostics, isSuccess);
         HumanOutput = CopyHumanOutput(humanOutput, isSuccess);
+        FailureData = failureData;
     }
 
     /// <summary>Gets a value indicating whether the command succeeded.</summary>
@@ -48,6 +50,9 @@ public sealed class CommandOutcome<T>
 
     /// <summary>Gets the safe fault for a failed outcome.</summary>
     public CommandFault? Fault { get; }
+
+    /// <summary>Gets the optional, explicitly declared domain failure data snapshot.</summary>
+    public CommandFailureData? FailureData { get; }
 
     /// <summary>
     /// Gets the ordered, immutable diagnostics produced while binding or
@@ -233,5 +238,22 @@ public static class CommandOutcome
         }
 
         return new CommandOutcome<T>(false, category, default, fault, diagnostics, humanOutput);
+    }
+
+    /// <summary>Creates a failed outcome with a safe fault and separately declared domain data.</summary>
+    /// <remarks>Data is preserved exactly in the optional machine fault extension. Human presentation uses the fault and optional human output.</remarks>
+    public static CommandOutcome<T> FailureWithData<T>(
+        CommandExitCategory category,
+        CommandFault fault,
+        CommandFailureData failureData,
+        IReadOnlyList<CommandDiagnostic>? diagnostics = null,
+        string? humanOutput = null)
+    {
+        ArgumentNullException.ThrowIfNull(fault);
+        ArgumentNullException.ThrowIfNull(failureData);
+        if (category == CommandExitCategory.Success || !Enum.IsDefined(category))
+            throw new ArgumentOutOfRangeException(nameof(category));
+
+        return new CommandOutcome<T>(false, category, default, fault, diagnostics, humanOutput, failureData);
     }
 }

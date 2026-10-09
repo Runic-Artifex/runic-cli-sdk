@@ -79,6 +79,8 @@ internal sealed record ProtocolLimits(
     int MessageBytes,
     int DiagnosticCount,
     int FaultDetailCount,
+    int FailureDataPayloadBytes,
+    int FailureDataPayloadDepth,
     int DiagnosticArgumentCount,
     int DetailKeyBytes,
     int DetailValueBytes,

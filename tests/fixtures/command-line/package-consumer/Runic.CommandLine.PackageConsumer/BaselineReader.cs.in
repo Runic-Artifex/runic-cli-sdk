@@ -1,0 +1,17 @@
+using System;
+using System.IO;
+using System.Text.Json.Serialization;
+using Runic.CommandLine;
+
+// Compiled against the published package before fault.data existed. It must
+// ignore the additive extension while enforcing ordinary /1 failure invariants.
+CommandResponse<string> response = CommandJsonEnvelopeReader.Read(
+    File.ReadAllBytes(args[0]), "runic.consumer-recovery/1", BaselineJsonContext.Default.String);
+if (response.Success || response.ExitCode != CommandExitCodes.Cancelled ||
+    response.PayloadType is not null || response.Payload is not null ||
+    response.Fault?.Code != "RCLI3000" || response.Fault.Message != "The operation was cancelled.") return 1;
+Console.WriteLine("Published 0.6.0-preview.2 /1 reader accepted the additive failure data.");
+return 0;
+
+[JsonSerializable(typeof(string))]
+internal sealed partial class BaselineJsonContext : JsonSerializerContext;

@@ -93,6 +93,45 @@ A fault contains every key below in this output order:
 - `retryable` is Boolean and means retrying the same logical operation may
   succeed. It never authorizes an automatic retry.
 
+### Optional declared failure data
+
+A producer MAY append an optional `data` member to the fault. Existing
+version-1 readers ignore this additive member and still receive the ordinary
+safe fault. The nine envelope fields and all success/failure invariants remain
+unchanged, including failure `payloadType: null`, `payload: null`, and a nonzero
+exit code. An ordinary failure omits `data` entirely.
+
+```json
+{"type":"sample.clone-recovery/1","payload":{"retainedDirectory":"/home/user/Project copy","observationComplete":true}}
+```
+
+`data` MUST be an object with required `type` and `payload` members. `type`
+uses the same complete, independently versioned identity grammar as
+`payloadType`. `payload` is any JSON value, including null if its declared
+contract permits it. Its encoded UTF-8 JSON value MUST be at most 65,536 bytes
+(excluding the `data` wrapper), with at most 24 nested objects and arrays.
+Readers count the original JSON value's bytes, including any internal
+whitespace. The complete frame remains subject to the one-mebibyte and
+32-level limits. Duplicate property names at any depth of this payload are
+invalid. Invalid or oversized data MUST be rejected rather than truncated.
+
+This extension contains application-owned domain fields explicitly declared
+through a stable identity and closed JSON serialization metadata. These fields
+are intended for the command's consumer and are separate from fault presentation
+text and diagnostic arguments: exact directory paths, target names, and
+independent recovery observations are preserved without the presentation
+sanitizer. Producers MUST exclude secrets, exception/log text, and unrelated
+internal implementation state from the declared domain contract.
+
+A reader that supports `data` MUST validate its structure, identity grammar,
+duplicates, and bounds before retaining it. It MUST compare the complete
+identity against its application allow-list before decoding `payload` with
+pre-registered JSON metadata. An unknown identity leaves the safe ordinary
+fault usable and MUST NOT cause arbitrary deserialization or type activation.
+A matching identity whose data cannot be decoded is a protocol failure, not
+successful recovery. Domain data never authorizes a retry or proves that an
+operation succeeded; applications interpret their documented recovery contract.
+
 ## Diagnostic object
 
 A diagnostic contains every key below in this output order:
