@@ -194,9 +194,12 @@ fault. A matching identity with an incompatible shape raises
 the supplied context's settings: mark required fields and
 configure nullability or unknown-member handling there when the domain contract
 requires those checks. A type identity alone does not make missing fields invalid.
-Snapshots are limited to 65,536 UTF-8 JSON bytes and 24 nested objects/arrays; the complete
+Snapshots are limited to 65,536 compact UTF-8 JSON bytes and 24 nested objects/arrays; the complete
 response keeps its one-mebibyte/32-level limits. Malformed, duplicate, or
-oversized data is refused without truncation. Recovery data and `retryable` never
+oversized data is refused without truncation. `Create` and the reader raise the
+same `CommandProtocolException` kinds: `failure-data-byte-limit`,
+`failure-data-depth-limit`, `duplicate-property`, or `invalid-failure-data`
+(including serializer and encoding failures). Recovery data and `retryable` never
 authorize an automatic retry.
 
 `completion bash|zsh|fish|powershell` generates context-aware completion scripts

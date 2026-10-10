@@ -110,10 +110,11 @@ uses the same complete, independently versioned identity grammar as
 `payloadType`. `payload` is any JSON value, including null if its declared
 contract permits it. Its encoded UTF-8 JSON value MUST be at most 65,536 bytes
 (excluding the `data` wrapper), with at most 24 nested objects and arrays.
-Readers count the original JSON value's bytes, including any internal
-whitespace. The complete frame remains subject to the one-mebibyte and
-32-level limits. Duplicate property names at any depth of this payload are
-invalid. Invalid or oversized data MUST be rejected rather than truncated.
+Producers and readers count the value's compact form: its original bytes,
+including escapes, without insignificant whitespace between tokens. The
+complete frame remains subject to the one-mebibyte and 32-level limits.
+Duplicate property names at any depth of this payload are invalid. Invalid or
+oversized data MUST be rejected rather than truncated.
 
 This extension contains application-owned domain fields explicitly declared
 through a stable identity and closed JSON serialization metadata. These fields
