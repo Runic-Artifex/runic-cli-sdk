@@ -15,6 +15,9 @@ if (args.Contains("--authoring-localization", StringComparer.Ordinal))
 if (args.Contains("--result-contexts", StringComparer.Ordinal))
     return await TestRunner.RunAsync(ResultContextTests.All, GeneratorTests.All);
 
+if (args.Contains("--error-causes", StringComparer.Ordinal))
+    return await TestRunner.RunAsync(ErrorCauseTests.All);
+
 if (args.Contains("--failure-data", StringComparer.Ordinal))
     return await TestRunner.RunAsync(FailureDataTests.All, OutputTests.All, ProtocolCorpusTests.All, ResultContextTests.All);
 
@@ -36,4 +39,5 @@ return await TestRunner.RunAsync(
     OutputTests.All,
     FailureDataTests.All,
     ProtocolCorpusTests.All,
-    GeneratorTests.All);
+    GeneratorTests.All,
+    ErrorCauseTests.All);

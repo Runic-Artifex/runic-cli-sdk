@@ -222,7 +222,7 @@ internal static class GeneratorTests
         return ValueTask.CompletedTask;
     }
 
-    private static CSharpCompilation CreateCompilation(string source)
+    internal static CSharpCompilation CreateCompilation(string source)
     {
         string[] platform = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
         IEnumerable<MetadataReference> references = platform

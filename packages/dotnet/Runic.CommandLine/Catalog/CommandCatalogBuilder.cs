@@ -116,7 +116,7 @@ public sealed class CommandCatalogBuilder
             defaultCommand = descriptors.Find(command => string.Equals(command.Name, _defaultCommandName, StringComparison.Ordinal));
             if (defaultCommand is null)
             {
-                throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", "root", "The default command must name a registered root command.")]);
+                throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", "root", $"The default command '{_defaultCommandName}' must name a registered root command.")]);
             }
         }
         return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand);
@@ -543,10 +543,10 @@ internal abstract class CommandBuilderNode
             CommandHelp help = entry.Value;
             if (!Enum.IsDefined(help.PathKind) || (help.MustExist && help.PathKind == CommandPathKind.None) ||
                 (help.Minimum is { } min && !double.IsFinite(min)) || (help.Maximum is { } max && !double.IsFinite(max)) || help.Minimum > help.Maximum)
-                issues.Add(new CommandCatalogIssue("RCLI0021", path, "Invalid path or numeric validation metadata."));
+                issues.Add(new CommandCatalogIssue("RCLI0021", path, $"Parameter '{entry.Key}' has invalid path or numeric validation metadata; MustExist needs a file or directory path kind and bounds must be finite with Minimum <= Maximum."));
             foreach (string target in System.Linq.Enumerable.Concat(help.Requires, help.ConflictsWith))
                 if (target == entry.Key || !_options.Exists(option => option.Id == target) || !_options.Exists(option => option.Id == entry.Key))
-                    issues.Add(new CommandCatalogIssue("RCLI0022", path, "Option relationships must name distinct registered option IDs."));
+                    issues.Add(new CommandCatalogIssue("RCLI0022", path, $"Parameter '{entry.Key}' lists '{target}' in Requires or ConflictsWith; relationships must name another registered option ID of this command."));
         }
 
         var ids = new HashSet<string>(StringComparer.Ordinal);
@@ -597,7 +597,7 @@ internal abstract class CommandBuilderNode
     private void ValidateArguments(string path, List<CommandCatalogIssue> issues)
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        bool optionalSeen = false;
+        string? optional = null;
         for (int index = 0; index < _arguments.Count; index++)
         {
             ArgumentDefinition argument = _arguments[index];
@@ -616,15 +616,15 @@ internal abstract class CommandBuilderNode
                 issues.Add(new CommandCatalogIssue("RCLI0003", path, $"Argument '{argument.Name}' has an empty description key."));
             }
 
-            if (optionalSeen && argument.Arity.Minimum != 0)
+            if (optional is not null && argument.Arity.Minimum != 0)
             {
-                issues.Add(new CommandCatalogIssue("RCLI0015", path, "A required argument cannot follow an optional argument."));
+                issues.Add(new CommandCatalogIssue("RCLI0015", path, $"Required argument '{argument.Name}' cannot follow optional argument '{optional}'."));
             }
 
-            optionalSeen |= argument.Arity.Minimum == 0;
+            if (argument.Arity.Minimum == 0) optional ??= argument.Name;
             if (argument.Arity.Maximum is null && index != _arguments.Count - 1)
             {
-                issues.Add(new CommandCatalogIssue("RCLI0016", path, "Only the final argument may have unbounded arity."));
+                issues.Add(new CommandCatalogIssue("RCLI0016", path, $"Argument '{argument.Name}' accepts any number of values, so it must be the final argument."));
             }
         }
     }

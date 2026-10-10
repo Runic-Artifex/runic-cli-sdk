@@ -139,6 +139,16 @@ values become `[redacted]`, matching detail keys are dropped, and a malformed
 code becomes `RCLI5000`. Other paths such as `/var/folders`, `/srv` or
 `/nix/store` are not detected, so keep them out of faults yourself.
 
+An exception from a handler, binder or scope becomes the sanitized `RCLI5000`
+fault. While developing, set `RUNIC_COMMANDLINE_DEBUG=1` or
+`DOTNET_ENVIRONMENT=Development`, or attach a debugger: `CommandApp` then also
+writes each observed exception, with its stack trace, to stderr before the
+fault line. The JSON frame on stdout is unchanged. Without an
+`ExceptionObserver`, the human `RCLI5000` line ends with a hint naming
+`RUNIC_COMMANDLINE_DEBUG` (key `faults.RCLI5000.hint`); JSON output never
+carries it. Debug detection reads `ParseSettings.GetEnvironmentVariable`, or the
+process environment when `ParseSettings` is not set.
+
 ### Declared domain failure and recovery data
 
 When a failed or cancelled command must return an exact retained directory or
@@ -413,10 +423,23 @@ Use `Minimum`/`Maximum` for inclusive numeric input bounds. `Requires` and
 `ConflictsWith` refer to stable option IDs, not spellings: parameter `dryRun`
 gets ID `dry-run`. Presence includes captured environment fallback; an environment
 flag set to `false` is absent. Dependencies do not make an optional flag implicit.
-The builder uses the same `CommandHelp` properties. Range/path/relationship checks
-run during execution before binding/handler invocation; hosted classification
-remains free of filesystem reads. Invalid input returns a safe `RCLI2002` usage
-fault naming the parameter, without echoing its value.
+The builder uses the same `CommandHelp` properties. Path and relationship checks
+run during execution before binding; range checks run after the value converts,
+so `--limit abc` reports a type error (`RCLI2005`, "--limit requires a whole
+number.") rather than a range error. Hosted classification remains free of
+filesystem reads. Invalid input returns a safe `RCLI2002` usage fault that names
+the option spelling or `<ARGUMENT>`, without echoing its value, for example
+"--limit requires a number between 1 and 50.". Both faults carry a matching
+`binding` diagnostic, and a value that came from an environment fallback adds an
+`RCLI2006` information diagnostic naming the variable. Invalid choices list the
+allowed values unless the parameter is `Sensitive` or the list is long.
+
+The source generator reports the catalog rules it can see in attributes at build
+time, for example a required argument after an optional one (`RCLI9035`, the
+runtime `RCLI0015`), `Minimum`/`Maximum` on a non-numeric parameter, misnamed
+`Requires`/`ConflictsWith` IDs and a nested `[DefaultCommand]`. Rules it cannot
+see still fail when the catalog is built; `CommandCatalogValidationException`
+lists each issue's code, command path and message in its `Message`.
 
 ```csharp
 [Command("copy", Description = "Copy a file.")]
@@ -473,7 +496,18 @@ a custom or hosted execution sink.
 list, and returns null when it cannot resolve the key. Command, argument and
 option attributes accept `DescriptionKey`; `Description` remains the literal
 fallback. Diagnostic messages resolve their `MessageKey` and `Arguments`.
-Faults without a matching diagnostic use `faults.{code}` with no arguments.
+Faults without a matching diagnostic use `faults.{code}` with no arguments; a
+diagnostic whose own key is unresolved also falls back to `faults.{code}`.
+Value errors use `diagnostics.{kind}` keys such as `diagnostics.invalid-integer`,
+`diagnostics.invalid-number`, `diagnostics.invalid-choice` (or
+`diagnostics.invalid-choice-hidden` without the list), `diagnostics.out-of-range`,
+`diagnostics.below-minimum`, `diagnostics.above-maximum`,
+`diagnostics.environment-value-source`, `diagnostics.invalid-output-mode` and
+`diagnostics.invalid-environment-value`; argument `{0}` is the option spelling
+or argument placeholder. `CommandTextContext.ValidateDescriptionKeys(catalog)`
+reports each `DescriptionKey` the resolver does not resolve (`RCLI0023`), so a
+test can catch a typo that would otherwise show the literal fallback; with
+`RUNIC_COMMANDLINE_DEBUG=1`, help also prints them to stderr as warnings.
 Translations change presentation text, including JSON messages, while command
 spellings, canonical paths, diagnostic codes/keys and protocol/payload identities
 remain unchanged. The existing sanitizers still apply to resolved text.

@@ -149,13 +149,14 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 outputClassification: initialOutputClassification);
         }
 
-        ParseOutcome parsed = ParseCommand(resolved, tokens, settings, initialOutputClassification);
+        ParseOutcome parsed = ParseCommand(catalog, resolved, tokens, settings, initialOutputClassification);
         return resolved.Command.IsGroup && parsed.Kind == ParseOutcomeKind.Invocation
             ? ParseOutcome.FromHelp(new HelpRequest(resolved.Path), initialOutputClassification)
             : parsed;
     }
 
     private static ParseOutcome ParseCommand(
+        CommandCatalog catalog,
         ResolvedCommand resolved,
         string[] tokens,
         ParseSettings settings,
@@ -250,7 +251,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                         "invalid-output-mode",
                         valueIndex,
                         resolved.Path,
-                        outputClassification: CurrentOutputClassification());
+                        [settings.TransportOutputOptionName],
+                        CurrentOutputClassification());
                 }
 
                 explicitOutputMode = mode;
@@ -357,6 +359,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             index++;
         }
 
+        var environmentOptionIds = new List<string>();
         foreach (CommandOptionDescriptor option in resolved.Command.Options)
         {
             if (!optionBindingIndexes.ContainsKey(option.Id) && option.Help.EnvironmentVariable is { } variable && settings.GetEnvironmentVariable?.Invoke(variable) is { } environmentValue)
@@ -364,11 +367,12 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 bool flag = option.Arity.Maximum == 0;
                 bool enabled = false;
                 if (flag && !TryParseEnvironmentFlag(environmentValue, out enabled))
-                    return Error("RCLI1014", "invalid-environment-value", tokens.Length, resolved.Path, [option.Name], CurrentOutputClassification());
+                    return Error("RCLI1014", "invalid-environment-value", tokens.Length, resolved.Path, [option.Name, variable], CurrentOutputClassification());
                 if (!flag || enabled)
                 {
                     optionBindingIndexes.Add(option.Id, optionBindings.Count);
                     optionBindings.Add(new MutableBinding(option.Id, flag ? [] : [environmentValue]));
+                    environmentOptionIds.Add(option.Id);
                 }
             }
             if (option.IsRequired && !optionBindingIndexes.ContainsKey(option.Id))
@@ -396,6 +400,16 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             out IReadOnlyList<CommandValueBinding>? argumentBindings);
         if (argumentError is not null)
         {
+            // A default command swallows a mistyped command name as its first argument; when that
+            // token resembles a root command, report the command typo instead.
+            if (resolved.Consumed == 0 && catalog.DefaultCommand is not null && positionalTokens.Count > 0 &&
+                argumentError.Diagnostics[0].Code == UnexpectedArgumentCode && argumentError.Diagnostics[0].TokenIndex == positionalTokens[0].Index &&
+                CommandSuggestions.Commands(positionalTokens[0].Value, catalog.Commands) is { } suggestion)
+            {
+                return Error(UnknownCommandCode, "unknown-command", positionalTokens[0].Index,
+                    arguments: [SafeUnknownCommand(positionalTokens[0].Value)], outputClassification: CurrentOutputClassification(), suggestion: suggestion);
+            }
+
             return argumentError;
         }
 
@@ -411,7 +425,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             foreach (CommandOptionDescriptor candidate in resolved.Command.Options) if (candidate.Id == binding.Id) descriptor = candidate;
             string[]? canonical = null;
             if (descriptor is not null && !TryCanonicalizeChoices(binding.Values, descriptor.Help, out canonical))
-                return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path, [descriptor.Name], CurrentOutputClassification());
+                return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path, ChoiceArguments(descriptor.Name, descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification(),
+                    environmentVariable: environmentOptionIds.Contains(descriptor.Id) ? descriptor.Help.EnvironmentVariable : null);
             if (canonical is not null)
             {
                 binding.Values.Clear();
@@ -427,7 +442,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             {
                 if (descriptor.Id != binding.Id) continue;
                 if (!TryCanonicalizeChoices(binding.Values, descriptor.Help, out string[]? canonical))
-                    return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path, [descriptor.Name], CurrentOutputClassification());
+                    return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path,
+                        ChoiceArguments("<" + (descriptor.Help.ValueName ?? descriptor.Name) + ">", descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification());
                 if (canonical is not null) canonicalArguments[argumentIndex] = new CommandValueBinding(binding.Id, canonical);
             }
         }
@@ -444,7 +460,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 resolved.Path,
                 frozenOptions,
                 canonicalArguments,
-                outputClassification));
+                outputClassification) { EnvironmentOptionIds = environmentOptionIds });
     }
 
     private static CommandArgumentDescriptor? ArgumentAt(IReadOnlyList<CommandArgumentDescriptor> arguments, int position)
@@ -456,6 +472,9 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         }
         return null;
     }
+
+    private static string[] ChoiceArguments(string name, CommandHelp help, bool sensitive) =>
+        CommandValueDiagnostics.Choices(help.Choices, sensitive) is { } choices ? [name, choices] : [name];
 
     // Choices match case-insensitively, so handlers receive the declared spelling rather than the user's casing.
     // An exact match wins when declared choices differ only by case. canonical is null when nothing changes.
@@ -850,7 +869,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                         InvalidOutputModeCode,
                         "invalid-output-mode",
                         valueIndex,
-                        null));
+                        [transportOutputOptionName]));
             }
 
             explicitOutputMode = mode;
@@ -968,9 +987,10 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             Diagnostic(
                 InvalidOutputModeCode,
                 "invalid-output-mode",
-                "The selected output mode is not supported.",
+                FormattedMessage("invalid-output-mode", [CommandOutputClassifier.EnvironmentVariableName])!,
                 tokenIndex,
-                path ?? CommandPath.Root),
+                path ?? CommandPath.Root,
+                [CommandOutputClassifier.EnvironmentVariableName]),
             classification);
 
     private static ParseOutcome Error(
@@ -980,18 +1000,31 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         CommandPath? path = null,
         IReadOnlyList<string>? arguments = null,
         CommandOutputClassification? outputClassification = null,
-        string? suggestion = null)
+        string? suggestion = null,
+        string? environmentVariable = null)
     {
         CommandDiagnostic diagnostic = Diagnostic(
             code,
             kind,
-            MessageFor(kind) + (arguments is { Count: > 0 } && kind is not "unknown-command" ? " (" + arguments[0] + ")" : "") + (suggestion is not null ? " Did you mean '" + suggestion + "'?" : ""),
+            (FormattedMessage(kind, arguments) ?? MessageFor(kind) + (arguments is { Count: > 0 } && kind is not "unknown-command" ? " (" + arguments[0] + ")" : "")) +
+                (suggestion is not null ? " Did you mean '" + suggestion + "'?" : ""),
             tokenIndex,
             path ?? CommandPath.Root,
-            arguments);
+            arguments,
+            CommandValueDiagnostics.MessageKey(kind, arguments ?? []));
         if (outputClassification is not CommandOutputClassification classification)
         {
             return ParseOutcome.FromError(diagnostic);
+        }
+
+        if (environmentVariable is not null && classification.IsValid)
+        {
+            string[] noteArguments = [arguments![0], environmentVariable];
+            return ParseOutcome.FromErrors(
+                [diagnostic, new CommandDiagnostic(CommandValueDiagnostics.EnvironmentSourceCode, "environment-value-source",
+                    CommandValueDiagnostics.Format("environment-value-source", noteArguments), CommandDiagnosticPhase.Parse,
+                    CommandDiagnosticSeverity.Information, tokenIndex, noteArguments, path ?? CommandPath.Root)],
+                classification);
         }
 
         return classification.IsValid
@@ -999,13 +1032,23 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             : ParseOutcome.FromOutputError(diagnostic, classification);
     }
 
+    // Messages that name their subject inside the sentence rather than in a trailing "(name)".
+    private static string? FormattedMessage(string kind, IReadOnlyList<string>? arguments) => (kind, arguments) switch
+    {
+        ("invalid-choice", { Count: > 0 }) => CommandValueDiagnostics.Format(kind, arguments),
+        ("invalid-output-mode", { Count: > 0 }) => arguments[0] + " must be human or json.",
+        ("invalid-environment-value", { Count: > 1 }) => arguments[1] + " must be true/false, yes/no or 1/0 for " + arguments[0] + ".",
+        _ => null,
+    };
+
     private static CommandDiagnostic Diagnostic(
         string code,
         string kind,
         string message,
         int tokenIndex,
         CommandPath path,
-        IReadOnlyList<string>? arguments = null) =>
+        IReadOnlyList<string>? arguments = null,
+        string? messageKey = null) =>
         new(
             code,
             kind,
@@ -1014,7 +1057,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             CommandDiagnosticSeverity.Error,
             tokenIndex,
             arguments,
-            path: path);
+            path: path,
+            messageKey: messageKey);
 
     private static string MessageFor(string kind) => kind switch
     {

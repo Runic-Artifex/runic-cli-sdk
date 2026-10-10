@@ -210,7 +210,8 @@ internal static partial class HostingAdapterTests
         AssertEqual(HostedCommandLineDecisionKind.Invalid, hostileRoot.Kind);
         AssertEqual(CommandOutputMode.Human, hostileRoot.OutputClassification!.Value.Mode);
         AssertEqual("RCLI1010", hostileRoot.Diagnostics[0].Code);
-        AssertEqual(0, hostileRoot.Diagnostics[0].Arguments.Count);
+        AssertEqual(1, hostileRoot.Diagnostics[0].Arguments.Count);
+        AssertEqual("--runic-output", hostileRoot.Diagnostics[0].Arguments[0]);
         AssertTrue(!hostileRoot.Diagnostics[0].Message.Contains("TOPSECRET", StringComparison.Ordinal));
 
         foreach (string[] args in new[]

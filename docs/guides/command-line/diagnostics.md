@@ -92,10 +92,15 @@ list options; remove it from a scalar option.
 
 ## RCLI9028
 
-Invalid generated command result metadata. A command that returns a type other
-than `string` or no value must declare `[CommandResult]` with a payload type
-and an accessible `JsonSerializerContext` that has metadata for the result
-type.
+Missing command result metadata. A command that returns a type other than
+`string` or no value must declare
+`[CommandResult("<name>/<major>", typeof(MyJsonContext))]` so its JSON payload
+has an identity and source-generated metadata. An `int` or `long` result is
+payload data, not the process exit code: to choose the exit code, return
+`CommandOutcome<T>` with a `CommandExitCategory`, or configure an
+`IExitCodePolicy`. An empty payload type is reported as `RCLI9005`, an
+unusable context as `RCLI9041` and a context without the result type as
+`RCLI9042`.
 
 ## RCLI9029
 
@@ -131,3 +136,63 @@ Conversion metadata on an unbound parameter. `[ConvertWith]` and
 Converter on a list parameter. List binding converts each element with the
 built-in scalar conversions, so `[ConvertWith]` cannot be applied to an array or
 list parameter.
+
+## RCLI9035
+
+Required argument after an optional argument. Positional arguments bind in
+order, so a required argument cannot follow one that is nullable, has a C#
+default or accepts multiple values. Make the later argument optional too, or
+move the required argument first. Without this check the catalog would fail
+at startup with `RCLI0015`.
+
+## RCLI9036
+
+Numeric bounds on a non-numeric parameter. `Minimum` and `Maximum` apply only
+to `int`, `long`, `double` and `decimal` parameters (or arrays, lists and
+nullables of them). Remove the bounds, change the parameter type, or validate
+the value with `[ValidateWith]`. A parameter with `[ConvertWith]` may keep
+bounds; they then check the raw text as a number.
+
+## RCLI9037
+
+Invalid path metadata. `MustExist = true` needs a path kind: use a `FileInfo`
+or `DirectoryInfo` parameter, or set `PathKind = CommandPathKind.File` or
+`CommandPathKind.Directory` on a string. `PathKind` must be a defined
+`CommandPathKind` value. Without this check the catalog would fail at startup
+with `RCLI0021`.
+
+## RCLI9038
+
+Invalid option relationship. `Requires` and `ConflictsWith` name other options
+by stable ID, not spelling: parameter `dryRun` has ID `dry-run`, not
+`--dry-run`. An option cannot name itself or a positional argument. Without
+this check the catalog would fail at startup with `RCLI0022`.
+
+## RCLI9039
+
+Option relationship names an unknown option. The ID in `Requires` or
+`ConflictsWith` is not an option of the same command method. This is a
+warning because a global option added with
+`GeneratedCommandCatalog.Create(builder => builder.GlobalOption(...))` is
+invisible to the generator; if the ID names such an option, suppress the
+warning. Otherwise the catalog fails at startup with `RCLI0022`.
+
+## RCLI9040
+
+Default command is not a root command. `[DefaultCommand]` applies only to a
+single-segment command such as `[Command("list")]`, not to
+`[Command("config show")]`. Without this check the catalog would fail at
+startup with `RCLI0018`.
+
+## RCLI9041
+
+Invalid command result JSON context. The type in
+`[CommandResult(payloadType, typeof(MyJsonContext))]` must be an accessible
+(`public` or `internal`) class deriving from `JsonSerializerContext`, with
+accessible containing types.
+
+## RCLI9042
+
+JSON context lacks the command result type. Add
+`[JsonSerializable(typeof(MyResult))]` for the command's exact result type to
+the context named in `[CommandResult]`.

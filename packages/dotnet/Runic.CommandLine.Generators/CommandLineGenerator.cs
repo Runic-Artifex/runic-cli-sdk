@@ -32,13 +32,21 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor ListOptionDefault = new("RCLI9025", "List option with a default value", "List option '{0}' on command '{1}' cannot declare a default value", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9025");
     private static readonly DiagnosticDescriptor MultipleValuesMismatch = new("RCLI9026", "AllowMultipleValues does not match the parameter type", "Parameter '{0}' on command '{1}' must set AllowMultipleValues exactly when its type is a list", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9026");
     private static readonly DiagnosticDescriptor ScalarOccurrencePolicy = new("RCLI9027", "Occurrence policy on a scalar option", "Option '{0}' on command '{1}' sets AllowMultipleOccurrences, which applies only to list options", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9027");
-    private static readonly DiagnosticDescriptor InvalidResultMetadata = new("RCLI9028", "Invalid generated command result metadata", "Command '{0}' must declare [CommandResult] with a payload type and an accessible JsonSerializerContext that has metadata for its result type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9028");
+    private static readonly DiagnosticDescriptor InvalidResultMetadata = new("RCLI9028", "Missing command result metadata", "Command '{0}' returns '{1}', which needs [CommandResult(\"<name>/<major>\", typeof(<JsonSerializerContext>))] to describe its JSON payload{2}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9028");
     private static readonly DiagnosticDescriptor MultipleDefaultCommands = new("RCLI9029", "Multiple default commands", "Command '{0}' is one of several commands marked [DefaultCommand]", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9029");
 
     private static readonly DiagnosticDescriptor InvalidConverter = new("RCLI9030", "Invalid command converter", "Converter on parameter '{0}' must be an accessible, closed, non-abstract class or struct implementing ICommandValueConverter<{1}> with a concrete static implementation", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9030");
     private static readonly DiagnosticDescriptor InvalidValidator = new("RCLI9031", "Invalid command validator", "Validator on parameter '{0}' must be an accessible, closed, non-abstract class or struct implementing ICommandValueValidator<{1}> with a concrete static implementation", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9031");
     private static readonly DiagnosticDescriptor FlagConverter = new("RCLI9032", "Converter on a Boolean flag", "Boolean option '{0}' is a presence flag and cannot use ConvertWith; use a value-taking parameter for text conversion", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9032");
     private static readonly DiagnosticDescriptor UnboundConversion = new("RCLI9033", "Conversion metadata on an unbound parameter", "Parameter '{0}' must be an argument or option to use conversion or validation metadata", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9033");
+    private static readonly DiagnosticDescriptor RequiredArgumentAfterOptional = new("RCLI9035", "Required argument after an optional argument", "Argument '{0}' on command '{1}' is required but follows optional argument '{2}'; make it optional or move it first", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9035");
+    private static readonly DiagnosticDescriptor NonNumericBounds = new("RCLI9036", "Numeric bounds on a non-numeric parameter", "Parameter '{0}' on command '{1}' sets Minimum or Maximum, which apply only to int, long, double and decimal values, not '{2}'", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9036");
+    private static readonly DiagnosticDescriptor InvalidPathMetadata = new("RCLI9037", "Invalid path metadata", "Parameter '{0}' on command '{1}' sets MustExist or PathKind without a defined path kind; use FileInfo or DirectoryInfo, or set PathKind to File or Directory", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9037");
+    private static readonly DiagnosticDescriptor InvalidOptionRelationship = new("RCLI9038", "Invalid option relationship", "Option '{0}' on command '{1}' lists '{2}' in Requires or ConflictsWith; name another option's ID (for example 'dry-run'), not its spelling, itself or an argument", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9038");
+    private static readonly DiagnosticDescriptor UnknownOptionRelationship = new("RCLI9039", "Option relationship names an unknown option", "Option '{0}' on command '{1}' lists '{2}' in Requires or ConflictsWith, but the command declares no option with that ID; catalog validation fails unless a global option supplies it", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9039");
+    private static readonly DiagnosticDescriptor NestedDefaultCommand = new("RCLI9040", "Default command is not a root command", "Command '{0}' is marked [DefaultCommand], but only a single-segment root command can be the default", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9040");
+    private static readonly DiagnosticDescriptor InvalidResultContext = new("RCLI9041", "Invalid command result JSON context", "Command '{0}' names '{1}' in [CommandResult], which must be an accessible class deriving from JsonSerializerContext", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9041");
+    private static readonly DiagnosticDescriptor MissingResultTypeMetadata = new("RCLI9042", "JSON context lacks the command result type", "Command '{0}' returns '{1}', but JSON context '{2}' has no [JsonSerializable(typeof({1}))]; add it to the context", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9042");
     private static readonly DiagnosticDescriptor ListConverter = new("RCLI9034", "Converter on a list parameter", "List parameter '{0}' cannot use ConvertWith; list binding converts each supported element type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9034");
 
     /// <inheritdoc />
@@ -137,11 +145,16 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             return null;
         }
 
-        if (!TryGetResultMetadata(method, result!, out string? payloadType, out INamedTypeSymbol? jsonContext) && !(FindAttribute(method, "Runic.CommandLine.CommandResultAttribute") is null && (result!.SpecialType is SpecialType.System_String or SpecialType.System_Void || shape is ResultShape.UnitTask)))
+        if (!ValidateArgumentOrder(diagnostics, parameters, name!) || !ValidateRelationships(diagnostics, parameters, name!)) return null;
+
+        bool isDefault = FindAttribute(method, "Runic.CommandLine.DefaultCommandAttribute") is not null;
+        if (isDefault && name!.Contains(' '))
         {
-            Report(diagnostics, InvalidResultMetadata, method, name);
+            Report(diagnostics, NestedDefaultCommand, method, name);
             return null;
         }
+
+        if (!TryGetResultMetadata(diagnostics, method, name!, result!, shape, out string? payloadType, out INamedTypeSymbol? jsonContext)) return null;
 
         payloadType ??= shape is ResultShape.Unit or ResultShape.UnitTask ? "runic.unit/1" : "runic.text/1";
         if (!IsPayloadType(payloadType!))
@@ -151,7 +164,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         }
 
         if (!ValidateDescriptionKey(diagnostics, attribute, method, name!)) return null;
-        return CreateModel(method, name!, result!, shape, parameters, payloadType!, jsonContext, FindAttribute(method, "Runic.CommandLine.DefaultCommandAttribute") is not null);
+        return CreateModel(method, name!, result!, shape, parameters, payloadType!, jsonContext, isDefault);
     }
 
     private static ParameterModel? TryCreateParameter(List<DiagnosticInfo> diagnostics, IMethodSymbol method, IParameterSymbol parameter, Compilation compilation)
@@ -217,6 +230,12 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         if (!ValidateDescriptionKey(diagnostics, valueMetadata, parameter, methodName)) return null;
         double? minimum = valueMetadata.NamedArguments.FirstOrDefault(p => p.Key == "Minimum").Value.Value is double lower && !double.IsNaN(lower) ? lower : null;
         double? maximum = valueMetadata.NamedArguments.FirstOrDefault(p => p.Key == "Maximum").Value.Value is double upper && !double.IsNaN(upper) ? upper : null;
+        ITypeSymbol scalar = Scalar(parameter.Type);
+        if ((minimum is not null || maximum is not null) && converter is null && !IsNumeric(scalar))
+        {
+            Report(diagnostics, NonNumericBounds, parameter, parameter.Name, methodName, scalar.ToDisplayString());
+            return null;
+        }
         bool invalidRange = (minimum is { } low && double.IsInfinity(low)) || (maximum is { } high && double.IsInfinity(high)) || minimum > maximum;
         if ((minimum is not null || maximum is not null) && parameter.HasExplicitDefaultValue && parameter.ExplicitDefaultValue is not null)
         {
@@ -226,6 +245,12 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         if (invalidRange)
         {
             Report(diagnostics, InvalidMetadata, parameter, methodName, "numeric range/default", parameter.Name);
+            return null;
+        }
+        int pathKind = PathKind(valueMetadata, scalar);
+        if (pathKind is < 0 or > 2 || (pathKind == 0 && NamedBool(valueMetadata, "MustExist") == "true"))
+        {
+            Report(diagnostics, InvalidPathMetadata, parameter, parameter.Name, methodName);
             return null;
         }
 
@@ -384,13 +409,12 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         foreach (ParameterModel parameter in parameters.Where(static p => p.Kind is ParameterKind.Option or ParameterKind.Argument))
         {
             AttributeData metadata = FindAttribute(parameter.Symbol, parameter.Kind == ParameterKind.Option ? "Runic.CommandLine.OptionAttribute" : "Runic.CommandLine.ArgumentAttribute")!;
-            ITypeSymbol scalar = ElementType(parameter.Symbol.Type) ?? parameter.Symbol.Type;
-            if (scalar is INamedTypeSymbol nullable && nullable.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T) scalar = nullable.TypeArguments[0];
-            bool numeric = scalar.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64 or SpecialType.System_Double or SpecialType.System_Decimal;
+            ITypeSymbol scalar = Scalar(parameter.Symbol.Type);
+            bool numeric = IsNumeric(scalar);
             string choices = NamedArray(metadata, "Choices");
             if (choices == "[]" && scalar.TypeKind == TypeKind.Enum) choices = "[" + string.Join(", ", scalar.GetMembers().OfType<IFieldSymbol>().Where(static f => f.HasConstantValue).Select(static f => Literal(f.Name))) + "]";
             registration.Append(".ParameterHelp(").Append(Literal(parameter.Id)).Append(", new global::Runic.CommandLine.CommandHelp(description: ").Append(NamedString(metadata, "Description"))
-                .Append(", valueName: ").Append(NamedString(metadata, "ValueName")).Append(", defaultValue: ").Append(parameter.HasDefault && parameter.DefaultValue is not null ? Literal(Convert.ToString(parameter.DefaultValue, CultureInfo.InvariantCulture)!) : "null")
+                .Append(", valueName: ").Append(NamedString(metadata, "ValueName")).Append(", defaultValue: ").Append(parameter.HasDefault && parameter.DefaultValue is not null ? Literal(DefaultText(scalar, parameter.DefaultValue)) : "null")
                 .Append(", environmentVariable: ").Append(NamedString(metadata, "EnvironmentVariable")).Append(", choices: ").Append(choices).Append(", acceptsNegativeNumbers: ").Append(numeric ? "true" : "false").Append(") { Hidden = ").Append(NamedBool(metadata, "Hidden"))
                 .Append(", PathKind = (global::Runic.CommandLine.CommandPathKind)").Append(PathKind(metadata, scalar))
                 .Append(", MustExist = ").Append(NamedBool(metadata, "MustExist"))
@@ -447,7 +471,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         source.Append("    private sealed record __Options").Append(index).Append('(').Append(command.OptionsParameters).AppendLine(");");
         source.Append("    private sealed class __Binder").Append(index).Append(" : global::Runic.CommandLine.ICommandOptionsBinder<__Options").Append(index).AppendLine("> { public static __Binder" + index + " Instance { get; } = new(); public global::System.Threading.Tasks.ValueTask<global::Runic.CommandLine.CommandOutcome<__Options" + index + ">> BindAsync(global::Runic.CommandLine.ParsedInvocation invocation, global::System.Threading.CancellationToken cancellationToken) { try { cancellationToken.ThrowIfCancellationRequested();");
         source.Append(command.BinderStatements);
-        source.Append("return global::System.Threading.Tasks.ValueTask.FromResult(global::Runic.CommandLine.CommandOutcome.Success(new __Options").Append(index).Append("(" + command.BoundNames + "))); } catch (global::Runic.CommandLine.GeneratedCommandBindingException exception) { return global::System.Threading.Tasks.ValueTask.FromResult(global::Runic.CommandLine.CommandOutcome.Failure<__Options").Append(index).Append(">(global::Runic.CommandLine.CommandExitCategory.Usage, new global::Runic.CommandLine.CommandFault(\"RCLI2005\", exception.Message))); } } }").AppendLine();
+        source.Append("return global::System.Threading.Tasks.ValueTask.FromResult(global::Runic.CommandLine.CommandOutcome.Success(new __Options").Append(index).Append("(" + command.BoundNames + "))); } catch (global::Runic.CommandLine.GeneratedCommandBindingException exception) { return global::System.Threading.Tasks.ValueTask.FromResult(global::Runic.CommandLine.GeneratedCommandBinding.Failure<__Options").Append(index).Append(">(invocation, exception)); } } }").AppendLine();
         source.Append("    private sealed class __Factory").Append(index).Append(" : global::Runic.CommandLine.ICommandHandlerFactory<__Handler").Append(index).AppendLine("> { public static __Factory" + index + " Instance { get; } = new(); public __Handler" + index + " Create(global::System.IServiceProvider services) => new(services); }");
         source.Append("    private sealed class __Handler").Append(index).Append(" : global::Runic.CommandLine.ICommandHandler<__Options").Append(index).Append(", ").Append(result).AppendLine("> { private readonly global::System.IServiceProvider _services; public __Handler" + index + "(global::System.IServiceProvider services) => _services = services; public async global::System.Threading.Tasks.ValueTask<global::Runic.CommandLine.CommandOutcome<" + result + ">> ExecuteAsync(__Options" + index + " options, global::Runic.CommandLine.CommandExecutionContext context, global::System.Threading.CancellationToken cancellationToken) { ");
         string invocation = command.Invocation;
@@ -564,18 +588,96 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static AttributeData? FindAttribute(ISymbol symbol, string name) => symbol.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == name);
     private static string GetId(IParameterSymbol parameter, AttributeData? argument) => argument?.ConstructorArguments.Length == 1 && argument.ConstructorArguments[0].Value is string id ? id : Kebab(parameter.Name);
     private static string GetCommandName(IMethodSymbol method) => method.GetAttributes().First(item => item.AttributeClass?.ToDisplayString() == "Runic.CommandLine.CommandAttribute").ConstructorArguments[0].Value as string ?? method.Name;
-    private static bool TryGetResultMetadata(IMethodSymbol method, ITypeSymbol result, out string? payloadType, out INamedTypeSymbol? jsonContext)
+    // Reports the specific cause (RCLI9028, RCLI9005, RCLI9041 or RCLI9042); string and unit results need no metadata.
+    private static bool TryGetResultMetadata(List<DiagnosticInfo> diagnostics, IMethodSymbol method, string name, ITypeSymbol result, ResultShape shape, out string? payloadType, out INamedTypeSymbol? jsonContext)
     {
-        AttributeData? attribute = method.GetAttributes().FirstOrDefault(item => item.AttributeClass?.ToDisplayString() == "Runic.CommandLine.CommandResultAttribute");
+        AttributeData? attribute = FindAttribute(method, "Runic.CommandLine.CommandResultAttribute");
         payloadType = attribute?.ConstructorArguments.Length > 0 ? attribute.ConstructorArguments[0].Value as string : null;
         jsonContext = attribute?.ConstructorArguments.Length > 1 ? attribute.ConstructorArguments[1].Value as INamedTypeSymbol : null;
-        return !string.IsNullOrWhiteSpace(payloadType) && jsonContext is not null &&
-            IsAccessibleType(jsonContext) &&
-            InheritsFrom(jsonContext, "System.Text.Json.Serialization", "JsonSerializerContext") &&
-            DeclaresMetadataFor(jsonContext, result);
+        if (attribute is null)
+        {
+            if (result.SpecialType is SpecialType.System_String or SpecialType.System_Void || shape is ResultShape.UnitTask) return true;
+            string hint = result.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64
+                ? "; an integer result is payload data, not the exit code: return CommandOutcome<T> with a CommandExitCategory, or configure an IExitCodePolicy, to choose the exit code"
+                : string.Empty;
+            Report(diagnostics, InvalidResultMetadata, method, name, result.ToDisplayString(), hint);
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(payloadType))
+        {
+            Report(diagnostics, InvalidMetadata, method, name, "result payload type", payloadType ?? string.Empty);
+            return false;
+        }
+        if (jsonContext is null || !IsAccessibleType(jsonContext) || !InheritsFrom(jsonContext, "System.Text.Json.Serialization", "JsonSerializerContext"))
+        {
+            Report(diagnostics, InvalidResultContext, method, name, jsonContext?.ToDisplayString() ?? "null");
+            return false;
+        }
+        if (!DeclaresMetadataFor(jsonContext, result))
+        {
+            Report(diagnostics, MissingResultTypeMetadata, method, name, result.ToDisplayString(), jsonContext.ToDisplayString());
+            return false;
+        }
+        return true;
+    }
+
+    // Mirrors catalog rule RCLI0015 so the mistake is a build error rather than a startup failure.
+    private static bool ValidateArgumentOrder(List<DiagnosticInfo> diagnostics, List<ParameterModel> parameters, string commandName)
+    {
+        ParameterModel? optional = null;
+        foreach (ParameterModel argument in parameters.Where(static parameter => parameter.Kind == ParameterKind.Argument))
+        {
+            if (argument.HasDefault || argument.AllowMultipleValues) { optional ??= argument; continue; }
+            if (optional is null) continue;
+            Report(diagnostics, RequiredArgumentAfterOptional, argument.Symbol, argument.Id, commandName, optional.Id);
+            return false;
+        }
+        return true;
+    }
+
+    // Mirrors catalog rule RCLI0022. Global options are added outside the generator, so an unknown
+    // identifier is only a warning; a spelling, the option itself or an argument can never be valid.
+    private static bool ValidateRelationships(List<DiagnosticInfo> diagnostics, List<ParameterModel> parameters, string commandName)
+    {
+        var options = new HashSet<string>(parameters.Where(static p => p.Kind == ParameterKind.Option).Select(static p => p.Id), StringComparer.Ordinal);
+        var arguments = new HashSet<string>(parameters.Where(static p => p.Kind == ParameterKind.Argument).Select(static p => p.Id), StringComparer.Ordinal);
+        bool valid = true;
+        foreach (ParameterModel option in parameters.Where(static p => p.Kind == ParameterKind.Option))
+        {
+            AttributeData metadata = FindAttribute(option.Symbol, "Runic.CommandLine.OptionAttribute")!;
+            foreach (string target in NamedStrings(metadata, "Requires").Concat(NamedStrings(metadata, "ConflictsWith")))
+            {
+                if (target == option.Id || arguments.Contains(target) || !IsIdentifier(target))
+                {
+                    ReportAttribute(diagnostics, InvalidOptionRelationship, metadata, option.Spelling!, commandName, target);
+                    valid = false;
+                }
+                else if (!options.Contains(target))
+                {
+                    ReportAttribute(diagnostics, UnknownOptionRelationship, metadata, option.Spelling!, commandName, target);
+                }
+            }
+        }
+        return valid;
     }
     private static bool IsNullable(IParameterSymbol parameter) => parameter.NullableAnnotation == NullableAnnotation.Annotated;
     private static string NamedString(AttributeData data, string name) => data.NamedArguments.FirstOrDefault(p => p.Key == name).Value.Value is string value ? Literal(value) : "null";
+    private static IEnumerable<string> NamedStrings(AttributeData data, string name)
+    {
+        TypedConstant value = data.NamedArguments.FirstOrDefault(p => p.Key == name).Value;
+        return value.Kind == TypedConstantKind.Array && !value.IsNull ? value.Values.Select(static v => v.Value as string ?? string.Empty) : Enumerable.Empty<string>();
+    }
+    private static ITypeSymbol Scalar(ITypeSymbol type)
+    {
+        ITypeSymbol scalar = ElementType(type) ?? type;
+        return scalar is INamedTypeSymbol nullable && nullable.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T ? nullable.TypeArguments[0] : scalar;
+    }
+    private static bool IsNumeric(ITypeSymbol scalar) => scalar.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64 or SpecialType.System_Double or SpecialType.System_Decimal;
+    // Help shows an enum default by member name, as the user types it; a combined flags value keeps its number.
+    private static string DefaultText(ITypeSymbol scalar, object value) =>
+        scalar.TypeKind == TypeKind.Enum && scalar.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, value)) is { } member
+            ? member.Name
+            : Convert.ToString(value, CultureInfo.InvariantCulture)!;
     private static string NamedArray(AttributeData data, string name)
     {
         TypedConstant value = data.NamedArguments.FirstOrDefault(p => p.Key == name).Value;
