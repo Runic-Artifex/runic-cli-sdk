@@ -614,12 +614,32 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         bool hasDefault = context.GetMembers("Default").OfType<IPropertySymbol>().Any(property =>
             property.IsStatic && property.GetMethod is { } getter && IsAccessible(getter) &&
             SymbolEqualityComparer.Default.Equals(property.Type, context));
-        // Other generators' output is absent from this compilation. A partial context
-        // without its own GetTypeInfo implementation receives Default from System.Text.Json.
-        bool awaitsGeneration = context.DeclaringSyntaxReferences.Any(reference =>
-            reference.GetSyntax() is TypeDeclarationSyntax declaration && declaration.Modifiers.Any(SyntaxKind.PartialKeyword)) &&
-            !context.GetMembers("GetTypeInfo").OfType<IMethodSymbol>().Any(static method => method.IsOverride && !method.IsAbstract);
-        return hasDefault || awaitsGeneration ? Type(context) + ".Default" : "new " + Type(context) + "()";
+        return hasDefault || AwaitsJsonGeneration(context) ? Type(context) + ".Default" : "new " + Type(context) + "()";
+    }
+    // Other generators' output is absent from this compilation. Expect System.Text.Json
+    // to add Default only where its generator completes the context: a concrete,
+    // non-generic JsonSerializerContext declaring [JsonSerializable], partial along
+    // with every containing type, that leaves the generated members to it.
+    private static bool AwaitsJsonGeneration(INamedTypeSymbol context)
+    {
+        if (context.IsAbstract || context.IsGenericType || !InheritsFrom(context, "System.Text.Json.Serialization", "JsonSerializerContext") ||
+            !context.GetAttributes().Any(static attribute => attribute.AttributeClass?.Name == "JsonSerializableAttribute" &&
+                attribute.AttributeClass.ContainingNamespace.ToDisplayString() == "System.Text.Json.Serialization"))
+        {
+            return false;
+        }
+
+        for (INamedTypeSymbol? type = context; type is not null; type = type.ContainingType)
+        {
+            if (type.IsGenericType || !type.DeclaringSyntaxReferences.Any(static reference =>
+                reference.GetSyntax() is TypeDeclarationSyntax declaration && declaration.Modifiers.Any(SyntaxKind.PartialKeyword)))
+            {
+                return false;
+            }
+        }
+
+        return !context.GetMembers("Default").Any() &&
+            !context.GetMembers("GetTypeInfo").Concat(context.GetMembers("GeneratedSerializerOptions")).Any(static member => member.IsOverride && !member.IsAbstract);
     }
     private static bool IsIdentifier(string? value)
     {

@@ -31,6 +31,7 @@ internal static class GeneratorTests
         new("generator/unchanged-commands-are-cached", UnchangedCommandsAreCached),
         new("generator/parameter-errors-use-distinct-diagnostics", ParameterErrorsUseDistinctDiagnostics),
         new("generator/custom-result-contexts-compile-and-execute", CustomResultContexts),
+        new("generator/partial-result-contexts-use-default-only-when-json-generation-completes-them", PartialResultContexts),
     ];
 
     private static ValueTask UnchangedCommandsAreCached()
@@ -147,6 +148,78 @@ internal static class GeneratorTests
             }
             finally { loader.Unload(); }
         }
+    }
+
+    private static ValueTask PartialResultContexts()
+    {
+        // System.Text.Json's generator is not run here, so only the expression
+        // chosen for each context is observable. A non-partial containing type keeps
+        // System.Text.Json from completing NestedContext.
+        const string source = """
+            using System;
+            using System.Text.Json;
+            using System.Text.Json.Serialization;
+            using System.Text.Json.Serialization.Metadata;
+            using Runic.CommandLine;
+
+            [JsonSerializable(typeof(int))]
+            internal sealed partial class GeneratedContext : JsonSerializerContext;
+
+            internal static partial class PartialOuter
+            {
+                [JsonSerializable(typeof(int))]
+                internal sealed partial class NestedGeneratedContext : JsonSerializerContext;
+            }
+
+            internal static class PlainOuter
+            {
+                [JsonSerializable(typeof(int))]
+                internal sealed partial class NestedContext : JsonSerializerContext;
+            }
+
+            [JsonSerializable(typeof(int))]
+            internal sealed partial class ImplementedContext : JsonSerializerContext
+            {
+                public ImplementedContext() : base(null) { }
+                protected override JsonSerializerOptions? GeneratedSerializerOptions => null;
+            }
+
+            internal sealed partial class ImplementedContext
+            {
+                public override JsonTypeInfo? GetTypeInfo(Type type) => null;
+            }
+
+            internal static class Commands
+            {
+                [Command("generated"), CommandResult("sample.generated/1", typeof(GeneratedContext))]
+                public static int Generated() => 1;
+
+                [Command("nested-generated"), CommandResult("sample.nested-generated/1", typeof(PartialOuter.NestedGeneratedContext))]
+                public static int NestedGenerated() => 2;
+
+                [Command("nested"), CommandResult("sample.nested/1", typeof(PlainOuter.NestedContext))]
+                public static int Nested() => 3;
+
+                [Command("implemented"), CommandResult("sample.implemented/1", typeof(ImplementedContext))]
+                public static int Implemented() => 4;
+            }
+            """;
+        GeneratorRunResult result = CSharpGeneratorDriver.Create(new CommandLineGenerator())
+            .RunGenerators(CreateCompilation(source)).GetRunResult().Results.Single();
+        AssertEx.Equal(0, result.Diagnostics.Length, string.Join("\n", result.Diagnostics));
+        string generated = string.Concat(result.GeneratedSources.Select(static item => item.SourceText.ToString()));
+        foreach (string expected in new[]
+        {
+            "global::GeneratedContext.Default.GetTypeInfo",
+            "global::PartialOuter.NestedGeneratedContext.Default.GetTypeInfo",
+            "new global::PlainOuter.NestedContext().GetTypeInfo",
+            "new global::ImplementedContext().GetTypeInfo",
+        })
+        {
+            AssertEx.True(generated.Contains(expected, StringComparison.Ordinal), expected + " was not generated.\n" + generated);
+        }
+        AssertEx.True(!generated.Contains("NestedContext.Default", StringComparison.Ordinal) && !generated.Contains("ImplementedContext.Default", StringComparison.Ordinal));
+        return ValueTask.CompletedTask;
     }
 
     private static CSharpCompilation CreateCompilation(string source)
