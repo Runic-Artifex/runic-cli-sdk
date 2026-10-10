@@ -9,6 +9,8 @@
     <Description>Parser-neutral command catalog, execution, host integration, and output kernel for .NET applications.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
+    <!-- CommandFailureData's encoder overrides TextEncoder's pointer-based members. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
