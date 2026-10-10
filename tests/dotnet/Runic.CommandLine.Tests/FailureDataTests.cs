@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Runic.CommandLine.Tests;
 
@@ -16,7 +17,9 @@ internal static class FailureDataTests
         new("failure-data/identity-is-checked-before-deserialization", IdentityBeforeShape),
         new("failure-data/payload-byte-bound-is-exact-and-never-truncates", ByteBounds),
         new("failure-data/raw-unicode-and-whitespace-stay-bounded-when-rewritten", RawPayloadRewrite),
+        new("failure-data/reader-measures-compact-payload-bytes", CompactByteBounds),
         new("failure-data/payload-depth-bound-and-duplicates-are-enforced", DepthAndDuplicates),
+        new("failure-data/writer-failures-use-reader-protocol-kinds", WriterFailureKinds),
         new("failure-data/reader-rejects-malformed-extension", MalformedExtension),
         new("failure-data/ordinary-failure-wire-remains-unchanged", OrdinaryFailure),
         new("failure-data/zero-exit-and-success-category-are-refused", FailureInvariants),
@@ -87,6 +90,38 @@ internal static class FailureDataTests
         AssertEx.Equal(escaped, escapedValue);
         return ValueTask.CompletedTask;
     }
+
+    private static ValueTask CompactByteBounds()
+    {
+        // ["x…"] occupies exactly the limit when compact; indentation must not count.
+        string exact = new('x', CommandFailureData.MaximumPayloadBytes - 4);
+        AssertEx.True(CommandFailureData.Create(Identity, new[] { exact }, RecoveryJsonContext.Default.StringArray) is not null);
+        CommandFailureData data = Read(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":[\n    \"" + exact + "\"\r\n  ]}")).FailureData!;
+        AssertEx.True(data.TryGet(Identity, RecoveryJsonContext.Default.StringArray, out string[]? value));
+        AssertEx.Equal(exact, value![0]);
+        AssertEx.True(Read(Frame(data)).FailureData is not null);
+        AssertEx.Equal("failure-data-byte-limit", AssertEx.Throws<CommandProtocolException>(() =>
+            CommandFailureData.Create(Identity, new[] { exact + "x" }, RecoveryJsonContext.Default.StringArray)).Kind);
+        AssertKind(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":[\n    \"" + exact + "x\"\n  ]}"), "failure-data-byte-limit");
+        return ValueTask.CompletedTask;
+    }
+
+    private static ValueTask WriterFailureKinds()
+    {
+        string tooDeep = new string('[', CommandFailureData.MaximumPayloadDepth + 1) + "null" + new string(']', CommandFailureData.MaximumPayloadDepth + 1);
+        using JsonDocument deep = JsonDocument.Parse(tooDeep);
+        AssertCreateKind(deep.RootElement, RecoveryJsonContext.Default.JsonElement, "failure-data-depth-limit");
+        AssertKind(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":" + tooDeep + "}"), "failure-data-depth-limit");
+        // A converter that writes a lone UTF-16 surrogate makes the writer throw
+        // ArgumentException; serializer-written strings are replaced with U+FFFD instead.
+        AssertCreateKind(new LoneSurrogateValue(), RecoveryJsonContext.Default.LoneSurrogateValue, "invalid-failure-data");
+        AssertKind(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":\"\\ud800\"}"), "invalid-failure-data");
+        AssertCreateKind(new UnsupportedReport(IntPtr.Zero), RecoveryJsonContext.Default.UnsupportedReport, "invalid-failure-data");
+        return ValueTask.CompletedTask;
+    }
+
+    private static void AssertCreateKind<T>(T value, JsonTypeInfo<T> typeInfo, string kind) =>
+        AssertEx.Equal(kind, AssertEx.Throws<CommandProtocolException>(() => CommandFailureData.Create(Identity, value, typeInfo)).Kind);
 
     private static ValueTask DepthAndDuplicates()
     {
@@ -193,10 +228,22 @@ internal static class FailureDataTests
 }
 
 internal sealed record RecoveryReport(string RetainedDirectory, string TargetBranch, bool ObservationComplete);
+internal sealed record UnsupportedReport(IntPtr Handle);
+
+[JsonConverter(typeof(LoneSurrogateConverter))]
+internal sealed class LoneSurrogateValue;
+
+internal sealed class LoneSurrogateConverter : JsonConverter<LoneSurrogateValue>
+{
+    public override LoneSurrogateValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => throw new NotSupportedException();
+    public override void Write(Utf8JsonWriter writer, LoneSurrogateValue value, JsonSerializerOptions options) => writer.WriteRawValue("\"\ud800\"");
+}
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(RecoveryReport))]
 [JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(UnsupportedReport))]
+[JsonSerializable(typeof(LoneSurrogateValue))]
 internal sealed partial class RecoveryJsonContext : JsonSerializerContext;

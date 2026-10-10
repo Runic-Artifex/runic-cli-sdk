@@ -25,11 +25,11 @@ public sealed class CommandFailureData
     private readonly JsonElement _payload;
     private readonly byte[] _payloadUtf8;
 
-    private CommandFailureData(string dataType, JsonElement payload)
+    private CommandFailureData(string dataType, JsonElement payload, byte[] payloadUtf8)
     {
         Type = dataType;
         _payload = payload.Clone();
-        _payloadUtf8 = CompactPayload(payload);
+        _payloadUtf8 = payloadUtf8;
     }
 
     /// <summary>Gets the complete, independently versioned domain data identity.</summary>
@@ -42,6 +42,9 @@ public sealed class CommandFailureData
     /// <paramref name="value"/> cannot change the snapshot. Null is supported
     /// when permitted by the declared contract. Data is never truncated.
     /// </remarks>
+    /// <exception cref="CommandProtocolException">
+    /// The value exceeds a bound or cannot be serialized; the kind matches the reader's.
+    /// </exception>
     public static CommandFailureData Create<T>(string dataType, T value, JsonTypeInfo<T> typeInfo)
     {
         CommandResponseValidation.ValidatePayloadType(dataType, nameof(dataType));
@@ -58,19 +61,31 @@ public sealed class CommandFailureData
                 SkipValidation = false,
             }))
             {
-                JsonSerializer.Serialize(writer, value, typeInfo);
+                try
+                {
+                    JsonSerializer.Serialize(writer, value, typeInfo);
+                }
+                catch (Exception exception) when (writer.CurrentDepth >= MaximumPayloadDepth &&
+                    (exception as InvalidOperationException ?? (exception as JsonException)?.InnerException as InvalidOperationException) is not null)
+                {
+                    // The writer refuses a container beyond MaxDepth (the serializer may
+                    // wrap it); report the reader's kind for an over-deep payload.
+                    throw DepthLimit();
+                }
             }
 
             using JsonDocument document = JsonDocument.Parse(buffer.WrittenSpan.ToArray(),
                 new JsonDocumentOptions { MaxDepth = MaximumPayloadDepth });
             return Read(dataType, document.RootElement);
         }
-        catch (JsonException exception)
+        catch (CommandProtocolException)
         {
-            throw InvalidData(exception);
+            throw;
         }
-        catch (InvalidOperationException exception)
+        catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
         {
+            // Serializer, converter and encoding failures (unsupported types, invalid
+            // UTF-16) remain protocol failures rather than generic host failures.
             throw InvalidData(exception);
         }
     }
@@ -100,10 +115,13 @@ public sealed class CommandFailureData
     internal static CommandFailureData Read(string dataType, JsonElement payload)
     {
         CommandResponseValidation.ValidatePayloadType(dataType, nameof(dataType));
-        if (StrictUtf8.GetByteCount(payload.GetRawText()) > MaximumPayloadBytes)
+        // Measure the compact value that Write emits, so insignificant whitespace
+        // from an external producer does not count against the byte limit.
+        byte[] compact = CompactPayload(payload);
+        if (compact.Length > MaximumPayloadBytes)
             throw new CommandProtocolException("failure-data-byte-limit", "The declared failure data exceeds its JSON byte limit.");
         ValidatePayload(payload, 0);
-        return new CommandFailureData(dataType, payload);
+        return new CommandFailureData(dataType, payload, compact);
     }
 
     internal void Write(Utf8JsonWriter writer)
@@ -149,7 +167,7 @@ public sealed class CommandFailureData
         {
             depth++;
             if (depth > MaximumPayloadDepth)
-                throw new CommandProtocolException("failure-data-depth-limit", "The declared failure data exceeds its JSON depth limit.");
+                throw DepthLimit();
         }
 
         if (element.ValueKind == JsonValueKind.Object)
@@ -172,6 +190,9 @@ public sealed class CommandFailureData
             _ = StrictUtf8.GetByteCount(element.GetString()!);
         }
     }
+
+    private static CommandProtocolException DepthLimit() =>
+        new("failure-data-depth-limit", "The declared failure data exceeds its JSON depth limit.");
 
     private static CommandProtocolException InvalidData(Exception exception) =>
         new("invalid-failure-data", "The declared failure data does not contain a valid bounded JSON value.", exception);
