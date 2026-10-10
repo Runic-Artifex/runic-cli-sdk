@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Buffers;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -43,7 +45,8 @@ public sealed class CommandFailureData
     /// when permitted by the declared contract. Data is never truncated.
     /// </remarks>
     /// <exception cref="CommandProtocolException">
-    /// The value exceeds a bound or cannot be serialized; the kind matches the reader's.
+    /// The value exceeds a bound, contains invalid UTF-16 (an unpaired surrogate) in a
+    /// string or property name, or cannot be serialized; the kind matches the reader's.
     /// </exception>
     public static CommandFailureData Create<T>(string dataType, T value, JsonTypeInfo<T> typeInfo)
     {
@@ -59,6 +62,8 @@ public sealed class CommandFailureData
                 Indented = false,
                 MaxDepth = MaximumPayloadDepth,
                 SkipValidation = false,
+                // The default writer would replace an unpaired surrogate with U+FFFD.
+                Encoder = UnpairedSurrogateRejectingEncoder.Instance,
             }))
             {
                 try
@@ -197,6 +202,65 @@ public sealed class CommandFailureData
     private static CommandProtocolException InvalidData(Exception exception) =>
         new("invalid-failure-data", "The declared failure data does not contain a valid bounded JSON value.", exception);
 
+    private static CommandProtocolException UnpairedSurrogate() =>
+        new("invalid-failure-data", "The declared failure data contains invalid UTF-16 (an unpaired surrogate) and cannot be represented exactly.");
+
     private static CommandProtocolException ShapeMismatch(Exception exception) =>
         new("failure-data-shape-mismatch", "The failure data does not match its registered JSON contract.", exception);
+
+    /// <summary>
+    /// Escapes exactly as <see cref="JavaScriptEncoder.Default"/> (the writer's default)
+    /// but refuses unpaired surrogates instead of letting them become U+FFFD.
+    /// </summary>
+    /// <remarks>
+    /// The writer passes every UTF-16 string value and property name, including
+    /// dictionary keys, through <see cref="FindFirstCharacterToEncode"/> before
+    /// escaping. Source-generated static property names are pre-encoded, and
+    /// System.Text.Json already refuses invalid UTF-16 there.
+    /// </remarks>
+    private sealed class UnpairedSurrogateRejectingEncoder : JavaScriptEncoder
+    {
+        internal static readonly UnpairedSurrogateRejectingEncoder Instance = new();
+        private static readonly JavaScriptEncoder Inner = JavaScriptEncoder.Default;
+
+        public override int MaxOutputCharactersPerInputCharacter => Inner.MaxOutputCharactersPerInputCharacter;
+
+        public override unsafe int FindFirstCharacterToEncode(char* text, int textLength)
+        {
+            RejectUnpairedSurrogates(new ReadOnlySpan<char>(text, textLength));
+            return Inner.FindFirstCharacterToEncode(text, textLength);
+        }
+
+        public override OperationStatus Encode(ReadOnlySpan<char> source, Span<char> destination,
+            out int charsConsumed, out int charsWritten, bool isFinalBlock = true)
+        {
+            RejectUnpairedSurrogates(source);
+            return Inner.Encode(source, destination, out charsConsumed, out charsWritten, isFinalBlock);
+        }
+
+        public override unsafe bool TryEncodeUnicodeScalar(int unicodeScalar, char* buffer, int bufferLength, out int numberOfCharactersWritten) =>
+            Inner.TryEncodeUnicodeScalar(unicodeScalar, buffer, bufferLength, out numberOfCharactersWritten);
+
+        public override bool WillEncode(int unicodeScalar) => Inner.WillEncode(unicodeScalar);
+
+        // The writer validates UTF-8 input itself; delegate so escaping stays identical.
+        public override int FindFirstCharacterToEncodeUtf8(ReadOnlySpan<byte> utf8Text) =>
+            Inner.FindFirstCharacterToEncodeUtf8(utf8Text);
+
+        public override OperationStatus EncodeUtf8(ReadOnlySpan<byte> utf8Source, Span<byte> utf8Destination,
+            out int bytesConsumed, out int bytesWritten, bool isFinalBlock = true) =>
+            Inner.EncodeUtf8(utf8Source, utf8Destination, out bytesConsumed, out bytesWritten, isFinalBlock);
+
+        private static void RejectUnpairedSurrogates(ReadOnlySpan<char> text)
+        {
+            int index = text.IndexOfAnyInRange('\uD800', '\uDFFF');
+            while (index >= 0)
+            {
+                if (!char.IsHighSurrogate(text[index]) || index + 1 >= text.Length || !char.IsLowSurrogate(text[index + 1]))
+                    throw UnpairedSurrogate();
+                text = text[(index + 2)..];
+                index = text.IndexOfAnyInRange('\uD800', '\uDFFF');
+            }
+        }
+    }
 }

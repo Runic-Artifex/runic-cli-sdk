@@ -112,16 +112,36 @@ internal static class FailureDataTests
         using JsonDocument deep = JsonDocument.Parse(tooDeep);
         AssertCreateKind(deep.RootElement, RecoveryJsonContext.Default.JsonElement, "failure-data-depth-limit");
         AssertKind(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":" + tooDeep + "}"), "failure-data-depth-limit");
-        // A converter that writes a lone UTF-16 surrogate makes the writer throw
-        // ArgumentException; serializer-written strings are replaced with U+FFFD instead.
+        // Unpaired surrogates are refused wherever they occur (raw converter output,
+        // string values, dictionary keys) rather than being replaced with U+FFFD.
         AssertCreateKind(new LoneSurrogateValue(), RecoveryJsonContext.Default.LoneSurrogateValue, "invalid-failure-data");
         AssertKind(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":\"\\ud800\"}"), "invalid-failure-data");
+        foreach (string text in new[] { "\ud800", "path\ud800", "\udc00tail", "a\ude00\ud83d" })
+        {
+            CommandProtocolException exception = AssertCreateKind(text, RecoveryJsonContext.Default.String, "invalid-failure-data");
+            AssertEx.True(exception.Message.Contains("unpaired surrogate", StringComparison.Ordinal));
+            AssertCreateKind(new RecoveryReport(ExactPath, text, true), RecoveryJsonContext.Default.RecoveryReport, "invalid-failure-data");
+            AssertCreateKind(new Dictionary<string, string> { [text] = "value" }, RecoveryJsonContext.Default.DictionaryStringString, "invalid-failure-data");
+        }
         AssertCreateKind(new UnsupportedReport(IntPtr.Zero), RecoveryJsonContext.Default.UnsupportedReport, "invalid-failure-data");
+
+        // A valid surrogate pair is preserved exactly in values and keys.
+        const string Pair = "feature/\ud83d\ude00/修复";
+        CommandFailureData report = Create(new RecoveryReport(ExactPath, Pair, true));
+        AssertEx.True(Read(Frame(report)).FailureData!.TryGet(Identity, RecoveryJsonContext.Default.RecoveryReport, out RecoveryReport? recovery));
+        AssertEx.Equal(new RecoveryReport(ExactPath, Pair, true), recovery);
+        CommandFailureData keyed = CommandFailureData.Create(Identity, new Dictionary<string, string> { [Pair] = Pair }, RecoveryJsonContext.Default.DictionaryStringString);
+        AssertEx.True(Read(Frame(keyed)).FailureData!.TryGet(Identity, RecoveryJsonContext.Default.DictionaryStringString, out Dictionary<string, string>? map));
+        AssertEx.Equal(Pair, map![Pair]);
         return ValueTask.CompletedTask;
     }
 
-    private static void AssertCreateKind<T>(T value, JsonTypeInfo<T> typeInfo, string kind) =>
-        AssertEx.Equal(kind, AssertEx.Throws<CommandProtocolException>(() => CommandFailureData.Create(Identity, value, typeInfo)).Kind);
+    private static CommandProtocolException AssertCreateKind<T>(T value, JsonTypeInfo<T> typeInfo, string kind)
+    {
+        CommandProtocolException exception = AssertEx.Throws<CommandProtocolException>(() => CommandFailureData.Create(Identity, value, typeInfo));
+        AssertEx.Equal(kind, exception.Kind);
+        return exception;
+    }
 
     private static ValueTask DepthAndDuplicates()
     {
@@ -246,4 +266,5 @@ internal sealed class LoneSurrogateConverter : JsonConverter<LoneSurrogateValue>
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(UnsupportedReport))]
 [JsonSerializable(typeof(LoneSurrogateValue))]
+[JsonSerializable(typeof(Dictionary<string, string>))]
 internal sealed partial class RecoveryJsonContext : JsonSerializerContext;

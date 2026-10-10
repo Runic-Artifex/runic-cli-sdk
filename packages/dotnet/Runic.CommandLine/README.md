@@ -199,7 +199,9 @@ response keeps its one-mebibyte/32-level limits. Malformed, duplicate, or
 oversized data is refused without truncation. `Create` and the reader raise the
 same `CommandProtocolException` kinds: `failure-data-byte-limit`,
 `failure-data-depth-limit`, `duplicate-property`, or `invalid-failure-data`
-(including serializer and encoding failures). Recovery data and `retryable` never
+(including serializer and encoding failures). Invalid UTF-16 (an unpaired
+surrogate) in any string value or property name, including dictionary keys, raises
+`invalid-failure-data` instead of being replaced with U+FFFD. Recovery data and `retryable` never
 authorize an automatic retry.
 
 `completion bash|zsh|fish|powershell` generates context-aware completion scripts
