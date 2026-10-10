@@ -234,7 +234,8 @@ public sealed class CommandFailureData
         public override OperationStatus Encode(ReadOnlySpan<char> source, Span<char> destination,
             out int charsConsumed, out int charsWritten, bool isFinalBlock = true)
         {
-            RejectUnpairedSurrogates(source);
+            // A non-final block may end with a high surrogate whose pair follows in the next block.
+            RejectUnpairedSurrogates(!isFinalBlock && source.Length > 0 && char.IsHighSurrogate(source[^1]) ? source[..^1] : source);
             return Inner.Encode(source, destination, out charsConsumed, out charsWritten, isFinalBlock);
         }
 
