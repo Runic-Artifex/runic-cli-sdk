@@ -13,6 +13,9 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
     /// <summary>Gets optional text resolution for execution diagnostics. Culture comes from the invocation context.</summary>
     public ICommandTextResolver? TextResolver { get; init; }
 
+    // Set by CommandApp when nothing observes exceptions: the human RCLI5000 line then says how to see them.
+    internal bool ShowHostFailureHint { get; init; }
+
     /// <inheritdoc />
     public ValueTask WriteAsync<T>(
         CommandDescriptor command,
@@ -38,7 +41,14 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             outcome,
             diagnostics);
 
-        response = new CommandTextContext(context.Culture, TextResolver).Localize(response);
+        var textContext = new CommandTextContext(context.Culture, TextResolver);
+        response = textContext.Localize(response);
+        if (ShowHostFailureHint && context.OutputMode == CommandOutputMode.Human && response.Fault?.Code == "RCLI5000")
+        {
+            string hint = textContext.Resolve(CommandDebugOutput.HostFailureHintKey, CommandDebugOutput.HostFailureHint);
+            return WriteHumanAsync(context.Console, context.Culture, response, codec, cancellationToken, hint);
+        }
+
         return context.OutputMode == CommandOutputMode.Human &&
             !outcome.IsSuccess &&
             outcome.HumanOutput is { Length: > 0 } humanOutput
@@ -123,7 +133,8 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CultureInfo culture,
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? faultHint = null)
     {
         if (response.Success)
         {
@@ -140,6 +151,12 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             text.Append(fault.Code);
             text.Append(": ");
             text.Append(fault.Message);
+            if (faultHint is not null && !CommandFaultSanitizer.ContainsTechnicalContent(faultHint))
+            {
+                text.Append(' ');
+                text.Append(CommandFaultSanitizer.SanitizeRequiredText(faultHint));
+            }
+
             text.Append('\n');
         }
 

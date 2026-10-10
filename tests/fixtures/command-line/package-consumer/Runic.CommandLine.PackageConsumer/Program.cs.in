@@ -47,7 +47,8 @@ internal static class Program
         if (hostileTransport.Kind != HostedCommandLineDecisionKind.Invalid ||
             hostileTransport.Diagnostics.Count != 1 ||
             hostileTransport.Diagnostics[0].Code != "RCLI1010" ||
-            hostileTransport.Diagnostics[0].Arguments.Count != 0 ||
+            hostileTransport.Diagnostics[0].Arguments.Count != 1 ||
+            hostileTransport.Diagnostics[0].Arguments[0] != "--runic-output" ||
             hostileTransport.Diagnostics[0].Message.Contains("TOPSECRET", StringComparison.Ordinal)) return 92;
 
         foreach (string[] args in new[]

@@ -278,7 +278,7 @@ internal static class ParserAdversarialTests
             settings);
         AssertErrorOutput(hostileRoot, CommandOutputMode.Human, CommandOutputModeSource.Default);
         AssertEx.Equal("invalid-output-mode", hostileRoot.Diagnostics.Single().Kind);
-        AssertEx.Equal(0, hostileRoot.Diagnostics.Single().Arguments.Count);
+        AssertEx.SequenceEqual(["--runic-output"], hostileRoot.Diagnostics.Single().Arguments);
         AssertNoSecret(hostileRoot);
 
         ParseOutcome hostileAfterSyntaxError = PortableCommandSyntaxAdapter.Instance.Parse(
@@ -287,7 +287,7 @@ internal static class ParserAdversarialTests
             settings);
         AssertErrorOutput(hostileAfterSyntaxError, CommandOutputMode.Human, CommandOutputModeSource.Default);
         AssertEx.Equal("invalid-output-mode", hostileAfterSyntaxError.Diagnostics.Single().Kind);
-        AssertEx.Equal(0, hostileAfterSyntaxError.Diagnostics.Single().Arguments.Count);
+        AssertEx.SequenceEqual(["--runic-output"], hostileAfterSyntaxError.Diagnostics.Single().Arguments);
         AssertNoSecret(hostileAfterSyntaxError);
         return ValueTask.CompletedTask;
     }

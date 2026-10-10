@@ -164,6 +164,9 @@ public sealed class ParsedInvocation
     /// <summary>Gets the frozen output-mode decision for dispatch.</summary>
     public CommandOutputClassification OutputClassification { get; }
 
+    // Option IDs whose value came from an environment fallback, so value errors can name the variable.
+    internal IReadOnlyCollection<string> EnvironmentOptionIds { get; init; } = Array.Empty<string>();
+
     private static ReadOnlyCollection<CommandValueBinding> Freeze(
         IReadOnlyList<CommandValueBinding> bindings,
         string parameterName)
@@ -281,6 +284,13 @@ public sealed class ParseOutcome
         ArgumentNullException.ThrowIfNull(diagnostic);
         EnsureValid(outputClassification);
         return new(ParseOutcomeKind.Error, null, null, new[] { diagnostic }, outputClassification);
+    }
+
+    // An error followed by informational notes, such as the environment variable a value came from.
+    internal static ParseOutcome FromErrors(CommandDiagnostic[] diagnostics, CommandOutputClassification outputClassification)
+    {
+        EnsureValid(outputClassification);
+        return new(ParseOutcomeKind.Error, null, null, diagnostics, outputClassification);
     }
 
     /// <summary>Creates an invalid-output-classification result.</summary>

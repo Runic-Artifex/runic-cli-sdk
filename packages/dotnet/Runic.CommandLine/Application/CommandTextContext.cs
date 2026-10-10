@@ -41,6 +41,37 @@ public sealed class CommandTextContext
         ArgumentNullException.ThrowIfNull(help);
         return Resolve(descriptionKey, help.Description ?? string.Empty);
     }
+    /// <summary>Reports each command, option and argument <c>DescriptionKey</c> the resolver does not resolve in this culture.</summary>
+    /// <remarks>
+    /// An unresolved key falls back to the literal description, so a typo would otherwise go unnoticed. Each issue has code
+    /// <c>RCLI0023</c> and the command path as its location. Without a resolver there is nothing to check and the list is empty.
+    /// Call this from a test, or set <c>RUNIC_COMMANDLINE_DEBUG=1</c> to have <see cref="CommandApp"/> warn when it shows help.
+    /// </remarks>
+    public IReadOnlyList<CommandCatalogIssue> ValidateDescriptionKeys(CommandCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        var issues = new List<CommandCatalogIssue>();
+        if (Resolver is null) return issues;
+        var globals = new HashSet<string>(StringComparer.Ordinal);
+        foreach (CommandDescriptor command in catalog.Commands) Visit(command, command.Name);
+        return issues.AsReadOnly();
+
+        void Visit(CommandDescriptor command, string path)
+        {
+            Check(command.DescriptionKey, path, "command '" + path + "'");
+            foreach (CommandOptionDescriptor option in command.Options)
+                if (!option.IsGlobal || globals.Add(option.Id)) Check(option.DescriptionKey, path, "option '" + option.Name + "'");
+            foreach (CommandArgumentDescriptor argument in command.Arguments) Check(argument.DescriptionKey, path, "argument '" + argument.Name + "'");
+            foreach (CommandDescriptor child in command.Subcommands) Visit(child, path + " " + child.Name);
+        }
+
+        void Check(string? key, string path, string subject)
+        {
+            if (key is null || !string.IsNullOrWhiteSpace(Resolver!.Resolve(key, Culture, Array.Empty<string>()))) return;
+            issues.Add(new CommandCatalogIssue("RCLI0023", path,
+                $"Description key '{key}' for {subject} did not resolve in culture '{Culture.Name}'; the literal description is shown instead."));
+        }
+    }
     /// <summary>Resolves a diagnostic message while preserving its codes, arguments, phase and canonical path.</summary>
     public CommandDiagnostic Localize(CommandDiagnostic diagnostic)
     {
@@ -58,7 +89,13 @@ public sealed class CommandTextContext
         {
             CommandDiagnostic original = response.Diagnostics[index];
             diagnostics[index] = Localize(original);
-            if (fault is not null && original.Code == fault.Code && original.Message == fault.Message)
+            bool describesFault = fault is not null && original.Code == fault.Code && original.Message == fault.Message;
+            // A translation of faults.{code} still applies when the more specific diagnostic key has none.
+            if (describesFault && ReferenceEquals(diagnostics[index], original) &&
+                Resolver.Resolve("faults." + original.Code, Culture, Array.Empty<string>()) is { } faultText && !string.IsNullOrWhiteSpace(faultText))
+                diagnostics[index] = new CommandDiagnostic(original.Code, original.Kind, faultText, original.Phase, original.Severity, original.TokenIndex,
+                    original.Arguments, original.Path, original.MessageKey);
+            if (describesFault && fault is not null)
                 fault = new CommandFault(fault.Code, diagnostics[index].Message, fault.Details, fault.Retryable);
         }
         if (fault is not null && ReferenceEquals(fault, response.Fault))

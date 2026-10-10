@@ -62,12 +62,15 @@ public sealed class CommandApp
         try
         {
             CultureInfo culture = CultureInfo.ReadOnly((CultureInfo)(Culture ?? CultureInfo.CurrentCulture).Clone());
+            ParseSettings settings = ParseSettings ?? new ParseSettings(Environment.GetEnvironmentVariable(CommandOutputClassifier.EnvironmentVariableName)) { GetEnvironmentVariable = Environment.GetEnvironmentVariable };
+            // Explicit settings without an environment reader keep the process environment out, as for option fallbacks.
+            CommandDebugOutput? debug = CommandDebugOutput.IsEnabled(settings.GetEnvironmentVariable ?? (static _ => null)) ? new CommandDebugOutput() : null;
+            Action<Exception>? exceptionObserver = debug?.Observe(ExceptionObserver) ?? ExceptionObserver;
             var presentation = new CommandPresentation
             {
                 Name = Name, Version = Version, CompletionExecutableName = CompletionExecutableName,
-                TextResolver = TextResolver, HelpPresenter = HelpPresenter, FormatHelp = FormatHelp, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = ExceptionObserver,
+                TextResolver = TextResolver, HelpPresenter = HelpPresenter, FormatHelp = FormatHelp, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = exceptionObserver,
             };
-            ParseSettings settings = ParseSettings ?? new ParseSettings(Environment.GetEnvironmentVariable(CommandOutputClassifier.EnvironmentVariableName)) { GetEnvironmentVariable = Environment.GetEnvironmentVariable };
             if (args.Length == 2 && args[0] == "completion" && !_catalog.TryGetCommand("completion", out _))
             {
                 return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, args[1], settings.TransportOutputOptionName, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
@@ -80,20 +83,40 @@ public sealed class CommandApp
                     ? new InvocationScopeFactory(createScopes, parsed.Invocation!)
                     : ScopeFactory ?? EmptyScopeFactory.Instance;
                 var executor = new CommandExecutor(scopes, ExitCodePolicy, Observer);
+                ICommandOutcomeSink sink = _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver, ShowHostFailureHint = debug is null && ExceptionObserver is null };
                 CommandExecutionResult result = await executor.ExecuteAsync(
-                    new CommandExecutionRequest(parsed.Invocation!, Console, culture, requestId) { ExceptionObserver = ExceptionObserver },
-                    OutcomeSink, cancellation.Token).ConfigureAwait(false);
+                    new CommandExecutionRequest(parsed.Invocation!, Console, culture, requestId) { ExceptionObserver = exceptionObserver },
+                    debug is null ? sink : new CommandDebugOutput.FlushingSink(sink, debug), cancellation.Token).ConfigureAwait(false);
+                if (debug is not null) await debug.FlushAsync(Console, CancellationToken.None).ConfigureAwait(false);
                 return result.ExitCode;
             }
 
-            if (PresentFrameworkRequest is not null)
-                return await presentation.GuardAsync(() => PresentFrameworkRequest(parsed, Console, cancellation.Token), cancellation.Token).ConfigureAwait(false);
-            return await presentation.GuardAsync(() => presentation.WriteAsync(_catalog, parsed, settings.TransportOutputOptionName,
-                Console, culture, requestId, cancellation.Token), cancellation.Token).ConfigureAwait(false);
+            if (debug is not null && parsed.Kind == ParseOutcomeKind.Help && TextResolver is not null)
+                await WriteUnresolvedDescriptionKeysAsync(culture).ConfigureAwait(false);
+            int exitCode = PresentFrameworkRequest is not null
+                ? await presentation.GuardAsync(() => PresentFrameworkRequest(parsed, Console, cancellation.Token), cancellation.Token).ConfigureAwait(false)
+                : await presentation.GuardAsync(() => presentation.WriteAsync(_catalog, parsed, settings.TransportOutputOptionName,
+                    Console, culture, requestId, cancellation.Token), cancellation.Token).ConfigureAwait(false);
+            if (debug is not null) await debug.FlushAsync(Console, CancellationToken.None).ConfigureAwait(false);
+            return exitCode;
         }
         finally
         {
             signals?.Dispose();
+        }
+    }
+
+    // Developer output: a DescriptionKey the resolver does not know silently falls back to the literal description.
+    private async ValueTask WriteUnresolvedDescriptionKeysAsync(CultureInfo culture)
+    {
+        try
+        {
+            foreach (CommandCatalogIssue issue in new CommandTextContext(culture, TextResolver).ValidateDescriptionKeys(_catalog))
+                await Console.WriteErrorAsync(("warning " + issue.Code + " at '" + issue.Location + "': " + issue.Message + "\n").AsMemory(), CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not (OutOfMemoryException or AccessViolationException))
+        {
+            // Debug output is best effort; resolver failures surface when help is rendered.
         }
     }
 

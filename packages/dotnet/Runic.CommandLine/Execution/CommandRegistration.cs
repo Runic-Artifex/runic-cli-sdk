@@ -102,13 +102,17 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                     context.CorrelationId));
 
                 cancellationToken.ThrowIfCancellationRequested();
-                CommandFault? inputFault = CommandInputValidation.Validate(request.Invocation);
-                CommandOutcome<TOptions> binding = inputFault is not null
-                    ? CommandOutcome.Failure<TOptions>(CommandExitCategory.Usage, inputFault)
-                    : await _binder.BindAsync(request.Invocation, cancellationToken).ConfigureAwait(false);
+                CommandOutcome<TOptions> binding = CommandInputValidation.Validate<TOptions>(request.Invocation)
+                    ?? await _binder.BindAsync(request.Invocation, cancellationToken).ConfigureAwait(false);
                 if (binding is null)
                 {
                     throw new InvalidOperationException("The command options binder returned null.");
+                }
+
+                // Generated binders already checked bounds before [ValidateWith]; this covers hand-written binders.
+                if (binding.IsSuccess && CommandInputValidation.ValidateRanges<TOptions>(request.Invocation) is { } rangeFault)
+                {
+                    binding = rangeFault;
                 }
 
                 Observe(observer, new CommandExecutionEvent(

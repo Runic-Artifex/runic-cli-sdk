@@ -170,7 +170,9 @@ are consumer-safe surfaces. They MUST NOT contain secrets, original values of
 sensitive options, stack traces, exception type names, environment-variable
 values, absolute internal paths, line breaks, terminal controls, or Unicode
 control characters. Unexpected exceptions are logged only to an authorized
-diagnostic sink and map to the sanitized `RCLI5000` host fault.
+diagnostic sink and map to the sanitized `RCLI5000` host fault. A developer
+opt-in, such as the .NET host's `RUNIC_COMMANDLINE_DEBUG=1`, MAY make stderr
+such a sink; stdout, the frame and its fault remain unchanged.
 
 A writer sanitizes each fault before output, human or JSON. Its check for
 technical content is a heuristic, not a guarantee: it matches only the
