@@ -8,6 +8,7 @@ if (args is ["--hosted", .. var hostedArgs])
 
 return await ExampleApplication.Create(new SpectreCommandConsole()).RunAsync(args);
 
+[CommandGroup("config", Description = "Inspect the example configuration.")]
 internal static class Commands
 {
     [Command("greet", Description = "Say hello.", Examples = ["hello greet Ada --count 2"])]
@@ -22,8 +23,8 @@ internal static class Commands
 
     [Command("work", Description = "Demonstrate progress and cancellation.")]
     internal static Task Work(ICommandConsole console, [FromServices] HostedExample.ApplicationServices services,
-        CancellationToken cancellationToken,
-        [Option("--verbose", "-v")] bool verbose = false) =>
+        [Option("--verbose", "-v")] bool verbose = false,
+        CancellationToken cancellationToken = default) =>
         new SpectreCommandConsole(console).WithProgressAsync(verbose ? services.Greeting + ": preparing greeting" : "Preparing greeting", async (progress, token) =>
         {
             for (int i = 1; i <= 4; i++)

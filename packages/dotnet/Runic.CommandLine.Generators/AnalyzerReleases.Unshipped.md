@@ -15,3 +15,4 @@ RCLI9039 | Runic.CommandLine | Warning | Option relationship names an unknown op
 RCLI9040 | Runic.CommandLine | Error | Default command is not a root command
 RCLI9041 | Runic.CommandLine | Error | Invalid command result JSON context
 RCLI9042 | Runic.CommandLine | Error | JSON context lacks the command result type
+RCLI9043 | Runic.CommandLine | Error | Invalid command group description

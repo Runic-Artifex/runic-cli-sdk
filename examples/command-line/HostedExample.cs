@@ -1,21 +1,19 @@
-using System.Globalization;
 using Runic.CommandLine;
-using Runic.CommandLine.Generated;
+using Runic.CommandLine.Examples;
 using Runic.CommandLine.Hosting;
 using Runic.CommandLine.Spectre;
 
 // The application calls this with its lifetime token. The adapter never installs
 // process signal handlers, starts a host, or disposes application-owned services.
+[CommandGroup("application", Description = "Use services supplied by the application host.")]
 internal static class HostedExample
 {
     internal static async Task<int> RunAsync(string[] args, CancellationToken applicationStopping)
     {
         var services = new ApplicationServices("Hello from application services");
         var console = new SpectreCommandConsole();
-        var adapter = new CommandLineHostingAdapter(GeneratedCommandCatalog.Create(), new CommandExecutor(new CommandScopes(services)))
-        {
-            Presentation = new() { Name = "hello", Version = "1.0.0", HelpPresenter = new SpectreHelpPresenter(), ExceptionObserver = services.RecordException },
-        };
+        // The adapter reuses the app's catalog, name, version, help presenter, scope factory and observer.
+        var adapter = new CommandLineHostingAdapter(ExampleApplication.Create(console, services));
         var launch = new HostedCommandLineLaunchInput(args,
             outputEnvironmentValue: Environment.GetEnvironmentVariable("RUNIC_COMMANDLINE_OUTPUT"),
             emptyInputFallback: EmptyInputFallback.UserInterface)
@@ -26,46 +24,24 @@ internal static class HostedExample
             },
         };
         var decision = adapter.Classify(launch);
-        if (decision.Kind == HostedCommandLineDecisionKind.UserInterface)
+        if (!decision.IsCommandLineRequest)
         {
-            // A desktop application calls its existing UI launch method here.
-            // This console example only demonstrates the launch decision.
-            await console.WriteOutAsync("Application selected its UI launch path.\n".AsMemory(), applicationStopping);
+            // A desktop application calls its existing UI launch method here, also for a
+            // document path or an unknown word. This console example only demonstrates the decision.
+            await console.WriteOutLineAsync("Application selected its UI launch path.", applicationStopping);
             return 0;
         }
-        string correlationId = Guid.NewGuid().ToString("N");
-        if (!decision.CanExecute)
-            return await adapter.PresentAsync(decision, console, CultureInfo.CurrentCulture, correlationId, applicationStopping);
-        var result = await adapter.ExecuteAsync(new(decision, console, CultureInfo.CurrentCulture, correlationId, new CommandOutputDispatcher())
-        {
-            ExceptionObserver = services.RecordException,
-        }, applicationStopping);
-        return result.ExitCode;
+        return await adapter.RunAsync(decision, cancellationToken: applicationStopping);
     }
-
-    internal static ICommandExecutionScopeFactory CreateCommandScopes() =>
-        new CommandScopes(new ApplicationServices("Hello from application services"));
 
     [Command("application info", Description = "Read services supplied by the application host.")]
     internal static string Info([FromServices] ApplicationServices services) => services.Greeting;
 
     internal sealed class ApplicationServices(string greeting)
     {
+        internal static ApplicationServices Default { get; } = new("Hello from application services");
         internal string Greeting { get; } = greeting;
         internal Exception? LastException { get; private set; }
         internal void RecordException(Exception exception) => LastException = exception;
-    }
-
-    private sealed class CommandScopes(ApplicationServices services) : ICommandExecutionScopeFactory
-    {
-        public ICommandExecutionScope CreateScope() => new CommandScope(services);
-    }
-
-    private sealed class CommandScope(ApplicationServices services) : ICommandExecutionScope, IServiceProvider
-    {
-        public IServiceProvider Services => this;
-        public object? GetService(Type type) => type == typeof(ApplicationServices) ? services : null;
-        // Only invocation-owned resources belong here, not the application's services.
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

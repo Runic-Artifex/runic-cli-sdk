@@ -23,6 +23,28 @@ public sealed class CommandAttribute : Attribute
     public string[] Examples { get; set; } = [];
 }
 
+/// <summary>
+/// Describes a help-only group that the generator creates for nested command names, such as <c>config</c>
+/// for <c>[Command("config show")]</c>. Apply it to any class that declares commands.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
+public sealed class CommandGroupAttribute : Attribute
+{
+    /// <summary>Initializes a description for the group at a space-separated path.</summary>
+    public CommandGroupAttribute(string path) => Path = path ?? throw new ArgumentNullException(nameof(path));
+
+    /// <summary>Gets the group's space-separated path, a leading part of at least one command name.</summary>
+    public string Path { get; }
+    /// <summary>Gets or sets whether this group is hidden from discovery.</summary>
+    public bool Hidden { get; set; }
+    /// <summary>Gets or sets the localization key for descriptive help; Description supplies its fallback.</summary>
+    public string? DescriptionKey { get; set; }
+    /// <summary>Gets or sets descriptive help.</summary>
+    public string? Description { get; set; }
+    /// <summary>Gets or sets extended group help.</summary>
+    public string? LongDescription { get; set; }
+}
+
 /// <summary>Marks one generated command as the root fallback for positional-only invocation.</summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
 public sealed class DefaultCommandAttribute : Attribute

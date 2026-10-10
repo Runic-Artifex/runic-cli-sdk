@@ -179,6 +179,29 @@ public sealed class HostedCommandLineDecision
     /// <summary>Gets whether this decision can be executed by the command-line engine.</summary>
     public bool CanExecute => Kind == HostedCommandLineDecisionKind.Invocation;
 
+    /// <summary>
+    /// Gets the catalog command or group named explicitly by the leading arguments, also when the rest of the
+    /// launch is invalid. It is null when no command name matched, including when a default command was
+    /// selected implicitly.
+    /// </summary>
+    public CommandPath? MatchedPath { get; init; }
+
+    /// <summary>Gets whether the leading arguments name a catalog command or group.</summary>
+    public bool MatchesKnownCommand => MatchedPath is not null;
+
+    /// <summary>
+    /// Gets whether the launch belongs to the command line: an invocation, a help, version or completion
+    /// request, or an invalid launch whose leading arguments name a known command. A host with a user
+    /// interface typically opens it for every other launch, such as a document path or an unknown word.
+    /// </summary>
+    public bool IsCommandLineRequest => Kind switch
+    {
+        HostedCommandLineDecisionKind.Invocation or HostedCommandLineDecisionKind.Help or
+            HostedCommandLineDecisionKind.Version or HostedCommandLineDecisionKind.Completion => true,
+        HostedCommandLineDecisionKind.Invalid => MatchesKnownCommand,
+        _ => false,
+    };
+
     internal HostedCommandLineLaunchInput LaunchInput { get; }
     internal ParseOutcome? ParseOutcome { get; init; }
 

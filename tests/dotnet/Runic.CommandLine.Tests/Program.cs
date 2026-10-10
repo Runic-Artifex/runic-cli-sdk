@@ -21,6 +21,9 @@ if (args.Contains("--error-causes", StringComparer.Ordinal))
 if (args.Contains("--failure-data", StringComparer.Ordinal))
     return await TestRunner.RunAsync(FailureDataTests.All, OutputTests.All, ProtocolCorpusTests.All, ResultContextTests.All);
 
+if (args.Contains("--developer-experience", StringComparer.Ordinal))
+    return await TestRunner.RunAsync(DeveloperExperienceTests.All);
+
 return await TestRunner.RunAsync(
     CompletionHelpTests.All,
     HelpLayoutTests.All,
@@ -40,4 +43,5 @@ return await TestRunner.RunAsync(
     FailureDataTests.All,
     ProtocolCorpusTests.All,
     GeneratorTests.All,
-    ErrorCauseTests.All);
+    ErrorCauseTests.All,
+    DeveloperExperienceTests.All);

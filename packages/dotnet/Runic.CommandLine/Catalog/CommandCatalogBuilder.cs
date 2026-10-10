@@ -69,6 +69,30 @@ public sealed class CommandCatalogBuilder
         return this;
     }
 
+    /// <summary>
+    /// Describes the help-only group at a space-separated path, such as <c>config</c> for a <c>config show</c>
+    /// command, creating it when no command has been registered below it yet.
+    /// </summary>
+    /// <exception cref="ArgumentException">The path names a command rather than a group.</exception>
+    public CommandCatalogBuilder Group(string path, CommandHelp help, string? descriptionKey = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(help);
+        List<CommandBuilderNode> siblings = _commands;
+        CommandBuilderNode? node = null;
+        foreach (string segment in path.Split(' '))
+        {
+            if (node is not null and not CommandGroupBuilderNode) throw new ArgumentException("A group path must not pass through a command.", nameof(path));
+            node = siblings.Find(candidate => candidate.Name == segment);
+            if (node is null) { node = new CommandGroupBuilderNode(segment); siblings.Add(node); }
+            siblings = node.Children;
+        }
+        if (node is not CommandGroupBuilderNode) throw new ArgumentException("The path names a command, not a help-only group.", nameof(path));
+        node.Help = help;
+        if (descriptionKey is not null) node.SetDescription(descriptionKey);
+        return this;
+    }
+
     /// <summary>Registers human rendering for an existing generated or manual command without replacing its JSON codec.</summary>
     public CommandCatalogBuilder Present<T>(string path, CommandHumanPresenter<T> presenter)
     {

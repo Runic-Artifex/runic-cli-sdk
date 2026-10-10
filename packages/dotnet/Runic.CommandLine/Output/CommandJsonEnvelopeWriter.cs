@@ -28,6 +28,7 @@ public static class CommandJsonEnvelopeWriter
             Indented = false,
             MaxDepth = 32,
             SkipValidation = false,
+            Encoder = CommandJsonEncoding.Encoder,
         }))
         {
             WriteEnvelope(writer, response, payloadTypeInfo);

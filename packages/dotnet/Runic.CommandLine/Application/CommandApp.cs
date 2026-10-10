@@ -13,6 +13,7 @@ public sealed class CommandApp
     private readonly CommandCatalog _catalog;
     /// <summary>Initializes an application from an immutable catalog.</summary>
     public CommandApp(CommandCatalog catalog) => _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+    internal CommandCatalog Catalog => _catalog;
     /// <summary>Gets or sets the executable name shown in help.</summary>
     public string Name { get; init; } = "app";
     /// <summary>Gets or sets the executable name registered by completion scripts, when different from Name.</summary>
@@ -32,7 +33,10 @@ public sealed class CommandApp
     /// <summary>Gets or sets the outcome presenter.</summary>
     public ICommandOutcomeSink OutcomeSink { get => _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver }; init => _outcomeSink = value; }
     private readonly ICommandOutcomeSink? _outcomeSink;
-    /// <summary>Gets or sets the invocation culture. Otherwise the current culture is captured at invocation time.</summary>
+    /// <summary>
+    /// Gets or sets the invocation culture for help, diagnostics and handler formatting. Otherwise
+    /// <see cref="CultureInfo.CurrentUICulture"/>, the user's display language, is captured at invocation time.
+    /// </summary>
     public CultureInfo? Culture { get; init; }
     /// <summary>Gets or sets optional text resolution for framework help and diagnostics.</summary>
     public ICommandTextResolver? TextResolver { get; init; }
@@ -61,16 +65,12 @@ public sealed class CommandApp
         ProcessSignalCancellation? signals = HandleCancelKeyPress ? new ProcessSignalCancellation(cancellation) : null;
         try
         {
-            CultureInfo culture = CultureInfo.ReadOnly((CultureInfo)(Culture ?? CultureInfo.CurrentCulture).Clone());
+            CultureInfo culture = CultureInfo.ReadOnly((CultureInfo)(Culture ?? CultureInfo.CurrentUICulture).Clone());
             ParseSettings settings = ParseSettings ?? new ParseSettings(Environment.GetEnvironmentVariable(CommandOutputClassifier.EnvironmentVariableName)) { GetEnvironmentVariable = Environment.GetEnvironmentVariable };
             // Explicit settings without an environment reader keep the process environment out, as for option fallbacks.
             CommandDebugOutput? debug = CommandDebugOutput.IsEnabled(settings.GetEnvironmentVariable ?? (static _ => null)) ? new CommandDebugOutput() : null;
             Action<Exception>? exceptionObserver = debug?.Observe(ExceptionObserver) ?? ExceptionObserver;
-            var presentation = new CommandPresentation
-            {
-                Name = Name, Version = Version, CompletionExecutableName = CompletionExecutableName,
-                TextResolver = TextResolver, HelpPresenter = HelpPresenter, FormatHelp = FormatHelp, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = exceptionObserver,
-            };
+            CommandPresentation presentation = CreatePresentation(exceptionObserver);
             if (args.Length == 2 && args[0] == "completion" && !_catalog.TryGetCommand("completion", out _))
             {
                 return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, args[1], settings.TransportOutputOptionName, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
@@ -79,10 +79,7 @@ public sealed class CommandApp
             string requestId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
             if (parsed.Kind == ParseOutcomeKind.Invocation)
             {
-                ICommandExecutionScopeFactory scopes = CreateScopeFactory is { } createScopes
-                    ? new InvocationScopeFactory(createScopes, parsed.Invocation!)
-                    : ScopeFactory ?? EmptyScopeFactory.Instance;
-                var executor = new CommandExecutor(scopes, ExitCodePolicy, Observer);
+                CommandExecutor executor = CreateExecutor(parsed.Invocation!);
                 ICommandOutcomeSink sink = _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver, ShowHostFailureHint = debug is null && ExceptionObserver is null };
                 CommandExecutionResult result = await executor.ExecuteAsync(
                     new CommandExecutionRequest(parsed.Invocation!, Console, culture, requestId) { ExceptionObserver = exceptionObserver },
@@ -104,6 +101,20 @@ public sealed class CommandApp
         {
             signals?.Dispose();
         }
+    }
+
+    internal CommandPresentation CreatePresentation(Action<Exception>? exceptionObserver) => new()
+    {
+        Name = Name, Version = Version, CompletionExecutableName = CompletionExecutableName,
+        TextResolver = TextResolver, HelpPresenter = HelpPresenter, FormatHelp = FormatHelp, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = exceptionObserver,
+    };
+
+    internal CommandExecutor CreateExecutor(ParsedInvocation invocation)
+    {
+        ICommandExecutionScopeFactory scopes = CreateScopeFactory is { } createScopes
+            ? new InvocationScopeFactory(createScopes, invocation)
+            : ScopeFactory ?? EmptyScopeFactory.Instance;
+        return new CommandExecutor(scopes, ExitCodePolicy, Observer);
     }
 
     // Developer output: a DescriptionKey the resolver does not know silently falls back to the literal description.
