@@ -1,3 +1,4 @@
 #nullable enable
 Runic.CommandLine.CommandTextContext.ValidateDescriptionKeys(Runic.CommandLine.CommandCatalog! catalog) -> System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandCatalogIssue!>!
 static Runic.CommandLine.GeneratedCommandBinding.Failure<TOptions>(Runic.CommandLine.ParsedInvocation! invocation, Runic.CommandLine.GeneratedCommandBindingException! exception) -> Runic.CommandLine.CommandOutcome<TOptions>!
+static Runic.CommandLine.GeneratedCommandBinding.CheckRange<T>(T value, Runic.CommandLine.ParsedInvocation! invocation, string! id) -> T

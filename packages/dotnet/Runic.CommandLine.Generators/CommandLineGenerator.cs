@@ -519,6 +519,10 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static string ValueExpression(ParameterModel parameter, string invocation = "invocation")
     {
         string value = RawValueExpression(parameter, invocation);
+        // Declared bounds apply after conversion and before custom validation.
+        AttributeData? metadata = FindAttribute(parameter.Symbol, "Runic.CommandLine.OptionAttribute") ?? FindAttribute(parameter.Symbol, "Runic.CommandLine.ArgumentAttribute");
+        if (metadata is not null && (NamedBound(metadata, "Minimum") != "null" || NamedBound(metadata, "Maximum") != "null"))
+            value = "global::Runic.CommandLine.GeneratedCommandBinding.CheckRange(" + value + ", " + invocation + ", " + Literal(parameter.Id) + ")";
         if (FindAttribute(parameter.Symbol, "Runic.CommandLine.ValidateWithAttribute")?.ConstructorArguments[0].Value is ITypeSymbol validator)
             return "global::Runic.CommandLine.GeneratedCommandBinding.Validate<" + ParameterType(parameter.Symbol) + ", " + Type(validator) + ">(" + value + ", " + Literal(parameter.Id) + ")";
         return value;

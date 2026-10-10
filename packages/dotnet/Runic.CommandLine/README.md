@@ -424,9 +424,12 @@ Use `Minimum`/`Maximum` for inclusive numeric input bounds. `Requires` and
 gets ID `dry-run`. Presence includes captured environment fallback; an environment
 flag set to `false` is absent. Dependencies do not make an optional flag implicit.
 The builder uses the same `CommandHelp` properties. Path and relationship checks
-run during execution before binding; range checks run after the value converts,
-so `--limit abc` reports a type error (`RCLI2005`, "--limit requires a whole
-number.") rather than a range error. Hosted classification remains free of
+run during execution before binding. Each generated value is then converted,
+checked against `Minimum`/`Maximum`, and only then passed to its `[ValidateWith]`
+validator, so `--limit abc` reports a type error (`RCLI2005`, "--limit requires a
+whole number.") rather than a range error, and a validator never sees a value
+outside the declared range. For a hand-written `ICommandOptionsBinder`, bounds
+are checked after the binder succeeds. Hosted classification remains free of
 filesystem reads. Invalid input returns a safe `RCLI2002` usage fault that names
 the option spelling or `<ARGUMENT>`, without echoing its value, for example
 "--limit requires a number between 1 and 50.". Both faults carry a matching

@@ -93,6 +93,30 @@ public static class GeneratedCommandBinding
         { throw new GeneratedCommandBindingException(id, $"Invalid value for '{id}'.", "invalid-value"); }
     }
 
+    /// <summary>Checks a converted value's declared <c>Minimum</c>/<c>Maximum</c> and returns it unchanged.</summary>
+    /// <remarks>
+    /// Generated binders call this after conversion and before any <c>[ValidateWith]</c> validator, so a type error
+    /// (<c>RCLI2005</c>) wins and a validator never sees a value outside the declared range (<c>RCLI2002</c>).
+    /// The bounds come from the invocation's command descriptor; absent values, such as a default, are not checked.
+    /// </remarks>
+    public static T CheckRange<T>(T value, ParsedInvocation invocation, string id)
+    {
+        ArgumentNullException.ThrowIfNull(invocation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        CommandHelp? help = CommandValueDiagnostics.FindOption(invocation.Command, id)?.Help;
+        IReadOnlyList<string> values = help is null ? Arguments(invocation, id) : Options(invocation, id);
+        if (help is null)
+        {
+            foreach (CommandArgumentDescriptor argument in invocation.Command.Arguments)
+            {
+                if (argument.Id == id) help = argument.Help;
+            }
+        }
+        if (help is not null && CommandInputValidation.RangeError(values, help) is var (kind, details))
+            throw new GeneratedCommandBindingException(id, $"The value for '{id}' is outside its declared range.", kind, details, CommandValueDiagnostics.ValidationCode);
+        return value;
+    }
+
     /// <summary>Calls an explicitly selected validator and returns the validated value.</summary>
     public static T Validate<T, TValidator>(T value, string id) where TValidator : ICommandValueValidator<T>
     {
@@ -112,14 +136,14 @@ public static class GeneratedCommandBinding
     }
 
     /// <summary>Creates the usage outcome for a binding failure, naming the parameter as typed and, for an environment fallback, its variable.</summary>
-    /// <remarks>The <c>RCLI2005</c> fault carries a binding diagnostic whose key is <c>diagnostics.{kind}</c>, for example <c>diagnostics.invalid-integer</c>.</remarks>
+    /// <remarks>The <c>RCLI2005</c> fault (<c>RCLI2002</c> for a declared range) carries a binding diagnostic whose key is <c>diagnostics.{kind}</c>, for example <c>diagnostics.invalid-integer</c>.</remarks>
     public static CommandOutcome<TOptions> Failure<TOptions>(ParsedInvocation invocation, GeneratedCommandBindingException exception)
     {
         ArgumentNullException.ThrowIfNull(invocation);
         ArgumentNullException.ThrowIfNull(exception);
         string[] details = exception.Kind == "invalid-choice" && SensitiveOrLong(invocation.Command, exception.ParameterId, exception.Details)
             ? [] : exception.Details;
-        return CommandValueDiagnostics.Failure<TOptions>(invocation, CommandValueDiagnostics.BindingCode, exception.ParameterId, exception.Kind, details);
+        return CommandValueDiagnostics.Failure<TOptions>(invocation, exception.Code, exception.ParameterId, exception.Kind, details);
     }
 
     private static bool SensitiveOrLong(CommandDescriptor command, string id, string[] details)
@@ -147,12 +171,16 @@ public sealed class GeneratedCommandBindingException : Exception
     {
     }
 
-    internal GeneratedCommandBindingException(string parameterId, string message, string kind, string[]? details = null) : base(message)
+    internal GeneratedCommandBindingException(string parameterId, string message, string kind, string[]? details = null, string code = CommandValueDiagnostics.BindingCode) : base(message)
     {
         ParameterId = parameterId;
         Kind = kind;
         Details = details ?? [];
+        Code = code;
     }
+
+    // RCLI2005 for conversion and validator failures, RCLI2002 for declared ranges.
+    internal string Code { get; }
 
     // The diagnostic kind and the arguments that follow the parameter name.
     internal string Kind { get; }

@@ -109,6 +109,7 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                     throw new InvalidOperationException("The command options binder returned null.");
                 }
 
+                // Generated binders already checked bounds before [ValidateWith]; this covers hand-written binders.
                 if (binding.IsSuccess && CommandInputValidation.ValidateRanges<TOptions>(request.Invocation) is { } rangeFault)
                 {
                     binding = rangeFault;

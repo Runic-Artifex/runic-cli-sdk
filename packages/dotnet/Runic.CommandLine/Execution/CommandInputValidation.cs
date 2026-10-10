@@ -8,8 +8,10 @@ namespace Runic.CommandLine;
 
 internal static class CommandInputValidation
 {
-    // Option relationships and paths are checked before binding; numeric bounds after it, so a
-    // value of the wrong type reports its type (RCLI2005) rather than the range.
+    // Option relationships and paths are checked before binding. Generated binders check numeric
+    // bounds per value after conversion and before [ValidateWith] (GeneratedCommandBinding.CheckRange);
+    // ValidateRanges applies the same bounds after a hand-written binder succeeds. Either way a value
+    // of the wrong type reports its type (RCLI2005) rather than the range.
     internal static CommandOutcome<T>? Validate<T>(ParsedInvocation invocation)
     {
         var present = new HashSet<string>(invocation.Options.Select(binding => binding.Id), StringComparer.Ordinal);
@@ -47,20 +49,24 @@ internal static class CommandInputValidation
         return null;
     }
 
-    private static CommandOutcome<T>? Range<T>(ParsedInvocation invocation, string id, IReadOnlyList<string> values, CommandHelp help)
+    private static CommandOutcome<T>? Range<T>(ParsedInvocation invocation, string id, IReadOnlyList<string> values, CommandHelp help) =>
+        RangeError(values, help) is var (kind, details) ? Fault<T>(invocation, id, kind, details) : null;
+
+    // Returns the diagnostic kind and details for the first value outside the declared bounds.
+    internal static (string Kind, string[] Details)? RangeError(IReadOnlyList<string> values, CommandHelp help)
     {
         if (help.Minimum is null && help.Maximum is null) return null;
         foreach (string value in values)
         {
-            if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double number) || !double.IsFinite(number))
-                return Fault<T>(invocation, id, "invalid-number");
+            if (!double.TryParse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out double number) || !double.IsFinite(number))
+                return ("invalid-number", []);
             if ((help.Minimum is { } min && number < min) || (help.Maximum is { } max && number > max))
             {
                 return help switch
                 {
-                    { Minimum: { } lower, Maximum: { } upper } => Fault<T>(invocation, id, "out-of-range", CommandValueDiagnostics.Number(lower), CommandValueDiagnostics.Number(upper)),
-                    { Minimum: { } lower } => Fault<T>(invocation, id, "below-minimum", CommandValueDiagnostics.Number(lower)),
-                    _ => Fault<T>(invocation, id, "above-maximum", CommandValueDiagnostics.Number(help.Maximum!.Value)),
+                    { Minimum: { } lower, Maximum: { } upper } => ("out-of-range", [CommandValueDiagnostics.Number(lower), CommandValueDiagnostics.Number(upper)]),
+                    { Minimum: { } lower } => ("below-minimum", [CommandValueDiagnostics.Number(lower)]),
+                    _ => ("above-maximum", [CommandValueDiagnostics.Number(help.Maximum!.Value)]),
                 };
             }
         }

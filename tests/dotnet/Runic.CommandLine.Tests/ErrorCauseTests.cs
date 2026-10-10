@@ -21,6 +21,7 @@ internal static class ErrorCauseTests
         new("causes/enum-defaults-render-by-member-name", EnumDefaults),
         new("causes/type-errors-precede-ranges-and-name-the-option", TypeBeforeRange),
         new("causes/ranges-say-between", Ranges),
+        new("causes/ranges-precede-custom-validators", RangesPrecedeValidators),
         new("causes/argument-type-errors-name-the-argument", ArgumentTypeErrors),
         new("causes/invalid-choices-list-non-sensitive-choices", Choices),
         new("causes/invalid-output-mode-is-specific", OutputMode),
@@ -239,6 +240,47 @@ internal static class ErrorCauseTests
         AssertEx.Equal(0, await App(console).RunAsync(["cause-values", "--limit", "50", "--ratio", "0.5"]));
     }
 
+    // Order per value: conversion (RCLI2005), declared range (RCLI2002), then [ValidateWith] (RCLI2005).
+    private static async ValueTask RangesPrecedeValidators()
+    {
+        CauseCountValidator.Seen.Clear();
+        (string human, JsonDocument json) = await Fail(2, ["cause-validated", "--count", "50"]);
+        using (json)
+        {
+            AssertEx.Equal("RCLI2002: --count requires a number between 1 and 10.\n", human);
+            AssertFault(json, "RCLI2002", "--count requires a number between 1 and 10.");
+            AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2002", "out-of-range", "--count requires a number between 1 and 10.", "binding", "--count", "1", "10");
+        }
+        (human, json) = await Fail(2, ["cause-validated", "--count", "abc"]);
+        using (json)
+        {
+            AssertEx.Equal("RCLI2005: --count requires a whole number.\n", human);
+            AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2005", "invalid-integer", "--count requires a whole number.", "binding", "--count");
+        }
+        // A non-integral value is a type error even though it is also outside the range.
+        (human, json) = await Fail(2, ["cause-validated", "--count", "99.5"]);
+        using (json) AssertEx.Equal("RCLI2005: --count requires a whole number.\n", human);
+        // --level binds first; its out-of-range element stops binding before its list validator runs.
+        CauseListValidator.Calls = 0;
+        (human, json) = await Fail(2, ["cause-validated", "--level", "1", "--level", "0"]);
+        using (json) AssertEx.Equal("RCLI2002: --level requires a number between 1 and 3.\n", human);
+        AssertEx.Equal(0, CauseCountValidator.Seen.Count, string.Join(",", CauseCountValidator.Seen));
+        AssertEx.Equal(0, CauseListValidator.Calls);
+
+        (human, json) = await Fail(2, ["cause-validated", "--count", "7"]);
+        using (json)
+        {
+            AssertEx.Equal("RCLI2005: --count has a value that failed validation.\n", human);
+            AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2005", "validation-failed", "--count has a value that failed validation.", "binding", "--count");
+        }
+        var console = new TestCommandConsole();
+        AssertEx.Equal(0, await App(console).RunAsync(["cause-validated", "--count", "10", "--level", "3"]));
+        AssertEx.Equal("10:3\n", console.StandardOutput);
+        AssertEx.True(CauseCountValidator.Seen.All(static value => value is >= 1 and <= 10), string.Join(",", CauseCountValidator.Seen));
+        AssertEx.True(CauseCountValidator.Seen.Contains(7) && CauseCountValidator.Seen.Contains(10));
+        AssertEx.True(CauseListValidator.Calls > 0);
+    }
+
     private static async ValueTask ArgumentTypeErrors()
     {
         (string human, JsonDocument json) = await Fail(2, ["cause-argument", "many"]);
@@ -446,6 +488,12 @@ internal static class SampleCauseCommands
         [Option("--format", Choices = ["json", "csv"])] string format = "json",
         [Option("--token", Choices = ["alpha", "beta"], Sensitive = true)] string? token = null) => "ok";
 
+    [Command("cause-validated", Hidden = true)]
+    internal static string Validated(
+        [Option("--level", Minimum = 1, Maximum = 3), ValidateWith(typeof(CauseListValidator))] IReadOnlyList<int> levels,
+        [Option("--count", Minimum = 1, Maximum = 10), ValidateWith(typeof(CauseCountValidator))] int count = 1) =>
+        count.ToString(CultureInfo.InvariantCulture) + ":" + string.Join(",", levels);
+
     [Command("cause-argument", Hidden = true)]
     internal static string Argument([Argument(ValueName = "COUNT")] int count) => count.ToString(CultureInfo.InvariantCulture);
 
@@ -459,4 +507,25 @@ internal static class SampleCauseCommands
 
     [Command("cause-keys", Hidden = true, DescriptionKey = "commands.cause-keys", Description = "Keys")]
     internal static string Keys([Option("--limit", DescriptionKey = "options.cause-keys.limt", Description = "Limit")] int limit = 1) => "ok";
+}
+
+// Records every value it sees, so a test can prove declared bounds were applied first.
+internal sealed class CauseCountValidator : ICommandValueValidator<int>
+{
+    internal static readonly List<int> Seen = [];
+    public static bool IsValid(int value)
+    {
+        lock (Seen) Seen.Add(value);
+        return value != 7;
+    }
+}
+
+internal sealed class CauseListValidator : ICommandValueValidator<IReadOnlyList<int>>
+{
+    internal static int Calls;
+    public static bool IsValid(IReadOnlyList<int> value)
+    {
+        Interlocked.Increment(ref Calls);
+        return value.All(static level => level is >= 1 and <= 3);
+    }
 }
