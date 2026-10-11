@@ -398,7 +398,7 @@ remain unchanged. The existing sanitizers still apply to resolved text.
 With Runic Translations, set `TextResolver = new TranslationCommandTextResolver(snapshot)`
 from the `Runic.Translations.CommandLine` package: it looks up each key in your
 catalog by name, falls back to its built-in English and German framework text,
-and needs no key mapping. See the maintained [English/German example](https://github.com/Runic-Artifex/runic-translations-sdk/blob/main/examples/command-line/localized/README.md).
+and needs no key mapping. The [`Runic.Translations.CommandLine`](https://www.nuget.org/packages/Runic.Translations.CommandLine) package README shows an English/German setup.
 Both are optional; this package does not reference Translations.
 
 ## Commands inside a Runic application
