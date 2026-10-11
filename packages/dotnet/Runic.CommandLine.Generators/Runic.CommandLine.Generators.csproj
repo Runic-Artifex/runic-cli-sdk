@@ -12,6 +12,8 @@
          A build whose compiler runs on .NET Framework, such as Visual Studio's MSBuild without the SDK's
          compiler, cannot load it: it reports CS8032 and the generated catalog is missing. -->
     <NoWarn>$(NoWarn);RS1041</NoWarn>
+    <!-- Help links name the release tag; see eng/build/release-links.targets. -->
+    <RunicGenerateReleaseLinks>true</RunicGenerateReleaseLinks>
   </PropertyGroup>
 
   <ItemGroup>

@@ -32,3 +32,7 @@ Runic.CommandLine.CommandGroupAttribute.Hidden.set -> void
 Runic.CommandLine.CommandGroupAttribute.LongDescription.get -> string?
 Runic.CommandLine.CommandGroupAttribute.LongDescription.set -> void
 Runic.CommandLine.CommandGroupAttribute.Path.get -> string!
+Runic.CommandLine.CommandDiagnostic.HelpUri.get -> System.Uri?
+Runic.CommandLine.CommandDiagnostic.HelpUri.init -> void
+Runic.CommandLine.CommandFault.HelpUri.get -> System.Uri?
+Runic.CommandLine.CommandFault.HelpUri.init -> void

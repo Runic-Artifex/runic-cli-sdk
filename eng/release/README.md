@@ -117,6 +117,16 @@ packs a fresh candidate set and runs the isolated consumer against it once.
 `eng/pack.sh` stages the packages beside the output directory and replaces it only
 after all four packages exist; an interrupted pack leaves the previous set.
 
+Links that leave a package name the release tag `v<package version>`, never
+`main`; `eng/build/release-links.targets` (kept in sync with the Runic SDK's copy)
+builds them. Each packed README is a copy whose `blob/main`, `tree/main` and
+relative links of this repository point at the tag, and a remaining main-branch
+link to any Runic Artifex repository fails the pack. The generator's help links
+and catalog validation messages open
+[`docs/guides/command-line/diagnostics.md`](../../docs/guides/command-line/diagnostics.md)
+at the tag, so every reported `RCLI` code needs an entry there;
+`DiagnosticCodeRangeTests` fails when one is missing or stale.
+
 To verify existing candidate artifacts without rebuilding or packing them:
 
 ```sh

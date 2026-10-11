@@ -8,7 +8,10 @@ namespace Runic.CommandLine;
 public sealed record CommandCatalogIssue(string Code, string Location, string Message);
 
 /// <summary>Thrown when a catalog cannot be frozen because its definitions are invalid.</summary>
-/// <remarks>The message lists the first issues with their codes and command paths; <see cref="Issues"/> holds all of them.</remarks>
+/// <remarks>
+/// The message lists the first issues with their codes, command paths and links to the codes' entries in the
+/// diagnostics catalog of this release; <see cref="Issues"/> holds all of them.
+/// </remarks>
 public sealed class CommandCatalogValidationException : Exception
 {
     private const int MaximumListedIssues = 20;
@@ -29,6 +32,8 @@ public sealed class CommandCatalogValidationException : Exception
         {
             CommandCatalogIssue issue = issues[index];
             message.Append('\n').Append(issue.Code).Append(" at '").Append(issue.Location).Append("': ").Append(issue.Message);
+            // Each library code has an entry in the diagnostics catalog at this release's tag.
+            message.Append(" See ").Append(RunicReleaseLinks.Diagnostic(issue.Code));
         }
         if (issues.Count > MaximumListedIssues) message.Append('\n').Append(issues.Count - MaximumListedIssues).Append(" more issue(s) are listed in Issues.");
         return message.ToString();

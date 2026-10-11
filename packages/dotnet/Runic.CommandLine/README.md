@@ -203,6 +203,14 @@ A handler selects a failure category with `CommandOutcome.Failure<T>(category,
 fault)`. A custom `IExitCodePolicy` may remap the failure codes, but zero always
 means success.
 
+Set `HelpUri` on a `CommandFault` or `CommandDiagnostic` to link its code to
+your documentation, for example `new CommandFault("RAS1001", "The archive could
+not be read.") { HelpUri = new Uri("https://docs.example.com/errors#ras1001") }`.
+JSON output adds a `helpUri` member and human output writes
+`Help for RAS1001: <link>` after the line. The link must be an absolute `https`
+address; unlike messages and details, it is not redacted, so never build it
+from user input.
+
 ## Declared domain failure and recovery data
 
 When a failed or cancelled command must return an exact retained directory or
@@ -576,8 +584,8 @@ success is the only semantic outcome that maps to exit code zero.
 
 Read the [Runic Command Line documentation](https://docs.runic-artifex.eu/products/runic-command-line/),
 see [examples](https://github.com/Runic-Artifex/runic-cli-sdk/tree/main/tests/dotnet/Runic.CommandLine.Tests),
-look up a [source generator diagnostic](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/diagnostics.md)
-(each `RCLI9xxx` error links to its section),
+look up an [`RCLI` diagnostic code](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/diagnostics.md)
+(generator errors and catalog validation messages link to their section),
 or [report an issue](https://github.com/Runic-Artifex/runic-cli-sdk/issues).
 Runic.CommandLine is maintained by Runic Artifex and licensed under the
 [MIT License](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/LICENSE).

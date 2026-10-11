@@ -15,9 +15,10 @@ namespace Runic.CommandLine.Generators;
 [Generator(LanguageNames.CSharp)]
 public sealed class CommandLineGenerator : IIncrementalGenerator
 {
-    // Each ID has a section in docs/guides/command-line/diagnostics.md; AnalyzerReleases.*.md track the release that shipped it.
+    // Each ID has a section in docs/guides/command-line/diagnostics.md, which help links name at the release tag of
+    // the package (eng/build/release-links.targets); AnalyzerReleases.*.md track the release that shipped it.
     private const string Category = "Runic.CommandLine";
-    private const string HelpLinkBase = "https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/diagnostics.md#";
+    private const string HelpLinkBase = RunicReleaseLinks.DiagnosticsHelpBase;
 
     private static readonly DiagnosticDescriptor InvalidCommand = new("RCLI9001", "Invalid generated command", "Command '{0}' must be a non-generic static method with a supported result type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9001");
     private static readonly DiagnosticDescriptor InvalidParameter = new("RCLI9002", "Invalid generated command parameter", "Parameter '{0}' on command '{1}' must have exactly one supported binding attribute or be a supported context parameter", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9002");
