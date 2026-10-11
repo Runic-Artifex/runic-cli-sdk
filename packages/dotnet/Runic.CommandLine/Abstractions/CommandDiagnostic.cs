@@ -101,7 +101,7 @@ public sealed record CommandDiagnostic
         TokenIndex = tokenIndex;
         Arguments = CopyArguments(arguments);
         Path = path ?? CommandPath.Root;
-        MessageKey = ValidateMessageKey(messageKey ?? $"diagnostics.{kind}");
+        MessageKey = ValidateMessageKey(messageKey ?? CommandTextKeys.Diagnostic(kind));
     }
 
     /// <summary>Gets the reserved <c>RCLI####</c> identifier.</summary>

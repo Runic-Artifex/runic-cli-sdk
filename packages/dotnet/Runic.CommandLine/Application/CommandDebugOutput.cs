@@ -12,7 +12,7 @@ namespace Runic.CommandLine;
 internal sealed class CommandDebugOutput
 {
     internal const string EnvironmentVariableName = "RUNIC_COMMANDLINE_DEBUG";
-    internal const string HostFailureHintKey = "faults.RCLI5000.hint";
+    internal const string HostFailureHintKey = CommandTextKeys.FaultHostFailureHint;
     internal const string HostFailureHint = "Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr.";
     private readonly List<Exception> _pending = [];
 

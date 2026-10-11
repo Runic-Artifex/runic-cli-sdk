@@ -92,14 +92,14 @@ public sealed class CommandTextContext
             bool describesFault = fault is not null && original.Code == fault.Code && original.Message == fault.Message;
             // A translation of faults.{code} still applies when the more specific diagnostic key has none.
             if (describesFault && ReferenceEquals(diagnostics[index], original) &&
-                Resolver.Resolve("faults." + original.Code, Culture, Array.Empty<string>()) is { } faultText && !string.IsNullOrWhiteSpace(faultText))
+                Resolver.Resolve(CommandTextKeys.Fault(original.Code), Culture, Array.Empty<string>()) is { } faultText && !string.IsNullOrWhiteSpace(faultText))
                 diagnostics[index] = new CommandDiagnostic(original.Code, original.Kind, faultText, original.Phase, original.Severity, original.TokenIndex,
                     original.Arguments, original.Path, original.MessageKey);
             if (describesFault && fault is not null)
                 fault = new CommandFault(fault.Code, diagnostics[index].Message, fault.Details, fault.Retryable);
         }
         if (fault is not null && ReferenceEquals(fault, response.Fault))
-            fault = new CommandFault(fault.Code, Resolve("faults." + fault.Code, fault.Message), fault.Details, fault.Retryable);
+            fault = new CommandFault(fault.Code, Resolve(CommandTextKeys.Fault(fault.Code), fault.Message), fault.Details, fault.Retryable);
         return CommandResponse<T>.Read(response.RequestId, response.Command, response.Success, response.ExitCode,
             response.PayloadType, response.Payload, fault, diagnostics, response.FailureData);
     }

@@ -388,8 +388,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         }
 
         if (resolved.Command.IsGroup && positionalTokens.Count > 0)
-            return Error(UnknownCommandCode, "unknown-command", positionalTokens[0].Index, resolved.Path,
-                outputClassification: CurrentOutputClassification(), suggestion: CommandSuggestions.Commands(positionalTokens[0].Value, resolved.Command.Subcommands));
+            return Error(UnknownCommandCode, "unknown-command", positionalTokens[0].Index, resolved.Path, [SafeUnknownCommand(positionalTokens[0].Value)],
+                outputClassification: CurrentOutputClassification(), suggestion:CommandSuggestions.Commands(positionalTokens[0].Value, resolved.Command.Subcommands));
 
         ParseOutcome? argumentError = BindArguments(
             resolved.Command.Arguments,
@@ -1020,15 +1020,16 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         string? suggestion = null,
         string? environmentVariable = null)
     {
-        CommandDiagnostic diagnostic = Diagnostic(
-            code,
-            kind,
-            (FormattedMessage(kind, arguments) ?? MessageFor(kind) + (arguments is { Count: > 0 } && kind is not "unknown-command" ? " (" + arguments[0] + ")" : "")) +
-                (suggestion is not null ? " Did you mean '" + suggestion + "'?" : ""),
-            tokenIndex,
-            path ?? CommandPath.Root,
-            arguments,
-            CommandValueDiagnostics.MessageKey(kind, arguments ?? []));
+        string message = (FormattedMessage(kind, arguments) ?? MessageFor(kind) + (arguments is { Count: > 0 } && kind is not "unknown-command" ? " (" + arguments[0] + ")" : "")) +
+            (suggestion is not null ? " Did you mean '" + suggestion + "'?" : "");
+        string? messageKey = CommandValueDiagnostics.MessageKey(kind, arguments ?? []);
+        // A suggestion is a trailing argument with its own key, so a translation can still offer it.
+        if (suggestion is not null)
+        {
+            arguments = [.. arguments ?? [], suggestion];
+            messageKey = CommandTextKeys.Diagnostic(kind + "-suggestion");
+        }
+        CommandDiagnostic diagnostic = Diagnostic(code, kind, message, tokenIndex, path ?? CommandPath.Root, arguments, messageKey);
         if (outputClassification is not CommandOutputClassification classification)
         {
             return ParseOutcome.FromError(diagnostic);

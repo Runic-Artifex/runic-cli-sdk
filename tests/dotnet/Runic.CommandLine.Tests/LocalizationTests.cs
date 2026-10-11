@@ -18,6 +18,9 @@ internal static class LocalizationTests
         new("localization/resolved-diagnostic-content-is-sanitized", Sanitization),
         new("localization/completion-errors-use-explicit-culture", CompletionError),
         new("localization/legacy-help-presenter-remains-compatible", LegacyPresenter),
+        new("localization/command-text-keys-list-every-framework-key", FrameworkKeys),
+        new("localization/command-text-keys-match-the-documented-table", DocumentedKeys),
+        new("localization/suggestions-are-translatable-arguments", TranslatableSuggestions),
     ];
     private static CommandCatalog Catalog() => GeneratedCommandCatalog.Create();
     private static CommandApp App(TestCommandConsole console, ICommandHelpPresenter? presenter = null) => new(Catalog())
@@ -152,6 +155,97 @@ internal static class LocalizationTests
         public ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName,
             ICommandConsole console, CancellationToken cancellationToken) => console.WriteOutAsync("Legacy help".AsMemory(), cancellationToken);
     }
+    // Every key the framework requests while presenting help, parse, binding and execution failures is a listed
+    // framework key (or an application DescriptionKey/diagnostic) and receives at most the listed arguments.
+    private static async ValueTask FrameworkKeys()
+    {
+        var resolver = new RecordingResolver();
+        string directory = Path.Combine(Path.GetTempPath(), "runic-text-keys-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string file = Path.Combine(directory, "input.txt");
+        File.WriteAllText(file, "");
+        string[][] invocations =
+        [
+            ["--help"], ["greet", "--help"], ["inspect-path", "--help"], ["relations", "--help"], ["env", "--help"], ["values", "--help"],
+            ["config", "shwo"], ["values", "--coutn=1"], ["values", "--unknown"], ["values", "--count"], ["values", "--count", "x"],
+            ["values", "--mode", "slow"], ["inspect-path", "--source", "missing-file", "--target", "missing-directory"],
+            ["inspect-path", "--source", file, "--target", directory, "--count", "9"], ["relations", "--apply"], ["relations", "--apply", "--confirm", "--dry-run"],
+            ["greet", "a", "b"], ["fail"], ["env"], ["--output", "yaml"], ["values", "--count", "1", "--count", "2"],
+        ];
+        foreach (string[] invocation in invocations)
+            foreach (string mode in new[] { "human", "json" })
+            {
+                var console = new TestCommandConsole();
+                await new CommandApp(GeneratedCommandCatalog.Create())
+                {
+                    Name = "sample", Console = console, HandleCancelKeyPress = false, TextResolver = resolver,
+                    ParseSettings = ParseSettings.Default,
+                }.RunAsync([.. invocation, "--output=" + mode]);
+            }
+        Directory.Delete(directory, recursive: true);
+        await new CommandApp(new CommandCatalogBuilder().Build()) { Console = new TestCommandConsole(), HandleCancelKeyPress = false, TextResolver = resolver }
+            .RunAsync(["completion", "unknown"]);
+        foreach ((string key, int count) in resolver.Requests)
+        {
+            if (key.StartsWith("commands.", StringComparison.Ordinal) || key.StartsWith("options.", StringComparison.Ordinal) ||
+                key == "missing" || key == "diagnostics.localized-note") continue;
+            // faults.{code} applies to every fault code, without arguments.
+            if (key.StartsWith("faults.RCLI", StringComparison.Ordinal) && key.Length == "faults.RCLI0000".Length && count == 0) continue;
+            CommandTextKey? listed = CommandTextKeys.Find(key);
+            AssertEx.True(listed is not null, "Unlisted framework key " + key);
+            AssertEx.True(count <= listed!.Arguments.Count, key + " received " + count + " arguments");
+        }
+        foreach (string expected in new[]
+        {
+            CommandTextKeys.HelpUsage, CommandTextKeys.HelpExamples, CommandTextKeys.HelpPathKindFile, CommandTextKeys.HelpPathKindDirectory,
+            CommandTextKeys.HelpExisting, CommandTextKeys.HelpRequires, CommandTextKeys.HelpEnvironment, CommandTextKeys.HelpDefaultCommand,
+            CommandTextKeys.DiagnosticUnknownCommandSuggestion, CommandTextKeys.DiagnosticUnknownOptionSuggestion, CommandTextKeys.DiagnosticFileNotFound,
+            CommandTextKeys.DiagnosticOutOfRange, CommandTextKeys.DiagnosticOptionRequires, CommandTextKeys.DiagnosticOptionConflict,
+            CommandTextKeys.DiagnosticInvalidInteger, CommandTextKeys.FaultHostFailure, CommandTextKeys.FaultHostFailureHint,
+            CommandTextKeys.CompletionInvalidShell, CommandTextKeys.DiagnosticInvalidOutputMode, CommandTextKeys.DiagnosticDuplicateOption,
+        })
+            AssertEx.True(resolver.Requests.Any(request => request.Key == expected), "Not exercised: " + expected);
+        AssertEx.Equal(CommandTextKeys.All.Count, CommandTextKeys.All.Select(key => key.Key).Distinct(StringComparer.Ordinal).Count());
+        AssertEx.Equal("diagnostics.out-of-range", CommandTextKeys.Diagnostic("out-of-range"));
+        AssertEx.Equal("faults.RCLI4000", CommandTextKeys.Fault("RCLI4000"));
+        AssertEx.SequenceEqual(["parameter", "minimum", "maximum"], CommandTextKeys.Find(CommandTextKeys.DiagnosticOutOfRange)!.Arguments);
+        AssertEx.True(CommandTextKeys.Find("commands.greet") is null);
+    }
+    private static ValueTask DocumentedKeys()
+    {
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "Runic.CommandLine.slnx"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("Repository root not found.");
+        var rows = File.ReadAllLines(Path.Combine(root, "docs", "guides", "command-line", "text-keys.md"))
+            .Where(line => line.StartsWith("| `", StringComparison.Ordinal))
+            .Select(line => line.Split('|'))
+            .Select(cells => (Key: cells[1].Trim().Trim('`'), Arguments: string.Join(",", cells[2].Split(',')
+                .Select(cell => cell.Trim()).Where(cell => cell.StartsWith('`')).Select(cell => cell[1..cell.IndexOf('`', 1)]))))
+            .ToArray();
+        AssertEx.SequenceEqual(CommandTextKeys.All.Select(key => key.Key + ":" + string.Join(",", key.Arguments)), rows.Select(row => row.Key + ":" + row.Arguments));
+        return ValueTask.CompletedTask;
+    }
+    private static async ValueTask TranslatableSuggestions()
+    {
+        CommandDiagnostic option = PortableCommandSyntaxAdapter.Instance.Parse(Catalog(), ["values", "--coutn=private-secret"], ParseSettings.Default).Diagnostics[0];
+        AssertEx.Equal("diagnostics.unknown-option-suggestion", option.MessageKey);
+        AssertEx.SequenceEqual(["--coutn", "--count"], option.Arguments);
+        AssertEx.True(option.Message.EndsWith("Did you mean '--count'?", StringComparison.Ordinal), option.Message);
+        CommandDiagnostic command = PortableCommandSyntaxAdapter.Instance.Parse(Catalog(), ["config", "shwo"], ParseSettings.Default).Diagnostics[0];
+        AssertEx.Equal("diagnostics.unknown-command-suggestion", command.MessageKey);
+        AssertEx.SequenceEqual(["shwo", "show"], command.Arguments);
+        var console = new TestCommandConsole();
+        AssertEx.Equal(2, await App(console).RunAsync(["config", "shwo"]));
+        AssertEx.Equal("RCLI1002: Unbekannter Befehl shwo. Meinten Sie show?\n", console.StandardError);
+    }
+    private sealed class RecordingResolver : ICommandTextResolver
+    {
+        public List<(string Key, int Count)> Requests { get; } = [];
+        public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments)
+        {
+            lock (Requests) Requests.Add((key, arguments.Count));
+            return null;
+        }
+    }
     private sealed class GermanResolver : ICommandTextResolver
     {
         public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments)
@@ -164,6 +258,7 @@ internal static class LocalizationTests
                 "commands.localized" => "Lokalisierter Befehl",
                 "options.count" => "Anzahl",
                 "diagnostics.unknown-option" => "Unbekannte Option: " + arguments[0],
+                "diagnostics.unknown-command-suggestion" => "Unbekannter Befehl " + arguments[0] + ". Meinten Sie " + arguments[1] + "?",
                 "diagnostics.localized-note" => "Hinweis",
                 "faults.RCLI2005" => "Ungültiger Wert.",
                 _ => null,
