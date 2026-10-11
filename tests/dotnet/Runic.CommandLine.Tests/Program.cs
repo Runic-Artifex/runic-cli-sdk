@@ -19,7 +19,7 @@ if (args.Contains("--error-causes", StringComparer.Ordinal))
     return await TestRunner.RunAsync(ErrorCauseTests.All);
 
 if (args.Contains("--failure-data", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(FailureDataTests.All, OutputTests.All, ProtocolCorpusTests.All, ResultContextTests.All);
+    return await TestRunner.RunAsync(FailureDataTests.All, OutputTests.All, HelpLinkTests.All, ProtocolCorpusTests.All, ResultContextTests.All);
 
 if (args.Contains("--developer-experience", StringComparer.Ordinal))
     return await TestRunner.RunAsync(DeveloperExperienceTests.All);
@@ -40,6 +40,7 @@ return await TestRunner.RunAsync(
     DiagnosticCodeRangeTests.All,
     DispatcherTests.All,
     OutputTests.All,
+    HelpLinkTests.All,
     FailureDataTests.All,
     ProtocolCorpusTests.All,
     GeneratorTests.All,

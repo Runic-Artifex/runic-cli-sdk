@@ -54,6 +54,29 @@ public sealed record CommandFault
     /// <summary>Gets a value indicating whether the operation may succeed when retried.</summary>
     public bool Retryable { get; }
 
+    /// <summary>
+    /// Gets an absolute <c>https</c> link to the documentation of this fault's code, or
+    /// <see langword="null"/> when there is none.
+    /// </summary>
+    /// <remarks>
+    /// JSON output writes the link as <c>helpUri</c> and human output writes a
+    /// <c>Help for {Code}: {link}</c> line after the fault. The link is presented as given:
+    /// unlike <see cref="Message"/> and <see cref="Details"/>, it is not checked for technical
+    /// content, so it must be a fixed documentation address, never built from user input.
+    /// Set it with an object initializer or a <see langword="with"/> expression.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// The value is not an absolute <c>https</c> URI, carries user information, or exceeds
+    /// 2,048 characters.
+    /// </exception>
+    public Uri? HelpUri
+    {
+        get => _helpUri;
+        init => _helpUri = CommandHelpUri.Validate(value, nameof(HelpUri));
+    }
+
+    private readonly Uri? _helpUri;
+
     private static IReadOnlyDictionary<string, string> CopyDetails(
         IReadOnlyDictionary<string, string>? details)
     {
@@ -75,5 +98,58 @@ public sealed record CommandFault
         }
 
         return new ReadOnlyDictionary<string, string>(copy);
+    }
+}
+
+// Validates the HelpUri of faults and diagnostics. A help link is the command author's fixed
+// documentation address, so presentation keeps it although messages redact URI-like text; it
+// is still bounded, absolute https, without credentials, and written in its escaped ASCII form.
+internal static class CommandHelpUri
+{
+    internal const int MaximumLength = 2_048;
+
+    internal static Uri? Validate(Uri? value, string parameterName)
+    {
+        if (value is not null && !IsValid(value))
+        {
+            throw new ArgumentException(
+                "A help URI must be an absolute https URI without user information of at most 2,048 characters.",
+                parameterName);
+        }
+
+        return value;
+    }
+
+    internal static bool IsValid(Uri value) =>
+        value.IsAbsoluteUri &&
+        string.Equals(value.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal) &&
+        value.Host.Length != 0 &&
+        value.UserInfo.Length == 0 &&
+        value.AbsoluteUri.Length <= MaximumLength;
+
+    // Readers accept only printable ASCII, which is what writers produce.
+    internal static bool TryParse(string text, out Uri? value)
+    {
+        value = null;
+        if (text.Length is 0 or > MaximumLength)
+        {
+            return false;
+        }
+
+        foreach (char character in text)
+        {
+            if (character is < '!' or > '~')
+            {
+                return false;
+            }
+        }
+
+        if (!Uri.TryCreate(text, UriKind.Absolute, out Uri? parsed) || !IsValid(parsed))
+        {
+            return false;
+        }
+
+        value = parsed;
+        return true;
     }
 }

@@ -92,6 +92,7 @@ A fault contains every key below in this output order:
   bytes; values are strings of at most 1,024 UTF-8 bytes.
 - `retryable` is Boolean and means retrying the same logical operation may
   succeed. It never authorizes an automatic retry.
+- `helpUri` is optional and follows `retryable`; see [Help links](#help-links).
 
 ### Optional declared failure data
 
@@ -164,6 +165,7 @@ A diagnostic contains every key below in this output order:
 - `arguments` is an ordered array of at most 16 safe strings. Each value is at
   most 1,024 UTF-8 bytes. Raw token values are excluded unless the command
   definition explicitly classifies the value as safe.
+- `helpUri` is optional and follows `arguments`; see [Help links](#help-links).
 
 Fault messages, fault details, diagnostic messages, and diagnostic arguments
 are consumer-safe surfaces. They MUST NOT contain secrets, original values of
@@ -199,6 +201,17 @@ responsible for keeping such text out of faults.
 
 Sanitization never changes `exitCode`, which comes from the command's exit
 category rather than from the fault code.
+
+## Help links
+
+A producer MAY add a `helpUri` member to a fault or diagnostic that links its
+code to documentation, and omits it otherwise. Existing version-1 readers
+ignore this additive member. Its value is an absolute `https` URI without user
+information, written as at most 2,048 printable ASCII characters. A reader that
+supports it rejects any other value, including `null`, with
+`invalid-help-uri`. The link is the producer's fixed documentation address,
+not presentation text: it is exempt from the technical-content redaction above
+and MUST NOT be built from user input or contain secrets.
 
 ## Compatibility
 
