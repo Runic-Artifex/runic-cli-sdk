@@ -26,13 +26,18 @@ protocol/payload identity and one-frame output.
 
 `CommandApp.Culture` selects the invocation culture without changing process
 culture. The example captures a Translations snapshot before running the CLI,
-and its resolver maps CLI text keys to generated Translations keys. The public
-Translations preview generates encoded C# member names; the explicit mapping
-uses those generated members and never copies catalog ordinals. Some CLI keys
-include hyphens, so their corresponding RMF2 resources use camelCase identifiers.
-`ICommandTextResolver` receives ordered safe diagnostic arguments; this example's
-unknown-option message needs no arguments. For messages that do, map these
-ordered values to the resource's named `TextArgument` inputs.
+and its resolver maps CLI text keys (the `CommandTextKeys` constants) to
+generated Translations keys. The published Translations previews generate
+encoded C# member names and have no lookup by name, so this mapping is explicit.
+
+The `Runic.Translations.CommandLine` package replaces the mapping: its
+`TranslationCommandTextResolver` finds each key in your catalog by name, binds
+the ordered arguments to named inputs and falls back to built-in English and
+German framework text. Until that package is published, the
+[runic-translations-sdk example](https://github.com/Runic-Artifex/runic-translations-sdk/tree/main/examples/command-line/localized)
+shows it without any mapping, and this example will switch to it after the
+release. The [framework text key table](../../../docs/guides/command-line/text-keys.md)
+lists every key and its argument order.
 
 A resolver returns null for an unknown key. Help uses literal `Description`
 metadata as fallback and default English framework labels. Description keys are

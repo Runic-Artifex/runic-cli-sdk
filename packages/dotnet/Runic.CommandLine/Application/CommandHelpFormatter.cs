@@ -49,15 +49,15 @@ public static class CommandHelpFormatter
             else command.TryGetSubcommand(segment, out command);
         }
         var text = new StringBuilder();
-        string usagePrefix = context.Resolve("help.usage", "Usage") + ": ";
+        string usagePrefix = context.Resolve(CommandTextKeys.HelpUsage, "Usage") + ": ";
         var usage = new StringBuilder(applicationName);
         if (path.Count > 0) usage.Append(' ').Append(path);
-        else if (catalog.Commands.Count > 0) usage.Append(" <").Append(context.Resolve("help.command-placeholder", "command")).Append('>');
+        else if (catalog.Commands.Count > 0) usage.Append(" <").Append(context.Resolve(CommandTextKeys.HelpCommandPlaceholder, "command")).Append('>');
         if (command is not null)
             foreach (CommandArgumentDescriptor argument in command.Arguments.Where(argument => !argument.Help.Hidden))
                 usage.Append(' ').Append(argument.Arity.Minimum == 0 ? '[' : '<').Append(argument.Help.ValueName ?? argument.Name)
                     .Append(argument.Arity.Maximum != 1 ? "..." : "").Append(argument.Arity.Minimum == 0 ? ']' : '>');
-        usage.Append(" [").Append(context.Resolve("help.options-placeholder", "options")).Append(']');
+        usage.Append(" [").Append(context.Resolve(CommandTextKeys.HelpOptionsPlaceholder, "options")).Append(']');
         text.Append(usagePrefix);
         int usageIndent = CellWidth(usagePrefix);
         AppendWrapped(text, usage.ToString(), usageIndent, usageIndent, width);
@@ -73,29 +73,29 @@ public static class CommandHelpFormatter
         }
         var rows = new List<Row>();
         foreach (CommandDescriptor child in (command?.Subcommands ?? catalog.Commands).Where(child => !child.Help.Hidden))
-            rows.Add(new(child.Name + (ReferenceEquals(child, catalog.DefaultCommand) ? " (" + context.Resolve("help.default-command", "default") + ")" : "") +
+            rows.Add(new(child.Name + (ReferenceEquals(child, catalog.DefaultCommand) ? " (" + context.Resolve(CommandTextKeys.HelpDefaultCommand, "default") + ")" : "") +
                 (child.Aliases.Count > 0 ? " (" + string.Join(", ", child.Aliases) + ")" : ""), context.Description(child.Help, child.DescriptionKey)));
         if (path.Count == 0 && !catalog.TryGetCommand("completion", out _))
-            rows.Add(new("completion <shell>", context.Resolve("help.completion", "Generate bash, zsh, fish or PowerShell completions")));
-        AppendSection(text, context.Resolve("help.commands", "Commands"), rows, width);
+            rows.Add(new("completion <shell>", context.Resolve(CommandTextKeys.HelpCompletion, "Generate bash, zsh, fish or PowerShell completions")));
+        AppendSection(text, context.Resolve(CommandTextKeys.HelpCommands, "Commands"), rows, width);
         rows.Clear();
         if (command is not null)
             foreach (CommandArgumentDescriptor argument in command.Arguments.Where(argument => !argument.Help.Hidden))
                 rows.Add(new(argument.Name, context.Description(argument.Help, argument.DescriptionKey), Notes(argument.Help, argument.IsSensitive, argument.Arity.Minimum > 0, context)));
-        AppendSection(text, context.Resolve("help.arguments", "Arguments"), rows, width);
+        AppendSection(text, context.Resolve(CommandTextKeys.HelpArguments, "Arguments"), rows, width);
         rows.Clear();
         foreach (CommandOptionDescriptor option in (command?.Options ?? CommandCompletion.GlobalOptions(catalog)).Where(option => !option.Help.Hidden))
             rows.Add(new(string.Join(", ", new[] { option.Name }.ConcatAliases(option.Aliases)) +
                 (option.Arity.Maximum != 0 ? " <" + (option.Help.ValueName ?? option.Id) + (option.Arity.Maximum != 1 ? "..." : "") + ">" : ""),
                 context.Description(option.Help, option.DescriptionKey), Notes(option.Help, option.IsSensitive, option.IsRequired, context)));
-        rows.Add(new("-h, --help", context.Resolve("help.show-help", "Show help")));
-        rows.Add(new("--version", context.Resolve("help.show-version", "Show version")));
-        rows.Add(new(outputOptionName + " <human|json>", context.Resolve("help.output-format", "Select output format")));
-        AppendSection(text, context.Resolve("help.options", "Options"), rows, width);
+        rows.Add(new("-h, --help", context.Resolve(CommandTextKeys.HelpShowHelp, "Show help")));
+        rows.Add(new("--version", context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
+        rows.Add(new(outputOptionName + " <human|json>", context.Resolve(CommandTextKeys.HelpOutputFormat, "Select output format")));
+        AppendSection(text, context.Resolve(CommandTextKeys.HelpOptions, "Options"), rows, width);
         if (command?.Help.Examples.Count > 0)
         {
             // Examples are copied into a shell, so they are never wrapped.
-            text.Append('\n').Append(context.Resolve("help.examples", "Examples")).Append(":\n");
+            text.Append('\n').Append(context.Resolve(CommandTextKeys.HelpExamples, "Examples")).Append(":\n");
             foreach (string example in command.Help.Examples) text.Append("  ").Append(example).Append('\n');
         }
         return text.ToString();
@@ -107,19 +107,20 @@ public static class CommandHelpFormatter
     {
         var notes = new List<string>();
         void Note(string label, string? value = null) => notes.Add("[" + label + (value is null ? "" : ": " + value) + "]");
-        if (required) Note(context.Resolve("help.required", "required"));
-        if (!sensitive && !string.IsNullOrEmpty(help.DefaultValue)) Note(context.Resolve("help.default", "default"), help.DefaultValue);
-        if (!sensitive && help.Choices.Count > 0) Note(context.Resolve("help.choices", "choices"), string.Join(", ", help.Choices));
-        if (help.EnvironmentVariable is { } environment) Note(context.Resolve("help.environment", "env"), environment);
+        if (required) Note(context.Resolve(CommandTextKeys.HelpRequired, "required"));
+        if (!sensitive && !string.IsNullOrEmpty(help.DefaultValue)) Note(context.Resolve(CommandTextKeys.HelpDefault, "default"), help.DefaultValue);
+        if (!sensitive && help.Choices.Count > 0) Note(context.Resolve(CommandTextKeys.HelpChoices, "choices"), string.Join(", ", help.Choices));
+        if (help.EnvironmentVariable is { } environment) Note(context.Resolve(CommandTextKeys.HelpEnvironment, "env"), environment);
         if (help.PathKind != CommandPathKind.None)
         {
-            string kind = help.PathKind.ToString().ToLowerInvariant();
-            Note((help.MustExist ? context.Resolve("help.existing", "existing") + " " : "") + context.Resolve("help.path-kind." + kind, kind));
+            (string key, string kind) = help.PathKind == CommandPathKind.File
+                ? (CommandTextKeys.HelpPathKindFile, "file") : (CommandTextKeys.HelpPathKindDirectory, "directory");
+            Note((help.MustExist ? context.Resolve(CommandTextKeys.HelpExisting, "existing") + " " : "") + context.Resolve(key, kind));
         }
-        if (help.Minimum is { } min) Note(context.Resolve("help.minimum", "min"), min.ToString(CultureInfo.InvariantCulture));
-        if (help.Maximum is { } max) Note(context.Resolve("help.maximum", "max"), max.ToString(CultureInfo.InvariantCulture));
-        if (help.Requires.Count > 0) Note(context.Resolve("help.requires", "requires"), string.Join(", ", help.Requires));
-        if (help.ConflictsWith.Count > 0) Note(context.Resolve("help.conflicts", "conflicts"), string.Join(", ", help.ConflictsWith));
+        if (help.Minimum is { } min) Note(context.Resolve(CommandTextKeys.HelpMinimum, "min"), min.ToString(CultureInfo.InvariantCulture));
+        if (help.Maximum is { } max) Note(context.Resolve(CommandTextKeys.HelpMaximum, "max"), max.ToString(CultureInfo.InvariantCulture));
+        if (help.Requires.Count > 0) Note(context.Resolve(CommandTextKeys.HelpRequires, "requires"), string.Join(", ", help.Requires));
+        if (help.ConflictsWith.Count > 0) Note(context.Resolve(CommandTextKeys.HelpConflicts, "conflicts"), string.Join(", ", help.ConflictsWith));
         return notes;
     }
 

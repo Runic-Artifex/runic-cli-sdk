@@ -32,7 +32,7 @@ internal static class ErrorCauseTests
         new("causes/new-messages-are-localizable", Localizable),
     ];
 
-    private const string HintKey = "faults.RCLI5000.hint";
+    private const string HintKey = "hints.RCLI5000";
 
     private static CommandApp App(TestCommandConsole console, Func<string, string?>? environment = null, ICommandTextResolver? resolver = null) =>
         new(GeneratedCommandCatalog.Create())
@@ -362,14 +362,14 @@ internal static class ErrorCauseTests
         AssertEx.Equal("RCLI1002", diagnostic.Code);
         AssertEx.Equal("unknown-command", diagnostic.Kind);
         AssertEx.True(diagnostic.Message.EndsWith("Did you mean 'list'?", StringComparison.Ordinal), diagnostic.Message);
-        AssertEx.SequenceEqual(["lst"], diagnostic.Arguments);
+        AssertEx.SequenceEqual(["lst", "list"], diagnostic.Arguments);
         AssertEx.Equal(0, diagnostic.TokenIndex);
         var console = new TestCommandConsole();
         AssertEx.Equal(2, await new CommandApp(catalog) { Console = console, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["lst", "--output=json"]));
         using (var frame = CommandTestEnvelope.Parse(console.StandardOutput))
         {
             AssertEx.Equal("RCLI1002", frame.RootElement.GetProperty("fault").GetProperty("code").GetString());
-            AssertEx.Equal("diagnostics.unknown-command", frame.RootElement.GetProperty("diagnostics")[0].GetProperty("messageKey").GetString());
+            AssertEx.Equal("diagnostics.unknown-command-suggestion", frame.RootElement.GetProperty("diagnostics")[0].GetProperty("messageKey").GetString());
         }
         // A token that resembles no command is still an unexpected argument of the default command.
         AssertEx.Equal("RCLI1006", PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["zzzzzz"], ParseSettings.Default).Diagnostics.Single().Code);

@@ -60,7 +60,7 @@ internal static class CommandValueDiagnostics
 
     // A sensitive choice list is withheld, so its message has one argument and its own key.
     internal static string? MessageKey(string kind, IReadOnlyList<string> arguments) =>
-        kind == "invalid-choice" && arguments.Count == 1 ? "diagnostics.invalid-choice-hidden" : null;
+        kind == "invalid-choice" && arguments.Count == 1 ? CommandTextKeys.DiagnosticInvalidChoiceHidden : null;
 
     // Lists declared choices unless the value is sensitive or the list is too long for one diagnostic argument.
     internal static string? Choices(IReadOnlyList<string> choices, bool sensitive)

@@ -380,13 +380,14 @@ option attributes accept `DescriptionKey`; `Description` remains the literal
 fallback. Diagnostic messages resolve their `MessageKey` and `Arguments`.
 Faults without a matching diagnostic use `faults.{code}` with no arguments; a
 diagnostic whose own key is unresolved also falls back to `faults.{code}`.
-Value errors use `diagnostics.{kind}` keys such as `diagnostics.invalid-integer`,
-`diagnostics.invalid-number`, `diagnostics.invalid-choice` (or
-`diagnostics.invalid-choice-hidden` without the list), `diagnostics.out-of-range`,
-`diagnostics.below-minimum`, `diagnostics.above-maximum`,
-`diagnostics.environment-value-source`, `diagnostics.invalid-output-mode` and
-`diagnostics.invalid-environment-value`; argument `{0}` is the option spelling
-or argument placeholder. `CommandTextContext.ValidateDescriptionKeys(catalog)`
+`CommandTextKeys` lists every framework key with constants such as
+`CommandTextKeys.HelpUsage`, and `CommandTextKeys.All` gives each key's ordered
+argument names; the [framework text key table](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/text-keys.md)
+shows them with their English text. Value errors use `diagnostics.{kind}` keys
+such as `diagnostics.invalid-integer` or `diagnostics.out-of-range`, whose first
+argument is the option spelling or argument placeholder. A typo suggestion is a
+trailing argument with its own key, such as `diagnostics.unknown-option-suggestion`.
+`CommandTextContext.ValidateDescriptionKeys(catalog)`
 reports each `DescriptionKey` the resolver does not resolve (`RCLI0023`), so a
 test can catch a typo that would otherwise show the literal fallback; with
 `RUNIC_COMMANDLINE_DEBUG=1`, help also prints them to stderr as warnings.
@@ -394,9 +395,11 @@ Translations change presentation text, including JSON messages, while command
 spellings, canonical paths, diagnostic codes/keys and protocol/payload identities
 remain unchanged. The existing sanitizers still apply to resolved text.
 
-See the maintained [English/German example](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/localized/README.md)
-using public, independently versioned Translations packages. It is optional;
-this package does not reference Translations.
+With Runic Translations, set `TextResolver = new TranslationCommandTextResolver(snapshot)`
+from the `Runic.Translations.CommandLine` package: it looks up each key in your
+catalog by name, falls back to its built-in English and German framework text,
+and needs no key mapping. The [`Runic.Translations.CommandLine`](https://www.nuget.org/packages/Runic.Translations.CommandLine) package README shows an English/German setup.
+Both are optional; this package does not reference Translations.
 
 ## Commands inside a Runic application
 
