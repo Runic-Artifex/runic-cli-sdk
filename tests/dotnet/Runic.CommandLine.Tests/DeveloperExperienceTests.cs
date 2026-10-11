@@ -12,29 +12,16 @@ using Runic.CommandLine.Testing;
 namespace Runic.CommandLine.Tests;
 
 // Consumer-trial findings: less boilerplate (W250-019) and output paper-cuts (W250-026).
-internal static class DeveloperExperienceTests
+internal sealed class DeveloperExperienceTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("boilerplate/shared-services-resolve-and-are-never-disposed", SharedServices),
-        new("boilerplate/per-invocation-scopes-are-disposed-once", PerInvocationScopes),
-        new("boilerplate/hosted-adapter-reuses-app-identity-and-services", HostedAdapterReusesApp),
-        new("boilerplate/hosted-decision-exposes-the-matched-command", HostedMatchInfo),
-        new("boilerplate/console-string-and-line-overloads", ConsoleOverloads),
-        new("papercuts/human-output-renders-collections-and-booleans", HumanCollections),
-        new("papercuts/json-keeps-text-readable-and-escapes-html", JsonEscaping),
-        new("papercuts/auto-created-groups-take-a-description", GroupDescriptions),
-        new("papercuts/group-attribute-errors-are-build-diagnostics", GroupDiagnostics),
-        new("papercuts/culture-defaults-to-current-ui-culture", CultureDefault),
-    ];
-
     private static CommandApp App(ICommandConsole console, ICommandExecutionScopeFactory? scopes = null) => new(GeneratedCommandCatalog.Create())
     {
         Name = "sample", Version = "9.8.7", Console = console, HandleCancelKeyPress = false,
         ParseSettings = ParseSettings.Default, ScopeFactory = scopes,
     };
 
-    private static async ValueTask SharedServices()
+    [Test, DisplayName("boilerplate/shared-services-resolve-and-are-never-disposed")]
+    public async ValueTask SharedServices()
     {
         var service = new DxService("shared");
         CommandServices services = CommandServices.Empty.With(service);
@@ -51,7 +38,8 @@ internal static class DeveloperExperienceTests
         AssertEx.Equal(0, service.Disposals);
     }
 
-    private static async ValueTask PerInvocationScopes()
+    [Test, DisplayName("boilerplate/per-invocation-scopes-are-disposed-once")]
+    public async ValueTask PerInvocationScopes()
     {
         var created = new List<DxScope>();
         var console = new TestCommandConsole();
@@ -69,7 +57,8 @@ internal static class DeveloperExperienceTests
         AssertEx.Equal(1, counter.Value);
     }
 
-    private static async ValueTask HostedAdapterReusesApp()
+    [Test, DisplayName("boilerplate/hosted-adapter-reuses-app-identity-and-services")]
+    public async ValueTask HostedAdapterReusesApp()
     {
         var console = new TestCommandConsole();
         var adapter = new CommandLineHostingAdapter(App(console, CommandScopes.FromServices(CommandServices.Empty.With(new DxService("hosted")))));
@@ -93,7 +82,8 @@ internal static class DeveloperExperienceTests
         await AssertEx.ThrowsAsync<InvalidOperationException>(async () => await adapter.RunAsync(ui, console));
     }
 
-    private static ValueTask HostedMatchInfo()
+    [Test, DisplayName("boilerplate/hosted-decision-exposes-the-matched-command")]
+    public ValueTask HostedMatchInfo()
     {
         var adapter = new CommandLineHostingAdapter(App(new TestCommandConsole()));
         HostedCommandLineDecision Classify(params string[] args) =>
@@ -121,7 +111,8 @@ internal static class DeveloperExperienceTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask ConsoleOverloads()
+    [Test, DisplayName("boilerplate/console-string-and-line-overloads")]
+    public async ValueTask ConsoleOverloads()
     {
         var console = new TestCommandConsole();
         await console.WriteOutAsync("a");
@@ -133,7 +124,8 @@ internal static class DeveloperExperienceTests
         AssertEx.Equal("cd\n", console.StandardError);
     }
 
-    private static async ValueTask HumanCollections()
+    [Test, DisplayName("papercuts/human-output-renders-collections-and-booleans")]
+    public async ValueTask HumanCollections()
     {
         var console = new TestCommandConsole();
         var value = new DxTask(7, "Buy milk\nand bread", false, ["home", "errands"], [], null,
@@ -163,7 +155,8 @@ internal static class DeveloperExperienceTests
         AssertEx.Equal("true\n", console.StandardOutput);
     }
 
-    private static async ValueTask JsonEscaping()
+    [Test, DisplayName("papercuts/json-keeps-text-readable-and-escapes-html")]
+    public async ValueTask JsonEscaping()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["dx-text", "--output", "json"]));
@@ -175,7 +168,8 @@ internal static class DeveloperExperienceTests
         AssertEx.Equal(DxCommands.Text, document.RootElement.GetProperty("payload").GetString());
     }
 
-    private static async ValueTask GroupDescriptions()
+    [Test, DisplayName("papercuts/auto-created-groups-take-a-description")]
+    public async ValueTask GroupDescriptions()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["--help"]));
@@ -196,7 +190,8 @@ internal static class DeveloperExperienceTests
         AssertEx.True(manual.TryGetCommand("tools", out CommandDescriptor? tools) && tools!.Help.Description == "Tools." && tools.DescriptionKey == "groups.tools");
     }
 
-    private static ValueTask GroupDiagnostics()
+    [Test, DisplayName("papercuts/group-attribute-errors-are-build-diagnostics")]
+    public ValueTask GroupDiagnostics()
     {
         CSharpCompilation compilation = GeneratorTests.CreateCompilation("""
             using Runic.CommandLine;
@@ -229,7 +224,8 @@ internal static class DeveloperExperienceTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask CultureDefault()
+    [Test, DisplayName("papercuts/culture-defaults-to-current-ui-culture")]
+    public async ValueTask CultureDefault()
     {
         CultureInfo culture = CultureInfo.CurrentCulture, uiCulture = CultureInfo.CurrentUICulture;
         try

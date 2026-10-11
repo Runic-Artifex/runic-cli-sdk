@@ -3,23 +3,8 @@ using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class HelpLayoutTests
+internal sealed class HelpLayoutTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("help/empty-default-is-omitted", EmptyDefaultIsOmitted),
-        new("help/long-lines-wrap-under-the-description-column", LongLinesWrap),
-        new("help/every-line-fits-the-requested-width", EveryLineFits),
-        new("help/spectre-presenter-wraps-to-its-console-width", SpectreWrapsToConsoleWidth),
-        new("help/long-description-keeps-preformatted-lines", LongDescriptionKeepsPreformattedLines),
-        new("help/row-description-lines-continue-under-the-column", RowDescriptionLines),
-        new("help/wide-characters-use-two-cells-and-may-break", WideCharacters),
-        new("help/notes-fit-narrow-widths", NotesFitNarrowWidths),
-        new("help/row-descriptions-wrap-after-double-spaces", RowDescriptionsWrapAfterDoubleSpaces),
-        new("help/unpaired-surrogates-do-not-fail", UnpairedSurrogates),
-        new("help/explicit-spectre-width-is-used-as-given", ExplicitSpectreWidth),
-    ];
-
     private static readonly HashSet<string> UnbreakableTerms =
         ["--format, -f <format>", "--destination-directory-for-archives <DIR>", "--output <human|json>", "completion <shell>"];
 
@@ -40,7 +25,8 @@ internal static class HelpLayoutTests
         return builder.Build();
     }
 
-    private static ValueTask EmptyDefaultIsOmitted()
+    [Test, DisplayName("help/empty-default-is-omitted")]
+    public ValueTask EmptyDefaultIsOmitted()
     {
         string help = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]));
         AssertEx.True(!help.Contains("[default: ]", StringComparison.Ordinal), help);
@@ -49,7 +35,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask LongLinesWrap()
+    [Test, DisplayName("help/long-lines-wrap-under-the-description-column")]
+    public ValueTask LongLinesWrap()
     {
         string help = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, "--output", 60);
         const string expected = """
@@ -81,7 +68,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask EveryLineFits()
+    [Test, DisplayName("help/every-line-fits-the-requested-width")]
+    public ValueTask EveryLineFits()
     {
         CommandCatalog catalog = Catalog();
         foreach (int width in Enumerable.Range(CommandHelpFormatter.MinimumWidth, 21).Append(CommandHelpFormatter.DefaultWidth).Append(120))
@@ -101,7 +89,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask SpectreWrapsToConsoleWidth()
+    [Test, DisplayName("help/spectre-presenter-wraps-to-its-console-width")]
+    public async ValueTask SpectreWrapsToConsoleWidth()
     {
         var inner = new TestCommandConsole();
         var console = new SpectreCommandConsole(inner, width: 60, color: false);
@@ -122,7 +111,8 @@ internal static class HelpLayoutTests
         return CommandHelpFormatter.Format(builder.Build(), "fixture", new CommandPath(["convert"]), CommandTextContext.English, "--output", width);
     }
 
-    private static ValueTask LongDescriptionKeepsPreformattedLines()
+    [Test, DisplayName("help/long-description-keeps-preformatted-lines")]
+    public ValueTask LongDescriptionKeepsPreformattedLines()
     {
         string help = Convert("""
             Formats:
@@ -165,7 +155,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask RowDescriptionLines()
+    [Test, DisplayName("help/row-description-lines-continue-under-the-column")]
+    public ValueTask RowDescriptionLines()
     {
         string help = Convert(null, "First line of the description, long enough to wrap.\nSecond line\n  indented   example\n\nAfter a blank line", 50);
         const string expected = """
@@ -191,7 +182,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask WideCharacters()
+    [Test, DisplayName("help/wide-characters-use-two-cells-and-may-break")]
+    public ValueTask WideCharacters()
     {
         string help = Convert("出力形式を選択します。既定の形式は機械可読なJSONです。", "モードを選びます。e\u0301te\u0301 ＡＢＣ", 30);
         // {ETE} is "été" spelled with combining U+0301 accents, which take no cell.
@@ -220,7 +212,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask NotesFitNarrowWidths()
+    [Test, DisplayName("help/notes-fit-narrow-widths")]
+    public ValueTask NotesFitNarrowWidths()
     {
         for (int width = CommandHelpFormatter.MinimumWidth; width < 40; width++)
         {
@@ -245,7 +238,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask RowDescriptionsWrapAfterDoubleSpaces()
+    [Test, DisplayName("help/row-descriptions-wrap-after-double-spaces")]
+    public ValueTask RowDescriptionsWrapAfterDoubleSpaces()
     {
         string help = Convert(null, "Selects the mode.  The default mode is fast and suits most inputs.", 40);
         AssertEx.True(help.Contains("""
@@ -255,7 +249,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask UnpairedSurrogates()
+    [Test, DisplayName("help/unpaired-surrogates-do-not-fail")]
+    public ValueTask UnpairedSurrogates()
     {
         foreach (string text in new[] { "Bad \uD800 text", "Bad\uDC00text", "末尾\uD800", "\uD800\u0301 x" })
         {
@@ -266,7 +261,8 @@ internal static class HelpLayoutTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask ExplicitSpectreWidth()
+    [Test, DisplayName("help/explicit-spectre-width-is-used-as-given")]
+    public async ValueTask ExplicitSpectreWidth()
     {
         // A terminal-looking console with an explicit width: the presenter must not subtract the terminal margin.
         var inner = new TestCommandConsole { IsOutputRedirected = false };

@@ -9,7 +9,7 @@ using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class GeneratorTests
+internal sealed class GeneratorTests
 {
     private const string Commands = """
         using Runic.CommandLine;
@@ -26,15 +26,8 @@ internal static class GeneratorTests
         }
         """;
 
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("generator/unchanged-commands-are-cached", UnchangedCommandsAreCached),
-        new("generator/parameter-errors-use-distinct-diagnostics", ParameterErrorsUseDistinctDiagnostics),
-        new("generator/custom-result-contexts-compile-and-execute", CustomResultContexts),
-        new("generator/partial-result-contexts-use-default-only-when-json-generation-completes-them", PartialResultContexts),
-    ];
-
-    private static ValueTask UnchangedCommandsAreCached()
+    [Test, DisplayName("generator/unchanged-commands-are-cached")]
+    public ValueTask UnchangedCommandsAreCached()
     {
         CSharpCompilation compilation = CreateCompilation(Commands);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
@@ -60,7 +53,8 @@ internal static class GeneratorTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ParameterErrorsUseDistinctDiagnostics()
+    [Test, DisplayName("generator/parameter-errors-use-distinct-diagnostics")]
+    public ValueTask ParameterErrorsUseDistinctDiagnostics()
     {
         CSharpCompilation compilation = CreateCompilation("""
             using Runic.CommandLine;
@@ -105,7 +99,8 @@ internal static class GeneratorTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask CustomResultContexts()
+    [Test, DisplayName("generator/custom-result-contexts-compile-and-execute")]
+    public async ValueTask CustomResultContexts()
     {
         foreach (bool hasDefault in new[] { false, true })
         {
@@ -158,7 +153,8 @@ internal static class GeneratorTests
         }
     }
 
-    private static ValueTask PartialResultContexts()
+    [Test, DisplayName("generator/partial-result-contexts-use-default-only-when-json-generation-completes-them")]
+    public ValueTask PartialResultContexts()
     {
         // System.Text.Json's generator is not run here, so only the expression
         // chosen for each context is observable. A non-partial containing type keeps

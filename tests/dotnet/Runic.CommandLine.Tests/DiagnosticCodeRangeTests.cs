@@ -8,15 +8,8 @@ using Runic.CommandLine.Generators;
 
 namespace Runic.CommandLine.Tests;
 
-internal static partial class DiagnosticCodeRangeTests
+internal sealed partial class DiagnosticCodeRangeTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("diagnostics/library-never-emits-application-range", LibraryNeverEmitsApplicationRange),
-        new("diagnostics/generator-rules-link-to-documented-sections", GeneratorRulesLinkToDocumentation),
-        new("diagnostics/every-shipped-code-has-a-catalog-entry", EveryShippedCodeHasCatalogEntry),
-    ];
-
     // "RCLI0001 through RCLI9999" bounds the code range in CommandDiagnostic's validation message; neither is reported.
     private static readonly HashSet<string> RangeBounds = new(StringComparer.Ordinal) { "RCLI0001", "RCLI9999" };
 
@@ -82,7 +75,8 @@ internal static partial class DiagnosticCodeRangeTests
         return codes;
     }
 
-    private static ValueTask LibraryNeverEmitsApplicationRange()
+    [Test, DisplayName("diagnostics/library-never-emits-application-range")]
+    public ValueTask LibraryNeverEmitsApplicationRange()
     {
         string[] application = ShippedCodes().Where(static code => code.StartsWith("RCLI8", StringComparison.Ordinal)).ToArray();
         AssertEx.True(application.Length == 0, "Library code uses the application range: " + string.Join(", ", application));
@@ -91,7 +85,8 @@ internal static partial class DiagnosticCodeRangeTests
 
     // Help links and catalog validation messages open the code's catalog entry at the release tag, so each code the
     // packages can report needs one, and an entry for a code that no longer ships is stale.
-    private static ValueTask EveryShippedCodeHasCatalogEntry()
+    [Test, DisplayName("diagnostics/every-shipped-code-has-a-catalog-entry")]
+    public ValueTask EveryShippedCodeHasCatalogEntry()
     {
         SortedSet<string> shipped = ShippedCodes();
         shipped.ExceptWith(RangeBounds);
@@ -103,7 +98,8 @@ internal static partial class DiagnosticCodeRangeTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask GeneratorRulesLinkToDocumentation()
+    [Test, DisplayName("diagnostics/generator-rules-link-to-documented-sections")]
+    public ValueTask GeneratorRulesLinkToDocumentation()
     {
         DiagnosticDescriptor[] descriptors = typeof(CommandLineGenerator)
             .GetFields(BindingFlags.NonPublic | BindingFlags.Static)

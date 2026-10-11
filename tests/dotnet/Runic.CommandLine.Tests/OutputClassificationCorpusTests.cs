@@ -2,21 +2,20 @@ using System.Text.Json;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class OutputClassificationCorpusTests
+internal sealed class OutputClassificationCorpusTests
 {
     private static readonly OutputClassificationCorpus Corpus = ReadCorpus();
     private static readonly CommandCatalog Catalog = FixtureCatalog.Create();
 
-    public static IReadOnlyList<TestCase> All { get; } = CreateTests();
-
-    private static TestCase[] CreateTests()
+    public static IEnumerable<string> CaseIds()
     {
         AssertEx.Equal(18, Corpus.Cases.Length, "The frozen output-classification corpus row count changed.");
         AssertEx.Equal(CommandOutputClassifier.EnvironmentVariableName, Corpus.EnvironmentVariable);
-        return Corpus.Cases
-            .Select(test => new TestCase($"output-classification/{test.Id}", () => RunCase(test)))
-            .ToArray();
+        return Corpus.Cases.Select(static test => test.Id);
     }
+
+    [Test, MethodDataSource(nameof(CaseIds)), CorpusCaseName("output-classification/")]
+    public ValueTask Case(string id) => RunCase(Corpus.Cases.Single(test => test.Id == id));
 
     private static ValueTask RunCase(OutputClassificationCase test)
     {

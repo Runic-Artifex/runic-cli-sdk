@@ -1,34 +1,5 @@
 namespace Runic.CommandLine.Tests;
 
-internal sealed record TestCase(string Name, Func<ValueTask> Body);
-
-internal static class TestRunner
-{
-    public static async Task<int> RunAsync(params IReadOnlyList<TestCase>[] suites)
-    {
-        int passed = 0;
-        int failed = 0;
-
-        foreach (TestCase test in suites.SelectMany(static suite => suite))
-        {
-            try
-            {
-                await test.Body();
-                Console.WriteLine($"PASS {test.Name}");
-                passed++;
-            }
-            catch (Exception exception)
-            {
-                Console.Error.WriteLine($"FAIL {test.Name}: {exception.Message}");
-                failed++;
-            }
-        }
-
-        Console.WriteLine($"SUMMARY passed={passed} failed={failed} total={passed + failed}");
-        return failed == 0 ? 0 : 1;
-    }
-}
-
 internal static class AssertEx
 {
     public static void True(bool condition, string message = "Expected condition to be true.")

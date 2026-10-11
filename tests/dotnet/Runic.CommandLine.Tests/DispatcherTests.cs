@@ -3,31 +3,22 @@ using System.Globalization;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class DispatcherTests
+internal sealed class DispatcherTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("dispatcher/typed-handler-receives-bound-options-and-context", TypedHandlerContext),
-        new("dispatcher/success-disposes-async-scope-exactly-once", () => DisposalCase(Behavior.Success)),
-        new("dispatcher/fault-disposes-async-scope-exactly-once", () => DisposalCase(Behavior.Fault)),
-        new("dispatcher/exception-disposes-async-scope-exactly-once", () => DisposalCase(Behavior.Exception)),
-        new("dispatcher/cancellation-disposes-async-scope-exactly-once", () => DisposalCase(Behavior.Cancellation)),
-        new("dispatcher/graceful-stop-preserves-success", GracefulStopPreservesSuccess),
-        new("dispatcher/binding-fault-skips-handler-and-disposes-scope", BindingFault),
-        new("dispatcher/merges-handler-and-binding-diagnostics-once", MergesDiagnosticsOnce),
-        new("dispatcher/writes-failure-human-output-before-human-diagnostics", FailureHumanOutput),
-        new("dispatcher/omits-failure-human-output-from-json", JsonOmitsFailureHumanOutput),
-        new("dispatcher/failure-human-output-sink-failure-is-host-failure", FailureHumanOutputSinkFailure),
-        new("dispatcher/disposal-failure-takes-precedence", DisposalFailurePrecedence),
-        new("dispatcher/concurrent-invocations-have-isolated-scopes", ConcurrentIsolation),
-        new("dispatcher/observer-events-are-ordered-and-value-free", ObserverEvents),
-        new("dispatcher/correlation-ids-match-wire-contract", CorrelationIdsMatchWireContract),
-        new("dispatcher/fatal-handler-disposes-scope-and-propagates", FatalHandlerDisposesAndPropagates),
-        new("dispatcher/fatal-observer-disposes-scope-and-propagates", FatalObserverDisposesAndPropagates),
-        new("dispatcher/invalid-exit-policy-rejected-before-execution", InvalidExitPolicy),
-    ];
+    [Test, DisplayName("dispatcher/success-disposes-async-scope-exactly-once")]
+    public ValueTask SuccessDisposesAsyncScopeExactlyOnce() => DisposalCase(Behavior.Success);
 
-    private static async ValueTask TypedHandlerContext()
+    [Test, DisplayName("dispatcher/fault-disposes-async-scope-exactly-once")]
+    public ValueTask FaultDisposesAsyncScopeExactlyOnce() => DisposalCase(Behavior.Fault);
+
+    [Test, DisplayName("dispatcher/exception-disposes-async-scope-exactly-once")]
+    public ValueTask ExceptionDisposesAsyncScopeExactlyOnce() => DisposalCase(Behavior.Exception);
+
+    [Test, DisplayName("dispatcher/cancellation-disposes-async-scope-exactly-once")]
+    public ValueTask CancellationDisposesAsyncScopeExactlyOnce() => DisposalCase(Behavior.Cancellation);
+
+    [Test, DisplayName("dispatcher/typed-handler-receives-bound-options-and-context")]
+    public async ValueTask TypedHandlerContext()
     {
         CommandExecutionContext? seenContext = null;
         TestOptions? seenOptions = null;
@@ -103,7 +94,8 @@ internal static class DispatcherTests
         AssertEx.Equal<string?>(null, sink.HumanOutput);
     }
 
-    private static async ValueTask GracefulStopPreservesSuccess()
+    [Test, DisplayName("dispatcher/graceful-stop-preserves-success")]
+    public async ValueTask GracefulStopPreservesSuccess()
     {
         using var cancellation = new CancellationTokenSource();
         var scopes = new TrackingScopeFactory();
@@ -120,7 +112,8 @@ internal static class DispatcherTests
         AssertEx.Equal(1, scopes.Scopes.Single().DisposeCount);
     }
 
-    private static async ValueTask BindingFault()
+    [Test, DisplayName("dispatcher/binding-fault-skips-handler-and-disposes-scope")]
+    public async ValueTask BindingFault()
     {
         int handlerCalls = 0;
         var binder = new TestBinder((_, _) => ValueTask.FromResult(CommandOutcome.Failure<TestOptions>(
@@ -144,7 +137,8 @@ internal static class DispatcherTests
         AssertEx.Equal(0, sink.Diagnostics.Count);
     }
 
-    private static async ValueTask MergesDiagnosticsOnce()
+    [Test, DisplayName("dispatcher/merges-handler-and-binding-diagnostics-once")]
+    public async ValueTask MergesDiagnosticsOnce()
     {
         CommandDiagnostic bindingDiagnostic = new(
             "RCLI2001", "binding-warning", "The bound value is deprecated.",
@@ -176,7 +170,8 @@ internal static class DispatcherTests
             sink.Diagnostics.Select(static diagnostic => diagnostic.Code));
     }
 
-    private static async ValueTask DisposalFailurePrecedence()
+    [Test, DisplayName("dispatcher/disposal-failure-takes-precedence")]
+    public async ValueTask DisposalFailurePrecedence()
     {
         var scopes = new TrackingScopeFactory(_ => new TrackingScope(
             "failing-disposal",
@@ -203,7 +198,8 @@ internal static class DispatcherTests
         AssertEx.Equal(1, scopes.Scopes.Single().DisposeCount);
     }
 
-    private static async ValueTask FailureHumanOutput()
+    [Test, DisplayName("dispatcher/writes-failure-human-output-before-human-diagnostics")]
+    public async ValueTask FailureHumanOutput()
     {
         var factory = new TestHandlerFactory(_ => new TestHandler((_, _, _) => ValueTask.FromResult(
             CommandOutcome.Failure<TestResult>(
@@ -230,7 +226,8 @@ internal static class DispatcherTests
             console.StandardError);
     }
 
-    private static async ValueTask JsonOmitsFailureHumanOutput()
+    [Test, DisplayName("dispatcher/omits-failure-human-output-from-json")]
+    public async ValueTask JsonOmitsFailureHumanOutput()
     {
         var factory = new TestHandlerFactory(_ => new TestHandler((_, _, _) => ValueTask.FromResult(
             CommandOutcome.Failure<TestResult>(
@@ -256,7 +253,8 @@ internal static class DispatcherTests
         AssertEx.True(console.StandardOutput.Contains("\"RCLI3001\"", StringComparison.Ordinal));
     }
 
-    private static async ValueTask FailureHumanOutputSinkFailure()
+    [Test, DisplayName("dispatcher/failure-human-output-sink-failure-is-host-failure")]
+    public async ValueTask FailureHumanOutputSinkFailure()
     {
         var factory = new TestHandlerFactory(_ => new TestHandler((_, _, _) => ValueTask.FromResult(
             CommandOutcome.Failure<TestResult>(
@@ -276,7 +274,8 @@ internal static class DispatcherTests
         AssertEx.Equal(CommandExitCodes.HostFailure, result.ExitCode);
     }
 
-    private static async ValueTask ConcurrentIsolation()
+    [Test, DisplayName("dispatcher/concurrent-invocations-have-isolated-scopes")]
+    public async ValueTask ConcurrentIsolation()
     {
         const int Count = 64;
         var observations = new ConcurrentDictionary<string, (IServiceProvider Services, ICommandConsole Console)>();
@@ -312,7 +311,8 @@ internal static class DispatcherTests
         AssertEx.True(scopes.Scopes.All(static scope => scope.DisposeCount == 1));
     }
 
-    private static async ValueTask ObserverEvents()
+    [Test, DisplayName("dispatcher/observer-events-are-ordered-and-value-free")]
+    public async ValueTask ObserverEvents()
     {
         var observer = new RecordingObserver();
         var scopes = new TrackingScopeFactory();
@@ -335,14 +335,16 @@ internal static class DispatcherTests
         AssertEx.True(observer.Events.All(static item => item.Path.ToString() == "status"));
     }
 
-    private static ValueTask InvalidExitPolicy()
+    [Test, DisplayName("dispatcher/invalid-exit-policy-rejected-before-execution")]
+    public ValueTask InvalidExitPolicy()
     {
         AssertEx.Throws<ArgumentException>(() =>
             _ = new CommandExecutor(new TrackingScopeFactory(), new ZeroExitPolicy()));
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask CorrelationIdsMatchWireContract()
+    [Test, DisplayName("dispatcher/correlation-ids-match-wire-contract")]
+    public ValueTask CorrelationIdsMatchWireContract()
     {
         CommandCatalog catalog = FixtureCatalog.Create(new TestBinder(), new TestHandlerFactory(), new TestCodec());
         ParsedInvocation invocation = FixtureCatalog.ParseInvocation(catalog, "status");
@@ -359,7 +361,8 @@ internal static class DispatcherTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask FatalHandlerDisposesAndPropagates()
+    [Test, DisplayName("dispatcher/fatal-handler-disposes-scope-and-propagates")]
+    public async ValueTask FatalHandlerDisposesAndPropagates()
     {
         var scopes = new TrackingScopeFactory();
         var factory = new TestHandlerFactory(_ => new TestHandler((_, _, _) =>
@@ -372,7 +375,8 @@ internal static class DispatcherTests
         AssertEx.Equal(1, scopes.Scopes.Single().DisposeCount);
     }
 
-    private static async ValueTask FatalObserverDisposesAndPropagates()
+    [Test, DisplayName("dispatcher/fatal-observer-disposes-scope-and-propagates")]
+    public async ValueTask FatalObserverDisposesAndPropagates()
     {
         var scopes = new TrackingScopeFactory();
         (CommandExecutor _, CommandExecutionRequest request) = CreateExecution(

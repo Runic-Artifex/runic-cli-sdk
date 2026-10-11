@@ -1,25 +1,26 @@
 namespace Runic.CommandLine.Tests;
 
-internal static class ParserAdversarialTests
+internal sealed class ParserAdversarialTests
 {
     private static readonly CommandCatalog Catalog = FixtureCatalog.Create();
 
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("parser/missing-value-does-not-consume-unknown-option", () => MissingValue("--bogus", "input.db")),
-        new("parser/missing-value-does-not-consume-help", () => MissingValue("--help")),
-        new("parser/missing-value-does-not-consume-terminator", () => MissingValue("--", "input.db")),
-        new("parser/output-missing-value-does-not-consume-unknown-option", () => MissingOutputValue("--bogus")),
-        new("parser/output-missing-value-does-not-consume-help", () => MissingOutputValue("--help")),
-        new("parser/output-missing-value-does-not-consume-terminator", () => MissingOutputValue("--")),
-        new("parser/repeated-variadic-option-preserves-encounter-order", VariadicRepeatedOption),
-        new("parser/variadic-option-can-reject-a-second-occurrence", VariadicSingleOccurrence),
-        new("parser/transport-output-option-cannot-shadow-built-ins", TransportOutputOptionCannotShadowBuiltIns),
-        new("parser/trailing-positional-values-preserve-terminator-data", TrailingPositionalValues),
-        new("parser/required-options-are-parser-owned", RequiredOptions),
-        new("parser/safe-diagnostic-arguments-identify-parse-shape", ParseDiagnosticArguments),
-        new("parser/parse-errors-preserve-transport-output-classification", ParseErrorsPreserveTransportOutputClassification),
-    ];
+    [Test, DisplayName("parser/missing-value-does-not-consume-unknown-option")]
+    public ValueTask MissingValueDoesNotConsumeUnknownOption() => MissingValue("--bogus", "input.db");
+
+    [Test, DisplayName("parser/missing-value-does-not-consume-help")]
+    public ValueTask MissingValueDoesNotConsumeHelp() => MissingValue("--help");
+
+    [Test, DisplayName("parser/missing-value-does-not-consume-terminator")]
+    public ValueTask MissingValueDoesNotConsumeTerminator() => MissingValue("--", "input.db");
+
+    [Test, DisplayName("parser/output-missing-value-does-not-consume-unknown-option")]
+    public ValueTask OutputMissingValueDoesNotConsumeUnknownOption() => MissingOutputValue("--bogus");
+
+    [Test, DisplayName("parser/output-missing-value-does-not-consume-help")]
+    public ValueTask OutputMissingValueDoesNotConsumeHelp() => MissingOutputValue("--help");
+
+    [Test, DisplayName("parser/output-missing-value-does-not-consume-terminator")]
+    public ValueTask OutputMissingValueDoesNotConsumeTerminator() => MissingOutputValue("--");
 
     private static ValueTask MissingValue(params string[] tail)
     {
@@ -47,7 +48,8 @@ internal static class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask VariadicRepeatedOption()
+    [Test, DisplayName("parser/repeated-variadic-option-preserves-encounter-order")]
+    public ValueTask VariadicRepeatedOption()
     {
         var builder = new CommandCatalogBuilder();
         builder.Command<TestOptions, TestHandler, TestResult>("pack", command => command
@@ -65,7 +67,8 @@ internal static class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask VariadicSingleOccurrence()
+    [Test, DisplayName("parser/variadic-option-can-reject-a-second-occurrence")]
+    public ValueTask VariadicSingleOccurrence()
     {
         var builder = new CommandCatalogBuilder();
         builder.Command<TestOptions, TestHandler, TestResult>("pack", command => command
@@ -93,7 +96,8 @@ internal static class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask TransportOutputOptionCannotShadowBuiltIns()
+    [Test, DisplayName("parser/transport-output-option-cannot-shadow-built-ins")]
+    public ValueTask TransportOutputOptionCannotShadowBuiltIns()
     {
         foreach (string spelling in new[] { "--help", "--version" })
         {
@@ -103,7 +107,8 @@ internal static class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask TrailingPositionalValues()
+    [Test, DisplayName("parser/trailing-positional-values-preserve-terminator-data")]
+    public ValueTask TrailingPositionalValues()
     {
         var builder = new CommandCatalogBuilder();
         builder.Command<TestOptions, TestHandler, TestResult>("dev", command => command
@@ -122,7 +127,8 @@ internal static class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask RequiredOptions()
+    [Test, DisplayName("parser/required-options-are-parser-owned")]
+    public ValueTask RequiredOptions()
     {
         CommandCatalog catalog = CreateRequiredCatalog();
         ParseOutcome missingValue = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["check"], ParseSettings.Default);
@@ -141,7 +147,8 @@ internal static class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ParseDiagnosticArguments()
+    [Test, DisplayName("parser/safe-diagnostic-arguments-identify-parse-shape")]
+    public ValueTask ParseDiagnosticArguments()
     {
         CommandCatalog catalog = CreateRequiredCatalog();
         ParseOutcome unknownCommand = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["missing=command"], ParseSettings.Default);
@@ -158,7 +165,8 @@ internal static class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ParseErrorsPreserveTransportOutputClassification()
+    [Test, DisplayName("parser/parse-errors-preserve-transport-output-classification")]
+    public ValueTask ParseErrorsPreserveTransportOutputClassification()
     {
         ParseSettings settings = new(transportOutputOptionName: "--runic-output");
         ParseOutcome knownErrorAfterTransport = PortableCommandSyntaxAdapter.Instance.Parse(

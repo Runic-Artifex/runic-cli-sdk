@@ -1,13 +1,9 @@
 namespace Runic.CommandLine.Tests;
 
-internal static class DiagnosticBoundaryTests
+internal sealed class DiagnosticBoundaryTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("diagnostics/kind-and-default-message-key-utf8-boundaries", KindAndMessageKeyBoundaries),
-    ];
-
-    private static ValueTask KindAndMessageKeyBoundaries()
+    [Test, DisplayName("diagnostics/kind-and-default-message-key-utf8-boundaries")]
+    public ValueTask KindAndMessageKeyBoundaries()
     {
         CommandDiagnostic explicitKey = Create(new string('a', 128), "k");
         AssertEx.Equal(128, explicitKey.Kind.Length);

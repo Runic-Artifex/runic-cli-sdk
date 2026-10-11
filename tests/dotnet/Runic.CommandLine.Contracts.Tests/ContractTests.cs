@@ -1,80 +1,20 @@
 using System;
 using System.Collections.Generic;
 using Runic.CommandLine;
+using TUnit.Core;
 
 namespace Runic.CommandLine.Contracts.Tests;
 
-internal static class Program
+internal sealed class ContractTests
 {
-    private static readonly (string Name, Action Test)[] Tests =
-    [
-        ("protocol identity is stable", ProtocolIdentityIsStable),
-        ("exit category names are stable", ExitCategoryNamesAreStable),
-        ("default exit codes are stable", DefaultExitCodesAreStable),
-        ("unknown exit category has no default", UnknownExitCategoryHasNoDefault),
-        ("success outcome has no fault", SuccessOutcomeHasNoFault),
-        ("nullable success payload is supported", NullableSuccessPayloadIsSupported),
-        ("outcome diagnostics are copied and immutable", OutcomeDiagnosticsAreCopiedAndImmutable),
-        ("successful outcomes permit warnings but reject errors", SuccessfulOutcomeDiagnosticSeverities),
-        ("outcome diagnostics are bounded and non-null", OutcomeDiagnosticsAreBoundedAndNonNull),
-        ("failure human output is exact and human-only", FailureHumanOutputIsExact),
-        ("failure human output is bounded valid UTF-8", FailureHumanOutputIsBoundedValidUtf8),
-        ("outcomes cannot bypass invariant factories", OutcomesCannotBypassInvariantFactories),
-        ("failure outcomes have no value", FailureOutcomesHaveNoValue),
-        ("success cannot be constructed as failure", SuccessCannotBeConstructedAsFailure),
-        ("unknown category cannot be constructed as failure", UnknownCategoryCannotBeConstructedAsFailure),
-        ("failure requires a fault", FailureRequiresFault),
-        ("fault requires a stable code", FaultRequiresStableCode),
-        ("fault requires a safe message", FaultRequiresSafeMessage),
-        ("fault details are copied and observable", FaultDetailsAreCopiedAndObservable),
-        ("fault details reject blank keys", FaultDetailsRejectBlankKeys),
-        ("fault details reject null values", FaultDetailsRejectNullValues),
-        ("output environment name is stable", OutputEnvironmentNameIsStable),
-        ("output mode names are stable", OutputModeNamesAreStable),
-        ("explicit human output wins over malformed environment", ExplicitHumanWinsOverMalformedEnvironment),
-        ("explicit JSON output wins over environment", ExplicitJsonWinsOverEnvironment),
-        ("environment output classification is case insensitive", EnvironmentClassificationIsCaseInsensitive),
-        ("missing environment uses requested default", MissingEnvironmentUsesRequestedDefault),
-        ("empty environment uses requested default", EmptyEnvironmentUsesRequestedDefault),
-        ("malformed environment is invalid", MalformedEnvironmentIsInvalid),
-        ("whitespace environment is not silently accepted", WhitespaceEnvironmentIsInvalid),
-        ("unknown explicit output mode is rejected", UnknownExplicitOutputModeIsRejected),
-        ("unknown default output mode is rejected", UnknownDefaultOutputModeIsRejected),
-        ("higher precedence sources ignore an unknown default", HigherPrecedenceSourcesIgnoreUnknownDefault),
-        ("grammar corpus has a portable contract shape", CorpusContractTests.ValidateGrammarCorpus),
-        ("output corpus agrees with the public classifier", CorpusContractTests.ValidateOutputClassificationCorpus),
-        ("command-line corpus fixture IDs are globally unique", CorpusContractTests.ValidateGlobalFixtureIds),
-    ];
-
-    public static int Main()
-    {
-        var failures = 0;
-
-        foreach ((string name, Action test) in Tests)
-        {
-            try
-            {
-                test();
-                Console.WriteLine($"PASS {name}");
-            }
-            catch (Exception exception)
-            {
-                failures++;
-                Console.Error.WriteLine($"FAIL {name}");
-                Console.Error.WriteLine(exception.Message);
-            }
-        }
-
-        Console.WriteLine($"Executed {Tests.Length} contract tests; {failures} failed.");
-        return failures == 0 ? 0 : 1;
-    }
-
-    private static void ProtocolIdentityIsStable()
+    [Test, DisplayName("protocol identity is stable")]
+    public void ProtocolIdentityIsStable()
     {
         Assert.Equal("runic.commandline/1", CliProtocol.Identity);
     }
 
-    private static void ExitCategoryNamesAreStable()
+    [Test, DisplayName("exit category names are stable")]
+    public void ExitCategoryNamesAreStable()
     {
         Assert.SequenceEqual(
             [
@@ -89,7 +29,8 @@ internal static class Program
             Enum.GetNames<CommandExitCategory>());
     }
 
-    private static void DefaultExitCodesAreStable()
+    [Test, DisplayName("default exit codes are stable")]
+    public void DefaultExitCodesAreStable()
     {
         AssertExitCode(CommandExitCategory.Success, CommandExitCodes.Success, 0);
         AssertExitCode(CommandExitCategory.Usage, CommandExitCodes.Usage, 2);
@@ -100,7 +41,8 @@ internal static class Program
         AssertExitCode(CommandExitCategory.HostFailure, CommandExitCodes.HostFailure, 70);
     }
 
-    private static void SuccessOutcomeHasNoFault()
+    [Test, DisplayName("success outcome has no fault")]
+    public void SuccessOutcomeHasNoFault()
     {
         CommandOutcome<string> outcome = CommandOutcome.Success("payload");
 
@@ -110,7 +52,8 @@ internal static class Program
         Assert.Null(outcome.Fault);
     }
 
-    private static void NullableSuccessPayloadIsSupported()
+    [Test, DisplayName("nullable success payload is supported")]
+    public void NullableSuccessPayloadIsSupported()
     {
         CommandOutcome<string?> outcome = CommandOutcome.Success<string?>(null);
 
@@ -120,7 +63,8 @@ internal static class Program
         Assert.Null(outcome.Fault);
     }
 
-    private static void OutcomeDiagnosticsAreCopiedAndImmutable()
+    [Test, DisplayName("outcome diagnostics are copied and immutable")]
+    public void OutcomeDiagnosticsAreCopiedAndImmutable()
     {
         var diagnostics = new List<CommandDiagnostic> { CreateDiagnostic(CommandDiagnosticSeverity.Warning) };
         CommandOutcome<string> outcome = CommandOutcome.Success("payload", diagnostics);
@@ -132,7 +76,8 @@ internal static class Program
             ((IList<CommandDiagnostic>)outcome.Diagnostics).Add(CreateDiagnostic(CommandDiagnosticSeverity.Warning)));
     }
 
-    private static void SuccessfulOutcomeDiagnosticSeverities()
+    [Test, DisplayName("successful outcomes permit warnings but reject errors")]
+    public void SuccessfulOutcomeDiagnosticSeverities()
     {
         CommandOutcome<string> outcome = CommandOutcome.Success(
             "payload",
@@ -144,7 +89,8 @@ internal static class Program
             [CreateDiagnostic(CommandDiagnosticSeverity.Error)]));
     }
 
-    private static void OutcomeDiagnosticsAreBoundedAndNonNull()
+    [Test, DisplayName("outcome diagnostics are bounded and non-null")]
+    public void OutcomeDiagnosticsAreBoundedAndNonNull()
     {
         var tooMany = new List<CommandDiagnostic>();
         for (int index = 0; index < 33; index++)
@@ -162,7 +108,8 @@ internal static class Program
             [null!]));
     }
 
-    private static void FailureHumanOutputIsExact()
+    [Test, DisplayName("failure human output is exact and human-only")]
+    public void FailureHumanOutputIsExact()
     {
         string humanOutput = new string("\u001b[31mdry-run report\r\n".AsSpan());
         CommandOutcome<string> outcome = CommandOutcome.Failure<string>(
@@ -181,7 +128,8 @@ internal static class Program
         Assert.Null(CommandOutcome.Success("payload").HumanOutput);
     }
 
-    private static void FailureHumanOutputIsBoundedValidUtf8()
+    [Test, DisplayName("failure human output is bounded valid UTF-8")]
+    public void FailureHumanOutputIsBoundedValidUtf8()
     {
         Assert.Throws<ArgumentException>(() => CommandOutcome.Failure<string>(
             CommandExitCategory.Validation,
@@ -195,18 +143,21 @@ internal static class Program
             "\ud800"));
     }
 
-    private static void OutcomesCannotBypassInvariantFactories()
+    [Test, DisplayName("outcomes cannot bypass invariant factories")]
+    public void OutcomesCannotBypassInvariantFactories()
     {
         Assert.Equal(0, typeof(CommandOutcome<string>).GetConstructors().Length);
     }
 
-    private static void UnknownExitCategoryHasNoDefault()
+    [Test, DisplayName("unknown exit category has no default")]
+    public void UnknownExitCategoryHasNoDefault()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => CommandExitCodes.GetDefault((CommandExitCategory)int.MaxValue));
     }
 
-    private static void FailureOutcomesHaveNoValue()
+    [Test, DisplayName("failure outcomes have no value")]
+    public void FailureOutcomesHaveNoValue()
     {
         CommandFault fault = CreateFault();
         CommandExitCategory[] failureCategories =
@@ -230,37 +181,43 @@ internal static class Program
         }
     }
 
-    private static void SuccessCannotBeConstructedAsFailure()
+    [Test, DisplayName("success cannot be constructed as failure")]
+    public void SuccessCannotBeConstructedAsFailure()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => CommandOutcome.Failure<string>(CommandExitCategory.Success, CreateFault()));
     }
 
-    private static void UnknownCategoryCannotBeConstructedAsFailure()
+    [Test, DisplayName("unknown category cannot be constructed as failure")]
+    public void UnknownCategoryCannotBeConstructedAsFailure()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => CommandOutcome.Failure<string>((CommandExitCategory)int.MaxValue, CreateFault()));
     }
 
-    private static void FailureRequiresFault()
+    [Test, DisplayName("failure requires a fault")]
+    public void FailureRequiresFault()
     {
         Assert.Throws<ArgumentNullException>(
             () => CommandOutcome.Failure<string>(CommandExitCategory.CommandFailure, null!));
     }
 
-    private static void FaultRequiresStableCode()
+    [Test, DisplayName("fault requires a stable code")]
+    public void FaultRequiresStableCode()
     {
         Assert.Throws<ArgumentException>(() => _ = new CommandFault(string.Empty, "message"));
         Assert.Throws<ArgumentException>(() => _ = new CommandFault(" ", "message"));
     }
 
-    private static void FaultRequiresSafeMessage()
+    [Test, DisplayName("fault requires a safe message")]
+    public void FaultRequiresSafeMessage()
     {
         Assert.Throws<ArgumentException>(() => _ = new CommandFault("RCLI2001", string.Empty));
         Assert.Throws<ArgumentException>(() => _ = new CommandFault("RCLI2001", " "));
     }
 
-    private static void FaultDetailsAreCopiedAndObservable()
+    [Test, DisplayName("fault details are copied and observable")]
+    public void FaultDetailsAreCopiedAndObservable()
     {
         var details = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -275,7 +232,8 @@ internal static class Program
         Assert.Equal("format", fault.Details["parameter"]);
     }
 
-    private static void FaultDetailsRejectBlankKeys()
+    [Test, DisplayName("fault details reject blank keys")]
+    public void FaultDetailsRejectBlankKeys()
     {
         var details = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -286,7 +244,8 @@ internal static class Program
             () => _ = new CommandFault("RCLI2001", "Invalid value.", details));
     }
 
-    private static void FaultDetailsRejectNullValues()
+    [Test, DisplayName("fault details reject null values")]
+    public void FaultDetailsRejectNullValues()
     {
         var details = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -297,12 +256,14 @@ internal static class Program
             () => _ = new CommandFault("RCLI2001", "Invalid value.", details));
     }
 
-    private static void OutputEnvironmentNameIsStable()
+    [Test, DisplayName("output environment name is stable")]
+    public void OutputEnvironmentNameIsStable()
     {
         Assert.Equal("RUNIC_COMMANDLINE_OUTPUT", CommandOutputClassifier.EnvironmentVariableName);
     }
 
-    private static void OutputModeNamesAreStable()
+    [Test, DisplayName("output mode names are stable")]
+    public void OutputModeNamesAreStable()
     {
         Assert.SequenceEqual(
             [nameof(CommandOutputMode.Human), nameof(CommandOutputMode.Json)],
@@ -316,7 +277,8 @@ internal static class Program
             Enum.GetNames<CommandOutputModeSource>());
     }
 
-    private static void ExplicitHumanWinsOverMalformedEnvironment()
+    [Test, DisplayName("explicit human output wins over malformed environment")]
+    public void ExplicitHumanWinsOverMalformedEnvironment()
     {
         CommandOutputClassification result = CommandOutputClassifier.Classify(
             CommandOutputMode.Human,
@@ -327,7 +289,8 @@ internal static class Program
         Assert.Null(result.InvalidEnvironmentValue);
     }
 
-    private static void ExplicitJsonWinsOverEnvironment()
+    [Test, DisplayName("explicit JSON output wins over environment")]
+    public void ExplicitJsonWinsOverEnvironment()
     {
         CommandOutputClassification result = CommandOutputClassifier.Classify(
             CommandOutputMode.Json,
@@ -337,7 +300,8 @@ internal static class Program
         Assert.Null(result.InvalidEnvironmentValue);
     }
 
-    private static void EnvironmentClassificationIsCaseInsensitive()
+    [Test, DisplayName("environment output classification is case insensitive")]
+    public void EnvironmentClassificationIsCaseInsensitive()
     {
         CommandOutputClassification human = CommandOutputClassifier.Classify(null, "HuMaN");
         CommandOutputClassification json = CommandOutputClassifier.Classify(null, "JsOn");
@@ -346,7 +310,8 @@ internal static class Program
         AssertValidClassification(json, CommandOutputMode.Json, CommandOutputModeSource.Environment);
     }
 
-    private static void MissingEnvironmentUsesRequestedDefault()
+    [Test, DisplayName("missing environment uses requested default")]
+    public void MissingEnvironmentUsesRequestedDefault()
     {
         CommandOutputClassification result = CommandOutputClassifier.Classify(
             null,
@@ -356,7 +321,8 @@ internal static class Program
         AssertValidClassification(result, CommandOutputMode.Json, CommandOutputModeSource.Default);
     }
 
-    private static void EmptyEnvironmentUsesRequestedDefault()
+    [Test, DisplayName("empty environment uses requested default")]
+    public void EmptyEnvironmentUsesRequestedDefault()
     {
         CommandOutputClassification result = CommandOutputClassifier.Classify(
             null,
@@ -366,7 +332,8 @@ internal static class Program
         AssertValidClassification(result, CommandOutputMode.Human, CommandOutputModeSource.Default);
     }
 
-    private static void MalformedEnvironmentIsInvalid()
+    [Test, DisplayName("malformed environment is invalid")]
+    public void MalformedEnvironmentIsInvalid()
     {
         const string invalidValue = "xml";
         CommandOutputClassification result = CommandOutputClassifier.Classify(null, invalidValue);
@@ -377,7 +344,8 @@ internal static class Program
         Assert.Equal(invalidValue, result.InvalidEnvironmentValue);
     }
 
-    private static void WhitespaceEnvironmentIsInvalid()
+    [Test, DisplayName("whitespace environment is not silently accepted")]
+    public void WhitespaceEnvironmentIsInvalid()
     {
         CommandOutputClassification result = CommandOutputClassifier.Classify(null, " ");
 
@@ -385,19 +353,22 @@ internal static class Program
         Assert.Equal(" ", result.InvalidEnvironmentValue);
     }
 
-    private static void UnknownExplicitOutputModeIsRejected()
+    [Test, DisplayName("unknown explicit output mode is rejected")]
+    public void UnknownExplicitOutputModeIsRejected()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => CommandOutputClassifier.Classify((CommandOutputMode)int.MaxValue, "json"));
     }
 
-    private static void UnknownDefaultOutputModeIsRejected()
+    [Test, DisplayName("unknown default output mode is rejected")]
+    public void UnknownDefaultOutputModeIsRejected()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => CommandOutputClassifier.Classify(null, null, (CommandOutputMode)int.MaxValue));
     }
 
-    private static void HigherPrecedenceSourcesIgnoreUnknownDefault()
+    [Test, DisplayName("higher precedence sources ignore an unknown default")]
+    public void HigherPrecedenceSourcesIgnoreUnknownDefault()
     {
         CommandOutputMode invalidDefault = (CommandOutputMode)int.MaxValue;
 
@@ -451,79 +422,4 @@ internal static class Program
         "The value is invalid.",
         CommandDiagnosticPhase.Execution,
         severity);
-}
-
-internal static class Assert
-{
-    public static void True(bool condition)
-    {
-        if (!condition)
-        {
-            throw new InvalidOperationException("Expected true, but found false.");
-        }
-    }
-
-    public static void False(bool condition)
-    {
-        if (condition)
-        {
-            throw new InvalidOperationException("Expected false, but found true.");
-        }
-    }
-
-    public static void Null<T>(T? value)
-    {
-        if (value is not null)
-        {
-            throw new InvalidOperationException($"Expected null, but found '{value}'.");
-        }
-    }
-
-    public static void Same<T>(T expected, T actual)
-        where T : class
-    {
-        if (!ReferenceEquals(expected, actual))
-        {
-            throw new InvalidOperationException("Expected both values to reference the same instance.");
-        }
-    }
-
-    public static void Equal<T>(T expected, T actual)
-    {
-        if (!EqualityComparer<T>.Default.Equals(expected, actual))
-        {
-            throw new InvalidOperationException($"Expected '{expected}', but found '{actual}'.");
-        }
-    }
-
-    public static void SequenceEqual<T>(IReadOnlyList<T> expected, IReadOnlyList<T> actual)
-    {
-        Equal(expected.Count, actual.Count);
-
-        for (var index = 0; index < expected.Count; index++)
-        {
-            Equal(expected[index], actual[index]);
-        }
-    }
-
-    public static TException Throws<TException>(Action action)
-        where TException : Exception
-    {
-        try
-        {
-            action();
-        }
-        catch (TException exception)
-        {
-            return exception;
-        }
-        catch (Exception exception)
-        {
-            throw new InvalidOperationException(
-                $"Expected {typeof(TException).Name}, but found {exception.GetType().Name}.",
-                exception);
-        }
-
-        throw new InvalidOperationException($"Expected {typeof(TException).Name}, but no exception was thrown.");
-    }
 }

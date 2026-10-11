@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class ProtocolCorpusTests
+internal sealed class ProtocolCorpusTests
 {
     private static readonly string ProtocolRoot = Path.Combine(AppContext.BaseDirectory, "Corpus", "protocol");
     private static readonly WireCorpus Wire = Read("wire-inputs.json", CorpusJsonContext.Default.WireCorpus);
@@ -13,23 +13,31 @@ internal static class ProtocolCorpusTests
     private static readonly string[] ExampleNames =
         ["success", "command-fault", "validation", "host-fault", "cancelled", "redacted-fault", "declared-failure"];
 
-    public static IReadOnlyList<TestCase> All { get; } = CreateTests();
-
-    private static TestCase[] CreateTests()
+    public static IEnumerable<string> WireCaseIds()
     {
         AssertEx.Equal(15, Wire.Cases.Length, "The frozen wire corpus row count changed.");
-        AssertEx.Equal(23, Semantic.Cases.Length, "The frozen semantic protocol corpus row count changed.");
-
-        return
-        [
-            new TestCase("protocol/manifest-identities-and-limits", Manifest),
-            .. Wire.Cases.Select(test => new TestCase($"protocol/{test.Id}", () => WireCase(test))),
-            .. Semantic.Cases.Select(test => new TestCase($"protocol/{test.Id}", () => SemanticCase(test))),
-            .. ExampleNames.Select(name => new TestCase($"protocol/example.{name}", () => Example(name))),
-        ];
+        return Wire.Cases.Select(static test => test.Id);
     }
 
-    private static ValueTask Manifest()
+    public static IEnumerable<string> SemanticCaseIds()
+    {
+        AssertEx.Equal(23, Semantic.Cases.Length, "The frozen semantic protocol corpus row count changed.");
+        return Semantic.Cases.Select(static test => test.Id);
+    }
+
+    public static IEnumerable<string> Examples() => ExampleNames;
+
+    [Test, MethodDataSource(nameof(WireCaseIds)), CorpusCaseName("protocol/")]
+    public ValueTask WireInput(string id) => WireCase(Wire.Cases.Single(test => test.Id == id));
+
+    [Test, MethodDataSource(nameof(SemanticCaseIds)), CorpusCaseName("protocol/")]
+    public ValueTask SemanticStructure(string id) => SemanticCase(Semantic.Cases.Single(test => test.Id == id));
+
+    [Test, MethodDataSource(nameof(Examples)), CorpusCaseName("protocol/example.")]
+    public ValueTask ExampleFrame(string name) => Example(name);
+
+    [Test, DisplayName("protocol/manifest-identities-and-limits")]
+    public ValueTask Manifest()
     {
         ProtocolManifest manifest = Read("manifest.json", CorpusJsonContext.Default.ProtocolManifest);
         AssertEx.Equal(1, manifest.FormatVersion);

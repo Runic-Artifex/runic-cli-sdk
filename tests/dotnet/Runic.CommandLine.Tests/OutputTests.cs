@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class OutputTests
+internal sealed class OutputTests
 {
     private static readonly string[] EnvelopeProperties =
         ["protocol", "requestId", "command", "success", "exitCode", "payloadType", "payload", "fault", "diagnostics"];
@@ -12,32 +12,8 @@ internal static class OutputTests
     private static readonly string[] DiagnosticProperties =
         ["code", "kind", "commandPath", "messageKey", "message", "phase", "severity", "tokenIndex", "arguments"];
 
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("output/json-frame-is-one-pure-utf8-object", JsonFramePurity),
-        new("output/json-property-order-is-deterministic", DeterministicPropertyOrder),
-        new("output/faults-and-diagnostics-are-sanitized", Sanitization),
-        new("output/unsafe-fault-message-keeps-well-formed-code", UnsafeMessageKeepsWellFormedCode),
-        new("output/invalid-fault-code-collapses-to-rcli5000", InvalidCodeCollapsesToSoftwareFailure),
-        new("output/unsafe-fault-detail-keys-are-dropped", UnsafeDetailKeysAreDropped),
-        new("output/control-only-fault-message-is-redacted", ControlOnlyMessageIsRedacted),
-        new("output/fault-details-use-ordinal-order", DetailOrdering),
-        new("output/source-generated-payload-round-trips", SourceGeneratedRoundTrip),
-        new("output/reader-accepts-unknown-additive-members", ReaderAcceptsAdditiveMembers),
-        new("output/reader-rejects-impure-framing-and-invalid-utf8", ReaderRejectsImpureFrames),
-        new("output/reader-rejects-duplicate-and-oversized-envelopes", ReaderRejectsDuplicateAndOversized),
-        new("output/reader-checks-payload-identity-before-deserialization", ReaderChecksIdentityFirst),
-        new("output/reader-rejects-unsafe-fault-content", ReaderRejectsUnsafeFault),
-        new("output/writer-rejects-payload-over-one-mebibyte", WriterRejectsOversizedPayload),
-        new("output/dispatcher-keeps-json-off-stderr", DispatcherJsonChannels),
-        new("output/dispatcher-keeps-human-fault-off-stdout", DispatcherHumanChannels),
-        new("output/dispatcher-human-unsafe-fault-keeps-code", DispatcherHumanUnsafeFaultKeepsCode),
-        new("output/dispatcher-writes-success-diagnostics-to-human-stderr", DispatcherHumanSuccessDiagnostics),
-        new("output/dispatcher-does-not-repeat-a-fault-diagnostic", DispatcherDoesNotRepeatFaultDiagnostic),
-        new("output/dispatcher-does-not-repeat-a-redacted-fault-diagnostic", DispatcherDoesNotRepeatRedactedFaultDiagnostic),
-    ];
-
-    private static ValueTask JsonFramePurity()
+    [Test, DisplayName("output/json-frame-is-one-pure-utf8-object")]
+    public ValueTask JsonFramePurity()
     {
         byte[] frame = SuccessFrame();
         AssertEx.True(frame.Length > 2);
@@ -51,7 +27,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask DeterministicPropertyOrder()
+    [Test, DisplayName("output/json-property-order-is-deterministic")]
+    public ValueTask DeterministicPropertyOrder()
     {
         byte[] first = SuccessFrame();
         byte[] second = SuccessFrame();
@@ -63,7 +40,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask Sanitization()
+    [Test, DisplayName("output/faults-and-diagnostics-are-sanitized")]
+    public ValueTask Sanitization()
     {
         var fault = new CommandFault(
             "RCLI3000",
@@ -94,7 +72,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask DetailOrdering()
+    [Test, DisplayName("output/fault-details-use-ordinal-order")]
+    public ValueTask DetailOrdering()
     {
         var fault = new CommandFault(
             "RCLI3000",
@@ -116,7 +95,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask SourceGeneratedRoundTrip()
+    [Test, DisplayName("output/source-generated-payload-round-trips")]
+    public ValueTask SourceGeneratedRoundTrip()
     {
         byte[] frame = SuccessFrame();
         CommandResponse<TestResult> response = CommandJsonEnvelopeReader.Read(
@@ -132,7 +112,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReaderAcceptsAdditiveMembers()
+    [Test, DisplayName("output/reader-accepts-unknown-additive-members")]
+    public ValueTask ReaderAcceptsAdditiveMembers()
     {
         byte[] original = SuccessFrame();
         string json = Encoding.UTF8.GetString(original.AsSpan(0, original.Length - 2));
@@ -145,7 +126,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReaderRejectsImpureFrames()
+    [Test, DisplayName("output/reader-rejects-impure-framing-and-invalid-utf8")]
+    public ValueTask ReaderRejectsImpureFrames()
     {
         byte[] valid = SuccessFrame();
         var frames = new List<byte[]>
@@ -168,7 +150,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReaderRejectsDuplicateAndOversized()
+    [Test, DisplayName("output/reader-rejects-duplicate-and-oversized-envelopes")]
+    public ValueTask ReaderRejectsDuplicateAndOversized()
     {
         byte[] original = SuccessFrame();
         string json = Encoding.UTF8.GetString(original.AsSpan(0, original.Length - 2));
@@ -185,7 +168,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReaderChecksIdentityFirst()
+    [Test, DisplayName("output/reader-checks-payload-identity-before-deserialization")]
+    public ValueTask ReaderChecksIdentityFirst()
     {
         byte[] original = SuccessFrame();
         string json = Encoding.UTF8.GetString(original);
@@ -200,14 +184,16 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReaderRejectsUnsafeFault()
+    [Test, DisplayName("output/reader-rejects-unsafe-fault-content")]
+    public ValueTask ReaderRejectsUnsafeFault()
     {
         const string Unsafe = "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req\",\"command\":\"status\",\"success\":false,\"exitCode\":10,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI3000\",\"message\":\"bad\\u001btext\",\"details\":{},\"retryable\":false},\"diagnostics\":[]}\n";
         AssertProtocolKind(Encoding.UTF8.GetBytes(Unsafe), "unsafe-fault-content");
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask WriterRejectsOversizedPayload()
+    [Test, DisplayName("output/writer-rejects-payload-over-one-mebibyte")]
+    public ValueTask WriterRejectsOversizedPayload()
     {
         var response = CommandResponse.Succeeded(
             "req-large",
@@ -227,7 +213,8 @@ internal static class OutputTests
         AssertEx.Equal(expectedKind, exception.Kind);
     }
 
-    private static async ValueTask DispatcherJsonChannels()
+    [Test, DisplayName("output/dispatcher-keeps-json-off-stderr")]
+    public async ValueTask DispatcherJsonChannels()
     {
         var console = new MemoryCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(
@@ -242,7 +229,8 @@ internal static class OutputTests
         AssertEx.Equal(string.Empty, console.StandardError);
     }
 
-    private static async ValueTask DispatcherHumanChannels()
+    [Test, DisplayName("output/dispatcher-keeps-human-fault-off-stdout")]
+    public async ValueTask DispatcherHumanChannels()
     {
         var console = new MemoryCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(
@@ -259,7 +247,8 @@ internal static class OutputTests
         AssertEx.Equal("RCLI3000: Expected failure.\n", console.StandardError);
     }
 
-    private static async ValueTask DispatcherHumanSuccessDiagnostics()
+    [Test, DisplayName("output/dispatcher-writes-success-diagnostics-to-human-stderr")]
+    public async ValueTask DispatcherHumanSuccessDiagnostics()
     {
         var console = new MemoryCommandConsole();
         var diagnostic = new CommandDiagnostic(
@@ -277,7 +266,8 @@ internal static class OutputTests
         AssertEx.Equal("RCLI3001: The option is deprecated.\n", console.StandardError);
     }
 
-    private static async ValueTask DispatcherDoesNotRepeatFaultDiagnostic()
+    [Test, DisplayName("output/dispatcher-does-not-repeat-a-fault-diagnostic")]
+    public async ValueTask DispatcherDoesNotRepeatFaultDiagnostic()
     {
         var console = new MemoryCommandConsole();
         var fault = new CommandFault("RCLI3000", "Expected failure.");
@@ -294,7 +284,8 @@ internal static class OutputTests
         AssertEx.Equal("RCLI3000: Expected failure.\n", console.StandardError);
     }
 
-    private static ValueTask UnsafeMessageKeepsWellFormedCode()
+    [Test, DisplayName("output/unsafe-fault-message-keeps-well-formed-code")]
+    public ValueTask UnsafeMessageKeepsWellFormedCode()
     {
         foreach (string code in new[] { "RCLI3001", "RCLI8042", "RAS1001", "ACME.IO_FAILURE-2" })
         {
@@ -342,7 +333,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask InvalidCodeCollapsesToSoftwareFailure()
+    [Test, DisplayName("output/invalid-fault-code-collapses-to-rcli5000")]
+    public ValueTask InvalidCodeCollapsesToSoftwareFailure()
     {
         foreach (string code in new[] { "ras1001", "1001", "RAS 1001", "RAS/1001", "RAS\u001b1001", new string('A', 65) })
         {
@@ -366,7 +358,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask DispatcherHumanUnsafeFaultKeepsCode()
+    [Test, DisplayName("output/dispatcher-human-unsafe-fault-keeps-code")]
+    public async ValueTask DispatcherHumanUnsafeFaultKeepsCode()
     {
         var console = new MemoryCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(
@@ -383,7 +376,8 @@ internal static class OutputTests
         AssertEx.Equal("RAS1001: The command failed; details were redacted.\n", console.StandardError);
     }
 
-    private static ValueTask UnsafeDetailKeysAreDropped()
+    [Test, DisplayName("output/unsafe-fault-detail-keys-are-dropped")]
+    public ValueTask UnsafeDetailKeysAreDropped()
     {
         var fault = new CommandFault(
             "RAS1001",
@@ -413,7 +407,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ControlOnlyMessageIsRedacted()
+    [Test, DisplayName("output/control-only-fault-message-is-redacted")]
+    public ValueTask ControlOnlyMessageIsRedacted()
     {
         CommandFault sanitized = CommandResponse.Failed<TestResult>(
             "req-control", "pack", 10, new CommandFault("RAS1001", "\u001b\u0007\u0000")).Fault!;
@@ -422,7 +417,8 @@ internal static class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask DispatcherDoesNotRepeatRedactedFaultDiagnostic()
+    [Test, DisplayName("output/dispatcher-does-not-repeat-a-redacted-fault-diagnostic")]
+    public async ValueTask DispatcherDoesNotRepeatRedactedFaultDiagnostic()
     {
         var console = new MemoryCommandConsole();
         var fault = new CommandFault("RCLI8001", "Could not read /home/ada/atlas.png.");

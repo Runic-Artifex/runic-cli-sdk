@@ -2,10 +2,12 @@ using System.Diagnostics;
 
 namespace Runic.CommandLine.Tests;
 
-internal static partial class CompletionHelpTests
+internal sealed partial class CompletionHelpTests
 {
-    private static ValueTask BashReadline() => ShellReadline("bash");
-    private static ValueTask ZshReadline() => ShellReadline("zsh");
+    [Test, NotInParallel, DisplayName("completion/bash-readline-preserves-literal-arguments")]
+    public ValueTask BashReadline() => ShellReadline("bash");
+    [Test, NotInParallel, DisplayName("completion/zsh-line-editor-preserves-literal-arguments")]
+    public ValueTask ZshReadline() => ShellReadline("zsh");
 
     private static async ValueTask ShellReadline(string shell)
     {

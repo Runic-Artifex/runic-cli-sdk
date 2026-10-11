@@ -5,43 +5,24 @@ using Spectre.Console;
 
 namespace Runic.CommandLine.Tests;
 
-internal static partial class ApplicationTests
+internal sealed partial class ApplicationTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("roadmap/hidden-items-stay-invocable", HiddenItems),
-        new("roadmap/suggestions-are-safe-and-scoped", Suggestions),
-        new("roadmap/paths-ranges-and-option-relationships", InputConstraints),
-        new("roadmap/custom-human-presenter-preserves-json", HumanPresenter),
-        new("app/generated-completion-command-is-not-intercepted", OwnedCompletion),
-        new("app/generated-string-default-and-prefix-output", DefaultAndPrefix),
-        new("app/generated-negative-nullable-enum-and-list", TypedValues),
-        new("app/help-path-and-groups-use-metadata", Help),
-        new("app/json-handler-output-and-input-are-isolated", JsonIsolation),
-        new("app/internal-exceptions-are-observable-and-sanitized", Exceptions),
-        new("app/scope-configuration-errors-follow-the-execution-contract", ScopeErrors),
-        new("app/environment-fallback-and-explicit-precedence", Environment),
-        new("app/spectre-literal-text-and-byte-frame", Spectre),
-        new("app/custom-values-bind-once-and-validate", CustomValues),
-        new("app/record-human-output-uses-fields", RecordOutput),
-        new("app/nullable-decimal-and-enum-defaults", NullableDefaults),
-        new("app/global-options-work-before-and-after-command", GlobalOptions),
-    ];
-
     private static CommandApp App(ICommandConsole console, Action<Exception>? observer = null, ParseSettings? settings = null) => new(GeneratedCommandCatalog.Create())
     {
         Name = "sample", Version = "1.2.3", Console = console, HandleCancelKeyPress = false,
         ParseSettings = settings ?? ParseSettings.Default, ExceptionObserver = observer,
     };
 
-    private static async ValueTask OwnedCompletion()
+    [Test, DisplayName("app/generated-completion-command-is-not-intercepted")]
+    public async ValueTask OwnedCompletion()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["completion", "bash"]));
         AssertEx.Equal("Application completion: bash\n", console.StandardOutput);
     }
 
-    private static async ValueTask DefaultAndPrefix()
+    [Test, DisplayName("app/generated-string-default-and-prefix-output")]
+    public async ValueTask DefaultAndPrefix()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync([]));
@@ -51,7 +32,8 @@ internal static partial class ApplicationTests
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertEx.Equal("Hello Ada", frame.RootElement.GetProperty("payload").GetString());
     }
-    private static async ValueTask TypedValues()
+    [Test, DisplayName("app/generated-negative-nullable-enum-and-list")]
+    public async ValueTask TypedValues()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["values", "--count", "-3", "--mode", "fast", "--number", "-2", "--number", "5"]));
@@ -61,7 +43,8 @@ internal static partial class ApplicationTests
         AssertEx.True(console.StandardError.Contains("count", StringComparison.Ordinal));
         AssertEx.True(!console.StandardError.Contains("secret-invalid", StringComparison.Ordinal));
     }
-    private static async ValueTask Help()
+    [Test, DisplayName("app/help-path-and-groups-use-metadata")]
+    public async ValueTask Help()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["help", "config", "show"]));
@@ -70,7 +53,8 @@ internal static partial class ApplicationTests
         AssertEx.Equal(0, await App(console).RunAsync(["config"]));
         AssertEx.True(console.StandardOutput.Contains("show", StringComparison.Ordinal));
     }
-    private static async ValueTask JsonIsolation()
+    [Test, DisplayName("app/json-handler-output-and-input-are-isolated")]
+    public async ValueTask JsonIsolation()
     {
         var console = new TestCommandConsole { IsInteractive = true, IsInputRedirected = false };
         console.QueueInput("must not consume");
@@ -80,7 +64,8 @@ internal static partial class ApplicationTests
         AssertEx.Equal("Working\n", console.StandardError);
         AssertEx.Equal("must not consume", await console.ReadLineAsync(default));
     }
-    private static async ValueTask Exceptions()
+    [Test, DisplayName("app/internal-exceptions-are-observable-and-sanitized")]
+    public async ValueTask Exceptions()
     {
         var console = new TestCommandConsole();
         Exception? captured = null;
@@ -88,7 +73,8 @@ internal static partial class ApplicationTests
         AssertEx.True(captured is InvalidOperationException);
         AssertEx.True(!console.StandardOutput.Contains("internal-secret", StringComparison.Ordinal));
     }
-    private static async ValueTask ScopeErrors()
+    [Test, DisplayName("app/scope-configuration-errors-follow-the-execution-contract")]
+    public async ValueTask ScopeErrors()
     {
         var console = new TestCommandConsole();
         Exception? captured = null;
@@ -103,7 +89,8 @@ internal static partial class ApplicationTests
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertEx.True(!console.StandardOutput.Contains("scope-secret", StringComparison.Ordinal));
     }
-    private static async ValueTask Environment()
+    [Test, DisplayName("app/environment-fallback-and-explicit-precedence")]
+    public async ValueTask Environment()
     {
         var settings = new ParseSettings { GetEnvironmentVariable = _ => "environment" };
         var console = new TestCommandConsole();
@@ -113,19 +100,22 @@ internal static partial class ApplicationTests
         AssertEx.Equal(0, await App(console, settings: settings).RunAsync(["env", "--name", "explicit"]));
         AssertEx.Equal("explicit\n", console.StandardOutput);
     }
-    private static async ValueTask NullableDefaults()
+    [Test, DisplayName("app/nullable-decimal-and-enum-defaults")]
+    public async ValueTask NullableDefaults()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["optional"]));
         AssertEx.Equal("1.5:Fast\n", console.StandardOutput);
     }
-    private static async ValueTask RecordOutput()
+    [Test, DisplayName("app/record-human-output-uses-fields")]
+    public async ValueTask RecordOutput()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["report"]));
         AssertEx.Equal("Status: Ready\nCount: 2\n", console.StandardOutput);
     }
-    private static async ValueTask CustomValues()
+    [Test, NotInParallel, DisplayName("app/custom-values-bind-once-and-validate")]
+    public async ValueTask CustomValues()
     {
         PortConverter.Calls = 0;
         var console = new TestCommandConsole();
@@ -136,7 +126,8 @@ internal static partial class ApplicationTests
         AssertEx.Equal(2, await App(console).RunAsync(["port", "--port", "0"]));
         AssertEx.True(console.StandardError.Contains("port", StringComparison.Ordinal));
     }
-    private static ValueTask GlobalOptions()
+    [Test, DisplayName("app/global-options-work-before-and-after-command")]
+    public ValueTask GlobalOptions()
     {
         CommandCatalog catalog = GeneratedCommandCatalog.Create(builder => builder.GlobalOption("verbose", "--verbose", CommandArity.Zero));
         foreach (string[] args in new[] { new[] { "--verbose", "greet", "Ada" }, new[] { "greet", "--verbose", "Ada" } })
@@ -154,7 +145,8 @@ internal static partial class ApplicationTests
         AssertEx.True(script.Contains("--verbose", StringComparison.Ordinal));
         return ValueTask.CompletedTask;
     }
-    private static async ValueTask Spectre()
+    [Test, DisplayName("app/spectre-literal-text-and-byte-frame")]
+    public async ValueTask Spectre()
     {
         var inner = new TestCommandConsole();
         var console = new SpectreCommandConsole(inner, width: 40);

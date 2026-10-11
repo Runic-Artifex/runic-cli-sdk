@@ -7,20 +7,26 @@ namespace Runic.CommandLine.Tests;
 /// <c>env --default-signal=INT,QUIT</c> because background jobs of a noninteractive shell inherit
 /// SIGINT and SIGQUIT as ignored, and an ignored signal never reaches the runtime's handlers.
 /// </summary>
-internal static class SignalTests
+[NotInParallel]
+internal sealed class SignalTests
 {
     private const string ChildSwitch = "--signal-test-child";
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
 
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("signals/sigint-cancels-the-invocation", () => Cancels("INT")),
-        new("signals/sigterm-cancels-the-invocation", () => Cancels("TERM")),
-        new("signals/sigquit-cancels-the-invocation", () => Cancels("QUIT")),
-        new("signals/second-sigint-forces-exit-130", () => ForcesExit("INT", "INT", 130)),
-        new("signals/second-signal-after-sigterm-forces-exit", () => ForcesExit("TERM", "TERM", 143)),
-        new("signals/opt-out-keeps-default-sigterm-termination", OptOutKeepsDefault),
-    ];
+    [Test, DisplayName("signals/sigint-cancels-the-invocation")]
+    public ValueTask SigintCancelsTheInvocation() => Cancels("INT");
+
+    [Test, DisplayName("signals/sigterm-cancels-the-invocation")]
+    public ValueTask SigtermCancelsTheInvocation() => Cancels("TERM");
+
+    [Test, DisplayName("signals/sigquit-cancels-the-invocation")]
+    public ValueTask SigquitCancelsTheInvocation() => Cancels("QUIT");
+
+    [Test, DisplayName("signals/second-sigint-forces-exit-130")]
+    public ValueTask SecondSigintForcesExit130() => ForcesExit("INT", "INT", 130);
+
+    [Test, DisplayName("signals/second-signal-after-sigterm-forces-exit")]
+    public ValueTask SecondSignalAfterSigtermForcesExit() => ForcesExit("TERM", "TERM", 143);
 
     public static bool IsChildInvocation(string[] args) => args.Length == 2 && args[0] == ChildSwitch;
 
@@ -68,7 +74,8 @@ internal static class SignalTests
         AssertEx.Equal(expected, await child.WaitForExitAsync(), $"SIG{first} then SIG{second} exit code");
     }
 
-    private static async ValueTask OptOutKeepsDefault()
+    [Test, DisplayName("signals/opt-out-keeps-default-sigterm-termination")]
+    public async ValueTask OptOutKeepsDefault()
     {
         if (!OperatingSystem.IsLinux()) return;
         await using var child = await SignalChild.StartAsync("unhandled");
