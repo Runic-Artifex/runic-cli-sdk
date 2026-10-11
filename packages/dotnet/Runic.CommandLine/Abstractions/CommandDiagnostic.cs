@@ -131,6 +131,29 @@ public sealed record CommandDiagnostic
     /// <summary>Gets the stable localization message key.</summary>
     public string MessageKey { get; }
 
+    /// <summary>
+    /// Gets an absolute <c>https</c> link to the documentation of this diagnostic's code, or
+    /// <see langword="null"/> when there is none.
+    /// </summary>
+    /// <remarks>
+    /// JSON output writes the link as <c>helpUri</c> and human output writes a
+    /// <c>Help for {Code}: {link}</c> line after the diagnostic. The link is presented as given:
+    /// unlike <see cref="Message"/> and <see cref="Arguments"/>, it is not checked for technical
+    /// content, so it must be a fixed documentation address, never built from user input.
+    /// Set it with an object initializer or a <see langword="with"/> expression.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// The value is not an absolute <c>https</c> URI, carries user information, or exceeds
+    /// 2,048 characters.
+    /// </exception>
+    public Uri? HelpUri
+    {
+        get => _helpUri;
+        init => _helpUri = CommandHelpUri.Validate(value, nameof(HelpUri));
+    }
+
+    private readonly Uri? _helpUri;
+
     private static IReadOnlyList<string> CopyArguments(IEnumerable<string>? arguments)
     {
         if (arguments is null)

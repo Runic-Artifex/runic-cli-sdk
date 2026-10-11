@@ -160,6 +160,12 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             text.Append('\n');
         }
 
+        // A diagnostic that describes the fault may already have written the same link.
+        if (fault.HelpUri is { } helpUri && !HasHelpLink(response.Diagnostics, fault.Code, helpUri))
+        {
+            AppendHelpLink(text, fault.Code, helpUri);
+        }
+
         await console.WriteErrorAsync(text.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
     }
 
@@ -185,9 +191,33 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 ? "The diagnostic content was redacted."
                 : CommandFaultSanitizer.SanitizeRequiredText(diagnostic.Message));
             text.Append('\n');
+            if (diagnostic.HelpUri is { } helpUri)
+            {
+                AppendHelpLink(text, diagnostic.Code, helpUri);
+            }
         }
 
         return text.ToString();
+    }
+
+    // The link follows the line it documents, as the Runic SDK tools write it. It is the author's
+    // validated https address, so it is written without the redaction that messages receive.
+    private static void AppendHelpLink(StringBuilder text, string code, Uri helpUri) =>
+        text.Append("Help for ").Append(code).Append(": ").Append(helpUri.AbsoluteUri).Append('\n');
+
+    private static bool HasHelpLink(IReadOnlyList<CommandDiagnostic> diagnostics, string code, Uri helpUri)
+    {
+        foreach (CommandDiagnostic diagnostic in diagnostics)
+        {
+            // Uri.Equals ignores fragments, which name the catalog entry, so compare the full text.
+            if (string.Equals(diagnostic.Code, code, StringComparison.Ordinal) &&
+                string.Equals(diagnostic.HelpUri?.AbsoluteUri, helpUri.AbsoluteUri, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool ContainsFaultDiagnostic(

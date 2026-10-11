@@ -270,7 +270,24 @@ public static class CommandJsonEnvelopeReader
             details.Add(property.Name, detailValue);
         }
 
-        return new CommandFault(code, message, details, retryable);
+        return new CommandFault(code, message, details, retryable) { HelpUri = ReadHelpUri(element) };
+    }
+
+    // The optional helpUri member of a fault or diagnostic: an absolute https URI in printable ASCII.
+    private static Uri? ReadHelpUri(JsonElement element)
+    {
+        if (!element.TryGetProperty("helpUri", out JsonElement helpUriElement))
+        {
+            return null;
+        }
+
+        if (helpUriElement.ValueKind != JsonValueKind.String ||
+            !CommandHelpUri.TryParse(helpUriElement.GetString()!, out Uri? helpUri))
+        {
+            throw Error("invalid-help-uri", "A help URI must be an absolute https URI of at most 2,048 printable ASCII characters.");
+        }
+
+        return helpUri;
     }
 
     private static CommandFailureData? ReadFailureData(JsonElement fault)
@@ -406,7 +423,7 @@ public static class CommandJsonEnvelopeReader
                     tokenIndex,
                     arguments,
                     path,
-                    messageKey));
+                    messageKey) { HelpUri = ReadHelpUri(diagnosticElement) });
             }
             catch (ArgumentException exception)
             {

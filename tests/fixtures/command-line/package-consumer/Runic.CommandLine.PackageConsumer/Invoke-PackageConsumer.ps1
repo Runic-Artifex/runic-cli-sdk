@@ -25,6 +25,26 @@ foreach ($package in @('Runic.CommandLine', 'Runic.CommandLine.Processes', 'Runi
         throw "Candidate package is missing: $candidate. This check never packs or substitutes a published Runic package."
     }
 }
+# Packed READMEs link to the candidate's release tag, never to a main branch
+# (eng/build/release-links.targets rewrites them when packing).
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+foreach ($package in @('Runic.CommandLine', 'Runic.CommandLine.Processes', 'Runic.CommandLine.Spectre', 'Runic.CommandLine.Testing')) {
+    $archive = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $feed "$package.$PackageVersion.nupkg"))
+    try {
+        $entry = $archive.GetEntry('README.md')
+        if ($null -eq $entry) { throw "Candidate package $package has no README.md." }
+        $reader = [System.IO.StreamReader]::new($entry.Open())
+        try { $packedReadme = $reader.ReadToEnd() } finally { $reader.Dispose() }
+    } finally {
+        $archive.Dispose()
+    }
+    $mainLink = [regex]::Match($packedReadme, 'github\.com/Runic-Artifex/[\w.-]+/(?:blob|tree)/main(?=[/#?)\s>"]|$)')
+    if ($mainLink.Success) { throw "The packed $package README links to a main branch: $($mainLink.Value)." }
+    if ($package -eq 'Runic.CommandLine' -and
+        -not $packedReadme.Contains("https://github.com/Runic-Artifex/runic-cli-sdk/blob/v$PackageVersion/docs/guides/command-line/diagnostics.md")) {
+        throw "The packed $package README does not link to the diagnostics catalog at v$PackageVersion."
+    }
+}
 $runRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
     'runic-cli-consumer-' + [Guid]::NewGuid().ToString('N'))
 $consumerDirectory = Join-Path $runRoot 'consumer'

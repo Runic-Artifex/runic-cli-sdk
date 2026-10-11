@@ -57,7 +57,9 @@ internal static class CommandFaultSanitizer
             details.Add(key, value);
         }
 
-        return new CommandFault(code, message, details, fault.Retryable);
+        // The help link was validated when it was set and is the author's fixed address,
+        // not presentation text, so it survives a redacted message.
+        return new CommandFault(code, message, details, fault.Retryable) { HelpUri = fault.HelpUri };
     }
 
     internal static string SanitizeText(string value)

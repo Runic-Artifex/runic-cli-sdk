@@ -14,7 +14,21 @@ internal static partial class DiagnosticCodeRangeTests
     [
         new("diagnostics/library-never-emits-application-range", LibraryNeverEmitsApplicationRange),
         new("diagnostics/generator-rules-link-to-documented-sections", GeneratorRulesLinkToDocumentation),
+        new("diagnostics/every-shipped-code-has-a-catalog-entry", EveryShippedCodeHasCatalogEntry),
     ];
+
+    // "RCLI0001 through RCLI9999" bounds the code range in CommandDiagnostic's validation message; neither is reported.
+    private static readonly HashSet<string> RangeBounds = new(StringComparer.Ordinal) { "RCLI0001", "RCLI9999" };
+
+    /// <summary>
+    /// The diagnostics catalog at the release tag of the assembly that links to it, ending in <c>#</c>:
+    /// eng/build/release-links.targets names the tag v$(PackageVersion), never main.
+    /// </summary>
+    internal static string CatalogUrl(Type type)
+    {
+        string version = type.Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0];
+        return $"https://github.com/Runic-Artifex/runic-cli-sdk/blob/v{version}/docs/guides/command-line/diagnostics.md#";
+    }
 
     // Every RCLI code the libraries and the generator can emit is a string literal in a shipped assembly. The packages
     // come from eng/build/shipping-projects.props, and a new package fails this test until this project references it; the
@@ -40,10 +54,16 @@ internal static partial class DiagnosticCodeRangeTests
         return root;
     }
 
+    private static string Catalog() =>
+        File.ReadAllText(Path.Combine(RepositoryRoot(), "docs", "guides", "command-line", "diagnostics.md")).ReplaceLineEndings("\n");
+
     [GeneratedRegex(@"RCLI[0-9]{4}")]
     private static partial Regex CodePattern();
 
-    private static ValueTask LibraryNeverEmitsApplicationRange()
+    [GeneratedRegex(@"^### (RCLI[0-9]{4})$", RegexOptions.Multiline)]
+    private static partial Regex CatalogEntryPattern();
+
+    private static SortedSet<string> ShippedCodes()
     {
         var codes = new SortedSet<string>(StringComparer.Ordinal);
         foreach (string path in ShippedAssemblyPaths())
@@ -59,8 +79,27 @@ internal static partial class DiagnosticCodeRangeTests
         // Guard the scan itself: parser, process, generated-binding and generator codes must all be visible.
         foreach (string known in new[] { "RCLI1001", "RCLI2005", "RCLI5000", "RCLI6001", "RCLI9001", "RCLI9034" })
             AssertEx.True(codes.Contains(known), "The scan did not find " + known + ".");
-        string[] application = codes.Where(static code => code.StartsWith("RCLI8", StringComparison.Ordinal)).ToArray();
+        return codes;
+    }
+
+    private static ValueTask LibraryNeverEmitsApplicationRange()
+    {
+        string[] application = ShippedCodes().Where(static code => code.StartsWith("RCLI8", StringComparison.Ordinal)).ToArray();
         AssertEx.True(application.Length == 0, "Library code uses the application range: " + string.Join(", ", application));
+        return ValueTask.CompletedTask;
+    }
+
+    // Help links and catalog validation messages open the code's catalog entry at the release tag, so each code the
+    // packages can report needs one, and an entry for a code that no longer ships is stale.
+    private static ValueTask EveryShippedCodeHasCatalogEntry()
+    {
+        SortedSet<string> shipped = ShippedCodes();
+        shipped.ExceptWith(RangeBounds);
+        var entries = new SortedSet<string>(CatalogEntryPattern().Matches(Catalog()).Select(static match => match.Groups[1].Value), StringComparer.Ordinal);
+        string[] missing = shipped.Except(entries).ToArray();
+        AssertEx.True(missing.Length == 0, "docs/guides/command-line/diagnostics.md has no '### <code>' entry for " + string.Join(", ", missing));
+        string[] stale = entries.Except(shipped).ToArray();
+        AssertEx.True(stale.Length == 0, "docs/guides/command-line/diagnostics.md describes codes that no shipped assembly reports: " + string.Join(", ", stale));
         return ValueTask.CompletedTask;
     }
 
@@ -72,12 +111,13 @@ internal static partial class DiagnosticCodeRangeTests
             .Select(static field => (DiagnosticDescriptor)field.GetValue(null)!)
             .ToArray();
         AssertEx.True(descriptors.Length >= 20, "Expected the generator's descriptors.");
-        string document = File.ReadAllText(Path.Combine(RepositoryRoot(), "docs", "guides", "command-line", "diagnostics.md"));
-        const string prefix = "https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/diagnostics.md#";
+        string document = Catalog();
+        // Help links name the release tag of the generator, never the main branch.
+        string prefix = CatalogUrl(typeof(CommandLineGenerator));
         foreach (DiagnosticDescriptor descriptor in descriptors)
         {
             AssertEx.Equal(prefix + descriptor.Id.ToLowerInvariant(), descriptor.HelpLinkUri);
-            AssertEx.True(document.Contains("\n## " + descriptor.Id + "\n", StringComparison.Ordinal), descriptor.Id + " has no documented section.");
+            AssertEx.True(document.Contains("\n### " + descriptor.Id + "\n", StringComparison.Ordinal), descriptor.Id + " has no documented section.");
             AssertEx.True(!descriptor.Id.StartsWith("RCLI8", StringComparison.Ordinal), descriptor.Id + " is in the application range.");
         }
         return ValueTask.CompletedTask;

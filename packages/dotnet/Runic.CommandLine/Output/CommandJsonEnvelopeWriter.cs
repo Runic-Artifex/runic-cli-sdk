@@ -118,6 +118,7 @@ public static class CommandJsonEnvelopeWriter
 
         writer.WriteEndObject();
         writer.WriteBoolean("retryable", fault.Retryable);
+        WriteHelpUri(writer, fault.HelpUri);
         if (failureData is not null)
         {
             writer.WritePropertyName("data");
@@ -193,8 +194,19 @@ public static class CommandJsonEnvelopeWriter
         }
 
         writer.WriteEndArray();
+        WriteHelpUri(writer, diagnostic.HelpUri);
 
         writer.WriteEndObject();
+    }
+
+    // An optional additive member: the link was validated when it was set and, unlike
+    // presentation text, is not redacted. Version-1 readers ignore it.
+    private static void WriteHelpUri(Utf8JsonWriter writer, Uri? helpUri)
+    {
+        if (helpUri is not null)
+        {
+            writer.WriteString("helpUri", helpUri.AbsoluteUri);
+        }
     }
 
     private static void EnsurePayloadIdentity<T>(CommandResponse<T> response, string registeredPayloadType)
