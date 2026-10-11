@@ -1,48 +1,24 @@
-using Runic.CommandLine.Tests;
+using Microsoft.Testing.Platform.Builder;
 
-if (SignalTests.IsChildInvocation(args))
-    return await SignalTests.RunChildAsync(args[1]);
+namespace Runic.CommandLine.Tests;
 
-if (args.Contains("--signals", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(SignalTests.All);
+/// <summary>
+/// The signal cases start this executable again as the process that receives the signal, so the entry point
+/// runs that child before it starts the TUnit test application. <c>GenerateTestingPlatformEntryPoint</c> is
+/// off, and the test application is built the way the generated entry point builds it.
+/// </summary>
+internal static class Program
+{
+#pragma warning disable TUnit0034 // The signal child needs a hand-written entry point.
+    public static async Task<int> Main(string[] args)
+#pragma warning restore TUnit0034
+    {
+        if (SignalTests.IsChildInvocation(args))
+            return await SignalTests.RunChildAsync(args[1]).ConfigureAwait(false);
 
-if (args.Contains("--completion-help", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(CompletionHelpTests.All, HelpLayoutTests.All);
-
-if (args.Contains("--authoring-localization", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(AuthoringMetadataTests.All, LocalizationTests.All);
-
-if (args.Contains("--result-contexts", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(ResultContextTests.All, GeneratorTests.All);
-
-if (args.Contains("--error-causes", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(ErrorCauseTests.All);
-
-if (args.Contains("--failure-data", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(FailureDataTests.All, OutputTests.All, HelpLinkTests.All, ProtocolCorpusTests.All, ResultContextTests.All);
-
-if (args.Contains("--developer-experience", StringComparer.Ordinal))
-    return await TestRunner.RunAsync(DeveloperExperienceTests.All);
-
-return await TestRunner.RunAsync(
-    CompletionHelpTests.All,
-    HelpLayoutTests.All,
-    AuthoringMetadataTests.All,
-    LocalizationTests.All,
-    ApplicationTests.All,
-    ResultContextTests.All,
-    SignalTests.All,
-    GrammarCorpusTests.All,
-    ParserAdversarialTests.All,
-    OutputClassificationCorpusTests.All,
-    CatalogTests.All,
-    DiagnosticBoundaryTests.All,
-    DiagnosticCodeRangeTests.All,
-    DispatcherTests.All,
-    OutputTests.All,
-    HelpLinkTests.All,
-    FailureDataTests.All,
-    ProtocolCorpusTests.All,
-    GeneratorTests.All,
-    ErrorCauseTests.All,
-    DeveloperExperienceTests.All);
+        ITestApplicationBuilder builder = await TestApplication.CreateBuilderAsync(args).ConfigureAwait(false);
+        builder.AddSelfRegisteredExtensions(args);
+        using ITestApplication application = await builder.BuildAsync().ConfigureAwait(false);
+        return await application.RunAsync().ConfigureAwait(false);
+    }
+}

@@ -9,53 +9,14 @@ using Runic.CommandLine;
 using Runic.CommandLine.Hosting;
 using Runic.CommandLine.Testing;
 using Runic.CommandLine.Spectre;
+using TUnit.Core;
 
-return await HostingAdapterTests.RunAsync();
+namespace Runic.CommandLine.Hosting.Tests;
 
-internal static partial class HostingAdapterTests
+internal sealed partial class HostingAdapterTests
 {
-    public static async Task<int> RunAsync()
-    {
-        (string Name, Func<ValueTask> Body)[] tests =
-        [
-            ("review/completion-respects-custom-transport", CompletionTransport),
-            ("review/catalog-completion-command-and-alias-win", CatalogCompletion),
-            ("review/global-alias-mismatch-is-rejected", GlobalAliases),
-            ("review/framework-presentation-is-cancellable", PresentationCancellation),
-            ("review/framework-failures-are-observed-without-retry", PresentationFailures),
-            ("presentation/shared-runner-parity-and-no-scopes", PresentationParity),
-            ("classification/parameter-environment-is-copied", EnvironmentSnapshot),
-            ("execution/exception-observer-keeps-public-fault-safe", ExceptionObservation),
-            ("classification/is-pure-and-maps-parser-outcomes", ClassificationIsPure),
-            ("classification/replays-captured-output-inputs", CapturedOutputPrecedence),
-            ("classification/error-preserves-transport-output", ErrorPreservesTransportOutput),
-            ("classification/uses-configured-transport-output-option", ConfiguredTransportOutput),
-            ("classification/rejects-built-in-transport-output-option", BuiltInTransportOutputIsRejected),
-            ("classification/empty-ui-fallback-is-explicit", EmptyInputFallbackIsExplicit),
-            ("execution/delegates-once-and-preserves-result", ExecutionDelegatesOnce),
-            ("execution/rejects-a-decision-created-by-another-adapter", ExecutionRejectsMismatchedAdapter),
-            ("execution/preserves-executor-fault-and-cancellation-precedence", ExecutionPreservesPrecedence),
-        ];
-        int failures = 0;
-        foreach ((string name, Func<ValueTask> body) in tests)
-        {
-            try
-            {
-                await body().ConfigureAwait(false);
-                Console.WriteLine($"PASS {name}");
-            }
-            catch (Exception exception)
-            {
-                Console.Error.WriteLine($"FAIL {name}: {exception.Message}");
-                failures++;
-            }
-        }
-
-        Console.WriteLine($"SUMMARY passed={tests.Length - failures} failed={failures} total={tests.Length}");
-        return failures == 0 ? 0 : 1;
-    }
-
-    private static async ValueTask PresentationParity()
+    [Test, DisplayName("presentation/shared-runner-parity-and-no-scopes")]
+    public async ValueTask PresentationParity()
     {
         var scopes = new TrackingScopeFactory();
         var catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
@@ -93,7 +54,8 @@ internal static partial class HostingAdapterTests
         AssertThrows<InvalidOperationException>(() => other.PresentAsync(adapter.Classify(new(["--help"])), new SilentConsole(), CultureInfo.InvariantCulture, "other").AsTask().GetAwaiter().GetResult());
     }
 
-    private static async ValueTask EnvironmentSnapshot()
+    [Test, NotInParallel, DisplayName("classification/parameter-environment-is-copied")]
+    public async ValueTask EnvironmentSnapshot()
     {
         string? bound = null;
         var binder = new DelegateBinder((invocation, _) =>
@@ -126,7 +88,8 @@ internal static partial class HostingAdapterTests
         finally { Environment.SetEnvironmentVariable("HOST_VALUE", previous); }
     }
 
-    private static async ValueTask ExceptionObservation()
+    [Test, DisplayName("execution/exception-observer-keeps-public-fault-safe")]
+    public async ValueTask ExceptionObservation()
     {
         var failure = new InvalidOperationException("private-host-secret");
         var catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory((_, _, _) => throw failure));
@@ -141,7 +104,8 @@ internal static partial class HostingAdapterTests
         AssertTrue(!console.StandardOutput.Contains("private-host-secret", StringComparison.Ordinal));
     }
 
-    private static ValueTask ClassificationIsPure()
+    [Test, DisplayName("classification/is-pure-and-maps-parser-outcomes")]
+    public ValueTask ClassificationIsPure()
     {
         var handlerFactory = new TrackingHandlerFactory();
         var scopes = new TrackingScopeFactory();
@@ -161,7 +125,8 @@ internal static partial class HostingAdapterTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask CapturedOutputPrecedence()
+    [Test, DisplayName("classification/replays-captured-output-inputs")]
+    public ValueTask CapturedOutputPrecedence()
     {
         CommandCatalog catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
         var bridge = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()));
@@ -183,7 +148,8 @@ internal static partial class HostingAdapterTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ErrorPreservesTransportOutput()
+    [Test, DisplayName("classification/error-preserves-transport-output")]
+    public ValueTask ErrorPreservesTransportOutput()
     {
         CommandCatalog catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
         var bridge = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()));
@@ -279,7 +245,8 @@ internal static partial class HostingAdapterTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ConfiguredTransportOutput()
+    [Test, DisplayName("classification/uses-configured-transport-output-option")]
+    public ValueTask ConfiguredTransportOutput()
     {
         var binder = new DelegateBinder();
         var handlers = new TrackingHandlerFactory();
@@ -300,7 +267,8 @@ internal static partial class HostingAdapterTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask BuiltInTransportOutputIsRejected()
+    [Test, DisplayName("classification/rejects-built-in-transport-output-option")]
+    public ValueTask BuiltInTransportOutputIsRejected()
     {
         foreach (string spelling in new[] { "--help", "--version" })
         {
@@ -315,7 +283,8 @@ internal static partial class HostingAdapterTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask EmptyInputFallbackIsExplicit()
+    [Test, DisplayName("classification/empty-ui-fallback-is-explicit")]
+    public ValueTask EmptyInputFallbackIsExplicit()
     {
         CommandCatalog catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
         var bridge = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()));
@@ -335,7 +304,8 @@ internal static partial class HostingAdapterTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask ExecutionDelegatesOnce()
+    [Test, DisplayName("execution/delegates-once-and-preserves-result")]
+    public async ValueTask ExecutionDelegatesOnce()
     {
         var handlerFactory = new TrackingHandlerFactory();
         var scopes = new TrackingScopeFactory();
@@ -357,7 +327,8 @@ internal static partial class HostingAdapterTests
         AssertEqual(1, sink.Writes);
     }
 
-    private static async ValueTask ExecutionRejectsMismatchedAdapter()
+    [Test, DisplayName("execution/rejects-a-decision-created-by-another-adapter")]
+    public async ValueTask ExecutionRejectsMismatchedAdapter()
     {
         CommandCatalog catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
         var first = new CommandLineHostingAdapter(
@@ -382,7 +353,8 @@ internal static partial class HostingAdapterTests
         }
     }
 
-    private static async ValueTask ExecutionPreservesPrecedence()
+    [Test, DisplayName("execution/preserves-executor-fault-and-cancellation-precedence")]
+    public async ValueTask ExecutionPreservesPrecedence()
     {
         var binderFailureScopes = new TrackingScopeFactory();
         var binderFailureHandler = new TrackingHandlerFactory();

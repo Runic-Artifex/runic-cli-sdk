@@ -5,15 +5,10 @@ using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class ResultContextTests
+internal sealed class ResultContextTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("app/generated-result-preserves-json-context-options", JsonOptions),
-        new("app/generated-human-result-preserves-json-context-options", HumanOptions),
-    ];
-
-    private static async ValueTask JsonOptions()
+    [Test, DisplayName("app/generated-result-preserves-json-context-options")]
+    public async ValueTask JsonOptions()
     {
         var console = new TestCommandConsole();
         var app = new CommandApp(GeneratedCommandCatalog.Create()) { Console = console, HandleCancelKeyPress = false };
@@ -27,7 +22,8 @@ internal static class ResultContextTests
         AssertEx.Equal(1, payload.EnumerateObject().Count());
     }
 
-    private static async ValueTask HumanOptions()
+    [Test, DisplayName("app/generated-human-result-preserves-json-context-options")]
+    public async ValueTask HumanOptions()
     {
         var console = new TestCommandConsole();
         var app = new CommandApp(GeneratedCommandCatalog.Create()) { Console = console, HandleCancelKeyPress = false };

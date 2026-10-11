@@ -3,19 +3,8 @@ using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
-internal static partial class CompletionHelpTests
+internal sealed partial class CompletionHelpTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("help/root-globals-render-once-in-human-and-json", GlobalHelp),
-        new("completion/query-follows-command-value-and-position", QueryContexts),
-        new("completion/native-shells-return-contextual-candidates", NativeShells),
-        new("completion/native-registration-handles-spaces-and-bash-wordbreaks", NativeIntegration),
-        new("completion/native-shells-complete-inline-and-positional-paths", NativePaths),
-        new("completion/bash-readline-preserves-literal-arguments", BashReadline),
-        new("completion/zsh-line-editor-preserves-literal-arguments", ZshReadline),
-    ];
-
     private static CommandCatalog Catalog()
     {
         var builder = new CommandCatalogBuilder()
@@ -52,7 +41,8 @@ internal static partial class CompletionHelpTests
         return builder.DefaultCommand("deploy").Build();
     }
 
-    private static async ValueTask GlobalHelp()
+    [Test, DisplayName("help/root-globals-render-once-in-human-and-json")]
+    public async ValueTask GlobalHelp()
     {
         CommandCatalog catalog = Catalog();
         foreach (string[] args in new[] { new[] { "--help" }, new[] { "help", "cfg", "write" } })
@@ -101,7 +91,8 @@ internal static partial class CompletionHelpTests
         ["config", "get", "--"], ["deploy", "--"], ["--remote-only", ""],
     ];
 
-    private static ValueTask QueryContexts()
+    [Test, DisplayName("completion/query-follows-command-value-and-position")]
+    public ValueTask QueryContexts()
     {
         CommandCatalog catalog = Catalog();
         AssertEx.SequenceEqual(RootCommands.Order(StringComparer.Ordinal), CommandCompletion.Query(catalog, [""]).Candidates.Where(value => !value.StartsWith('-') && value is not "help" and not "completion"));
@@ -129,7 +120,8 @@ internal static partial class CompletionHelpTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask NativeShells()
+    [Test, NotInParallel, DisplayName("completion/native-shells-return-contextual-candidates")]
+    public async ValueTask NativeShells()
     {
         await WithDirectory(async directory =>
         {
@@ -149,7 +141,8 @@ internal static partial class CompletionHelpTests
         });
     }
 
-    private static async ValueTask NativeIntegration()
+    [Test, NotInParallel, DisplayName("completion/native-registration-handles-spaces-and-bash-wordbreaks")]
+    public async ValueTask NativeIntegration()
     {
         await WithDirectory(async directory =>
         {
@@ -196,7 +189,8 @@ internal static partial class CompletionHelpTests
         });
     }
 
-    private static async ValueTask NativePaths()
+    [Test, NotInParallel, DisplayName("completion/native-shells-complete-inline-and-positional-paths")]
+    public async ValueTask NativePaths()
     {
         await WithDirectory(async directory =>
         {

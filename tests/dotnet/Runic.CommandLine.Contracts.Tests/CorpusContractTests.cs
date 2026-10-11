@@ -3,14 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Runic.CommandLine;
+using TUnit.Core;
 
 namespace Runic.CommandLine.Contracts.Tests;
 
-internal static class CorpusContractTests
+internal sealed class CorpusContractTests
 {
     private const int CorpusFormatVersion = 1;
 
-    public static void ValidateGrammarCorpus()
+    [Test, DisplayName("grammar corpus has a portable contract shape")]
+    public void ValidateGrammarCorpus()
     {
         using JsonDocument document = LoadCorpus("grammar-corpus.json");
         JsonElement cases = ValidateHeader(document.RootElement);
@@ -44,7 +46,8 @@ internal static class CorpusContractTests
         Assert.True(identifiers.Count > 0);
     }
 
-    public static void ValidateOutputClassificationCorpus()
+    [Test, DisplayName("output corpus agrees with the public classifier")]
+    public void ValidateOutputClassificationCorpus()
     {
         using JsonDocument document = LoadCorpus("output-classification-corpus.json");
         JsonElement root = document.RootElement;
@@ -95,7 +98,8 @@ internal static class CorpusContractTests
         Assert.True(identifiers.Count > 0);
     }
 
-    public static void ValidateGlobalFixtureIds()
+    [Test, DisplayName("command-line corpus fixture IDs are globally unique")]
+    public void ValidateGlobalFixtureIds()
     {
         var identifiers = new HashSet<string>(StringComparer.Ordinal);
         ValidateUniqueFixtureIds("grammar-corpus.json", identifiers);

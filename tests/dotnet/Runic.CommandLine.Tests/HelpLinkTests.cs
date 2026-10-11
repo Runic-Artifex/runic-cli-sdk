@@ -6,26 +6,13 @@ namespace Runic.CommandLine.Tests;
 
 // CommandFault.HelpUri and CommandDiagnostic.HelpUri: validated https links that JSON and human
 // output keep, while messages, details and arguments stay redacted.
-internal static class HelpLinkTests
+internal sealed class HelpLinkTests
 {
     private static readonly Uri FaultLink = new("https://docs.example.com/errors#ras1001");
     private static readonly Uri DiagnosticLink = new("https://docs.example.com/errors#ras1002");
     private static readonly string[] FaultProperties = ["code", "message", "details", "retryable", "helpUri"];
     private static readonly string[] DiagnosticProperties =
         ["code", "kind", "commandPath", "messageKey", "message", "phase", "severity", "tokenIndex", "arguments", "helpUri"];
-
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("help-links/only-absolute-https-links-are-accepted", OnlyHttpsLinksAreAccepted),
-        new("help-links/json-writes-links-after-the-existing-members", JsonWritesLinks),
-        new("help-links/json-omits-absent-links", JsonOmitsAbsentLinks),
-        new("help-links/redaction-of-messages-is-unchanged", RedactionIsUnchanged),
-        new("help-links/reader-round-trips-links", ReaderRoundTripsLinks),
-        new("help-links/reader-rejects-invalid-links", ReaderRejectsInvalidLinks),
-        new("help-links/human-output-writes-a-help-line", HumanOutputWritesHelpLine),
-        new("help-links/human-output-writes-a-shared-link-once", HumanOutputWritesSharedLinkOnce),
-        new("help-links/localization-keeps-links", LocalizationKeepsLinks),
-    ];
 
     private static CommandFault Fault(string message = "The archive could not be read.") =>
         new("RAS1001", message, new Dictionary<string, string> { ["archive"] = "assets" }) { HelpUri = FaultLink };
@@ -39,7 +26,8 @@ internal static class HelpLinkTests
             CommandResponse.Failed<TestResult>("req-help", "pack", 10, fault, diagnostics),
             TestJsonContext.Default.TestResult);
 
-    private static ValueTask OnlyHttpsLinksAreAccepted()
+    [Test, DisplayName("help-links/only-absolute-https-links-are-accepted")]
+    public ValueTask OnlyHttpsLinksAreAccepted()
     {
         AssertEx.Equal(FaultLink, Fault().HelpUri);
         AssertEx.Equal(null, new CommandFault("RAS1001", "Failed.").HelpUri);
@@ -59,7 +47,8 @@ internal static class HelpLinkTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask JsonWritesLinks()
+    [Test, DisplayName("help-links/json-writes-links-after-the-existing-members")]
+    public ValueTask JsonWritesLinks()
     {
         byte[] frame = FailureFrame(Fault(), Diagnostic());
         using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1));
@@ -75,7 +64,8 @@ internal static class HelpLinkTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask JsonOmitsAbsentLinks()
+    [Test, DisplayName("help-links/json-omits-absent-links")]
+    public ValueTask JsonOmitsAbsentLinks()
     {
         byte[] frame = FailureFrame(new CommandFault("RAS1001", "Failed."),
             new CommandDiagnostic("RCLI8002", "index-missing", "Missing.", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Warning));
@@ -83,7 +73,8 @@ internal static class HelpLinkTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask RedactionIsUnchanged()
+    [Test, DisplayName("help-links/redaction-of-messages-is-unchanged")]
+    public ValueTask RedactionIsUnchanged()
     {
         // A URL or path in presentation text is still redacted; only the help link member is exempt.
         byte[] frame = FailureFrame(
@@ -100,7 +91,8 @@ internal static class HelpLinkTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReaderRoundTripsLinks()
+    [Test, DisplayName("help-links/reader-round-trips-links")]
+    public ValueTask ReaderRoundTripsLinks()
     {
         CommandResponse<TestResult> response = CommandJsonEnvelopeReader.Read(
             FailureFrame(Fault(), Diagnostic()), TestCodec.Identity, TestJsonContext.Default.TestResult);
@@ -109,7 +101,8 @@ internal static class HelpLinkTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReaderRejectsInvalidLinks()
+    [Test, DisplayName("help-links/reader-rejects-invalid-links")]
+    public ValueTask ReaderRejectsInvalidLinks()
     {
         string json = Encoding.UTF8.GetString(FailureFrame(Fault(), Diagnostic())).TrimEnd('\n');
         foreach (string replacement in new[]
@@ -130,7 +123,8 @@ internal static class HelpLinkTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask HumanOutputWritesHelpLine()
+    [Test, DisplayName("help-links/human-output-writes-a-help-line")]
+    public async ValueTask HumanOutputWritesHelpLine()
     {
         var console = new MemoryCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture,
@@ -147,7 +141,8 @@ internal static class HelpLinkTests
         AssertEx.Equal("RCLI8002: The archive index is missing.\nHelp for RCLI8002: https://docs.example.com/errors#ras1002\n", success.StandardError);
     }
 
-    private static async ValueTask HumanOutputWritesSharedLinkOnce()
+    [Test, DisplayName("help-links/human-output-writes-a-shared-link-once")]
+    public async ValueTask HumanOutputWritesSharedLinkOnce()
     {
         // The diagnostic line already reports the fault and its link.
         var console = new MemoryCommandConsole();
@@ -165,7 +160,8 @@ internal static class HelpLinkTests
         AssertEx.Equal("RCLI8001: The archive could not be read.\nHelp for RCLI8001: https://docs.example.com/errors#ras1001\n", unlinked.StandardError);
     }
 
-    private static async ValueTask LocalizationKeepsLinks()
+    [Test, DisplayName("help-links/localization-keeps-links")]
+    public async ValueTask LocalizationKeepsLinks()
     {
         var context = new CommandTextContext(CultureInfo.GetCultureInfo("de-DE"), new Resolver());
         CommandDiagnostic localized = context.Localize(Diagnostic());

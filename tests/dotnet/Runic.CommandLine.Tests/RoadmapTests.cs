@@ -4,9 +4,10 @@ using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
-internal static partial class ApplicationTests
+internal sealed partial class ApplicationTests
 {
-    private static async ValueTask HiddenItems()
+    [Test, DisplayName("roadmap/hidden-items-stay-invocable")]
+    public async ValueTask HiddenItems()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["--help"]));
@@ -21,7 +22,8 @@ internal static partial class ApplicationTests
         AssertEx.True(!script.Contains("maintenance", StringComparison.Ordinal));
         AssertEx.True(!script.Contains("secret-switch", StringComparison.Ordinal));
     }
-    private static async ValueTask Suggestions()
+    [Test, DisplayName("roadmap/suggestions-are-safe-and-scoped")]
+    public async ValueTask Suggestions()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(2, await App(console).RunAsync(["config", "shwo"]));
@@ -34,7 +36,8 @@ internal static partial class ApplicationTests
         AssertEx.Equal(2, await App(console).RunAsync(["maintenance", "--secret-swtich"]));
         AssertEx.True(!console.StandardError.Contains("Did you mean", StringComparison.Ordinal));
     }
-    private static async ValueTask InputConstraints()
+    [Test, DisplayName("roadmap/paths-ranges-and-option-relationships")]
+    public async ValueTask InputConstraints()
     {
         string directory = Path.Combine(Path.GetTempPath(), "runic-path-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -70,7 +73,8 @@ internal static partial class ApplicationTests
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
-    private static async ValueTask HumanPresenter()
+    [Test, DisplayName("roadmap/custom-human-presenter-preserves-json")]
+    public async ValueTask HumanPresenter()
     {
         int calls = 0;
         var catalog = GeneratedCommandCatalog.Create(builder => builder.Present<SampleReport>("report", (value, console, _, token) =>

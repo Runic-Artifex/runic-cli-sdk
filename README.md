@@ -81,7 +81,8 @@ direnv allow
 direnv exec . ./eng/verify.sh
 ```
 
-`eng/test.sh` runs the managed suites and examples. `eng/verify.sh` additionally
+`eng/test.sh` runs the managed suites and examples; the suites use TUnit, and
+[CONTRIBUTING.md](CONTRIBUTING.md#tests) explains how to run, filter and report them. `eng/verify.sh` additionally
 runs the NativeAOT source smoke and an isolated consumer against the packed
 packages. It reads the candidate version from `eng/Versions.props`, or accepts
 `./eng/verify.sh <version> [package-directory] [runtime-identifier]`. NativeAOT

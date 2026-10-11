@@ -1,30 +1,12 @@
 namespace Runic.CommandLine.Tests;
 
-internal static class CatalogTests
+internal sealed class CatalogTests
 {
     private static readonly string[] MissingRegistrationCodes =
         ["RCLI0010", "RCLI0011", "RCLI0012"];
 
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("catalog/aliases-resolve-to-canonical-descriptors", AliasesResolve),
-        new("catalog/combine-preserves-order-and-rejects-duplicates", CombineCatalogs),
-        new("catalog/default-command-receives-unprefixed-tokens", DefaultCommand),
-        new("catalog/environment-flags-accept-common-spellings", EnvironmentFlagSpellings),
-        new("catalog/choices-bind-the-declared-spelling", ChoicesUseDeclaredSpelling),
-        new("catalog/reserved-command-names-rejected", ReservedCommandNames),
-        new("catalog/reserved-option-names-rejected", ReservedOptionNames),
-        new("catalog/application-output-and-configured-transport-coexist", ConfiguredTransportOutput),
-        new("catalog/duplicate-spellings-reported", DuplicateSpellings),
-        new("catalog/contradictory-argument-arity-reported", ContradictoryArgumentArity),
-        new("catalog/missing-closed-registration-reported-in-order", MissingRegistration),
-        new("catalog/invalid-payload-identities-fail-at-freeze", InvalidPayloadIdentities),
-        new("catalog/payload-identity-is-frozen", PayloadIdentityIsFrozen),
-        new("catalog/diagnostic-identities-RCLI0002-through-RCLI0017-are-frozen", FrozenDiagnosticIdentities),
-        new("catalog/frozen-descriptors-isolate-source-arrays", FrozenDescriptors),
-    ];
-
-    private static ValueTask AliasesResolve()
+    [Test, DisplayName("catalog/aliases-resolve-to-canonical-descriptors")]
+    public ValueTask AliasesResolve()
     {
         CommandCatalog catalog = FixtureCatalog.Create();
         AssertEx.True(catalog.TryGetCommand("stat", out CommandDescriptor? status), "Root alias was not resolved.");
@@ -36,7 +18,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask CombineCatalogs()
+    [Test, DisplayName("catalog/combine-preserves-order-and-rejects-duplicates")]
+    public ValueTask CombineCatalogs()
     {
         var firstBuilder = new CommandCatalogBuilder();
         ValidCommand(firstBuilder, "first");
@@ -63,7 +46,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask DefaultCommand()
+    [Test, DisplayName("catalog/default-command-receives-unprefixed-tokens")]
+    public ValueTask DefaultCommand()
     {
         var builder = new CommandCatalogBuilder();
         ValidCommand(builder, "pack").Argument("path", "path", CommandArity.ExactlyOne);
@@ -81,7 +65,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask EnvironmentFlagSpellings()
+    [Test, DisplayName("catalog/environment-flags-accept-common-spellings")]
+    public ValueTask EnvironmentFlagSpellings()
     {
         var builder = new CommandCatalogBuilder();
         ValidCommand(builder, "build").Option("verbose", "--verbose", CommandArity.Zero)
@@ -100,7 +85,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ChoicesUseDeclaredSpelling()
+    [Test, DisplayName("catalog/choices-bind-the-declared-spelling")]
+    public ValueTask ChoicesUseDeclaredSpelling()
     {
         var builder = new CommandCatalogBuilder();
         ValidCommand(builder, "build")
@@ -118,7 +104,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReservedCommandNames()
+    [Test, DisplayName("catalog/reserved-command-names-rejected")]
+    public ValueTask ReservedCommandNames()
     {
         foreach (string name in new[] { "help", "version", "output" })
         {
@@ -132,7 +119,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ReservedOptionNames()
+    [Test, DisplayName("catalog/reserved-option-names-rejected")]
+    public ValueTask ReservedOptionNames()
     {
         foreach (string name in new[] { "--help", "-h", "--version" })
         {
@@ -145,7 +133,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ConfiguredTransportOutput()
+    [Test, DisplayName("catalog/application-output-and-configured-transport-coexist")]
+    public ValueTask ConfiguredTransportOutput()
     {
         var builder = new CommandCatalogBuilder();
         ValidCommand(builder, "status").Option("output", "--output", CommandArity.ExactlyOne);
@@ -166,7 +155,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask DuplicateSpellings()
+    [Test, DisplayName("catalog/duplicate-spellings-reported")]
+    public ValueTask DuplicateSpellings()
     {
         var builder = new CommandCatalogBuilder();
         ValidCommand(builder, "one").Alias("shared");
@@ -183,7 +173,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ContradictoryArgumentArity()
+    [Test, DisplayName("catalog/contradictory-argument-arity-reported")]
+    public ValueTask ContradictoryArgumentArity()
     {
         var builder = new CommandCatalogBuilder();
         ValidCommand(builder, "copy")
@@ -201,7 +192,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask MissingRegistration()
+    [Test, DisplayName("catalog/missing-closed-registration-reported-in-order")]
+    public ValueTask MissingRegistration()
     {
         var builder = new CommandCatalogBuilder();
         builder.Command<TestOptions, TestHandler, TestResult>("status");
@@ -212,7 +204,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask InvalidPayloadIdentities()
+    [Test, DisplayName("catalog/invalid-payload-identities-fail-at-freeze")]
+    public ValueTask InvalidPayloadIdentities()
     {
         foreach (string payloadType in new[]
         {
@@ -246,7 +239,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask PayloadIdentityIsFrozen()
+    [Test, DisplayName("catalog/payload-identity-is-frozen")]
+    public async ValueTask PayloadIdentityIsFrozen()
     {
         var initialContext = new TestJsonContext(new System.Text.Json.JsonSerializerOptions());
         var mutatedContext = new TestJsonContext(new System.Text.Json.JsonSerializerOptions());
@@ -292,7 +286,8 @@ internal static class CatalogTests
         AssertEx.True(exception.Issues.Any(static issue => issue.Code == "RCLI0017"));
     }
 
-    private static ValueTask FrozenDescriptors()
+    [Test, DisplayName("catalog/frozen-descriptors-isolate-source-arrays")]
+    public ValueTask FrozenDescriptors()
     {
         string[] aliases = ["stat"];
         var builder = new CommandCatalogBuilder();
@@ -306,7 +301,8 @@ internal static class CatalogTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask FrozenDiagnosticIdentities()
+    [Test, DisplayName("catalog/diagnostic-identities-RCLI0002-through-RCLI0017-are-frozen")]
+    public ValueTask FrozenDiagnosticIdentities()
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
 

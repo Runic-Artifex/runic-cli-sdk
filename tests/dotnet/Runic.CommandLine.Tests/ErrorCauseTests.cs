@@ -10,28 +10,8 @@ using Runic.CommandLine.Testing;
 namespace Runic.CommandLine.Tests;
 
 // W250-008: each mistake from the CLI consumer trial names its cause, at build time where the generator can see it.
-internal static class ErrorCauseTests
+internal sealed class ErrorCauseTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("causes/generator-reports-optional-before-required-argument", OptionalBeforeRequired),
-        new("causes/generator-reports-attribute-reachable-catalog-rules", CatalogRuleParity),
-        new("causes/generator-splits-result-metadata-errors-by-cause", ResultMetadataCauses),
-        new("causes/catalog-exception-lists-its-issues", CatalogExceptionListsIssues),
-        new("causes/enum-defaults-render-by-member-name", EnumDefaults),
-        new("causes/type-errors-precede-ranges-and-name-the-option", TypeBeforeRange),
-        new("causes/ranges-say-between", Ranges),
-        new("causes/ranges-precede-custom-validators", RangesPrecedeValidators),
-        new("causes/argument-type-errors-name-the-argument", ArgumentTypeErrors),
-        new("causes/invalid-choices-list-non-sensitive-choices", Choices),
-        new("causes/invalid-output-mode-is-specific", OutputMode),
-        new("causes/environment-values-name-their-variable", EnvironmentSource),
-        new("causes/command-typos-are-suggested-with-a-default-command", DefaultCommandTypo),
-        new("causes/handler-exceptions-hint-and-print-in-development", HandlerExceptions),
-        new("causes/unknown-description-keys-are-reported", DescriptionKeys),
-        new("causes/new-messages-are-localizable", Localizable),
-    ];
-
     private const string HintKey = "hints.RCLI5000";
 
     private static CommandApp App(TestCommandConsole console, Func<string, string?>? environment = null, ICommandTextResolver? resolver = null) =>
@@ -59,7 +39,8 @@ internal static class ErrorCauseTests
     }
 
     // The trial's Mistakes project built cleanly, then every invocation, even --help, aborted at startup.
-    private static ValueTask OptionalBeforeRequired()
+    [Test, DisplayName("causes/generator-reports-optional-before-required-argument")]
+    public ValueTask OptionalBeforeRequired()
     {
         const string Mistake = """
             internal static class Commands
@@ -86,7 +67,8 @@ internal static class ErrorCauseTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask CatalogRuleParity()
+    [Test, DisplayName("causes/generator-reports-attribute-reachable-catalog-rules")]
+    public ValueTask CatalogRuleParity()
     {
         ImmutableArray<Diagnostic> diagnostics = Generate("""
             internal static class Commands
@@ -117,7 +99,8 @@ internal static class ErrorCauseTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ResultMetadataCauses()
+    [Test, DisplayName("causes/generator-splits-result-metadata-errors-by-cause")]
+    public ValueTask ResultMetadataCauses()
     {
         ImmutableArray<Diagnostic> diagnostics = Generate("""
             public sealed record Report(int Count);
@@ -147,7 +130,8 @@ internal static class ErrorCauseTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask CatalogExceptionListsIssues()
+    [Test, DisplayName("causes/catalog-exception-lists-its-issues")]
+    public ValueTask CatalogExceptionListsIssues()
     {
         var builder = new CommandCatalogBuilder();
         builder.Command<TestOptions, TestHandler, TestResult>("h", command => command
@@ -162,7 +146,8 @@ internal static class ErrorCauseTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask EnumDefaults()
+    [Test, DisplayName("causes/enum-defaults-render-by-member-name")]
+    public async ValueTask EnumDefaults()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["cause-values", "--help"]));
@@ -199,7 +184,8 @@ internal static class ErrorCauseTests
         AssertEx.Equal(message, frame.RootElement.GetProperty("fault").GetProperty("message").GetString());
     }
 
-    private static async ValueTask TypeBeforeRange()
+    [Test, DisplayName("causes/type-errors-precede-ranges-and-name-the-option")]
+    public async ValueTask TypeBeforeRange()
     {
         (string human, JsonDocument json) = await Fail(2, ["cause-values", "--limit", "abc"]);
         using (json)
@@ -221,7 +207,8 @@ internal static class ErrorCauseTests
         }
     }
 
-    private static async ValueTask Ranges()
+    [Test, DisplayName("causes/ranges-say-between")]
+    public async ValueTask Ranges()
     {
         (string human, JsonDocument json) = await Fail(2, ["cause-values", "--limit", "99"]);
         using (json)
@@ -243,7 +230,8 @@ internal static class ErrorCauseTests
     }
 
     // Order per value: conversion (RCLI2005), declared range (RCLI2002), then [ValidateWith] (RCLI2005).
-    private static async ValueTask RangesPrecedeValidators()
+    [Test, NotInParallel, DisplayName("causes/ranges-precede-custom-validators")]
+    public async ValueTask RangesPrecedeValidators()
     {
         CauseCountValidator.Seen.Clear();
         (string human, JsonDocument json) = await Fail(2, ["cause-validated", "--count", "50"]);
@@ -283,7 +271,8 @@ internal static class ErrorCauseTests
         AssertEx.True(CauseListValidator.Calls > 0);
     }
 
-    private static async ValueTask ArgumentTypeErrors()
+    [Test, DisplayName("causes/argument-type-errors-name-the-argument")]
+    public async ValueTask ArgumentTypeErrors()
     {
         (string human, JsonDocument json) = await Fail(2, ["cause-argument", "many"]);
         using (json)
@@ -293,7 +282,8 @@ internal static class ErrorCauseTests
         }
     }
 
-    private static async ValueTask Choices()
+    [Test, DisplayName("causes/invalid-choices-list-non-sensitive-choices")]
+    public async ValueTask Choices()
     {
         (string human, JsonDocument json) = await Fail(2, ["cause-values", "--format", "yaml"]);
         using (json)
@@ -313,7 +303,8 @@ internal static class ErrorCauseTests
         }
     }
 
-    private static async ValueTask OutputMode()
+    [Test, DisplayName("causes/invalid-output-mode-is-specific")]
+    public async ValueTask OutputMode()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(2, await App(console).RunAsync(["cause-values", "--output", "yaml"]));
@@ -327,7 +318,8 @@ internal static class ErrorCauseTests
         AssertEx.SequenceEqual(["RUNIC_COMMANDLINE_OUTPUT"], parsed.Diagnostics.Single().Arguments);
     }
 
-    private static async ValueTask EnvironmentSource()
+    [Test, DisplayName("causes/environment-values-name-their-variable")]
+    public async ValueTask EnvironmentSource()
     {
         static string? Environment(string name) => name switch { "CAUSE_LIMIT" => "x", "CAUSE_VERBOSE" => "maybe", _ => null };
         (string human, JsonDocument json) = await Fail(2, ["cause-env"], Environment);
@@ -352,7 +344,8 @@ internal static class ErrorCauseTests
         using (json) AssertEx.Equal("RCLI2005: --limit requires a whole number.\n", human);
     }
 
-    private static async ValueTask DefaultCommandTypo()
+    [Test, DisplayName("causes/command-typos-are-suggested-with-a-default-command")]
+    public async ValueTask DefaultCommandTypo()
     {
         var builder = new CommandCatalogBuilder();
         foreach (string name in new[] { "list", "add" })
@@ -376,7 +369,8 @@ internal static class ErrorCauseTests
         AssertEx.Equal(ParseOutcomeKind.Invocation, PortableCommandSyntaxAdapter.Instance.Parse(catalog, [], ParseSettings.Default).Kind);
     }
 
-    private static async ValueTask HandlerExceptions()
+    [Test, DisplayName("causes/handler-exceptions-hint-and-print-in-development")]
+    public async ValueTask HandlerExceptions()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(70, await App(console).RunAsync(["cause-throw"]));
@@ -422,7 +416,8 @@ internal static class ErrorCauseTests
         AssertEx.True(observed is ArgumentException);
     }
 
-    private static async ValueTask DescriptionKeys()
+    [Test, DisplayName("causes/unknown-description-keys-are-reported")]
+    public async ValueTask DescriptionKeys()
     {
         var resolver = new KeyResolver(new Dictionary<string, string> { ["commands.cause-keys"] = "Beschreibung" });
         var context = new CommandTextContext(CultureInfo.GetCultureInfo("de"), resolver);
@@ -445,7 +440,8 @@ internal static class ErrorCauseTests
         AssertEx.Equal(string.Empty, console.StandardError);
     }
 
-    private static async ValueTask Localizable()
+    [Test, DisplayName("causes/new-messages-are-localizable")]
+    public async ValueTask Localizable()
     {
         var resolver = new KeyResolver(new Dictionary<string, string>
         {

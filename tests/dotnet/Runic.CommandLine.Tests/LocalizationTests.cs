@@ -6,29 +6,16 @@ using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class LocalizationTests
+internal sealed class LocalizationTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("localization/default-fallbacks-and-culture-snapshot", Defaults),
-        new("localization/help-human-json-and-spectre", Help),
-        new("localization/framework-diagnostics-preserve-wire-identities", Diagnostics),
-        new("localization/standalone-execution-faults-and-diagnostics", Execution),
-        new("localization/hosted-presentation-captures-caller-culture", Hosted),
-        new("localization/resolved-diagnostic-content-is-sanitized", Sanitization),
-        new("localization/completion-errors-use-explicit-culture", CompletionError),
-        new("localization/legacy-help-presenter-remains-compatible", LegacyPresenter),
-        new("localization/command-text-keys-list-every-framework-key", FrameworkKeys),
-        new("localization/command-text-keys-match-the-documented-table", DocumentedKeys),
-        new("localization/suggestions-are-translatable-arguments", TranslatableSuggestions),
-    ];
     private static CommandCatalog Catalog() => GeneratedCommandCatalog.Create();
     private static CommandApp App(TestCommandConsole console, ICommandHelpPresenter? presenter = null) => new(Catalog())
     {
         Name = "sample", Console = console, HandleCancelKeyPress = false, Culture = CultureInfo.GetCultureInfo("de-DE"),
         TextResolver = new GermanResolver(), HelpPresenter = presenter, ParseSettings = ParseSettings.Default,
     };
-    private static ValueTask Defaults()
+    [Test, DisplayName("localization/default-fallbacks-and-culture-snapshot")]
+    public ValueTask Defaults()
     {
         var culture = new CultureInfo("de-DE");
         var context = new CommandTextContext(culture, new GermanResolver());
@@ -43,7 +30,8 @@ internal static class LocalizationTests
         AssertEx.True(!help.Contains("commands.localized", StringComparison.Ordinal));
         return ValueTask.CompletedTask;
     }
-    private static async ValueTask Help()
+    [Test, DisplayName("localization/help-human-json-and-spectre")]
+    public async ValueTask Help()
     {
         foreach (ICommandHelpPresenter? presenter in new ICommandHelpPresenter?[] { null, new SpectreHelpPresenter() })
         {
@@ -62,7 +50,8 @@ internal static class LocalizationTests
             AssertEx.True(frame.RootElement.GetProperty("payload").GetString()!.Contains("Lokalisierter Befehl", StringComparison.Ordinal));
         }
     }
-    private static async ValueTask Diagnostics()
+    [Test, DisplayName("localization/framework-diagnostics-preserve-wire-identities")]
+    public async ValueTask Diagnostics()
     {
         ParseOutcome original = PortableCommandSyntaxAdapter.Instance.Parse(Catalog(), ["localized", "--unknown"], ParseSettings.Default);
         CommandDiagnostic diagnostic = original.Diagnostics[0];
@@ -82,7 +71,8 @@ internal static class LocalizationTests
         AssertEx.Equal(2, await App(console).RunAsync(["localized", "--unknown"]));
         AssertEx.True(console.StandardError.Contains("RCLI1001: Unbekannte Option: --unknown", StringComparison.Ordinal));
     }
-    private static async ValueTask Execution()
+    [Test, DisplayName("localization/standalone-execution-faults-and-diagnostics")]
+    public async ValueTask Execution()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(2, await App(console).RunAsync(["localized", "--count", "invalid", "--output=json"]));
@@ -98,7 +88,8 @@ internal static class LocalizationTests
         AssertEx.Equal("Hinweis", result.RootElement.GetProperty("diagnostics")[0].GetProperty("message").GetString());
         AssertEx.Equal("1,5:2", result.RootElement.GetProperty("payload").GetString());
     }
-    private static async ValueTask Hosted()
+    [Test, DisplayName("localization/hosted-presentation-captures-caller-culture")]
+    public async ValueTask Hosted()
     {
         var adapter = new CommandLineHostingAdapter(Catalog(), new CommandExecutor(new TestExecutionScopeFactory(new TestServiceProvider())))
         { Presentation = new CommandPresentation { Name = "hosted", TextResolver = new GermanResolver() } };
@@ -113,7 +104,8 @@ internal static class LocalizationTests
         AssertEx.Equal("localized-request", result.RootElement.GetProperty("requestId").GetString());
         AssertEx.Equal("RCLI1001", result.RootElement.GetProperty("diagnostics")[0].GetProperty("code").GetString());
     }
-    private static async ValueTask Sanitization()
+    [Test, DisplayName("localization/resolved-diagnostic-content-is-sanitized")]
+    public async ValueTask Sanitization()
     {
         var console = new TestCommandConsole();
         var diagnostic = new CommandDiagnostic("RCLI2100", "note", "Safe", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Information);
@@ -128,7 +120,8 @@ internal static class LocalizationTests
     {
         public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) => "System.InvalidOperationException: private-secret";
     }
-    private static async ValueTask CompletionError()
+    [Test, DisplayName("localization/completion-errors-use-explicit-culture")]
+    public async ValueTask CompletionError()
     {
         // The main test catalog owns "completion"; use a standalone framework-only catalog here.
         var catalog = new CommandCatalogBuilder().Build();
@@ -144,7 +137,8 @@ internal static class LocalizationTests
         AssertEx.Equal(2, await adapter.PresentAsync(decision, console, CultureInfo.GetCultureInfo("de-DE"), "completion-request"));
         AssertEx.Equal("Shell auswählen: bash, zsh, fish oder powershell.\n", console.StandardError);
     }
-    private static async ValueTask LegacyPresenter()
+    [Test, DisplayName("localization/legacy-help-presenter-remains-compatible")]
+    public async ValueTask LegacyPresenter()
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console, new LegacyHelpPresenter()).RunAsync(["localized", "--help"]));
@@ -157,7 +151,8 @@ internal static class LocalizationTests
     }
     // Every key the framework requests while presenting help, parse, binding and execution failures is a listed
     // framework key (or an application DescriptionKey/diagnostic) and receives at most the listed arguments.
-    private static async ValueTask FrameworkKeys()
+    [Test, DisplayName("localization/command-text-keys-list-every-framework-key")]
+    public async ValueTask FrameworkKeys()
     {
         var resolver = new RecordingResolver();
         string directory = Path.Combine(Path.GetTempPath(), "runic-text-keys-" + Guid.NewGuid().ToString("N"));
@@ -211,7 +206,8 @@ internal static class LocalizationTests
         AssertEx.SequenceEqual(["parameter", "minimum", "maximum"], CommandTextKeys.Find(CommandTextKeys.DiagnosticOutOfRange)!.Arguments);
         AssertEx.True(CommandTextKeys.Find("commands.greet") is null);
     }
-    private static ValueTask DocumentedKeys()
+    [Test, DisplayName("localization/command-text-keys-match-the-documented-table")]
+    public ValueTask DocumentedKeys()
     {
         string root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Runic.CommandLine.slnx"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("Repository root not found.");
@@ -224,7 +220,8 @@ internal static class LocalizationTests
         AssertEx.SequenceEqual(CommandTextKeys.All.Select(key => key.Key + ":" + string.Join(",", key.Arguments)), rows.Select(row => row.Key + ":" + row.Arguments));
         return ValueTask.CompletedTask;
     }
-    private static async ValueTask TranslatableSuggestions()
+    [Test, DisplayName("localization/suggestions-are-translatable-arguments")]
+    public async ValueTask TranslatableSuggestions()
     {
         CommandDiagnostic option = PortableCommandSyntaxAdapter.Instance.Parse(Catalog(), ["values", "--coutn=private-secret"], ParseSettings.Default).Diagnostics[0];
         AssertEx.Equal("diagnostics.unknown-option-suggestion", option.MessageKey);

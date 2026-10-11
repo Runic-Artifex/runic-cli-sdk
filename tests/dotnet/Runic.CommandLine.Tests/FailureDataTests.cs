@@ -6,27 +6,12 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class FailureDataTests
+internal sealed class FailureDataTests
 {
     private const string Identity = "tests.clone-recovery/1";
     internal const string ExactPath = "/tmp/Feature branch/目录/e\u0301\nfile\t\u001b.dll";
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("failure-data/exact-domain-identities-and-sanitized-ordinary-fields", ExactRoundTrip),
-        new("failure-data/snapshot-is-immutable", ImmutableSnapshot),
-        new("failure-data/identity-is-checked-before-deserialization", IdentityBeforeShape),
-        new("failure-data/payload-byte-bound-is-exact-and-never-truncates", ByteBounds),
-        new("failure-data/raw-unicode-and-whitespace-stay-bounded-when-rewritten", RawPayloadRewrite),
-        new("failure-data/reader-measures-compact-payload-bytes", CompactByteBounds),
-        new("failure-data/payload-depth-bound-and-duplicates-are-enforced", DepthAndDuplicates),
-        new("failure-data/writer-failures-use-reader-protocol-kinds", WriterFailureKinds),
-        new("failure-data/reader-rejects-malformed-extension", MalformedExtension),
-        new("failure-data/ordinary-failure-wire-remains-unchanged", OrdinaryFailure),
-        new("failure-data/zero-exit-and-success-category-are-refused", FailureInvariants),
-        new("failure-data/generated-handler-and-localization-preserve-data", GeneratedAndLocalized),
-    ];
-
-    private static ValueTask ExactRoundTrip()
+    [Test, DisplayName("failure-data/exact-domain-identities-and-sanitized-ordinary-fields")]
+    public ValueTask ExactRoundTrip()
     {
         CommandFailureData data = Create(new RecoveryReport(ExactPath, "feature/tmp/修复", true));
         byte[] frame = Frame(data, new CommandFault("RCLI3000", "Failure in /tmp/private/file.dll",
@@ -48,7 +33,8 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ImmutableSnapshot()
+    [Test, DisplayName("failure-data/snapshot-is-immutable")]
+    public ValueTask ImmutableSnapshot()
     {
         string[] paths = [ExactPath];
         CommandFailureData data = CommandFailureData.Create(Identity, paths, RecoveryJsonContext.Default.StringArray);
@@ -61,7 +47,8 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask IdentityBeforeShape()
+    [Test, DisplayName("failure-data/identity-is-checked-before-deserialization")]
+    public ValueTask IdentityBeforeShape()
     {
         CommandFailureData data = Read(ExtensionFrame("{\"type\":\"tests.future/2\",\"payload\":false}" )).FailureData!;
         AssertEx.True(!data.TryGet(Identity, RecoveryJsonContext.Default.RecoveryReport, out RecoveryReport? ignored));
@@ -74,7 +61,8 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask ByteBounds()
+    [Test, DisplayName("failure-data/payload-byte-bound-is-exact-and-never-truncates")]
+    public ValueTask ByteBounds()
     {
         string exact = new('x', CommandFailureData.MaximumPayloadBytes - 2);
         CommandFailureData data = CommandFailureData.Create(Identity, exact, RecoveryJsonContext.Default.String);
@@ -91,7 +79,8 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask CompactByteBounds()
+    [Test, DisplayName("failure-data/reader-measures-compact-payload-bytes")]
+    public ValueTask CompactByteBounds()
     {
         // ["x…"] occupies exactly the limit when compact; indentation must not count.
         string exact = new('x', CommandFailureData.MaximumPayloadBytes - 4);
@@ -106,7 +95,8 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask WriterFailureKinds()
+    [Test, DisplayName("failure-data/writer-failures-use-reader-protocol-kinds")]
+    public ValueTask WriterFailureKinds()
     {
         string tooDeep = new string('[', CommandFailureData.MaximumPayloadDepth + 1) + "null" + new string(']', CommandFailureData.MaximumPayloadDepth + 1);
         using JsonDocument deep = JsonDocument.Parse(tooDeep);
@@ -143,7 +133,8 @@ internal static class FailureDataTests
         return exception;
     }
 
-    private static ValueTask DepthAndDuplicates()
+    [Test, DisplayName("failure-data/payload-depth-bound-and-duplicates-are-enforced")]
+    public ValueTask DepthAndDuplicates()
     {
         string nested = new string('[', CommandFailureData.MaximumPayloadDepth) + "null" + new string(']', CommandFailureData.MaximumPayloadDepth);
         using JsonDocument valid = JsonDocument.Parse(nested);
@@ -161,7 +152,8 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask RawPayloadRewrite()
+    [Test, DisplayName("failure-data/raw-unicode-and-whitespace-stay-bounded-when-rewritten")]
+    public ValueTask RawPayloadRewrite()
     {
         string rawUnicode = new('é', 22_000);
         CommandFailureData data = Read(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":\"" + rawUnicode + "\"}")).FailureData!;
@@ -179,14 +171,16 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask MalformedExtension()
+    [Test, DisplayName("failure-data/reader-rejects-malformed-extension")]
+    public ValueTask MalformedExtension()
     {
         foreach (string invalid in new[] { "null", "false", "{}", "{\"type\":\"invalid\",\"payload\":{}}", "{\"type\":\"tests.data/1\",\"type\":\"tests.data/1\",\"payload\":{}}", "{\"type\":\"tests.data/1\"}" })
             AssertEx.Throws<CommandProtocolException>(() => Read(ExtensionFrame(invalid)));
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask OrdinaryFailure()
+    [Test, DisplayName("failure-data/ordinary-failure-wire-remains-unchanged")]
+    public ValueTask OrdinaryFailure()
     {
         byte[] frame = CommandJsonEnvelopeWriter.Serialize(CommandResponse.Failed<TestResult>("req", "clone", 10,
             new CommandFault("RCLI3000", "The clone failed.")), TestJsonContext.Default.TestResult);
@@ -195,7 +189,8 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static ValueTask FailureInvariants()
+    [Test, DisplayName("failure-data/zero-exit-and-success-category-are-refused")]
+    public ValueTask FailureInvariants()
     {
         CommandFailureData data = Create(new RecoveryReport(ExactPath, "branch", false));
         var fault = new CommandFault("RCLI3000", "The clone failed.");
@@ -205,7 +200,8 @@ internal static class FailureDataTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask GeneratedAndLocalized()
+    [Test, DisplayName("failure-data/generated-handler-and-localization-preserve-data")]
+    public async ValueTask GeneratedAndLocalized()
     {
         var console = new MemoryCommandConsole();
         int code = await new CommandApp(Runic.CommandLine.Generated.GeneratedCommandCatalog.Create())

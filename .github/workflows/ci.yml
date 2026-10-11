@@ -48,6 +48,13 @@ jobs:
       - name: Install completion shell prerequisites
         run: eng/ci/apt-install.sh fish zsh
       - run: ./eng/test.sh
+      # TRX reports and Cobertura coverage of the TUnit suites, also when a case failed.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: command-line-test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
       - run: ./eng/pack.sh "$(./eng/package-version.sh)" artifacts/packages
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

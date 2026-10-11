@@ -7,15 +7,10 @@ using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
-internal static class AuthoringMetadataTests
+internal sealed class AuthoringMetadataTests
 {
-    public static IReadOnlyList<TestCase> All { get; } =
-    [
-        new("generator/converter-validator-metadata-errors-at-attributes", InvalidMetadata),
-        new("generator/closed-explicit-and-inherited-conversion-compiles-and-executes", ValidMetadata),
-    ];
-
-    private static ValueTask InvalidMetadata()
+    [Test, DisplayName("generator/converter-validator-metadata-errors-at-attributes")]
+    public ValueTask InvalidMetadata()
     {
         (string Attribute, string Type, string Binding, string Declarations, string Code)[] cases =
         [
@@ -58,7 +53,8 @@ internal static class AuthoringMetadataTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask ValidMetadata()
+    [Test, DisplayName("generator/closed-explicit-and-inherited-conversion-compiles-and-executes")]
+    public async ValueTask ValidMetadata()
     {
         const string source = """
             using System;

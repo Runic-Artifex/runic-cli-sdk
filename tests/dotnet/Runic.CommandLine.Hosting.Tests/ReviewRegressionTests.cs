@@ -5,10 +5,14 @@ using System.Threading.Tasks;
 using Runic.CommandLine;
 using Runic.CommandLine.Hosting;
 using Runic.CommandLine.Testing;
+using TUnit.Core;
 
-internal static partial class HostingAdapterTests
+namespace Runic.CommandLine.Hosting.Tests;
+
+internal sealed partial class HostingAdapterTests
 {
-    private static async ValueTask CompletionTransport()
+    [Test, DisplayName("review/completion-respects-custom-transport")]
+    public async ValueTask CompletionTransport()
     {
         var catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
         var adapter = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()));
@@ -29,7 +33,8 @@ internal static partial class HostingAdapterTests
         }
     }
 
-    private static async ValueTask CatalogCompletion()
+    [Test, DisplayName("review/catalog-completion-command-and-alias-win")]
+    public async ValueTask CatalogCompletion()
     {
         foreach (bool alias in new[] { false, true })
         {
@@ -50,7 +55,8 @@ internal static partial class HostingAdapterTests
         }
     }
 
-    private static ValueTask GlobalAliases()
+    [Test, DisplayName("review/global-alias-mismatch-is-rejected")]
+    public ValueTask GlobalAliases()
     {
         CommandCatalog Build(string[] local) => new CommandCatalogBuilder()
             .GlobalOption("value", "--value", CommandArity.ExactlyOne, aliases: ["-v", "/v"])
@@ -64,7 +70,8 @@ internal static partial class HostingAdapterTests
         return ValueTask.CompletedTask;
     }
 
-    private static async ValueTask PresentationCancellation()
+    [Test, DisplayName("review/framework-presentation-is-cancellable")]
+    public async ValueTask PresentationCancellation()
     {
         var catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
         foreach (bool custom in new[] { false, true })
@@ -100,7 +107,8 @@ internal static partial class HostingAdapterTests
         }
     }
 
-    private static async ValueTask PresentationFailures()
+    [Test, DisplayName("review/framework-failures-are-observed-without-retry")]
+    public async ValueTask PresentationFailures()
     {
         var catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
         var failure = new InvalidOperationException("private-presentation-secret");

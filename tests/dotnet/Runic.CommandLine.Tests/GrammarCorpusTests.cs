@@ -1,19 +1,18 @@
 namespace Runic.CommandLine.Tests;
 
-internal static class GrammarCorpusTests
+internal sealed class GrammarCorpusTests
 {
     private static readonly GrammarCorpus Corpus = FixtureCatalog.ReadCorpus();
     private static readonly CommandCatalog Catalog = FixtureCatalog.Create();
 
-    public static IReadOnlyList<TestCase> All { get; } = CreateTests();
-
-    private static TestCase[] CreateTests()
+    public static IEnumerable<string> CaseIds()
     {
         AssertEx.Equal(42, Corpus.Cases.Length, "The frozen grammar corpus row count changed.");
-        return Corpus.Cases
-            .Select(test => new TestCase($"grammar/{test.Id}", () => RunCase(test)))
-            .ToArray();
+        return Corpus.Cases.Select(static test => test.Id);
     }
+
+    [Test, MethodDataSource(nameof(CaseIds)), CorpusCaseName("grammar/")]
+    public ValueTask Case(string id) => RunCase(Corpus.Cases.Single(test => test.Id == id));
 
     private static ValueTask RunCase(CorpusCase test)
     {
