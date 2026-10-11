@@ -4,5 +4,7 @@
     <RunicCommandLineRoot>$(MSBuildThisFileDirectory)</RunicCommandLineRoot>
     <RepositoryUrl>https://github.com/Runic-Artifex/runic-cli-sdk</RepositoryUrl>
     <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+    <!-- Diagnostic help links point at this catalog at the release tag; see eng/build/release-links.targets. -->
+    <RunicDiagnosticsCatalog>docs/guides/command-line/diagnostics.md</RunicDiagnosticsCatalog>
   </PropertyGroup>
 </Project>

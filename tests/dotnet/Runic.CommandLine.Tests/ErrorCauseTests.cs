@@ -155,7 +155,9 @@ internal static class ErrorCauseTests
             .Argument("b", "b", CommandArity.ExactlyOne)
             .BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory()).Produces(new TestCodec()));
         CommandCatalogValidationException exception = AssertEx.Throws<CommandCatalogValidationException>(() => builder.Build());
-        AssertEx.Equal("Command catalog validation failed with 1 issue(s):\nRCLI0015 at 'h': Required argument 'b' cannot follow optional argument 'a'.", exception.Message);
+        // Each issue links to its catalog entry at the release tag of Runic.CommandLine.
+        AssertEx.Equal("Command catalog validation failed with 1 issue(s):\nRCLI0015 at 'h': Required argument 'b' cannot follow optional argument 'a'. See "
+            + DiagnosticCodeRangeTests.CatalogUrl(typeof(CommandCatalog)) + "rcli0015", exception.Message);
         AssertEx.Equal("RCLI0015", exception.Issues.Single().Code);
         return ValueTask.CompletedTask;
     }

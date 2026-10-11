@@ -4,4 +4,5 @@
     <RunicPackageValidationBaselineVersion>$(RunicCommandLinePackageValidationBaselineVersion)</RunicPackageValidationBaselineVersion>
   </PropertyGroup>
   <Import Project="common.targets" />
+  <Import Project="release-links.targets" />
 </Project>

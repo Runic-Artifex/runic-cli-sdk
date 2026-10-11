@@ -26,6 +26,9 @@ It also proves a generated-catalog parse failure retains an explicit JSON
 transport classification while redacting the unknown option value.
 It also exercises declared typed recovery data with exact path/target identities,
 nonzero cancellation, identity-checked reading, and generated JSON context defaults.
+It also proves that a fault's `HelpUri` survives JSON and human output while the
+URL in its message is still redacted. Before the run, the script checks that each
+packed README links to the candidate's release tag and to no main branch.
 
 Per-run artifacts use a short uniquely named directory below the OS temporary
 directory so the isolated package cache and NativeAOT output stay bounded.

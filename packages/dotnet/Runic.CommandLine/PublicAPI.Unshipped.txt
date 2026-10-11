@@ -102,3 +102,7 @@ const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidDirectoryPath = "diagno
 const Runic.CommandLine.CommandTextKeys.DiagnosticFileNotFound = "diagnostics.file-not-found" -> string!
 const Runic.CommandLine.CommandTextKeys.DiagnosticDirectoryNotFound = "diagnostics.directory-not-found" -> string!
 const Runic.CommandLine.CommandTextKeys.DiagnosticEnvironmentValueSource = "diagnostics.environment-value-source" -> string!
+Runic.CommandLine.CommandDiagnostic.HelpUri.get -> System.Uri?
+Runic.CommandLine.CommandDiagnostic.HelpUri.init -> void
+Runic.CommandLine.CommandFault.HelpUri.get -> System.Uri?
+Runic.CommandLine.CommandFault.HelpUri.init -> void

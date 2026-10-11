@@ -210,6 +210,20 @@ internal static class Program
         using (JsonDocument configured = JsonDocument.Parse(configuredConsole.StandardOutput))
             if (configuredExit != 0 || configured.RootElement.GetProperty("payload").GetProperty("retainedDirectory").GetString() != RecoveryReport.RetainedDirectory) return 104;
 
+        // A help link survives JSON and human output, while the URL in the message is still redacted.
+        var helpLink = new Uri("https://docs.example.com/errors#rcli8001");
+        CommandResponse<string> linked = CommandResponse.Failed<string>("req-linked", "linked", 10,
+            new CommandFault("RCLI8001", "See https://intranet.example.com/x.") { HelpUri = helpLink });
+        var linkedJson = new BufferCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Json, linkedJson, CultureInfo.InvariantCulture, linked, CommandResultCodecs.String).ConfigureAwait(false);
+        CommandResponse<string> linkedRead = CommandJsonEnvelopeReader.Read(
+            Encoding.UTF8.GetBytes(linkedJson.StandardOutput), CommandResultCodecs.String.PayloadType, CommandResultCodecs.String.TypeInfo);
+        if (linkedRead.Fault is not { } linkedFault || linkedFault.HelpUri?.AbsoluteUri != helpLink.AbsoluteUri ||
+            linkedFault.Message != "The command failed; details were redacted.") return 105;
+        var linkedHuman = new BufferCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, linkedHuman, CultureInfo.InvariantCulture, linked, CommandResultCodecs.String).ConfigureAwait(false);
+        if (linkedHuman.StandardError != "RCLI8001: The command failed; details were redacted.\nHelp for RCLI8001: https://docs.example.com/errors#rcli8001\n") return 106;
+
         Console.Out.Write(Array.IndexOf(launchArgs, "--emit-recovery-frame") >= 0 ? recoveryConsole.StandardOutput : console.StandardOutput);
         return 0;
     }
