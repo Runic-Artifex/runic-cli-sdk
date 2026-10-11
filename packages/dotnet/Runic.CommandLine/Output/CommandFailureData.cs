@@ -62,7 +62,7 @@ public sealed class CommandFailureData
                 Indented = false,
                 MaxDepth = MaximumPayloadDepth,
                 SkipValidation = false,
-                // The default writer would replace an unpaired surrogate with U+FFFD.
+                // The framework encoder alone would replace an unpaired surrogate with U+FFFD.
                 Encoder = UnpairedSurrogateRejectingEncoder.Instance,
             }))
             {
@@ -209,7 +209,7 @@ public sealed class CommandFailureData
         new("failure-data-shape-mismatch", "The failure data does not match its registered JSON contract.", exception);
 
     /// <summary>
-    /// Escapes exactly as <see cref="JavaScriptEncoder.Default"/> (the writer's default)
+    /// Escapes exactly as the response writer (<see cref="CommandJsonEncoding.Encoder"/>)
     /// but refuses unpaired surrogates instead of letting them become U+FFFD.
     /// </summary>
     /// <remarks>
@@ -221,7 +221,7 @@ public sealed class CommandFailureData
     private sealed class UnpairedSurrogateRejectingEncoder : JavaScriptEncoder
     {
         internal static readonly UnpairedSurrogateRejectingEncoder Instance = new();
-        private static readonly JavaScriptEncoder Inner = JavaScriptEncoder.Default;
+        private static readonly JavaScriptEncoder Inner = CommandJsonEncoding.Encoder;
 
         public override int MaxOutputCharactersPerInputCharacter => Inner.MaxOutputCharactersPerInputCharacter;
 

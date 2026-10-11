@@ -2,3 +2,33 @@
 Runic.CommandLine.CommandTextContext.ValidateDescriptionKeys(Runic.CommandLine.CommandCatalog! catalog) -> System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandCatalogIssue!>!
 static Runic.CommandLine.GeneratedCommandBinding.Failure<TOptions>(Runic.CommandLine.ParsedInvocation! invocation, Runic.CommandLine.GeneratedCommandBindingException! exception) -> Runic.CommandLine.CommandOutcome<TOptions>!
 static Runic.CommandLine.GeneratedCommandBinding.CheckRange<T>(T value, Runic.CommandLine.ParsedInvocation! invocation, string! id) -> T
+Runic.CommandLine.CommandConsoleExtensions
+Runic.CommandLine.CommandScopes
+Runic.CommandLine.CommandServices
+Runic.CommandLine.CommandServices.GetService(System.Type! serviceType) -> object?
+Runic.CommandLine.CommandServices.With<TService>(TService! instance) -> Runic.CommandLine.CommandServices!
+Runic.CommandLine.Hosting.CommandLineHostingAdapter.CommandLineHostingAdapter(Runic.CommandLine.CommandApp! app) -> void
+Runic.CommandLine.Hosting.CommandLineHostingAdapter.RunAsync(Runic.CommandLine.Hosting.HostedCommandLineDecision! decision, Runic.CommandLine.ICommandConsole? console = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<int>
+Runic.CommandLine.Hosting.HostedCommandLineDecision.IsCommandLineRequest.get -> bool
+Runic.CommandLine.Hosting.HostedCommandLineDecision.MatchedPath.get -> Runic.CommandLine.CommandPath?
+Runic.CommandLine.Hosting.HostedCommandLineDecision.MatchedPath.init -> void
+Runic.CommandLine.Hosting.HostedCommandLineDecision.MatchesKnownCommand.get -> bool
+static Runic.CommandLine.CommandConsoleExtensions.WriteErrorAsync(this Runic.CommandLine.ICommandConsole! console, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandConsoleExtensions.WriteErrorLineAsync(this Runic.CommandLine.ICommandConsole! console, string! value = "", System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandConsoleExtensions.WriteOutAsync(this Runic.CommandLine.ICommandConsole! console, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandConsoleExtensions.WriteOutLineAsync(this Runic.CommandLine.ICommandConsole! console, string! value = "", System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandScopes.Create<TScope>(System.Func<TScope>! createScope, System.Func<TScope, System.IServiceProvider!>! getServices) -> Runic.CommandLine.ICommandExecutionScopeFactory!
+static Runic.CommandLine.CommandScopes.FromServices(System.IServiceProvider! services) -> Runic.CommandLine.ICommandExecutionScopeFactory!
+static Runic.CommandLine.CommandServices.Empty.get -> Runic.CommandLine.CommandServices!
+Runic.CommandLine.CommandCatalogBuilder.Group(string! path, Runic.CommandLine.CommandHelp! help, string? descriptionKey = null) -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.CommandGroupAttribute
+Runic.CommandLine.CommandGroupAttribute.CommandGroupAttribute(string! path) -> void
+Runic.CommandLine.CommandGroupAttribute.Description.get -> string?
+Runic.CommandLine.CommandGroupAttribute.DescriptionKey.get -> string?
+Runic.CommandLine.CommandGroupAttribute.DescriptionKey.set -> void
+Runic.CommandLine.CommandGroupAttribute.Description.set -> void
+Runic.CommandLine.CommandGroupAttribute.Hidden.get -> bool
+Runic.CommandLine.CommandGroupAttribute.Hidden.set -> void
+Runic.CommandLine.CommandGroupAttribute.LongDescription.get -> string?
+Runic.CommandLine.CommandGroupAttribute.LongDescription.set -> void
+Runic.CommandLine.CommandGroupAttribute.Path.get -> string!

@@ -83,12 +83,20 @@ internal static class GeneratorTests
                 [Command("second")]
                 [DefaultCommand]
                 public static string Second() => "";
+
+                // A defaulted injected token is accepted so it can follow defaulted options (CA1068).
+                [Command("token")]
+                public static string Token([Option("--overwrite")] bool overwrite = false, System.Threading.CancellationToken cancellationToken = default) => "";
+
+                // Other unbound defaults remain RCLI9022: the default would never apply.
+                [Command("service")]
+                public static string Service([FromServices] string? text = null) => "";
             }
             """);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new CommandLineGenerator()).RunGenerators(compilation);
         ImmutableArray<Diagnostic> diagnostics = driver.GetRunResult().Results.Single().Diagnostics;
         AssertEx.SequenceEqual(
-            ["RCLI9021", "RCLI9024", "RCLI9023", "RCLI9029", "RCLI9029"],
+            ["RCLI9021", "RCLI9024", "RCLI9023", "RCLI9022", "RCLI9029", "RCLI9029"],
             diagnostics.Select(static diagnostic => diagnostic.Id).ToArray(),
             string.Join("\n", diagnostics));
         AssertEx.True(

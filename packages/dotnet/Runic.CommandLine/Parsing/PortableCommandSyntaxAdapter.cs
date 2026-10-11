@@ -657,6 +657,23 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         return start;
     }
 
+    // The command or group path the leading tokens name explicitly, after any leading transport or global
+    // options. Unlike command resolution, an implicit default command does not count as a match.
+    internal static CommandPath? MatchExplicitPath(CommandCatalog catalog, IReadOnlyList<string> arguments, string transportOutputOptionName)
+    {
+        string[] tokens = [.. arguments];
+        int start = LeadingCommandIndex(catalog, tokens, transportOutputOptionName);
+        if (start >= tokens.Length || !catalog.TryGetCommand(tokens[start], out CommandDescriptor? command) || command is null) return null;
+        var path = new List<string> { command.Name };
+        for (int index = start + 1; index < tokens.Length && command.TryGetSubcommand(tokens[index], out CommandDescriptor? child) && child is not null; index++)
+        {
+            command = child;
+            path.Add(command.Name);
+        }
+
+        return new CommandPath(path);
+    }
+
     private static bool TryResolveCommand(
         CommandCatalog catalog,
         string[] tokens,

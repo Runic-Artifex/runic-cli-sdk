@@ -62,9 +62,12 @@ completion setup; it does not edit your shell profile.
 ## 4. Services, cancellation, progress and hosted UI selection
 
 [`HostedExample.cs`](HostedExample.cs) supplies an application-owned service to
-`application info` via `[FromServices]`. Its adapter receives the application's
-lifetime token and disposes only invocation scopes. An empty hosted invocation
-selects the UI branch, represented by a message here rather than an actual window.
+`application info` via `[FromServices]`. Its adapter is created from the same
+`CommandApp` factory, so name, version, help and services are declared once, and
+it receives the application's lifetime token and disposes only invocation scopes.
+An empty hosted invocation, or one that names no known command (such as a
+document path), selects the UI branch, represented by a message here rather than
+an actual window.
 The standalone entry point supplies the same service so both modes work.
 
 ```sh

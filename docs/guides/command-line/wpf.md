@@ -37,25 +37,26 @@ services should be written so that durable state lives there.
 ```csharp
 [Command("items list", Description = "List inventory items.")]
 internal static async Task<string> ListItems([FromServices] IReportService reports,
-    CancellationToken cancellationToken,
-    [Option("--max-quantity", Minimum = 0)] int? maxQuantity = null)
+    [Option("--max-quantity", Minimum = 0)] int? maxQuantity = null,
+    CancellationToken cancellationToken = default)
 {
     var items = await reports.ListItemsAsync(maxQuantity, cancellationToken);
     return string.Join('\n', items.Select(item => $"{item.Name}: {item.Quantity}"));
 }
 ```
 
-`[FromServices]` resolves through the `ICommandExecutionScopeFactory` the
-application supplies. The example scope returns the service instance and owns
-nothing, so disposing the invocation scope never disposes application services.
-A real application would adapt its existing container (for example a
-`Microsoft.Extensions.DependencyInjection` provider) behind the same two small
-interfaces. Handlers stay thin: parse, call the service, return a value. The
+`[FromServices]` resolves through the scope factory the application supplies.
+The example passes its service instance with
+`CommandScopes.FromServices(CommandServices.Empty.With(reports))`; such a scope
+owns nothing, so ending an invocation never disposes application services. An
+application with a container passes its provider to `CommandScopes.FromServices`,
+or `CommandScopes.Create(provider.CreateAsyncScope, scope => scope.ServiceProvider)`
+for one `Microsoft.Extensions.DependencyInjection` scope per invocation. Handlers
+stay thin: parse, call the service, return a value. The
 framework renders human text or, with `--output=json`, a protocol envelope.
 
-(The generator binds `CancellationToken` by type but rejects a defaulted token
-(RCLI9022), so on `report export` the token precedes the argument and options and
-the example suppresses CA1068 with that reason.)
+The generator injects `CancellationToken` by type. Declare it last with
+`= default` so it can follow defaulted options, as CA1068 recommends.
 
 ## 2. Add the console executable (recommended)
 
@@ -113,7 +114,8 @@ launch the `.exe`. It keeps one name for users at the cost of an extra launcher 
 Users can still launch the GUI executable with arguments: a file association, "Open
 with", drag-and-drop or a typed command. Decide the launch kind in `Main`, before an
 `Application` exists. `ReportCommandApp.Classify` uses
-`CommandLineHostingAdapter.Classify` with `EmptyInputFallback.UserInterface`:
+`CommandLineHostingAdapter.Classify` with `EmptyInputFallback.UserInterface` and
+routes on the decision's `IsCommandLineRequest`:
 
 - A known command, help, version or completion request goes down the CLI path.
 - Everything else, including no arguments and a document path such as `C:\x.rpt`,
@@ -136,9 +138,11 @@ public static int Main(string[] args)
 ```
 
 The trade-off is that a **mistyped command name opens the UI** instead of reporting
-an error, because it is indistinguishable from a file name. The classifier narrows
-this by treating a known command root with bad arguments (`report export` without a
-path) as a command. A GUI-subsystem executable is not the place to run the command,
+an error, because it is indistinguishable from a file name. `IsCommandLineRequest`
+narrows this by treating a known command with bad arguments (`report export`
+without a path) as a command: `MatchedPath` names the catalog command or group the
+leading arguments matched, so no hand-maintained list of command names is needed. A GUI-subsystem
+executable is not the place to run the command,
 so the CLI path only prints a hint and exits with 64 (`EX_USAGE` from
 `sysexits.h`: the command was used on the wrong executable). Scripts can test for it.
 The dialog appears only when the session is interactive and there is no parent

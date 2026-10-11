@@ -48,6 +48,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor InvalidResultContext = new("RCLI9041", "Invalid command result JSON context", "Command '{0}' names '{1}' in [CommandResult], which must be an accessible class deriving from JsonSerializerContext", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9041");
     private static readonly DiagnosticDescriptor MissingResultTypeMetadata = new("RCLI9042", "JSON context lacks the command result type", "Command '{0}' returns '{1}', but JSON context '{2}' has no [JsonSerializable(typeof({1}))]; add it to the context", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9042");
     private static readonly DiagnosticDescriptor ListConverter = new("RCLI9034", "Converter on a list parameter", "List parameter '{0}' cannot use ConvertWith; list binding converts each supported element type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9034");
+    private static readonly DiagnosticDescriptor InvalidGroup = new("RCLI9043", "Invalid command group description", "[CommandGroup] path '{0}' {1}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9043");
 
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -59,12 +60,18 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             static (_, _) => true,
             static (attributeContext, _) => CreateCandidate((IMethodSymbol)attributeContext.TargetSymbol, attributeContext.SemanticModel.Compilation))
             .WithTrackingName("CommandModels");
+        IncrementalValuesProvider<GroupCandidate> groups = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Runic.CommandLine.CommandGroupAttribute",
+            static (_, _) => true,
+            static (attributeContext, _) => CreateGroups(attributeContext.TargetSymbol, attributeContext.Attributes))
+            .SelectMany(static (groups, _) => groups)
+            .WithTrackingName("CommandGroups");
         context.RegisterSourceOutput(
-            commands.Collect().WithTrackingName("CommandCatalog"),
-            static (productionContext, candidates) => Emit(productionContext, candidates));
+            commands.Collect().Combine(groups.Collect()).WithTrackingName("CommandCatalog"),
+            static (productionContext, input) => Emit(productionContext, input.Left, input.Right));
     }
 
-    private static void Emit(SourceProductionContext context, ImmutableArray<CommandCandidate> candidates)
+    private static void Emit(SourceProductionContext context, ImmutableArray<CommandCandidate> candidates, ImmutableArray<GroupCandidate> groupCandidates)
     {
         var commands = new List<CommandModel>();
         foreach (CommandCandidate candidate in candidates.OrderBy(static item => item.SortKey, StringComparer.Ordinal))
@@ -92,9 +99,42 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             foreach (CommandModel command in commands.Where(static command => command.IsDefault)) context.ReportDiagnostic(Diagnostic.Create(MultipleDefaultCommands, command.Location?.ToLocation(), command.Name));
             commands.RemoveAll(static command => command.IsDefault);
         }
+        var groups = new List<GroupCandidate>();
+        foreach (GroupCandidate group in groupCandidates.OrderBy(static item => item.Path, StringComparer.Ordinal).ThenBy(static item => item.SortKey, StringComparer.Ordinal))
+        {
+            foreach (DiagnosticInfo diagnostic in group.Diagnostics) context.ReportDiagnostic(diagnostic.ToDiagnostic());
+            if (group.Registration is null) continue;
+            string? problem = commands.Any(command => command.Name == group.Path) ? "names a command, not a group of commands"
+                : !commands.Any(command => command.Name.StartsWith(group.Path + " ", StringComparison.Ordinal)) ? "does not begin any generated command name; use a leading part such as 'config' for 'config show'"
+                : groups.Any(other => other.Path == group.Path) ? "is described more than once"
+                : null;
+            if (problem is null) groups.Add(group);
+            else context.ReportDiagnostic(Diagnostic.Create(InvalidGroup, group.Location?.ToLocation(), group.Path, problem));
+        }
         if (commands.Count == 0) return;
 
-        context.AddSource("Runic.CommandLine.GeneratedCatalog.g.cs", SourceText.From(Render(commands), Encoding.UTF8));
+        context.AddSource("Runic.CommandLine.GeneratedCatalog.g.cs", SourceText.From(Render(commands, groups), Encoding.UTF8));
+    }
+
+    private static EquatableArray<GroupCandidate> CreateGroups(ISymbol type, ImmutableArray<AttributeData> attributes)
+    {
+        var groups = new List<GroupCandidate>();
+        foreach (AttributeData attribute in attributes)
+        {
+            var diagnostics = new List<DiagnosticInfo>();
+            Location? location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation();
+            LocationInfo? locationInfo = location?.SourceTree is null ? null : new LocationInfo(location.SourceTree.FilePath, location.SourceSpan, location.GetLineSpan().Span);
+            string path = attribute.ConstructorArguments.Length == 1 && attribute.ConstructorArguments[0].Value is string value ? value : "";
+            string? registration = null;
+            if (ValidateDescriptionKey(diagnostics, attribute, type, path))
+            {
+                registration = ".Group(" + Literal(path) + ", new global::Runic.CommandLine.CommandHelp(description: " + NamedString(attribute, "Description") +
+                    ") { Hidden = " + NamedBool(attribute, "Hidden") + ", LongDescription = " + NamedString(attribute, "LongDescription") + " }, " + NamedString(attribute, "DescriptionKey") + ")";
+            }
+            groups.Add(new GroupCandidate(type.ToDisplayString() + "#" + groups.Count.ToString(CultureInfo.InvariantCulture), path, registration, locationInfo, new EquatableArray<DiagnosticInfo>(diagnostics.ToArray())));
+        }
+
+        return new EquatableArray<GroupCandidate>(groups.ToArray());
     }
 
     private static CommandCandidate CreateCandidate(IMethodSymbol method, Compilation compilation)
@@ -179,7 +219,9 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             Report(diagnostics, ByReferenceParameter, parameter, parameter.Name, methodName);
             return null;
         }
-        if (parameter.HasExplicitDefaultValue && option is null && argument is null)
+        // An injected token may be defaulted so it can stay last after defaulted options (CA1068).
+        if (parameter.HasExplicitDefaultValue && option is null && argument is null &&
+            !(service is null && parameter.Type.ToDisplayString() == "System.Threading.CancellationToken"))
         {
             Report(diagnostics, UnboundDefaultValue, parameter, parameter.Name, methodName);
             return null;
@@ -447,7 +489,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             invocation);
     }
 
-    private static string Render(IReadOnlyList<CommandModel> commands)
+    private static string Render(IReadOnlyList<CommandModel> commands, IReadOnlyList<GroupCandidate> groups)
     {
         var source = new StringBuilder("// <auto-generated/>\n#nullable enable\n#pragma warning disable CS1591\nnamespace Runic.CommandLine.Generated;\n\n");
         source.AppendLine("public static class GeneratedCommandCatalog").AppendLine("{").AppendLine("    public static global::Runic.CommandLine.CommandCatalog Create(global::System.Action<global::Runic.CommandLine.CommandCatalogBuilder>? configure = null) { var builder = new global::Runic.CommandLine.CommandCatalogBuilder()");
@@ -457,6 +499,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             source.Append("        .CommandPath<__Options").Append(index).Append(", __Handler").Append(index).Append(", ").Append(command.ResultType).Append(">(").Append(Literal(command.Name)).Append(", command => command").Append(command.Registration);
             source.Append(".BindWith(__Binder").Append(index).Append(".Instance).CreateHandlerWith(__Factory").Append(index).Append(".Instance).Produces(__Codec").Append(index).Append(".Instance))").AppendLine();
         }
+        foreach (GroupCandidate group in groups) source.Append("        ").Append(group.Registration).AppendLine();
         CommandModel? defaultCommand = commands.FirstOrDefault(static command => command.IsDefault);
         if (defaultCommand is not null) source.Append("        .DefaultCommand(").Append(Literal(defaultCommand.Name)).AppendLine(")");
         source.AppendLine("        ; configure?.Invoke(builder); return builder.Build(); }").AppendLine();
@@ -816,6 +859,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private sealed record ParameterModel(IParameterSymbol Symbol, ParameterKind Kind, string Id, string? Spelling, ImmutableArray<string> Aliases, object? DefaultValue, bool HasDefault, bool AllowMultipleValues = false, bool IsRequired = false, bool AllowMultipleOccurrences = true);
 
     private sealed record CommandCandidate(string SortKey, CommandModel? Command, EquatableArray<DiagnosticInfo> Diagnostics);
+
+    private sealed record GroupCandidate(string SortKey, string Path, string? Registration, LocationInfo? Location, EquatableArray<DiagnosticInfo> Diagnostics);
 
     private sealed record CommandModel(
         string SortKey,

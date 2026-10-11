@@ -6,6 +6,7 @@ namespace Runic.CommandLine;
 /// Identifies the semantic category of a command-line outcome independently of
 /// the numeric exit code selected by a host.
 /// </summary>
+/// <remarks><see cref="CommandExitCodes"/> lists the default exit code of each category.</remarks>
 public enum CommandExitCategory
 {
     /// <summary>The command completed successfully.</summary>
@@ -33,6 +34,21 @@ public enum CommandExitCategory
 /// <summary>
 /// Defines the default process exit codes for command outcome categories.
 /// </summary>
+/// <remarks>
+/// <list type="table">
+/// <listheader><term>Exit code</term><description>Category and typical cause</description></listheader>
+/// <item><term>0</term><description><see cref="CommandExitCategory.Success"/>, including help, version and completion scripts.</description></item>
+/// <item><term>2</term><description><see cref="CommandExitCategory.Usage"/>: unknown command or option, missing, malformed or out-of-range input (<c>RCLI1xxx</c>, <c>RCLI2xxx</c>).</description></item>
+/// <item><term>3</term><description><see cref="CommandExitCategory.Validation"/>: a handler rejected well-formed input, for example a business rule.</description></item>
+/// <item><term>4</term><description><see cref="CommandExitCategory.Cancelled"/>: Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation.</description></item>
+/// <item><term>5</term><description><see cref="CommandExitCategory.Unavailable"/>: a required resource or service was unavailable, including "not found".</description></item>
+/// <item><term>10</term><description><see cref="CommandExitCategory.CommandFailure"/>: the command reported another expected failure.</description></item>
+/// <item><term>70</term><description><see cref="CommandExitCategory.HostFailure"/>: an unexpected exception or infrastructure failure (<c>RCLI5000</c>).</description></item>
+/// <item><term>130, 131, 143</term><description>Not a category: a second termination signal while the invocation still runs (128 plus the signal number).</description></item>
+/// </list>
+/// Handlers select a category with <see cref="CommandOutcome"/>; an <see cref="IExitCodePolicy"/> may remap
+/// the failure codes, but zero always means success.
+/// </remarks>
 public static class CommandExitCodes
 {
     /// <summary>The default success exit code.</summary>

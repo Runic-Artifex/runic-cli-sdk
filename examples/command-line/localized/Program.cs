@@ -10,7 +10,7 @@ ITranslationSnapshot snapshot = await provider.GetSnapshotAsync(culture.Name);
 return await new CommandApp(GeneratedCommandCatalog.Create())
 {
     Name = "localized", Culture = culture, TextResolver = new SnapshotTextResolver(snapshot),
-    ScopeFactory = new TranslationScopeFactory(snapshot),
+    ScopeFactory = CommandScopes.FromServices(CommandServices.Empty.With(snapshot)),
 }.RunAsync(args);
 
 internal static class Commands
@@ -44,15 +44,4 @@ internal sealed class SnapshotTextResolver(ITranslationSnapshot snapshot) : ICom
     public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) =>
         Keys.TryGetValue(key, out TranslationKey translationKey) && snapshot.TryGet(translationKey, out _)
             ? snapshot.Format(translationKey, []) : null;
-}
-
-internal sealed class TranslationScopeFactory(ITranslationSnapshot snapshot) : ICommandExecutionScopeFactory
-{
-    public ICommandExecutionScope CreateScope() => new TranslationScope(snapshot);
-    private sealed class TranslationScope(ITranslationSnapshot snapshot) : ICommandExecutionScope, IServiceProvider
-    {
-        public IServiceProvider Services => this;
-        public object? GetService(Type type) => type == typeof(ITranslationSnapshot) ? snapshot : null;
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 }

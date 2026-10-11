@@ -62,7 +62,9 @@ parameters cannot be bound. Pass the value by value.
 ## RCLI9022
 
 Default value on an unbound command parameter. A C# default only applies to an
-`[Argument]` or `[Option]`. Remove the default or bind the parameter.
+`[Argument]` or `[Option]`. Remove the default or bind the parameter. An injected
+`CancellationToken` may declare `= default`, so it can stay last after defaulted
+options as CA1068 recommends.
 
 ## RCLI9023
 
@@ -196,3 +198,11 @@ accessible containing types.
 JSON context lacks the command result type. Add
 `[JsonSerializable(typeof(MyResult))]` for the command's exact result type to
 the context named in `[CommandResult]`.
+
+## RCLI9043
+
+Invalid command group description. The path in `[CommandGroup("config")]`
+must be a leading part of at least one generated command name, such as
+`config` for `[Command("config show")]`; it must not name a command itself, and
+each group is described once. A misspelled path would otherwise add an empty
+group to help.
