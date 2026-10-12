@@ -116,10 +116,45 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
                     invocation: null,
                     owner: _decisionOwner,
                     diagnostics: outcome.Diagnostics,
-                    outputClassification: outcome.OutputClassification) { ParseOutcome = outcome, MatchedPath = matchedPath },
+                    outputClassification: outcome.OutputClassification)
+                {
+                    ParseOutcome = outcome, MatchedPath = matchedPath,
+                    SuggestedCommand = matchedPath is null ? UnknownCommandSuggestion(outcome) : null,
+                },
             _ => throw new InvalidOperationException("The command syntax adapter returned an incomplete outcome."),
         };
         return decision;
+    }
+
+    // The parser appends a close match as the last argument of its unknown-command diagnostic.
+    private static string? UnknownCommandSuggestion(ParseOutcome outcome) =>
+        outcome.Diagnostics is [{ Code: "RCLI1002", MessageKey: CommandTextKeys.DiagnosticUnknownCommandSuggestion, Arguments: [.., string suggestion] }, ..]
+            ? suggestion
+            : null;
+
+    /// <summary>
+    /// Writes the close-match suggestion of a launch that belongs to the user interface, such as
+    /// "An unrecognized command was supplied. Did you mean 'list'?" for <c>lst</c>, as one line to standard error,
+    /// and returns whether it wrote one. Call it before opening the interface so a mistyped command is not silent; it writes nothing for a
+    /// document path, an empty launch or any other launch without <see cref="HostedCommandLineDecision.SuggestedCommand"/>.
+    /// The console and culture follow <see cref="RunAsync"/>, and the text uses the presentation's text resolver
+    /// (key <c>diagnostics.unknown-command-suggestion</c>).
+    /// </summary>
+    /// <param name="decision">A decision created by this adapter.</param>
+    /// <param name="console">An optional console; standard error of the process when neither it nor an app console is set.</param>
+    /// <param name="cancellationToken">The host's cancellation token.</param>
+    public async ValueTask<bool> WriteSuggestionAsync(HostedCommandLineDecision decision, ICommandConsole? console = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        decision.ValidateOwner(_decisionOwner);
+        if (decision.SuggestedCommand is null || decision.IsCommandLineRequest || decision.Diagnostics.Count == 0) return false;
+        console ??= _app?.Console ?? new SystemCommandConsole();
+        CultureInfo culture = _app?.Culture ?? CultureInfo.CurrentUICulture;
+        string message = new CommandTextContext(culture, Presentation.TextResolver).Localize(decision.Diagnostics[0]).Message;
+        message = CommandFaultSanitizer.ContainsTechnicalContent(message) ? decision.Diagnostics[0].Message : CommandFaultSanitizer.SanitizeRequiredText(message);
+        await console.WriteErrorLineAsync(message, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     /// <summary>Presents help, version, usage errors or completion without creating a scope or owning host cancellation.</summary>

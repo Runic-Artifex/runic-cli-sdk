@@ -46,6 +46,28 @@ internal sealed class CatalogTests
         return ValueTask.CompletedTask;
     }
 
+    [Test, DisplayName("catalog/global-option-conflict-names-the-option-and-both-alias-sets")]
+    public ValueTask GlobalOptionConflictMessage()
+    {
+        var builder = new CommandCatalogBuilder().GlobalOption("force", "--force", CommandArity.Zero, aliases: ["-F"]);
+        ValidCommand(builder, "c").Option("force", "--force", CommandArity.Zero, aliases: ["-f"]);
+        CommandCatalogValidationException exception = AssertEx.Throws<CommandCatalogValidationException>(() => builder.Build());
+        CommandCatalogIssue issue = exception.Issues[0];
+        AssertEx.Equal("RCLI0019", issue.Code);
+        AssertEx.Equal("c", issue.Location);
+        AssertEx.Equal("Global option 'force' conflicts with the command-local option of the same ID: the global option is --force with aliases [-F], " +
+            "the command-local option is --force with aliases [-f]. Use the same name, arity and aliases, or give the options different IDs.", issue.Message);
+        AssertEx.True(exception.Message.Contains("RCLI0019 at 'c': Global option 'force'", StringComparison.Ordinal), exception.Message);
+        AssertEx.True(exception.Message.Contains("diagnostics.md#rcli0019", StringComparison.Ordinal), exception.Message);
+
+        var arity = new CommandCatalogBuilder().GlobalOption("level", "--level", CommandArity.ExactlyOne);
+        ValidCommand(arity, "c").Option("level", "--level", CommandArity.Zero);
+        AssertEx.Equal("Global option 'level' conflicts with the command-local option of the same ID: the global option is --level (one value) with aliases [], " +
+            "the command-local option is --level (a flag) with aliases []. Use the same name, arity and aliases, or give the options different IDs.",
+            AssertEx.Throws<CommandCatalogValidationException>(() => arity.Build()).Issues[0].Message);
+        return ValueTask.CompletedTask;
+    }
+
     [Test, DisplayName("catalog/default-command-receives-unprefixed-tokens")]
     public ValueTask DefaultCommand()
     {

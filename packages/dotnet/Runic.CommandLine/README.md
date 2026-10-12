@@ -427,7 +427,10 @@ var launch = new HostedCommandLineLaunchInput(args,
 };
 var decision = cli.Classify(launch);
 if (!decision.IsCommandLineRequest)
+{
+    await cli.WriteSuggestionAsync(decision, cancellationToken: applicationStopping);
     return await OpenApplicationUiAsync(applicationStopping);
+}
 return await cli.RunAsync(decision, cancellationToken: applicationStopping);
 ```
 
@@ -436,7 +439,11 @@ loop starts. `IsCommandLineRequest` is true for an invocation, help, version or
 completion request, and for an invalid launch whose leading arguments name a
 known command or group (`MatchedPath`, `MatchesKnownCommand`). Everything else,
 such as a document path or an unknown word, belongs to the UI; no list of
-command names needs to be maintained. `RunAsync` presents or executes the
+command names needs to be maintained. When an unknown word is a close match for a
+visible command, such as `lst` for `list`, `SuggestedCommand` names it and
+`WriteSuggestionAsync` writes the same "Did you mean 'list'?" line the standalone
+command line shows to standard error, so the typo is not silent; the UI still
+opens, because the word may be a document. `RunAsync` presents or executes the
 decision on the app's `Console` (or the console you pass) in `CommandApp.Culture`
 or `CultureInfo.CurrentUICulture`, and returns the exit code.
 
@@ -507,7 +514,8 @@ option. Direct callers can use
 
 When a global option reuses a command-local definition, its name, arity and alias
 set must match. Alias ordering is irrelevant; mismatches fail catalog validation
-with `RCLI0019`, rather than producing command-dependent parsing behavior.
+with `RCLI0019`, rather than producing command-dependent parsing behavior. The
+issue names the option ID and both definitions' names and alias sets.
 
 ## Migrating from 0.2
 

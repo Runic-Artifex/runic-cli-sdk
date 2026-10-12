@@ -111,6 +111,45 @@ internal sealed class DeveloperExperienceTests
         return ValueTask.CompletedTask;
     }
 
+    [Test, DisplayName("boilerplate/hosted-typo-suggests-a-command-but-keeps-documents-for-the-ui")]
+    public async ValueTask HostedSuggestion()
+    {
+        var builder = new CommandCatalogBuilder();
+        CatalogTests.ValidCommand(builder, "list");
+        CatalogTests.ValidCommand(builder, "export");
+        var console = new TestCommandConsole();
+        var adapter = new CommandLineHostingAdapter(new CommandApp(builder.Build()) { Console = console, HandleCancelKeyPress = false });
+        HostedCommandLineDecision Classify(params string[] args) =>
+            adapter.Classify(new HostedCommandLineLaunchInput(args, emptyInputFallback: EmptyInputFallback.UserInterface));
+
+        // A close match still opens the UI, but names the command the user probably meant.
+        HostedCommandLineDecision typo = Classify("lst");
+        AssertEx.True(!typo.IsCommandLineRequest, "An unknown word still belongs to the user interface.");
+        AssertEx.Equal("list", typo.SuggestedCommand);
+        AssertEx.True(await adapter.WriteSuggestionAsync(typo));
+        AssertEx.Equal("An unrecognized command was supplied. Did you mean 'list'?\n", console.StandardError);
+        AssertEx.Equal("", console.StandardOutput);
+
+        // Document paths and words that are not close stay silent.
+        foreach (string[] args in new string[][] { ["C:\\reports\\lst.rpt"], ["/home/ada/list.txt"], ["list.txt"], ["report.rpt"], ["quarterly"], [] })
+        {
+            HostedCommandLineDecision document = Classify(args);
+            AssertEx.True(!document.IsCommandLineRequest && document.SuggestedCommand is null, string.Join(" ", args));
+            AssertEx.True(!await adapter.WriteSuggestionAsync(document), string.Join(" ", args));
+        }
+
+        // A known command belongs to the command line; nothing is suggested.
+        HostedCommandLineDecision known = Classify("list", "--bogus");
+        AssertEx.True(known.IsCommandLineRequest && known.SuggestedCommand is null);
+        AssertEx.True(!await adapter.WriteSuggestionAsync(known));
+        AssertEx.Equal("An unrecognized command was supplied. Did you mean 'list'?\n", console.StandardError);
+
+        // The default command keeps a document path as its argument and never suggests.
+        HostedCommandLineDecision defaultDocument = new CommandLineHostingAdapter(App(new TestCommandConsole()))
+            .Classify(new HostedCommandLineLaunchInput(["C:\\report.rpt"], emptyInputFallback: EmptyInputFallback.UserInterface));
+        AssertEx.True(defaultDocument.Kind == HostedCommandLineDecisionKind.Invocation && defaultDocument.SuggestedCommand is null);
+    }
+
     [Test, DisplayName("boilerplate/console-string-and-line-overloads")]
     public async ValueTask ConsoleOverloads()
     {

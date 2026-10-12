@@ -141,7 +141,11 @@ The trade-off is that a **mistyped command name opens the UI** instead of report
 an error, because it is indistinguishable from a file name. `IsCommandLineRequest`
 narrows this by treating a known command with bad arguments (`report export`
 without a path) as a command: `MatchedPath` names the catalog command or group the
-leading arguments matched, so no hand-maintained list of command names is needed. A GUI-subsystem
+leading arguments matched, so no hand-maintained list of command names is needed. When an
+unknown word is a close match for a visible command (`lst` for `list`), the decision's
+`SuggestedCommand` names it: the window can show it, and with a parent console
+`WriteSuggestionAsync` writes the standalone command line's "Did you mean ...?" line to
+standard error before the UI starts. A GUI-subsystem
 executable is not the place to run the command,
 so the CLI path only prints a hint and exits with 64 (`EX_USAGE` from
 `sysexits.h`: the command was used on the wrong executable). Scripts can test for it.
