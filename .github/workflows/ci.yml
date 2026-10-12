@@ -64,6 +64,31 @@ jobs:
           # Publish preview reuses this artifact of the push run on main.
           retention-days: 30
 
+  # The managed suites on the other desktop platforms: console, terminal, signal and process
+  # behaviour differs there. Linux runs them, the examples and the packing in managed-and-pack.
+  managed-platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+      - run: ./eng/test.sh --managed-only
+        shell: bash
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: command-line-test-results-${{ runner.os }}
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
   native-aot:
     needs: managed-and-pack
     strategy:
@@ -143,7 +168,7 @@ jobs:
   verify:
     name: verify
     if: always()
-    needs: [workflows, managed-and-pack, native-aot, wpf-example]
+    needs: [workflows, managed-and-pack, managed-platforms, native-aot, wpf-example]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

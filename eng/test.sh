@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
+# Builds the solution and runs the managed suites, then the examples.
+# --managed-only stops after the managed suites; CI runs them that way on Windows and macOS.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
+managed_only=false
+case "${1-}" in
+  "") ;;
+  --managed-only) managed_only=true ;;
+  *) echo "Usage: eng/test.sh [--managed-only]" >&2; exit 64 ;;
+esac
 solution=Runic.CommandLine.slnx
 dotnet restore "$solution"
 dotnet build "$solution" -c Release --no-restore -p:RunicCommandLineBuildMode=Verification
@@ -19,6 +27,7 @@ for project in \
     --results-directory "$results" --report-trx --report-trx-filename "$suite.trx" \
     --coverage --coverage-output-format cobertura --coverage-output "$suite.cobertura.xml"
 done
+if [[ "$managed_only" == true ]]; then exit 0; fi
 # The example suites show Runic.CommandLine.Testing without a test framework.
 for project in \
   examples/command-line/Tests/HelloCli.ExampleTests.csproj \
