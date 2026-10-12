@@ -228,6 +228,8 @@ internal sealed partial class CompletionHelpTests
     };
     private static async ValueTask<string[]?> RunShell(string shell, string script, string directory)
     {
+        // On Windows, bash.exe is the WSL launcher and zsh and fish are not native shells.
+        if (OperatingSystem.IsWindows() && shell != "pwsh") { Console.WriteLine("SKIP POSIX completion shell on Windows: " + shell); return null; }
         using var process = new Process { StartInfo = new ProcessStartInfo(shell) { RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = directory } };
         if (shell == "pwsh") { process.StartInfo.ArgumentList.Add("-NoProfile"); process.StartInfo.ArgumentList.Add("-NonInteractive"); process.StartInfo.ArgumentList.Add("-Command"); }
         else { process.StartInfo.ArgumentList.Add(shell == "bash" ? "--noprofile" : shell == "zsh" ? "-f" : "--no-config"); process.StartInfo.ArgumentList.Add("-c"); }
