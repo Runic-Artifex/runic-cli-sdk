@@ -28,6 +28,8 @@ internal static class HostedExample
         {
             // A desktop application calls its existing UI launch method here, also for a
             // document path or an unknown word. This console example only demonstrates the decision.
+            // A close match for a command ("lst" for "list") is still a UI launch, but is not silent.
+            await adapter.WriteSuggestionAsync(decision, cancellationToken: applicationStopping);
             await console.WriteOutLineAsync("Application selected its UI launch path.", applicationStopping);
             return 0;
         }

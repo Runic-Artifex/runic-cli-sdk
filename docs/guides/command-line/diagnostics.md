@@ -161,6 +161,18 @@ command's own option with a different spelling, arity or aliases, or more than
 one catalog passed to `CommandCatalog.Combine` defines a default command. Keep
 one definition.
 
+For an option, the issue is located at the command and names the option ID and
+both definitions, with the arity when it differs:
+
+```text
+RCLI0019 at 'c': Global option 'force' conflicts with the command-local option of the same ID:
+the global option is --force with aliases [-F], the command-local option is --force with aliases [-f].
+Use the same name, arity and aliases, or give the options different IDs.
+```
+
+Alias order does not matter. Give both definitions the same aliases, or rename
+the command's option ID if it is a different option.
+
 ### RCLI0020
 
 Presenter type mismatch. A human presenter registered for a command must render

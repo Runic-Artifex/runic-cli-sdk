@@ -190,6 +190,15 @@ public sealed class HostedCommandLineDecision
     public bool MatchesKnownCommand => MatchedPath is not null;
 
     /// <summary>
+    /// Gets the visible root command name or alias that closely matches an unknown command word, such as
+    /// <c>list</c> for <c>lst</c>, when the launch names no known command. It is the suggestion the standalone
+    /// command line shows as "Did you mean ...?". The launch still belongs to the user interface, because the word
+    /// may be a document path; a host can mention the suggestion before it opens the interface, for example with
+    /// <see cref="CommandLineHostingAdapter.WriteSuggestionAsync"/>. It is null when nothing is close.
+    /// </summary>
+    public string? SuggestedCommand { get; init; }
+
+    /// <summary>
     /// Gets whether the launch belongs to the command line: an invocation, a help, version or completion
     /// request, or an invalid launch whose leading arguments name a known command. A host with a user
     /// interface typically opens it for every other launch, such as a document path or an unknown word.

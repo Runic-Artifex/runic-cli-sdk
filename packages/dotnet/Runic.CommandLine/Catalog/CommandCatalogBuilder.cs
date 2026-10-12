@@ -472,11 +472,27 @@ internal abstract class CommandBuilderNode
     {
         OptionDefinition? existing = _options.Find(option => option.Id == id);
         if (existing is not null && (existing.Name != name || existing.Arity != arity || !new HashSet<string>(existing.Aliases, StringComparer.Ordinal).SetEquals(aliases)))
-            throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0019", Name, "A global option conflicts with a command-local definition.")]);
+            throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0019", Name, GlobalConflictMessage(id, name, arity, aliases, existing))]);
         if (existing is null) AddOption(id, name, arity, CommandOptionRepeatPolicy.Error, false, null, false, aliases);
         GlobalOptionIds.Add(id);
         if (help is not null) ParameterHelp[id] = help;
     }
+
+    // Names the option and both definitions, so the author can see what to change. The arity appears only when it differs.
+    private static string GlobalConflictMessage(string id, string name, CommandArity arity, string[] aliases, OptionDefinition local)
+    {
+        bool showArity = local.Arity != arity;
+        string Describe(string optionName, CommandArity optionArity, IEnumerable<string> optionAliases) =>
+            optionName + (showArity ? " (" + DescribeArity(optionArity) + ")" : "") + " with aliases [" + string.Join(", ", optionAliases) + "]";
+        return $"Global option '{id}' conflicts with the command-local option of the same ID: the global option is " +
+            Describe(name, arity, aliases) + ", the command-local option is " + Describe(local.Name, local.Arity, local.Aliases) +
+            ". Use the same name, arity and aliases, or give the options different IDs.";
+    }
+
+    private static string DescribeArity(CommandArity arity) =>
+        arity == CommandArity.Zero ? "a flag" : arity == CommandArity.ExactlyOne ? "one value" :
+            arity.Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".." +
+            (arity.Maximum?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "*") + " values";
     private HashSet<string> GlobalOptionIds { get; } = new(StringComparer.Ordinal);
 
     internal void AddArgument(string id, string name, CommandArity arity, bool isSensitive, string? descriptionKey)
