@@ -26,8 +26,10 @@ foreach ($package in @('Runic.CommandLine', 'Runic.CommandLine.Processes', 'Runi
     }
 }
 # Packed READMEs link to the candidate's release tag, never to a main branch
-# (eng/build/release-links.targets rewrites them when packing).
+# (eng/build/release-links.targets rewrites them when packing), and keep every
+# other character of their source, backslashes included.
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+$repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../../..'))
 foreach ($package in @('Runic.CommandLine', 'Runic.CommandLine.Processes', 'Runic.CommandLine.Spectre', 'Runic.CommandLine.Testing')) {
     $archive = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $feed "$package.$PackageVersion.nupkg"))
     try {
@@ -40,6 +42,16 @@ foreach ($package in @('Runic.CommandLine', 'Runic.CommandLine.Processes', 'Runi
     }
     $mainLink = [regex]::Match($packedReadme, 'github\.com/Runic-Artifex/[\w.-]+/(?:blob|tree)/main(?=[/#?)\s>"]|$)')
     if ($mainLink.Success) { throw "The packed $package README links to a main branch: $($mainLink.Value)." }
+    # Packing once turned each backslash into a slash on Linux: "\n" and "ü" in the
+    # code samples, and shell line continuations. Stamping changes links only, so the
+    # counts match and the lines that end in a backslash are the source's.
+    $sourceReadme = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot "packages/dotnet/$package/README.md"))
+    if ($packedReadme.Split('\').Count -ne $sourceReadme.Split('\').Count) {
+        throw "The packed $package README has $($packedReadme.Split('\').Count - 1) backslashes; its source has $($sourceReadme.Split('\').Count - 1)."
+    }
+    $packedContinuations = @($packedReadme -split '\r?\n' | Where-Object { $_.EndsWith('\') }) -join "`n"
+    $sourceContinuations = @($sourceReadme -split '\r?\n' | Where-Object { $_.EndsWith('\') }) -join "`n"
+    if ($packedContinuations -ne $sourceContinuations) { throw "The packed $package README changes lines that end in a backslash." }
     if ($package -eq 'Runic.CommandLine' -and
         -not $packedReadme.Contains("https://github.com/Runic-Artifex/runic-cli-sdk/blob/v$PackageVersion/docs/guides/command-line/diagnostics.md")) {
         throw "The packed $package README does not link to the diagnostics catalog at v$PackageVersion."
