@@ -35,8 +35,9 @@ The managed suites under `tests/dotnet` (Contracts, Hosting, Processes and the m
   not opt in to the MTP mode of `dotnet test`.
 - **Reports.** `eng/test.sh` passes `--report-trx --coverage --coverage-output-format cobertura` and writes `<suite>.trx`
   and `<suite>.cobertura.xml` to `artifacts/test-results/<suite>`, which CI uploads as `command-line-test-results`, also
-  when a case failed. Without `--results-directory`, TUnit writes its HTML and JSON reports to
-  `bin/<configuration>/net10.0/TestResults`.
+  when a case failed. CI also runs the managed suites on Windows and macOS with `eng/test.sh --managed-only`, which skips
+  the examples, and uploads `command-line-test-results-Windows` and `command-line-test-results-macOS`. Without
+  `--results-directory`, TUnit writes its HTML and JSON reports to `bin/<configuration>/net10.0/TestResults`.
 - **Parallelism.** TUnit runs cases in parallel, and in the directory of the test executable. Before you allow
   parallelism for a suite, make sure no case shares mutable static state, the current directory, environment variables,
   ports or files with another case. The Contracts, Hosting and main suites limit themselves to one case per processor
