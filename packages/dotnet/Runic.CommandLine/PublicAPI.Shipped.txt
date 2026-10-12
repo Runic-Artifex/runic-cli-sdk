@@ -679,3 +679,110 @@ Runic.CommandLine.CommandResponse<T>.FailureData.get -> Runic.CommandLine.Comman
 static Runic.CommandLine.CommandFailureData.Create<T>(string! dataType, T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>! typeInfo) -> Runic.CommandLine.CommandFailureData!
 static Runic.CommandLine.CommandOutcome.FailureWithData<T>(Runic.CommandLine.CommandExitCategory category, Runic.CommandLine.CommandFault! fault, Runic.CommandLine.CommandFailureData! failureData, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null, string? humanOutput = null) -> Runic.CommandLine.CommandOutcome<T>!
 static Runic.CommandLine.CommandResponse.FailedWithData<T>(string! requestId, string! command, int exitCode, Runic.CommandLine.CommandFault! fault, Runic.CommandLine.CommandFailureData! failureData, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null) -> Runic.CommandLine.CommandResponse<T>!
+Runic.CommandLine.CommandCatalogBuilder.Group(string! path, Runic.CommandLine.CommandHelp! help, string? descriptionKey = null) -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.CommandConsoleExtensions
+Runic.CommandLine.CommandDiagnostic.HelpUri.get -> System.Uri?
+Runic.CommandLine.CommandDiagnostic.HelpUri.init -> void
+Runic.CommandLine.CommandFault.HelpUri.get -> System.Uri?
+Runic.CommandLine.CommandFault.HelpUri.init -> void
+Runic.CommandLine.CommandGroupAttribute
+Runic.CommandLine.CommandGroupAttribute.CommandGroupAttribute(string! path) -> void
+Runic.CommandLine.CommandGroupAttribute.Description.get -> string?
+Runic.CommandLine.CommandGroupAttribute.Description.set -> void
+Runic.CommandLine.CommandGroupAttribute.DescriptionKey.get -> string?
+Runic.CommandLine.CommandGroupAttribute.DescriptionKey.set -> void
+Runic.CommandLine.CommandGroupAttribute.Hidden.get -> bool
+Runic.CommandLine.CommandGroupAttribute.Hidden.set -> void
+Runic.CommandLine.CommandGroupAttribute.LongDescription.get -> string?
+Runic.CommandLine.CommandGroupAttribute.LongDescription.set -> void
+Runic.CommandLine.CommandGroupAttribute.Path.get -> string!
+Runic.CommandLine.CommandScopes
+Runic.CommandLine.CommandServices
+Runic.CommandLine.CommandServices.GetService(System.Type! serviceType) -> object?
+Runic.CommandLine.CommandServices.With<TService>(TService! instance) -> Runic.CommandLine.CommandServices!
+Runic.CommandLine.CommandTextContext.ValidateDescriptionKeys(Runic.CommandLine.CommandCatalog! catalog) -> System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandCatalogIssue!>!
+Runic.CommandLine.CommandTextKey
+Runic.CommandLine.CommandTextKey.Arguments.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Runic.CommandLine.CommandTextKey.Key.get -> string!
+Runic.CommandLine.CommandTextKeys
+Runic.CommandLine.Hosting.CommandLineHostingAdapter.CommandLineHostingAdapter(Runic.CommandLine.CommandApp! app) -> void
+Runic.CommandLine.Hosting.CommandLineHostingAdapter.RunAsync(Runic.CommandLine.Hosting.HostedCommandLineDecision! decision, Runic.CommandLine.ICommandConsole? console = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<int>
+Runic.CommandLine.Hosting.HostedCommandLineDecision.IsCommandLineRequest.get -> bool
+Runic.CommandLine.Hosting.HostedCommandLineDecision.MatchedPath.get -> Runic.CommandLine.CommandPath?
+Runic.CommandLine.Hosting.HostedCommandLineDecision.MatchedPath.init -> void
+Runic.CommandLine.Hosting.HostedCommandLineDecision.MatchesKnownCommand.get -> bool
+const Runic.CommandLine.CommandTextKeys.CompletionInvalidShell = "completion.invalid-shell" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticAboveMaximum = "diagnostics.above-maximum" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticBelowMinimum = "diagnostics.below-minimum" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticDirectoryNotFound = "diagnostics.directory-not-found" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticDuplicateOption = "diagnostics.duplicate-option" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticEnvironmentValueSource = "diagnostics.environment-value-source" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticFileNotFound = "diagnostics.file-not-found" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidBoolean = "diagnostics.invalid-boolean" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidChoice = "diagnostics.invalid-choice" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidChoiceHidden = "diagnostics.invalid-choice-hidden" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidDirectoryPath = "diagnostics.invalid-directory-path" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidEnvironmentValue = "diagnostics.invalid-environment-value" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidFilePath = "diagnostics.invalid-file-path" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidGuid = "diagnostics.invalid-guid" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidInteger = "diagnostics.invalid-integer" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidNumber = "diagnostics.invalid-number" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidOutputMode = "diagnostics.invalid-output-mode" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticInvalidValue = "diagnostics.invalid-value" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticMissingArgument = "diagnostics.missing-argument" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticMissingOptionValue = "diagnostics.missing-option-value" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticMissingRequiredOption = "diagnostics.missing-required-option" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticMissingValue = "diagnostics.missing-value" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticOptionConflict = "diagnostics.option-conflict" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticOptionRequires = "diagnostics.option-requires" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticOutOfRange = "diagnostics.out-of-range" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticTransportOutputOptionCollision = "diagnostics.transport-output-option-collision" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticUnexpectedArgument = "diagnostics.unexpected-argument" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticUnexpectedOptionValue = "diagnostics.unexpected-option-value" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticUnexpectedRootHelpArgument = "diagnostics.unexpected-root-help-argument" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticUnknownCommand = "diagnostics.unknown-command" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticUnknownCommandSuggestion = "diagnostics.unknown-command-suggestion" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticUnknownOption = "diagnostics.unknown-option" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticUnknownOptionSuggestion = "diagnostics.unknown-option-suggestion" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticUnsupportedShortBundle = "diagnostics.unsupported-short-bundle" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticValidationFailed = "diagnostics.validation-failed" -> string!
+const Runic.CommandLine.CommandTextKeys.FaultCancelled = "faults.RCLI4000" -> string!
+const Runic.CommandLine.CommandTextKeys.FaultHostFailure = "faults.RCLI5000" -> string!
+const Runic.CommandLine.CommandTextKeys.FaultHostFailureHint = "hints.RCLI5000" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpArguments = "help.arguments" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpChoices = "help.choices" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpCommandPlaceholder = "help.command-placeholder" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpCommands = "help.commands" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpCompletion = "help.completion" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpConflicts = "help.conflicts" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpDefault = "help.default" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpDefaultCommand = "help.default-command" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpEnvironment = "help.environment" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpExamples = "help.examples" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpExisting = "help.existing" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpMaximum = "help.maximum" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpMinimum = "help.minimum" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpOptions = "help.options" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpOptionsPlaceholder = "help.options-placeholder" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpOutputFormat = "help.output-format" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpPathKindDirectory = "help.path-kind.directory" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpPathKindFile = "help.path-kind.file" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpRequired = "help.required" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpRequires = "help.requires" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpShowHelp = "help.show-help" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpShowVersion = "help.show-version" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpUsage = "help.usage" -> string!
+override Runic.CommandLine.CommandTextKey.ToString() -> string!
+static Runic.CommandLine.CommandConsoleExtensions.WriteErrorAsync(this Runic.CommandLine.ICommandConsole! console, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandConsoleExtensions.WriteErrorLineAsync(this Runic.CommandLine.ICommandConsole! console, string! value = "", System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandConsoleExtensions.WriteOutAsync(this Runic.CommandLine.ICommandConsole! console, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandConsoleExtensions.WriteOutLineAsync(this Runic.CommandLine.ICommandConsole! console, string! value = "", System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandScopes.Create<TScope>(System.Func<TScope>! createScope, System.Func<TScope, System.IServiceProvider!>! getServices) -> Runic.CommandLine.ICommandExecutionScopeFactory!
+static Runic.CommandLine.CommandScopes.FromServices(System.IServiceProvider! services) -> Runic.CommandLine.ICommandExecutionScopeFactory!
+static Runic.CommandLine.CommandServices.Empty.get -> Runic.CommandLine.CommandServices!
+static Runic.CommandLine.CommandTextKeys.All.get -> System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandTextKey!>!
+static Runic.CommandLine.CommandTextKeys.Diagnostic(string! kind) -> string!
+static Runic.CommandLine.CommandTextKeys.Fault(string! code) -> string!
+static Runic.CommandLine.CommandTextKeys.Find(string! key) -> Runic.CommandLine.CommandTextKey?
+static Runic.CommandLine.GeneratedCommandBinding.CheckRange<T>(T value, Runic.CommandLine.ParsedInvocation! invocation, string! id) -> T
+static Runic.CommandLine.GeneratedCommandBinding.Failure<TOptions>(Runic.CommandLine.ParsedInvocation! invocation, Runic.CommandLine.GeneratedCommandBindingException! exception) -> Runic.CommandLine.CommandOutcome<TOptions>!
