@@ -1,4 +1,1 @@
 #nullable enable
-Runic.CommandLine.Hosting.CommandLineHostingAdapter.WriteSuggestionAsync(Runic.CommandLine.Hosting.HostedCommandLineDecision! decision, Runic.CommandLine.ICommandConsole? console = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
-Runic.CommandLine.Hosting.HostedCommandLineDecision.SuggestedCommand.get -> string?
-Runic.CommandLine.Hosting.HostedCommandLineDecision.SuggestedCommand.init -> void
