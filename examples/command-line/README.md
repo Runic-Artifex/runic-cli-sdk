@@ -2,7 +2,7 @@
 
 Start with the [package-only quick-start](../../README.md#package-only-quick-start):
 install the core package, write one command method, then run human or JSON output.
-The current `0.6.0-preview.6` candidate is distinct from the published
+The current `0.7.0-preview.1` candidate is distinct from the published
 `0.6.0-preview.5`; these sources are checked against the candidate, not assumed
 to work against earlier package APIs. Use matching versions of `Runic.CommandLine`
 and optional `Runic.CommandLine.Spectre`.
