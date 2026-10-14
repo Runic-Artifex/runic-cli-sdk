@@ -19,11 +19,11 @@ cd HelloCli
 dotnet add package Runic.CommandLine --version 0.6.0-preview.5
 ```
 
-To try the unreleased candidate from `main` (`0.6.0-preview.6`, the version in
+To try the unreleased candidate from `main` (`0.7.0-preview.1`, the version in
 `eng/Versions.props`), download the `command-line-packages` artifact from a
 successful CI run, extract it to an absolute directory and add the package from
 there instead:
-`dotnet add package Runic.CommandLine --version 0.6.0-preview.6 --source /absolute/path/to/candidate-feed`.
+`dotnet add package Runic.CommandLine --version 0.7.0-preview.1 --source /absolute/path/to/candidate-feed`.
 CI checks this tutorial against the candidate packages.
 
 Replace `Program.cs` with:
