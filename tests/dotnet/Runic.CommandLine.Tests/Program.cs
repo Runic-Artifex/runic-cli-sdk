@@ -17,6 +17,8 @@ internal static class Program
             return await SignalTests.RunChildAsync(args[1]).ConfigureAwait(false);
         if (PromptTerminalTests.IsChildInvocation(args))
             return await PromptTerminalTests.RunChildAsync().ConfigureAwait(false);
+        if (PromptProcessTests.IsChildInvocation(args))
+            return PromptProcessTests.RunChild();
 
         ITestApplicationBuilder builder = await TestApplication.CreateBuilderAsync(args).ConfigureAwait(false);
         builder.AddSelfRegisteredExtensions(args);

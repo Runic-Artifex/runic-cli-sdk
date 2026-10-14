@@ -232,6 +232,26 @@ and `FailAsync` keeps up to the last 1000 lines below the summary. Lines are
 stripped of control characters and ANSI sequences, and members may be called
 from process output callbacks.
 
+To show a child process's live output in a task log, as `nix-manager` does,
+pass each line from `Runic.CommandLine.Processes` to the log:
+
+```csharp
+sealed class TaskLogLines(CommandTaskLog log) : IProcessOutputHandler
+{
+    public ValueTask OnLineAsync(ProcessOutputLine line, CancellationToken cancellationToken) =>
+        log.WriteLineAsync(line.Text, cancellationToken);
+}
+
+await using CommandTaskLog log = await prompts.StartTaskLogAsync("nix build", visibleLines: 6, cancellationToken);
+ProcessResult result = await runner.RunAsync(request, new TaskLogLines(log), cancellationToken);
+if (result.State == ProcessState.Exited && result.ExitCode == 0) await log.SucceedAsync(cancellationToken: cancellationToken);
+else await log.FailAsync($"nix build ended in {result.State}", cancellationToken: cancellationToken);
+```
+
+On a redrawing terminal `WriteLineAsync` only queues the line for the next
+frame, so it does not slow the child; without one it writes the line to
+standard error, and the runner's backpressure applies.
+
 **When prompts ask.** A prompt asks only when `IsInteractive` is true:
 
 | Situation | Prompt with a default | Prompt without a default |
