@@ -185,9 +185,13 @@ internal sealed partial class ProcessOutputTests
         string command = "trap '' CHLD; exec " + ShellQuote(ChildProcessFixture.ExecutablePath) +
             " --process-test-child run-probe detach pressure 1 1 7";
         string output = await RunCapturedAsync("sh", ["-c", command]).ConfigureAwait(false);
-        // The kernel reaps the child, so its exit code is gone: the run ends at exit as not observed, rather than
-        // as Exited without a code or at the timeout.
-        TestAssert.True(output.Contains("state=ExecutionFailed code=none group=own out=O", StringComparison.Ordinal), output);
+        // Whether the kernel reaps the child depends on whether the runtime has replaced the inherited SIG_IGN with
+        // its own handler yet. Either the exit code survives, or the run ends at exit as not observed; never Exited
+        // without a code, and never a wait for the timeout.
+        TestAssert.True(
+            output.Contains("state=Exited code=7 group=own out=O", StringComparison.Ordinal) ||
+            output.Contains("state=ExecutionFailed code=none group=own out=O", StringComparison.Ordinal),
+            output);
     }
 
     [Test, DisplayName("output/runners-that-cannot-stream-replay-the-capture")]
