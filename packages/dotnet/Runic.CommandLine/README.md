@@ -198,6 +198,120 @@ for the shell details.
 `TestCommandConsole` with queued input, and strict JSON frame assertions. Supply
 explicit ParseSettings to keep environment-dependent tests deterministic.
 
+## Interactive prompts
+
+`CommandPrompts` asks questions in the style of `@clack/prompts`: select,
+multi-select, confirm and validated text, plus a spinner and a task log. Create
+it from the handler's `CommandExecutionContext` and pass the invocation's
+cancellation token:
+
+```csharp
+[Command("init", Description = "Create a project.")]
+internal static async Task<string> Init(CommandExecutionContext context, CancellationToken cancellationToken,
+    [Option("--template")] string? template = null, [Option("--yes", "-y")] bool yes = false)
+{
+    var prompts = new CommandPrompts(context, interactive: !yes);
+    template ??= await prompts.SelectAsync<string>("Template",
+        [new("web", "Web app", "Vite and Svelte"), new("cli", "Command line")], defaultIndex: 0, cancellationToken);
+    string name = await prompts.TextAsync("Project name", validate: value =>
+        value.Length == 0 ? "Enter a name." : value.Contains(' ') ? "Use no spaces." : null, cancellationToken: cancellationToken);
+    if (!await prompts.ConfirmAsync($"Create {name}?", defaultValue: true, cancellationToken)) return "Nothing created.";
+
+    await using CommandTaskLog log = await prompts.StartTaskLogAsync("Installing", visibleLines: 6, cancellationToken);
+    await log.WriteLineAsync("added 120 packages", cancellationToken);   // for example from a process output handler
+    await log.SetStatusAsync("12s elapsed", cancellationToken);
+    await log.SucceedAsync("Installed", cancellationToken: cancellationToken);   // clears the log lines
+    return $"Created {name} from {template}.";
+}
+```
+
+`StartSpinnerAsync(message)` is a task log without visible lines. A task log
+keeps the last `visibleLines` lines under its title while it runs; `SucceedAsync`
+replaces the block with one summary line (the log stays with `showLog: true`),
+and `FailAsync` keeps up to the last 1000 lines below the summary. Lines are
+stripped of control characters and ANSI sequences, and members may be called
+from process output callbacks.
+
+**When prompts ask.** A prompt asks only when `IsInteractive` is true:
+
+| Situation | Prompt with a default | Prompt without a default |
+| --- | --- | --- |
+| Interactive console | Asks; Enter alone accepts the default | Asks |
+| JSON output (`--output json`, `RUNIC_COMMANDLINE_OUTPUT=json` or a declared `--json` alias) | Returns the default | Exit code 2, `RCLI4001` `prompt-json-output` |
+| Console not interactive (standard input or output redirected) | Returns the default | Exit code 2, `RCLI4001` `prompt-requires-terminal` |
+| `RUNIC_COMMANDLINE_NO_INPUT` is `1`, `true` or `yes`, or `interactive: false` | Returns the default | Exit code 2, `RCLI4001` `prompt-disabled` |
+
+Noninteractive runs write nothing for a prompt that returns its default. A
+multi-select's default is its `defaultIndexes`, which may be empty unless
+`required` is set. A text default is returned without validation. With JSON
+output, standard output still holds exactly one frame; the failure is the
+frame's `RCLI4001` fault and diagnostic, whose argument is the question.
+`CommandApp` reads `RUNIC_COMMANDLINE_NO_INPUT` through its environment reader,
+so explicit `ParseSettings` without `GetEnvironmentVariable` ignore it. Add your
+own `--yes` or `--no-input` option and pass it as `interactive: false`.
+
+**Cancelling.** Ctrl+C while a prompt waits cancels the command with exit code
+4 (`RCLI4000`) when the prompt received the invocation's token; so do Escape and
+the end of input (Ctrl+D) at a line prompt. The prompt leaves a "Cancelled"
+summary line, shows the cursor again, and restores the cursor even when a second
+Ctrl+C exits the process at once. The runtime restores the terminal's input mode.
+
+**Rendering and accessibility.** Prompts write to standard error. When the
+console is an `ICommandTerminal` whose `SupportsAnsi` is true, they redraw in
+place and take arrow keys, Space, Enter and Escape; lines are cut to the
+terminal width, and `SupportsUnicode` selects `◆ ● ◻` or ASCII symbols.
+`SystemCommandConsole` supports ANSI when standard input and standard error are
+terminals, `TERM` is set and is not `dumb`, `NO_COLOR` is not set and, on
+Windows, inside Windows Terminal; `SpectreCommandConsole` applies its own colour,
+Unicode and width settings and detects ANSI in other Windows consoles. Otherwise,
+including with `NO_COLOR` and `TERM=dumb`, every prompt asks one plain question
+that a screen reader reads in order and that is answered with one line:
+
+```text
+Template
+  1. Web app - Vite and Svelte
+  2. Command line
+Enter a number from 1 to 2 [Web app]: 2
+Project name: demo
+Create demo? [Y/n]: y
+Installing
+added 120 packages
+Installing: 12s elapsed
+Installing: Installed
+```
+
+A select accepts a number or a label; a multi-select accepts numbers or labels
+separated by commas; a confirm accepts the translated Yes or No, their first
+letters, or `y` and `n`. An unrecognized answer asks again. Without a terminal,
+including with JSON output, a task log writes its title, lines, status changes
+and summary as plain lines to standard error.
+
+**Translation.** Hints, Yes and No, errors and the `RCLI4001` diagnostics
+resolve through `CommandApp.TextResolver`; the `prompts.*` keys are listed in
+[the text keys](../../../docs/guides/command-line/text-keys.md). Questions and
+labels are your text: resolve them with
+`new CommandTextContext(context.Culture, context.TextResolver).Resolve(key, fallback)`.
+
+**Testing.** Give `CommandAppTester.CreateConsole` an interactive
+`TestCommandConsole` and queue one line per prompt with `QueueInput`; a queued
+`null` is the end of input. Set `SupportsAnsi = true` and use `QueueKey` and
+`QueueText` to drive the redrawn prompts.
+
+```csharp
+var tester = new CommandAppTester(console => new CommandApp(catalog) { Console = console, ParseSettings = ParseSettings.Default })
+{
+    CreateConsole = () =>
+    {
+        var console = new TestCommandConsole { IsInteractive = true };
+        console.QueueInput("2");      // Template: Command line
+        console.QueueInput("demo");   // Project name
+        console.QueueInput("");       // Create demo? accepts the default
+        return console;
+    },
+};
+CommandAppTestResult result = await tester.RunAsync(["init"]);
+```
+
 ## Exit codes
 
 `CommandApp.RunAsync` returns the process exit code. The default
@@ -207,9 +321,9 @@ explicit ParseSettings to keep environment-dependent tests deterministic.
 | Code | Category | Typical cause |
 | --- | --- | --- |
 | 0 | `Success` | The command succeeded, or help, version or a completion script was written. |
-| 2 | `Usage` | Unknown command or option, missing, malformed or out-of-range input (`RCLI1xxx`, `RCLI2xxx`). |
+| 2 | `Usage` | Unknown command or option, missing, malformed or out-of-range input (`RCLI1xxx`, `RCLI2xxx`), or a prompt that cannot ask (`RCLI4001`). |
 | 3 | `Validation` | A handler rejected well-formed input, for example a business rule. |
-| 4 | `Cancelled` | Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation. |
+| 4 | `Cancelled` | Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation, or the user cancelled a prompt. |
 | 5 | `Unavailable` | A required resource or service was unavailable, including "not found". |
 | 10 | `CommandFailure` | The command reported another expected failure. |
 | 70 | `HostFailure` | An unexpected exception or infrastructure failure (`RCLI5000`). |

@@ -24,3 +24,11 @@ handler. Progress receives percentages from 0 to 100; interactive terminals use
 Spectre's live display on stderr. Noninteractive runs emit one status line and do
 not animate. Forward the cancellation token into the operation. `PromptAsync`
 returns its fallback when the invocation cannot interact.
+
+For select, multi-select, confirm and text prompts, a spinner or a task log, use
+`CommandPrompts` from `Runic.CommandLine`. With `Console = new
+SpectreCommandConsole()` they redraw only when this console would colour its own
+output: its `color`, `unicode` and `width` settings apply to them, redirected
+streams, `NO_COLOR` and `TERM=dumb` switch them to plain line prompts, and on
+Windows Spectre's terminal detection enables ANSI for them. Prompts write
+through the wrapped console without Spectre styling.
