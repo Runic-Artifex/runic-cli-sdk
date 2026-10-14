@@ -336,7 +336,8 @@ command this way. The exit category is `Cancelled`, exit code 4.
 A `CommandPrompts` prompt without a default needed an answer, but the command
 could not ask for one. The diagnostic kind names the reason:
 `prompt-json-output` (JSON output never prompts), `prompt-requires-terminal`
-(standard input or output is not an interactive terminal) or `prompt-disabled`
+(standard input or standard error, where prompts are written, is not a
+terminal; standard output may be redirected) or `prompt-disabled`
 (`RUNIC_COMMANDLINE_NO_INPUT` is set, or the handler created the prompts with
 `interactive: false`). Its argument is the prompt's question. Pass the value
 another way, usually as an option, or give the prompt a default. The exit

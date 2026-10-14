@@ -46,4 +46,6 @@ fail with `RCLI4001`. To drive the redrawn terminal prompts, set
 keys with `QueueKey(ConsoleKey.DownArrow)`, `QueueKey(ConsoleKey.Enter)` or
 `QueueText("name\n")`. Their frames, ANSI sequences included, are captured in
 `StandardError`. `ReadKeyAsync` waits until a key is queued or the token is
-cancelled, which lets a test cancel a waiting prompt.
+cancelled, which lets a test cancel a waiting prompt. Keep a reference to the
+console you create and check `PendingInputCount` and `PendingKeyCount` to make
+sure every queued answer was used.

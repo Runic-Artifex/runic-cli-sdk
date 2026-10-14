@@ -202,8 +202,9 @@ explicit ParseSettings to keep environment-dependent tests deterministic.
 
 `CommandPrompts` asks questions in the style of `@clack/prompts`: select,
 multi-select, confirm and validated text, plus a spinner and a task log. Create
-it from the handler's `CommandExecutionContext` and pass the invocation's
-cancellation token:
+it from the handler's `CommandExecutionContext`. Prompts observe the
+invocation's cancellation token from the context, and also any token passed to
+a call:
 
 ```csharp
 [Command("init", Description = "Create a project.")]
@@ -258,8 +259,15 @@ standard error, and the runner's backpressure applies.
 | --- | --- | --- |
 | Interactive console | Asks; Enter alone accepts the default | Asks |
 | JSON output (`--output json`, `RUNIC_COMMANDLINE_OUTPUT=json` or a declared `--json` alias) | Returns the default | Exit code 2, `RCLI4001` `prompt-json-output` |
-| Console not interactive (standard input or output redirected) | Returns the default | Exit code 2, `RCLI4001` `prompt-requires-terminal` |
+| Console not interactive (standard input or standard error redirected) | Returns the default | Exit code 2, `RCLI4001` `prompt-requires-terminal` |
 | `RUNIC_COMMANDLINE_NO_INPUT` is `1`, `true` or `yes`, or `interactive: false` | Returns the default | Exit code 2, `RCLI4001` `prompt-disabled` |
+
+Interactivity depends on standard input and standard error, where prompts are
+written, not on standard output: `cd "$(tool pick-dir)"` and `tool new | tee
+log` still ask, and only the command's result goes through the pipe.
+`SystemCommandConsole.IsInteractive` follows this rule. The `CI` variable is not
+checked: a CI job that runs with a terminal should set
+`RUNIC_COMMANDLINE_NO_INPUT=1`.
 
 Noninteractive runs write nothing for a prompt that returns its default. A
 multi-select's default is its `defaultIndexes`, which may be empty unless
@@ -269,17 +277,33 @@ frame's `RCLI4001` fault and diagnostic, whose argument is the question.
 `CommandApp` reads `RUNIC_COMMANDLINE_NO_INPUT` through its environment reader,
 so explicit `ParseSettings` without `GetEnvironmentVariable` ignore it. Add your
 own `--yes` or `--no-input` option and pass it as `interactive: false`.
+Disabling prompts does not affect spinners and task logs, which take no input:
+they still animate on a terminal that can redraw, and write plain lines only
+with JSON output or without such a terminal.
 
 **Cancelling.** Ctrl+C while a prompt waits cancels the command with exit code
-4 (`RCLI4000`) when the prompt received the invocation's token; so do Escape and
-the end of input (Ctrl+D) at a line prompt. The prompt leaves a "Cancelled"
-summary line, shows the cursor again, and restores the cursor even when a second
-Ctrl+C exits the process at once. The runtime restores the terminal's input mode.
+4 (`RCLI4000`); so do Escape and the end of input (Ctrl+D) at a line prompt. The
+prompt leaves a "Cancelled" summary line and shows the cursor again. The cursor
+also comes back when a second Ctrl+C exits the process at once, and with
+`HandleCancelKeyPress = false`, where SIGINT, SIGTERM and SIGQUIT keep their
+default action. The .NET runtime restores the terminal's input mode when the
+process exits normally or on such a signal. After SIGKILL or a crash of the
+runtime nothing can run: if the cursor stays hidden, `tput cnorm` or `reset`
+recovers the terminal.
+
+A line prompt cancelled while it waits leaves its read of standard input
+running, because the process console cannot abandon a read. The next line
+prompt on the same console takes over that read, so the line the user types
+next answers it rather than being lost.
 
 **Rendering and accessibility.** Prompts write to standard error. When the
 console is an `ICommandTerminal` whose `SupportsAnsi` is true, they redraw in
-place and take arrow keys, Space, Enter and Escape; lines are cut to the
-terminal width, and `SupportsUnicode` selects `◆ ● ◻` or ASCII symbols.
+place and take arrow keys, Space, Enter and Escape. Lines are measured in
+terminal columns (CJK and emoji take two, combining marks none) and cut on a
+character boundary to the terminal width, which is read for every frame, so a
+resized terminal is followed; a block stays shorter than the terminal height,
+and long choice lists scroll. `SupportsUnicode` selects `◆ ● ◻` or ASCII
+symbols.
 `SystemCommandConsole` supports ANSI when standard input and standard error are
 terminals, `TERM` is set and is not `dumb`, `NO_COLOR` is not set and, on
 Windows, inside Windows Terminal; `SpectreCommandConsole` applies its own colour,
@@ -315,7 +339,8 @@ labels are your text: resolve them with
 **Testing.** Give `CommandAppTester.CreateConsole` an interactive
 `TestCommandConsole` and queue one line per prompt with `QueueInput`; a queued
 `null` is the end of input. Set `SupportsAnsi = true` and use `QueueKey` and
-`QueueText` to drive the redrawn prompts.
+`QueueText` to drive the redrawn prompts. `PendingInputCount` and
+`PendingKeyCount` show whether every queued answer was used.
 
 ```csharp
 var tester = new CommandAppTester(console => new CommandApp(catalog) { Console = console, ParseSettings = ParseSettings.Default })
