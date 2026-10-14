@@ -9,6 +9,7 @@ public sealed class CommandCatalogBuilder
 {
     private readonly List<CommandBuilderNode> _commands = [];
     private string? _defaultCommandName;
+    private string? _jsonOutputAlias;
     private readonly List<Action<CommandBuilderNode>> _globalOptions = [];
 
     /// <summary>Adds an option to every command. It may also precede the command path.</summary>
@@ -26,6 +27,37 @@ public sealed class CommandCatalogBuilder
     public CommandCatalogBuilder DefaultCommand(string name)
     {
         _defaultCommandName = name ?? throw new ArgumentNullException(nameof(name));
+        return this;
+    }
+
+    /// <summary>
+    /// Declares a flag that stands for the output selector with the value <c>json</c>, so that an application that
+    /// already has a <c>--json</c> flag keeps its users' command lines: <c>tool list --json</c> is
+    /// <c>tool list --output json</c>. The flag takes no value, is recognized wherever the selector is (before
+    /// <c>--</c>, also before the command), and appears in help and completions. Giving both the flag and the
+    /// selector is a usage error (<c>RCLI1016</c>), as is giving the flag twice (<c>RCLI1007</c>).
+    /// </summary>
+    /// <param name="name">A long option spelling such as <c>--json</c>.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentException">
+    /// The name is not a long option spelling (<c>--</c>, a lowercase letter, then lowercase letters, digits or
+    /// hyphens), or is <c>--help</c> or <c>--version</c>.
+    /// </exception>
+    /// <remarks>
+    /// <see cref="Build"/> reports <c>RCLI0024</c> for a command option spelled like the flag. When the host's output
+    /// selector has the same spelling, the flag is the selector itself.
+    /// </remarks>
+    public CommandCatalogBuilder JsonOutputAlias(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (!ParseSettings.IsLongOptionSpelling(name) || name is "--help" or "--version")
+        {
+            throw new ArgumentException(
+                "The JSON output alias must be a long option spelling other than --help and --version.",
+                nameof(name));
+        }
+
+        _jsonOutputAlias = name;
         return this;
     }
 
@@ -134,6 +166,12 @@ public sealed class CommandCatalogBuilder
             descriptors.Add(command.Freeze());
         }
 
+        if (_jsonOutputAlias is not null)
+        {
+            CommandCatalog.ValidateJsonOutputAlias(_jsonOutputAlias, descriptors, "", issues);
+            if (issues.Count != 0) throw new CommandCatalogValidationException(CommandDescriptor.Freeze(issues));
+        }
+
         CommandDescriptor? defaultCommand = null;
         if (_defaultCommandName is not null)
         {
@@ -143,7 +181,7 @@ public sealed class CommandCatalogBuilder
                 throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", "root", $"The default command '{_defaultCommandName}' must name a registered root command.")]);
             }
         }
-        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand);
+        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias);
     }
 
     private void AddGlobals(CommandBuilderNode node)

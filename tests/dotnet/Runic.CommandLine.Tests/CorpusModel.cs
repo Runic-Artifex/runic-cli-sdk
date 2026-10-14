@@ -9,7 +9,7 @@ internal sealed record GrammarCorpus(
     CorpusCatalog Catalog,
     CorpusCase[] Cases);
 
-internal sealed record CorpusCatalog(CorpusCommand[] Commands);
+internal sealed record CorpusCatalog(CorpusCommand[] Commands, string? JsonOutputAlias = null);
 
 internal sealed record CorpusCommand(
     string[] Path,

@@ -133,6 +133,7 @@ public static class CommandCompletion
         internal int DefaultNode { get; private set; }
         internal Model(CommandCatalog catalog, string output)
         {
+            jsonAlias = string.Equals(catalog.JsonOutputAlias, output, StringComparison.Ordinal) ? null : catalog.JsonOutputAlias;
             AddOptions(Nodes[0], GlobalOptions(catalog), output);
             AddChildren(0, catalog.Commands);
             if (DefaultNode != 0)
@@ -178,7 +179,8 @@ public static class CommandCompletion
             { if (position < value.Maximum) return value; position -= value.Maximum; }
             return null;
         }
-        private static void AddOptions(Node node, IReadOnlyList<CommandOptionDescriptor> options, string output)
+        private readonly string? jsonAlias;
+        private void AddOptions(Node node, IReadOnlyList<CommandOptionDescriptor> options, string output)
         {
             foreach (CommandOptionDescriptor option in options)
             {
@@ -191,6 +193,7 @@ public static class CommandCompletion
             node.Options.TryAdd("-h", new Value(0, [], CommandPathKind.None));
             node.Options.TryAdd("--version", new Value(0, [], CommandPathKind.None));
             node.Options.TryAdd(output, new Value(1, ["human", "json"], CommandPathKind.None));
+            if (jsonAlias is not null) node.Options.TryAdd(jsonAlias, new Value(0, [], CommandPathKind.None));
         }
         private static Value CreateValue(CommandArity arity, CommandHelp help, bool sensitive) => new(arity.Maximum ?? int.MaxValue,
             sensitive || help.Hidden ? [] : help.Choices.Where(choice => !choice.Contains('\n') && !choice.Contains('\r') && !choice.Contains('\0')).ToArray(),

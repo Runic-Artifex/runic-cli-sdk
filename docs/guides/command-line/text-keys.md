@@ -46,6 +46,7 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `help.show-help` | | Show help |
 | `help.show-version` | | Show version |
 | `help.output-format` | | Select output format |
+| `help.json-output-alias` | `option` | Same as {option} json |
 | `help.examples` | | Examples |
 | `help.required` | | required |
 | `help.default` | | default |
@@ -73,6 +74,7 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `diagnostics.duplicate-option` | `option` | An option was specified more than once. ({option}) |
 | `diagnostics.unsupported-short-bundle` | | Bundled short options are not supported. |
 | `diagnostics.invalid-output-mode` | `option` | {option} must be human or json. |
+| `diagnostics.conflicting-output-selector` | `option`, `conflict` | {option} and {conflict} both select the output format. Use one of them. |
 | `diagnostics.transport-output-option-collision` | | The command line is invalid. |
 | `diagnostics.missing-required-option` | `option`, `command` | A required option was not supplied. ({option}) |
 | `diagnostics.unexpected-root-help-argument` | | Root help does not accept additional arguments. |

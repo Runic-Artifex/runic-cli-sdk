@@ -24,6 +24,11 @@ internal static class FixtureCatalog
     {
         GrammarCorpus corpus = ReadCorpus();
         var builder = new CommandCatalogBuilder();
+        if (corpus.Catalog.JsonOutputAlias is { } jsonOutputAlias)
+        {
+            builder.JsonOutputAlias(jsonOutputAlias);
+        }
+
         foreach (CorpusCommand root in corpus.Catalog.Commands.Where(static command => command.Path.Length == 1))
         {
             builder.Command<TestOptions, TestHandler, TestResult>(root.Path[0], command =>

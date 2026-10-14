@@ -67,7 +67,7 @@ public sealed class ParseSettings
     /// <summary>Gets the framework-owned option used to select output transport.</summary>
     public string TransportOutputOptionName { get; }
 
-    private static bool IsLongOptionSpelling(string? value)
+    internal static bool IsLongOptionSpelling(string? value)
     {
         if (value is null || value.Length < 3 || !value.StartsWith("--", StringComparison.Ordinal) ||
             value[2] is < 'a' or > 'z')

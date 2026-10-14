@@ -3,6 +3,7 @@
   "protocol": "runic.commandline/1",
   "tokenModel": "pre-tokenized-string-array",
   "catalog": {
+    "jsonOutputAlias": "--json",
     "commands": [
       {
         "path": ["status"],
@@ -108,6 +109,10 @@
     { "id": "grammar.help.nested-alias", "args": ["c", "purge", "-h"], "expected": { "kind": "help", "commandPath": ["cache", "clear"] } },
     { "id": "grammar.version.root", "args": ["--version"], "expected": { "kind": "version" } },
     { "id": "grammar.version.not-command-built-in", "args": ["status", "--version"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1 }] } },
-    { "id": "grammar.terminator.help-is-data", "args": ["echo", "--", "--help"], "expected": { "kind": "invocation", "commandPath": ["echo"], "options": [], "arguments": [{ "id": "text", "values": ["--help"] }] } }
+    { "id": "grammar.terminator.help-is-data", "args": ["echo", "--", "--help"], "expected": { "kind": "invocation", "commandPath": ["echo"], "options": [], "arguments": [{ "id": "text", "values": ["--help"] }] } },
+    { "id": "grammar.output-alias.before-command", "args": ["--json", "status", "-v"], "expected": { "kind": "invocation", "commandPath": ["status"], "options": [{ "id": "verbose", "values": [] }], "arguments": [] } },
+    { "id": "grammar.output-alias.before-help", "args": ["--json", "--help"], "expected": { "kind": "help", "commandPath": [] } },
+    { "id": "grammar.output-alias.terminator-is-data", "args": ["echo", "--", "--json"], "expected": { "kind": "invocation", "commandPath": ["echo"], "options": [], "arguments": [{ "id": "text", "values": ["--json"] }] } },
+    { "id": "grammar.output-alias.not-an-option-value", "args": ["export", "--format", "--json", "input.db"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 2 }] } }
   ]
 }

@@ -8,8 +8,9 @@ internal static class CommandSuggestions
 {
     internal static string? Commands(string token, IReadOnlyList<CommandDescriptor> commands) =>
         Find(token, commands.Where(command => !command.Help.Hidden).SelectMany(command => new[] { command.Name }.Concat(command.Aliases)));
-    internal static string? Options(string token, CommandDescriptor command, string outputOptionName) =>
-        Find(token.Split('=')[0], command.Options.Where(option => !option.Help.Hidden).SelectMany(option => new[] { option.Name }.Concat(option.Aliases)).Concat(new[] { "--help", "-h", "--version", outputOptionName }));
+    internal static string? Options(string token, CommandDescriptor command, string outputOptionName, string? jsonOutputAlias = null) =>
+        Find(token.Split('=')[0], command.Options.Where(option => !option.Help.Hidden).SelectMany(option => new[] { option.Name }.Concat(option.Aliases)).Concat(new[] { "--help", "-h", "--version", outputOptionName })
+            .Concat(jsonOutputAlias is null ? [] : [jsonOutputAlias]));
 
     private static string? Find(string token, IEnumerable<string> candidates)
     {
