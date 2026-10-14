@@ -16,8 +16,9 @@ namespace Runic.CommandLine.AotSmoke;
 
 internal static class Program
 {
-    private static async Task<int> Main()
+    private static async Task<int> Main(string[] args)
     {
+        if (ProcessSmoke.IsChild(args)) return await ProcessSmoke.RunChildAsync(args).ConfigureAwait(false);
         CommandCatalog catalog = GeneratedCommandCatalog.Create();
         ParseOutcome parse = PortableCommandSyntaxAdapter.Instance.Parse(
             catalog,
@@ -52,6 +53,8 @@ internal static class Program
             CultureInfo.InvariantCulture, "hosted-ping", new CommandOutputDispatcher())).ConfigureAwait(false)).IsSuccess) return 70;
         using (JsonDocument ping = JsonDocument.Parse(hostedOutput.StandardOutput))
             if (ping.RootElement.GetProperty("payload").GetString() != "pong") return 80;
+        int processes = await ProcessSmoke.RunAsync().ConfigureAwait(false);
+        if (processes != 0) return processes;
         Console.Out.Write(console.StandardOutput);
         return 0;
     }

@@ -26,4 +26,16 @@ public static class ProcessFaultCodes
 
     /// <summary>A Windows batch file path or argument contains a cmd.exe metacharacter.</summary>
     public const string BatchFileArgumentRejected = "RCLI6008";
+
+    /// <summary>The output handler threw; the runner terminated the child.</summary>
+    public const string OutputHandlerFailed = "RCLI6009";
+
+    /// <summary>The execution timeout elapsed. Reported by <see cref="ProcessResult.EnsureCompleted"/>.</summary>
+    public const string TimedOut = "RCLI6010";
+
+    /// <summary>
+    /// Captured output is incomplete: truncated at its limit, or cut off after the drain grace period. Reported by
+    /// <see cref="ProcessResult.EnsureCompleted"/>.
+    /// </summary>
+    public const string OutputIncomplete = "RCLI6011";
 }

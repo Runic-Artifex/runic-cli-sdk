@@ -97,6 +97,10 @@ internal sealed class JsonOutputAliasTests
         AssertEx.Equal("RCLI0024", issue.Code);
         AssertEx.Equal("report list", issue.Location);
 
+        var selector = new CommandCatalogBuilder().JsonOutputAlias("--output");
+        CatalogTests.ValidCommand(selector, "report");
+        AssertEx.Equal("RCLI0024", AssertEx.Throws<CommandCatalogValidationException>(selector.Build).Issues.Single().Code);
+
         CommandCatalog first = Single("first", "--json");
         CommandCatalog combined = CommandCatalog.Combine(first, Single("second", null));
         AssertEx.Equal("--json", combined.JsonOutputAlias);

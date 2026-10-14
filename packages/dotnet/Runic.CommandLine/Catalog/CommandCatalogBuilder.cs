@@ -44,8 +44,9 @@ public sealed class CommandCatalogBuilder
     /// hyphens), or is <c>--help</c> or <c>--version</c>.
     /// </exception>
     /// <remarks>
-    /// <see cref="Build"/> reports <c>RCLI0024</c> for a command option spelled like the flag. When the host's output
-    /// selector has the same spelling, the flag is the selector itself.
+    /// <see cref="Build"/> reports <c>RCLI0024</c> for a command option spelled like the flag, and for
+    /// <c>--output</c>, the default selector. When a host's output selector has the same spelling, the flag is the
+    /// selector itself.
     /// </remarks>
     public CommandCatalogBuilder JsonOutputAlias(string name)
     {
@@ -168,6 +169,16 @@ public sealed class CommandCatalogBuilder
 
         if (_jsonOutputAlias is not null)
         {
+            // Spelled like the default selector, the flag would be the selector itself in CommandApp but an alias
+            // under a host whose transport option is, for example, --runic-output.
+            if (_jsonOutputAlias == "--output")
+            {
+                issues.Add(new CommandCatalogIssue(
+                    "RCLI0024",
+                    "root",
+                    "The JSON output alias cannot be '--output', the default output selector."));
+            }
+
             CommandCatalog.ValidateJsonOutputAlias(_jsonOutputAlias, descriptors, "", issues);
             if (issues.Count != 0) throw new CommandCatalogValidationException(CommandDescriptor.Freeze(issues));
         }

@@ -308,7 +308,6 @@ internal sealed class ProcessRunnerTests
     [Test, DisplayName("descendant-held stdin does not block parent exit")]
     public async Task DescendantHeldInputDoesNotBlockAsync()
     {
-        if (OperatingSystem.IsWindows()) { Console.WriteLine("SKIP descendant-held stdin on Windows, runic-cli-sdk#30."); return; }
         string markerPath = Path.Combine(Path.GetTempPath(), $"rcli-input-holder-{Guid.NewGuid():N}.txt");
         var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10),
             drainGracePeriod: TimeSpan.FromMilliseconds(300))
@@ -319,9 +318,12 @@ internal sealed class ProcessRunnerTests
         {
             ProcessResult result = await RunChildAsync(options, "orphan-input-holder", markerPath).ConfigureAwait(false);
             AssertExited(result, 0);
+            // runic-cli-sdk#30: the output read before a drain timeout is kept.
             TestAssert.Equal("READY", result.StandardOutput.Text.Trim());
-            TestAssert.False(result.StandardOutput.DrainTimedOut);
-            TestAssert.False(result.StandardError.DrainTimedOut);
+            // The descendant redirects its own output, but on Windows it inherits every inheritable handle of the
+            // child, including the child's stdout and stderr, and holds them; elsewhere it gets only stdin.
+            TestAssert.Equal(OperatingSystem.IsWindows(), result.StandardOutput.DrainTimedOut);
+            TestAssert.Equal(OperatingSystem.IsWindows(), result.StandardError.DrainTimedOut);
             TestAssert.True(result.Duration < TimeSpan.FromSeconds(5), "Descendant-held stdin delayed parent exit.");
         }
         finally
@@ -748,7 +750,6 @@ internal sealed class ProcessRunnerTests
     [Test, DisplayName("descendant-held pipes report a drain timeout")]
     public async Task DescendantHeldPipeReportsDrainTimeoutAsync()
     {
-        if (OperatingSystem.IsWindows()) { Console.WriteLine("SKIP descendant-held pipes on Windows, runic-cli-sdk#30."); return; }
         string markerPath = Path.Combine(Path.GetTempPath(), $"wut-cli-holder-{Guid.NewGuid():N}.txt");
         var options = new ProcessExecutionOptions(
             timeout: TimeSpan.FromSeconds(20),

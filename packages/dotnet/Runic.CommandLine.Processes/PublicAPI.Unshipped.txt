@@ -1,1 +1,34 @@
 #nullable enable
+const Runic.CommandLine.Processes.ProcessFaultCodes.OutputHandlerFailed = "RCLI6009" -> string!
+const Runic.CommandLine.Processes.ProcessFaultCodes.OutputIncomplete = "RCLI6011" -> string!
+const Runic.CommandLine.Processes.ProcessFaultCodes.TimedOut = "RCLI6010" -> string!
+Runic.CommandLine.Processes.IProcessObserver.OnStarted(Runic.CommandLine.Processes.ProcessIdentity! process, System.DateTimeOffset startedAt) -> void
+Runic.CommandLine.Processes.IProcessOutputHandler
+Runic.CommandLine.Processes.IProcessOutputHandler.OnChunkAsync(Runic.CommandLine.Processes.ProcessOutputChunk chunk, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Processes.IProcessOutputHandler.OnLineAsync(Runic.CommandLine.Processes.ProcessOutputLine line, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Processes.IProcessRunner.RunAsync(Runic.CommandLine.Processes.ProcessRequest! request, Runic.CommandLine.Processes.IProcessOutputHandler? outputHandler, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>
+Runic.CommandLine.Processes.ProcessException
+Runic.CommandLine.Processes.ProcessException.Fault.get -> Runic.CommandLine.CommandFault!
+Runic.CommandLine.Processes.ProcessException.ProcessException(Runic.CommandLine.Processes.ProcessResult! result, Runic.CommandLine.CommandFault! fault) -> void
+Runic.CommandLine.Processes.ProcessException.Result.get -> Runic.CommandLine.Processes.ProcessResult!
+Runic.CommandLine.Processes.ProcessExecutionOptions.DetachFromTerminal.get -> bool
+Runic.CommandLine.Processes.ProcessExecutionOptions.DetachFromTerminal.init -> void
+Runic.CommandLine.Processes.ProcessIdentity
+Runic.CommandLine.Processes.ProcessIdentity.ProcessGroupId.get -> int?
+Runic.CommandLine.Processes.ProcessIdentity.ProcessId.get -> int
+Runic.CommandLine.Processes.ProcessOutputChannel
+Runic.CommandLine.Processes.ProcessOutputChannel.StandardError = 1 -> Runic.CommandLine.Processes.ProcessOutputChannel
+Runic.CommandLine.Processes.ProcessOutputChannel.StandardOutput = 0 -> Runic.CommandLine.Processes.ProcessOutputChannel
+Runic.CommandLine.Processes.ProcessOutputChunk
+Runic.CommandLine.Processes.ProcessOutputChunk.Bytes.get -> System.ReadOnlyMemory<byte>
+Runic.CommandLine.Processes.ProcessOutputChunk.Channel.get -> Runic.CommandLine.Processes.ProcessOutputChannel
+Runic.CommandLine.Processes.ProcessOutputChunk.ProcessOutputChunk(Runic.CommandLine.Processes.ProcessOutputChannel channel, System.ReadOnlyMemory<byte> bytes) -> void
+Runic.CommandLine.Processes.ProcessOutputChunk.ProcessOutputChunk() -> void
+Runic.CommandLine.Processes.ProcessOutputLine
+Runic.CommandLine.Processes.ProcessOutputLine.Channel.get -> Runic.CommandLine.Processes.ProcessOutputChannel
+Runic.CommandLine.Processes.ProcessOutputLine.ProcessOutputLine(Runic.CommandLine.Processes.ProcessOutputChannel channel, string! text) -> void
+Runic.CommandLine.Processes.ProcessOutputLine.ProcessOutputLine() -> void
+Runic.CommandLine.Processes.ProcessOutputLine.Text.get -> string!
+Runic.CommandLine.Processes.ProcessResult.EnsureCompleted(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Runic.CommandLine.Processes.ProcessResult!
+Runic.CommandLine.Processes.ProcessRunner.RunAsync(Runic.CommandLine.Processes.ProcessRequest! request, Runic.CommandLine.Processes.IProcessOutputHandler? outputHandler, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>
+static Runic.CommandLine.Processes.ProcessExecutionOptions.NonInteractive.get -> Runic.CommandLine.Processes.ProcessExecutionOptions!

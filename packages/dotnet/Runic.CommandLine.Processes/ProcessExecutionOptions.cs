@@ -18,15 +18,30 @@ public sealed class ProcessExecutionOptions
     /// <summary>The hard ceiling for post-termination drain grace.</summary>
     public static readonly TimeSpan MaximumDrainGracePeriod = TimeSpan.FromMinutes(1);
 
+    // Declared before NonInteractive, whose initializer runs the constructor.
+    private static readonly TimeSpan MaximumTimerDuration = TimeSpan.FromMilliseconds(4294967294);
+
     private ProcessStandardInput standardInput = ProcessStandardInput.Inherit;
 
-    private static readonly TimeSpan MaximumTimerDuration = TimeSpan.FromMilliseconds(4294967294);
+    /// <summary>
+    /// Gets options for unattended callers, such as a desktop application or a service: standard input is closed, so
+    /// a child that reads it gets end-of-file, and <see cref="DetachFromTerminal"/> is set, so on Unix a child that
+    /// prompts on <c>/dev/tty</c> (ssh, sudo, git credentials, gpg) fails to open it instead of waiting on the
+    /// terminal that started the caller. The other values are the defaults. To change them, set the same two
+    /// properties on new options; check results with <see cref="ProcessResult.EnsureCompleted"/> so that truncated
+    /// output is not taken for complete output.
+    /// </summary>
+    public static ProcessExecutionOptions NonInteractive { get; } = new()
+    {
+        StandardInput = ProcessStandardInput.Closed,
+        DetachFromTerminal = true,
+    };
 
     /// <summary>Initializes process execution options.</summary>
     /// <param name="timeout">Maximum execution time, or <see cref="System.Threading.Timeout.InfiniteTimeSpan"/>.</param>
     /// <param name="standardOutputLimitBytes">Maximum retained standard-output bytes.</param>
     /// <param name="standardErrorLimitBytes">Maximum retained standard-error bytes.</param>
-    /// <param name="drainGracePeriod">Bounded wait after a termination request.</param>
+    /// <param name="drainGracePeriod">Bounded wait for pipes after exit and for the process group after SIGTERM.</param>
     /// <param name="standardOutputEncoding">Standard-output encoding; UTF-8 without a BOM by default.</param>
     /// <param name="standardErrorEncoding">Standard-error encoding; UTF-8 without a BOM by default.</param>
     /// <param name="allowWindowsBatchFiles">
@@ -80,7 +95,10 @@ public sealed class ProcessExecutionOptions
         AllowWindowsBatchFiles = allowWindowsBatchFiles;
     }
 
-    /// <summary>Gets the child input mode. Inherits the caller's stdin by default.</summary>
+    /// <summary>
+    /// Gets the child input mode. Inherits the caller's stdin by default, which suits a command-line application
+    /// whose tools may prompt; see <see cref="NonInteractive"/> for callers without a terminal.
+    /// </summary>
     /// <exception cref="ArgumentNullException">The input is null.</exception>
     public ProcessStandardInput StandardInput
     {
@@ -91,6 +109,16 @@ public sealed class ProcessExecutionOptions
             standardInput = value;
         }
     }
+
+    /// <summary>
+    /// Gets a value indicating whether, on Unix, the child starts in a new session without a controlling terminal.
+    /// It then cannot open <c>/dev/tty</c>, so a tool that would prompt there fails instead of waiting, and it leads
+    /// its own process group, which cancellation and timeout terminate as a whole. False by default: a caller with a
+    /// controlling terminal then keeps the child in its own process group, so the child can prompt and receives the
+    /// terminal's Ctrl+C, and cancellation terminates the process tree; a caller without one, such as a service,
+    /// starts the child in a new process group anyway. No effect on Windows.
+    /// </summary>
+    public bool DetachFromTerminal { get; init; }
 
     /// <summary>Gets whether the child inherits the parent environment before request overrides are applied.</summary>
     public bool InheritEnvironment { get; init; } = true;
@@ -104,7 +132,11 @@ public sealed class ProcessExecutionOptions
     /// <summary>Gets the standard-error retained-byte cap.</summary>
     public int StandardErrorLimitBytes { get; }
 
-    /// <summary>Gets the bounded drain grace period after termination.</summary>
+    /// <summary>
+    /// Gets the grace period that bounds the waits after a child exits or is stopped: for its pipes to close after
+    /// exit; on cancellation or timeout, for the process group to exit after SIGTERM before SIGKILL; and once more
+    /// for the pipes after SIGKILL.
+    /// </summary>
     public TimeSpan DrainGracePeriod { get; }
 
     /// <summary>Gets the standard-output encoding.</summary>
