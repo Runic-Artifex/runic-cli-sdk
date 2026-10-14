@@ -56,6 +56,7 @@ internal sealed class CorpusContractTests
             CommandOutputClassifier.EnvironmentVariableName,
             RequireNonEmptyString(root, "environmentVariable", "corpus"));
         var identifiers = new HashSet<string>(StringComparer.Ordinal);
+        string? jsonOutputAlias = ReadJsonOutputAlias();
 
         foreach (JsonElement fixture in cases.EnumerateArray())
         {
@@ -69,7 +70,7 @@ internal sealed class CorpusContractTests
             JsonElement expected = RequireObject(fixture, "expected", id);
             string expectedKind = RequireNonEmptyString(expected, "kind", id);
 
-            ExplicitOutput explicitOutput = ReadExplicitOutput(args);
+            ExplicitOutput explicitOutput = ReadExplicitOutput(args, jsonOutputAlias);
             if (explicitOutput.IsPresent && !explicitOutput.IsValid)
             {
                 Assert.Equal("error", expectedKind);
@@ -244,7 +245,22 @@ internal sealed class CorpusContractTests
         }
     }
 
-    private static ExplicitOutput ReadExplicitOutput(string[] args)
+    // The output corpus runs against the grammar corpus catalog, which declares the JSON output alias.
+    private static string? ReadJsonOutputAlias()
+    {
+        using JsonDocument grammar = LoadCorpus("grammar-corpus.json");
+        JsonElement catalog = RequireObject(grammar.RootElement, "catalog", "corpus");
+        if (!catalog.TryGetProperty("jsonOutputAlias", out JsonElement alias))
+        {
+            return null;
+        }
+
+        string value = alias.GetString() ?? throw new InvalidOperationException("catalog.jsonOutputAlias must be a string.");
+        Assert.True(value.StartsWith("--", StringComparison.Ordinal) && value != "--output");
+        return value;
+    }
+
+    private static ExplicitOutput ReadExplicitOutput(string[] args, string? jsonOutputAlias)
     {
         var found = false;
         CommandOutputMode? mode = null;
@@ -258,7 +274,16 @@ internal sealed class CorpusContractTests
             }
 
             string? value = null;
-            if (token == "--output")
+            if (jsonOutputAlias is not null && token == jsonOutputAlias)
+            {
+                value = "json";
+            }
+            else if (jsonOutputAlias is not null && token.StartsWith(jsonOutputAlias + "=", StringComparison.Ordinal))
+            {
+                // The alias is a flag: a value makes the selection invalid.
+                return new ExplicitOutput(true, false, null);
+            }
+            else if (token == "--output")
             {
                 if (index + 1 >= args.Length)
                 {

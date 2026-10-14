@@ -1,1 +1,5 @@
 #nullable enable
+const Runic.CommandLine.CommandTextKeys.DiagnosticConflictingOutputSelector = "diagnostics.conflicting-output-selector" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpJsonOutputAlias = "help.json-output-alias" -> string!
+Runic.CommandLine.CommandCatalog.JsonOutputAlias.get -> string?
+Runic.CommandLine.CommandCatalogBuilder.JsonOutputAlias(string! name) -> Runic.CommandLine.CommandCatalogBuilder!

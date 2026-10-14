@@ -48,6 +48,22 @@ empty-input classification for hosted UI launch decisions.
 
 See the runnable [command-line example](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/README.md).
 
+### Keep an existing `--json` flag
+
+An application that already has a `--json` flag can keep its users' command
+lines by declaring the flag as an alias of the output selector:
+
+```csharp
+CommandCatalog catalog = GeneratedCommandCatalog.Create(builder => builder.JsonOutputAlias("--json"));
+```
+
+`hello greet Ada --json` is then `hello greet Ada --output json`. The flag takes
+no value, is recognized wherever the selector is (also before the command, never
+after `--`), maps to a host's transport option such as `--runic-output`, and is
+listed in help and completions. Giving both `--json` and `--output` is a usage
+error (`RCLI1016`), and a command option spelled `--json` fails catalog
+validation (`RCLI0024`).
+
 ## Method-first inputs and results
 
 - Scalars: strings, integers, long integers, decimals, doubles, GUIDs, enums and

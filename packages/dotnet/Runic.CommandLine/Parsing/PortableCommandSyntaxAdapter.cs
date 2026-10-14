@@ -23,6 +23,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     private const string TransportOutputCollisionCode = "RCLI1011";
     private const string MissingRequiredOptionCode = "RCLI1012";
     private const string UnexpectedRootHelpArgumentCode = "RCLI1013";
+    private const string ConflictingOutputSelectorCode = "RCLI1016";
     private const int MaximumDiagnosticArgumentLength = 128;
 
     /// <summary>Gets the shared stateless adapter.</summary>
@@ -39,15 +40,16 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
         string[] tokens = args.ToArray();
         ValidateTokens(tokens);
+        TransportOutput transport = TransportOutput.From(catalog, settings.TransportOutputOptionName);
         ResolvedCommand? preScanResolved = null;
         if (tokens.Length > 0)
         {
-            _ = TryResolveCommand(catalog, tokens, out preScanResolved, settings.TransportOutputOptionName);
+            _ = TryResolveCommand(catalog, tokens, out preScanResolved, transport);
         }
 
         TransportOutputScan transportOutput = ScanTransportOutput(
             tokens,
-            settings.TransportOutputOptionName,
+            transport,
             preScanResolved?.Command);
         CommandOutputClassification initialOutputClassification = ClassifyOutput(
             transportOutput.ExplicitOutputMode,
@@ -83,7 +85,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 i--;
                 continue;
             }
-            if (TrySplitOutput(helpTokens[i], settings.TransportOutputOptionName, out string? inline))
+            if (TrySplitOutput(helpTokens[i], transport, out string? inline))
             {
                 helpTokens.RemoveAt(i);
                 if (inline is null && i < helpTokens.Count) helpTokens.RemoveAt(i);
@@ -95,7 +97,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             string[] pathTokens = helpTokens.GetRange(1, helpTokens.Count - 1).ToArray();
             if (catalog.TryResolve(pathTokens, out CommandDescriptor? helpCommand, out int consumed) && consumed == pathTokens.Length)
             {
-                TryResolveCommand(catalog, pathTokens, out ResolvedCommand? helpResolved);
+                TryResolveCommand(catalog, pathTokens, out ResolvedCommand? helpResolved, transport);
                 return CompleteSpecial(initialOutputClassification, classification => ParseOutcome.FromHelp(new HelpRequest(helpResolved!.Path), classification));
             }
         }
@@ -103,7 +105,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         if (TryFindRootSpecial(
             catalog,
             tokens,
-            settings.TransportOutputOptionName,
+            transport,
             out RootSpecial rootSpecial,
             out int unexpectedHelpTokenIndex))
         {
@@ -125,15 +127,15 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 : CompleteSpecial(initialOutputClassification, ParseOutcome.FromVersion);
         }
 
-        if (!TryResolveCommand(catalog, tokens, out ResolvedCommand? resolved, settings.TransportOutputOptionName) || resolved is null)
+        if (!TryResolveCommand(catalog, tokens, out ResolvedCommand? resolved, transport) || resolved is null)
         {
-            int unknownIndex = Math.Min(LeadingCommandIndex(catalog, tokens, settings.TransportOutputOptionName), tokens.Length - 1);
+            int unknownIndex = Math.Min(LeadingCommandIndex(catalog, tokens, transport), tokens.Length - 1);
             return Error(
                 UnknownCommandCode,
                 "unknown-command",
                 0,
-                arguments: TrySplitOutput(tokens[0], settings.TransportOutputOptionName, out _)
-                    ? [settings.TransportOutputOptionName]
+                arguments: TrySplitOutput(tokens[0], transport, out _, out string leadingSpelling)
+                    ? [leadingSpelling]
                     : [SafeUnknownCommand(tokens[0])],
                 outputClassification: initialOutputClassification,
                 suggestion: CommandSuggestions.Commands(tokens[unknownIndex], catalog.Commands));
@@ -149,7 +151,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 outputClassification: initialOutputClassification);
         }
 
-        ParseOutcome parsed = ParseCommand(catalog, resolved, tokens, settings, initialOutputClassification);
+        ParseOutcome parsed = ParseCommand(catalog, resolved, tokens, settings, transport, initialOutputClassification);
         return resolved.Command.IsGroup && parsed.Kind == ParseOutcomeKind.Invocation
             ? ParseOutcome.FromHelp(new HelpRequest(resolved.Path), initialOutputClassification)
             : parsed;
@@ -160,13 +162,14 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         ResolvedCommand resolved,
         string[] tokens,
         ParseSettings settings,
+        TransportOutput transport,
         CommandOutputClassification selectedOutputClassification)
     {
         var positionalTokens = new List<IndexedToken>();
         var optionBindings = new List<MutableBinding>();
         var optionBindingIndexes = new Dictionary<string, int>(StringComparer.Ordinal);
         CommandOutputMode? explicitOutputMode = null;
-        bool outputSeen = false;
+        string? outputSpelling = null;
         bool recognizeOptions = true;
         int index = 0;
 
@@ -195,23 +198,32 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                     selectedOutputClassification);
             }
 
-            if (recognizeOptions && TrySplitOutput(token, settings.TransportOutputOptionName, out string? inlineOutputValue))
+            if (recognizeOptions && TrySplitOutput(token, transport, out string? inlineOutputValue, out string spelling))
             {
-                if (outputSeen)
+                if (outputSpelling is not null)
                 {
-                    return Error(
-                        DuplicateOptionCode,
-                        "duplicate-option",
-                        index,
-                        resolved.Path,
-                        [settings.TransportOutputOptionName],
-                        CurrentOutputClassification());
+                    return DuplicateOutputSelector(index, resolved.Path, outputSpelling, spelling, CurrentOutputClassification());
                 }
 
-                outputSeen = true;
+                outputSpelling = spelling;
                 int valueIndex = index;
                 string value;
-                if (inlineOutputValue is null)
+                if (transport.IsAlias(spelling))
+                {
+                    if (!string.Equals(token, spelling, StringComparison.Ordinal))
+                    {
+                        return Error(
+                            UnexpectedOptionValueCode,
+                            "unexpected-option-value",
+                            index,
+                            resolved.Path,
+                            [spelling],
+                            CurrentOutputClassification());
+                    }
+
+                    value = inlineOutputValue!;
+                }
+                else if (inlineOutputValue is null)
                 {
                     index++;
                     if (index >= tokens.Length)
@@ -225,7 +237,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                             CurrentOutputClassification());
                     }
 
-                    if (IsOptionBoundary(resolved.Command, tokens[index], settings.TransportOutputOptionName))
+                    if (IsOptionBoundary(resolved.Command, tokens[index], transport))
                     {
                         return Error(
                             MissingOptionValueCode,
@@ -283,7 +295,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                             index,
                             resolved.Path,
                             [SafeUnknownOption(token)],
-                            CurrentOutputClassification(), CommandSuggestions.Options(token, resolved.Command, settings.TransportOutputOptionName));
+                            CurrentOutputClassification(), CommandSuggestions.Options(token, resolved.Command, transport.Name, transport.JsonAlias));
                 }
 
                 if (optionBindingIndexes.TryGetValue(option.Id, out int bindingIndex) &&
@@ -323,7 +335,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                     tokens,
                     ref index,
                     recognizeOptions,
-                    settings.TransportOutputOptionName,
+                    transport,
                     occurrenceValues,
                     CurrentOutputClassification());
                 if (valueError is not null)
@@ -520,7 +532,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         string[] tokens,
         ref int index,
         bool recognizeOptions,
-        string transportOutputOptionName,
+        TransportOutput transport,
         List<string> values,
         CommandOutputClassification outputClassification)
     {
@@ -530,7 +542,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             string candidate = tokens[index];
             bool negativeNumber = option.Help.AcceptsNegativeNumbers && candidate.StartsWith('-')
                 && double.TryParse(candidate, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
-            bool boundary = recognizeOptions && !negativeNumber && IsOptionBoundary(command, candidate, transportOutputOptionName);
+            bool boundary = recognizeOptions && !negativeNumber && IsOptionBoundary(command, candidate, transport);
             if (boundary)
             {
                 if (values.Count < option.Arity.Minimum)
@@ -639,12 +651,12 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         return false;
     }
 
-    private static int LeadingCommandIndex(CommandCatalog catalog, string[] tokens, string transportOutputOptionName)
+    private static int LeadingCommandIndex(CommandCatalog catalog, string[] tokens, TransportOutput transport)
     {
         int start = 0;
         while (start < tokens.Length)
         {
-            if (TrySplitOutput(tokens[start], transportOutputOptionName, out string? inline)) { start += inline is null ? 2 : 1; continue; }
+            if (TrySplitOutput(tokens[start], transport, out string? inline)) { start += inline is null ? 2 : 1; continue; }
             CommandOptionDescriptor? global = null;
             if (TryGetGlobalOption(catalog, tokens[start], out CommandOptionDescriptor? candidate, out string? value))
             {
@@ -662,7 +674,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     internal static CommandPath? MatchExplicitPath(CommandCatalog catalog, IReadOnlyList<string> arguments, string transportOutputOptionName)
     {
         string[] tokens = [.. arguments];
-        int start = LeadingCommandIndex(catalog, tokens, transportOutputOptionName);
+        int start = LeadingCommandIndex(catalog, tokens, TransportOutput.From(catalog, transportOutputOptionName));
         if (start >= tokens.Length || !catalog.TryGetCommand(tokens[start], out CommandDescriptor? command) || command is null) return null;
         var path = new List<string> { command.Name };
         for (int index = start + 1; index < tokens.Length && command.TryGetSubcommand(tokens[index], out CommandDescriptor? child) && child is not null; index++)
@@ -678,10 +690,10 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         CommandCatalog catalog,
         string[] tokens,
         out ResolvedCommand? resolved,
-        string transportOutputOptionName = "--output")
+        TransportOutput transport)
     {
         resolved = null;
-        int start = LeadingCommandIndex(catalog, tokens, transportOutputOptionName);
+        int start = LeadingCommandIndex(catalog, tokens, transport);
         CommandDescriptor? command = null;
         if (start >= tokens.Length || !catalog.TryGetCommand(tokens[start], out command) || command is null)
         {
@@ -759,12 +771,12 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         return false;
     }
 
-    private static bool IsOptionBoundary(CommandDescriptor command, string token, string transportOutputOptionName)
+    private static bool IsOptionBoundary(CommandDescriptor command, string token, TransportOutput transport)
     {
         if (string.Equals(token, "--", StringComparison.Ordinal) ||
             IsHelp(token) ||
             string.Equals(token, "--version", StringComparison.Ordinal) ||
-            TrySplitOutput(token, transportOutputOptionName, out _))
+            TrySplitOutput(token, transport, out _))
         {
             return true;
         }
@@ -772,15 +784,39 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         return TryResolveOption(command, token, out _, out _, out _);
     }
 
-    private static bool TrySplitOutput(string token, string transportOutputOptionName, out string? inlineValue)
+    private static bool TrySplitOutput(string token, TransportOutput transport, out string? inlineValue) =>
+        TrySplitOutput(token, transport, out inlineValue, out _);
+
+    // Recognizes the selector ("--output value" or "--output=value") and the declared JSON alias ("--json"), which
+    // reads as "--output=json". "--json=value" is recognized too, so that it is reported as a flag with a value; its
+    // inline value is then that value. Either way an inline value means the occurrence spans one token.
+    private static bool TrySplitOutput(string token, TransportOutput transport, out string? inlineValue, out string spelling)
     {
-        if (string.Equals(token, transportOutputOptionName, StringComparison.Ordinal))
+        if (transport.JsonAlias is { } alias)
+        {
+            if (string.Equals(token, alias, StringComparison.Ordinal))
+            {
+                inlineValue = "json";
+                spelling = alias;
+                return true;
+            }
+
+            if (token.Length > alias.Length && token[alias.Length] == '=' && token.StartsWith(alias, StringComparison.Ordinal))
+            {
+                inlineValue = token[(alias.Length + 1)..];
+                spelling = alias;
+                return true;
+            }
+        }
+
+        spelling = transport.Name;
+        if (string.Equals(token, transport.Name, StringComparison.Ordinal))
         {
             inlineValue = null;
             return true;
         }
 
-        string prefix = transportOutputOptionName + "=";
+        string prefix = transport.Name + "=";
         if (token.StartsWith(prefix, StringComparison.Ordinal))
         {
             inlineValue = token[prefix.Length..];
@@ -790,6 +826,18 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         inlineValue = null;
         return false;
     }
+
+    // A second selector occurrence: the same spelling twice is a duplicate, the selector and its alias conflict.
+    private static ParseOutcome DuplicateOutputSelector(
+        int tokenIndex,
+        CommandPath path,
+        string firstSpelling,
+        string spelling,
+        CommandOutputClassification outputClassification) =>
+        string.Equals(firstSpelling, spelling, StringComparison.Ordinal)
+            ? Error(DuplicateOptionCode, "duplicate-option", tokenIndex, path, [spelling], outputClassification)
+            : Error(ConflictingOutputSelectorCode, "conflicting-output-selector", tokenIndex, path,
+                [spelling, firstSpelling], outputClassification);
 
     private static bool TryParseOutputMode(string value, out CommandOutputMode mode)
     {
@@ -819,11 +867,11 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
     private static TransportOutputScan ScanTransportOutput(
         string[] tokens,
-        string transportOutputOptionName,
+        TransportOutput transport,
         CommandDescriptor? command)
     {
         CommandOutputMode? explicitOutputMode = null;
-        bool seen = false;
+        string? seenSpelling = null;
 
         for (int index = 0; index < tokens.Length; index++)
         {
@@ -833,23 +881,31 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 break;
             }
 
-            if (!TrySplitOutput(token, transportOutputOptionName, out string? inlineValue))
+            if (!TrySplitOutput(token, transport, out string? inlineValue, out string spelling))
             {
                 continue;
             }
 
-            if (seen)
+            if (seenSpelling is not null)
             {
+                bool conflict = !string.Equals(seenSpelling, spelling, StringComparison.Ordinal);
                 return new TransportOutputScan(
                     explicitOutputMode,
                     new TransportOutputIssue(
-                        DuplicateOptionCode,
-                        "duplicate-option",
+                        conflict ? ConflictingOutputSelectorCode : DuplicateOptionCode,
+                        conflict ? "conflicting-output-selector" : "duplicate-option",
                         index,
-                        [transportOutputOptionName]));
+                        conflict ? [spelling, seenSpelling] : [spelling]));
             }
 
-            seen = true;
+            seenSpelling = spelling;
+            if (transport.IsAlias(spelling) && !string.Equals(token, spelling, StringComparison.Ordinal))
+            {
+                return new TransportOutputScan(
+                    explicitOutputMode,
+                    new TransportOutputIssue(UnexpectedOptionValueCode, "unexpected-option-value", index, [spelling]));
+            }
+
             int valueIndex = index;
             string value;
             if (inlineValue is null)
@@ -858,7 +914,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 if (nextIndex >= tokens.Length || IsTransportValueBoundary(
                     command,
                     tokens[nextIndex],
-                    transportOutputOptionName))
+                    transport))
                 {
                     return new TransportOutputScan(
                         explicitOutputMode,
@@ -866,7 +922,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                             MissingOptionValueCode,
                             "missing-option-value",
                             nextIndex,
-                            [transportOutputOptionName]));
+                            [transport.Name]));
                 }
 
                 valueIndex = nextIndex;
@@ -886,7 +942,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                         InvalidOutputModeCode,
                         "invalid-output-mode",
                         valueIndex,
-                        [transportOutputOptionName]));
+                        [transport.Name]));
             }
 
             explicitOutputMode = mode;
@@ -898,18 +954,18 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     private static bool IsTransportValueBoundary(
         CommandDescriptor? command,
         string token,
-        string transportOutputOptionName) =>
+        TransportOutput transport) =>
         string.Equals(token, "--", StringComparison.Ordinal) ||
         IsHelp(token) ||
         string.Equals(token, "--version", StringComparison.Ordinal) ||
         token.StartsWith('-') ||
-        TrySplitOutput(token, transportOutputOptionName, out _) ||
+        TrySplitOutput(token, transport, out _) ||
         (command is not null && TryResolveOption(command, token, out _, out _, out _));
 
     private static bool TryFindRootSpecial(
         CommandCatalog catalog,
         string[] tokens,
-        string transportOutputOptionName,
+        TransportOutput transport,
         out RootSpecial special,
         out int unexpectedHelpTokenIndex)
     {
@@ -921,7 +977,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 break;
             }
 
-            if (TrySplitOutput(token, transportOutputOptionName, out string? inlineValue))
+            if (TrySplitOutput(token, transport, out string? inlineValue))
             {
                 if (inlineValue is null)
                 {
@@ -943,7 +999,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 unexpectedHelpTokenIndex = FindUnexpectedRootHelpToken(
                     tokens,
                     index + 1,
-                    transportOutputOptionName);
+                    transport);
                 return true;
             }
 
@@ -972,11 +1028,11 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     private static int FindUnexpectedRootHelpToken(
         string[] tokens,
         int index,
-        string transportOutputOptionName)
+        TransportOutput transport)
     {
         while (index < tokens.Length)
         {
-            if (!TrySplitOutput(tokens[index], transportOutputOptionName, out string? inlineValue))
+            if (!TrySplitOutput(tokens[index], transport, out string? inlineValue))
             {
                 return index;
             }
@@ -1055,6 +1111,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     {
         ("invalid-choice", { Count: > 0 }) => CommandValueDiagnostics.Format(kind, arguments),
         ("invalid-output-mode", { Count: > 0 }) => arguments[0] + " must be human or json.",
+        ("conflicting-output-selector", { Count: > 1 }) => arguments[0] + " and " + arguments[1] + " both select the output format. Use one of them.",
         ("invalid-environment-value", { Count: > 1 }) => arguments[1] + " must be true/false, yes/no or 1/0 for " + arguments[0] + ".",
         _ => null,
     };
@@ -1140,6 +1197,16 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         int Consumed, int Start = 0);
 
     private sealed record IndexedToken(string Value, int Index);
+
+    // The output selector, such as --output or a host's --runic-output, and the catalog's JSON alias, such as --json.
+    private readonly record struct TransportOutput(string Name, string? JsonAlias)
+    {
+        // An alias spelled like the selector itself is the selector.
+        internal static TransportOutput From(CommandCatalog catalog, string name) =>
+            new(name, string.Equals(catalog.JsonOutputAlias, name, StringComparison.Ordinal) ? null : catalog.JsonOutputAlias);
+
+        internal bool IsAlias(string spelling) => string.Equals(spelling, JsonAlias, StringComparison.Ordinal);
+    }
 
     private sealed record TransportOutputScan(
         CommandOutputMode? ExplicitOutputMode,

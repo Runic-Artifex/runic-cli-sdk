@@ -9,7 +9,7 @@ internal sealed class OutputClassificationCorpusTests
 
     public static IEnumerable<string> CaseIds()
     {
-        AssertEx.Equal(18, Corpus.Cases.Length, "The frozen output-classification corpus row count changed.");
+        AssertEx.Equal(26, Corpus.Cases.Length, "The frozen output-classification corpus row count changed.");
         AssertEx.Equal(CommandOutputClassifier.EnvironmentVariableName, Corpus.EnvironmentVariable);
         return Corpus.Cases.Select(static test => test.Id);
     }

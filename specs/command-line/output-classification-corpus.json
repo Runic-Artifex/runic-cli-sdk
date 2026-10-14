@@ -20,6 +20,14 @@
     { "id": "output.explicit.unknown-invalid", "args": ["status", "--output", "xml"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": "json" }, "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1010", "kind": "invalid-output-mode", "tokenIndex": 2 }] } },
     { "id": "output.explicit.duplicate", "args": ["status", "--output", "json", "--output=human"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1007", "kind": "duplicate-option", "tokenIndex": 3 }] } },
     { "id": "output.terminator.disables-explicit", "args": ["echo", "--", "--output=json"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": "human" }, "expected": { "kind": "output-mode", "mode": "human", "source": "environment" } },
-    { "id": "output.terminator.default", "args": ["echo", "--", "--output", "json"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "output-mode", "mode": "human", "source": "default" } }
+    { "id": "output.terminator.default", "args": ["echo", "--", "--output", "json"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "output-mode", "mode": "human", "source": "default" } },
+    { "id": "output.alias.json", "args": ["status", "--json"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": "human" }, "expected": { "kind": "output-mode", "mode": "json", "source": "explicit-argument" } },
+    { "id": "output.alias.before-command", "args": ["--json", "status"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "output-mode", "mode": "json", "source": "explicit-argument" } },
+    { "id": "output.alias.ignores-invalid-environment", "args": ["status", "--json"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": "xml" }, "expected": { "kind": "output-mode", "mode": "json", "source": "explicit-argument" } },
+    { "id": "output.alias.conflicts-with-selector", "args": ["status", "--json", "--output", "human"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1016", "kind": "conflicting-output-selector", "tokenIndex": 2 }] } },
+    { "id": "output.alias.conflicts-with-earlier-selector", "args": ["status", "--output=json", "--json"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1016", "kind": "conflicting-output-selector", "tokenIndex": 2 }] } },
+    { "id": "output.alias.duplicate", "args": ["status", "--json", "--json"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1007", "kind": "duplicate-option", "tokenIndex": 2 }] } },
+    { "id": "output.alias.rejects-value", "args": ["status", "--json=true"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1004", "kind": "unexpected-option-value", "tokenIndex": 1 }] } },
+    { "id": "output.alias.terminator-disables", "args": ["echo", "--", "--json"], "environment": { "RUNIC_COMMANDLINE_OUTPUT": null }, "expected": { "kind": "output-mode", "mode": "human", "source": "default" } }
   ]
 }

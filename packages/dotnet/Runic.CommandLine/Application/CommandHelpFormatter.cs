@@ -91,6 +91,8 @@ public static class CommandHelpFormatter
         rows.Add(new("-h, --help", context.Resolve(CommandTextKeys.HelpShowHelp, "Show help")));
         rows.Add(new("--version", context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
         rows.Add(new(outputOptionName + " <human|json>", context.Resolve(CommandTextKeys.HelpOutputFormat, "Select output format")));
+        if (catalog.JsonOutputAlias is { } jsonAlias && !string.Equals(jsonAlias, outputOptionName, StringComparison.Ordinal))
+            rows.Add(new(jsonAlias, context.Resolve(CommandTextKeys.HelpJsonOutputAlias, "Same as " + outputOptionName + " json", [outputOptionName])));
         AppendSection(text, context.Resolve(CommandTextKeys.HelpOptions, "Options"), rows, width);
         if (command?.Help.Examples.Count > 0)
         {

@@ -8,8 +8,8 @@ tag of the package you use, so the page always matches your version.
 
 | Codes | Reported by | Where it appears |
 |---|---|---|
-| `RCLI0002`–`RCLI0023` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
-| `RCLI1001`–`RCLI1015` | Parser | Usage diagnostics (exit code 2) |
+| `RCLI0002`–`RCLI0024` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
+| `RCLI1001`–`RCLI1016` | Parser | Usage diagnostics (exit code 2) |
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI5000` | Execution | Cancellation and host faults |
 | `RCLI6001`–`RCLI6008` | `Runic.CommandLine.Processes` | Process faults returned to the command |
@@ -200,6 +200,15 @@ current culture; help then shows the literal description. Add the key to your
 text resources or correct its spelling. With `RUNIC_COMMANDLINE_DEBUG=1`,
 `CommandApp` writes these issues as warnings when it shows help.
 
+### RCLI0024
+
+JSON output alias conflict. The alias declared with
+`CommandCatalogBuilder.JsonOutputAlias`, such as `--json`, is also the name or
+an alias of a command option, or catalogs combined with
+`CommandCatalog.Combine` declare different aliases. The alias is recognized
+before any command option, so remove the option, or keep it and do not declare
+the alias.
+
 ## Parsing
 
 The parser reports these codes as `parse` diagnostics with the stable `kind`
@@ -276,6 +285,15 @@ other than `true`, `false`, `yes`, `no`, `1` or `0` (case-insensitive).
 
 `invalid-choice`: the value is not one of the declared choices. The message
 lists the choices unless the option is sensitive or the list is too long.
+
+### RCLI1016
+
+`conflicting-output-selector`: the output selector (`--output`, or the host's
+transport option) and the application's JSON output alias, such as `--json`,
+were both given. Each selects the output format, so give one of them. The
+diagnostic names both spellings and points at the later one. The same alias
+given twice is `RCLI1007`, and the alias with a value, as in `--json=true`, is
+`RCLI1004`.
 
 ## Binding and validation
 

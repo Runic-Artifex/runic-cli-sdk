@@ -56,6 +56,8 @@ public static class CommandTextKeys
     public const string HelpShowVersion = "help.show-version";
     /// <summary>The description of the output-mode option (<c>Select output format</c>).</summary>
     public const string HelpOutputFormat = "help.output-format";
+    /// <summary>The description of the JSON output alias (<c>Same as {option} json</c>); argument: <c>option</c>.</summary>
+    public const string HelpJsonOutputAlias = "help.json-output-alias";
     /// <summary>The examples section heading (<c>Examples</c>).</summary>
     public const string HelpExamples = "help.examples";
     /// <summary>The note for a required option or argument (<c>required</c>).</summary>
@@ -114,6 +116,11 @@ public static class CommandTextKeys
     public const string DiagnosticUnsupportedShortBundle = "diagnostics.unsupported-short-bundle";
     /// <summary>An output mode other than human or json; argument: <c>option</c> (the option spelling or environment variable).</summary>
     public const string DiagnosticInvalidOutputMode = "diagnostics.invalid-output-mode";
+    /// <summary>
+    /// The output selector given together with its JSON alias; arguments: <c>option</c> (the later spelling) and
+    /// <c>conflict</c> (the earlier one).
+    /// </summary>
+    public const string DiagnosticConflictingOutputSelector = "diagnostics.conflicting-output-selector";
     /// <summary>A command that defines the framework output option itself; no arguments.</summary>
     public const string DiagnosticTransportOutputOptionCollision = "diagnostics.transport-output-option-collision";
     /// <summary>A required option that was not supplied; arguments: <c>option</c>, <c>command</c>.</summary>
@@ -168,7 +175,7 @@ public static class CommandTextKeys
     public static IReadOnlyList<CommandTextKey> All { get; } = new ReadOnlyCollection<CommandTextKey>(
     [
         new(HelpUsage), new(HelpCommandPlaceholder), new(HelpOptionsPlaceholder), new(HelpDefaultCommand), new(HelpCompletion),
-        new(HelpCommands), new(HelpArguments), new(HelpOptions), new(HelpShowHelp), new(HelpShowVersion), new(HelpOutputFormat),
+        new(HelpCommands), new(HelpArguments), new(HelpOptions), new(HelpShowHelp), new(HelpShowVersion), new(HelpOutputFormat), new(HelpJsonOutputAlias, "option"),
         new(HelpExamples), new(HelpRequired), new(HelpDefault), new(HelpChoices), new(HelpEnvironment), new(HelpExisting),
         new(HelpPathKindFile), new(HelpPathKindDirectory), new(HelpMinimum), new(HelpMaximum), new(HelpRequires), new(HelpConflicts),
         new(CompletionInvalidShell),
@@ -184,6 +191,7 @@ public static class CommandTextKeys
         new(DiagnosticDuplicateOption, "option"),
         new(DiagnosticUnsupportedShortBundle),
         new(DiagnosticInvalidOutputMode, "option"),
+        new(DiagnosticConflictingOutputSelector, "option", "conflict"),
         new(DiagnosticTransportOutputOptionCollision),
         new(DiagnosticMissingRequiredOption, "option", "command"),
         new(DiagnosticUnexpectedRootHelpArgument),
