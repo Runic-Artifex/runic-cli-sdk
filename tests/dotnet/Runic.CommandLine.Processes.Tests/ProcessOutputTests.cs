@@ -19,6 +19,7 @@ internal sealed partial class ProcessOutputTests
     private static readonly ProcessExecutionOptions Unattended = new(timeout: TimeSpan.FromSeconds(60))
     {
         StandardInput = ProcessStandardInput.Closed,
+        DetachFromTerminal = true,
     };
 
     private static readonly string[] SplitLines = ["one", "two", "münze", "last"];
@@ -119,6 +120,76 @@ internal sealed partial class ProcessOutputTests
             TestAssert.Throws<ProcessException>(() => result.EnsureCompleted()).Fault.Code);
     }
 
+    [Test, DisplayName("output/handler-failure-after-a-short-child-exited-is-reported")]
+    public async Task HandlerFailureAfterExitIsReportedAsync()
+    {
+        var observer = new IdentityObserver();
+        var handler = new FailAfterExitHandler(observer);
+        ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy(), observer)
+            .RunAsync(Request(Unattended, "pressure", "5", "0", "0"), handler).ConfigureAwait(false);
+
+        TestAssert.True(handler.ChildHadExited, "The child had not exited when the handler failed.");
+        TestAssert.Equal(ProcessState.ExecutionFailed, result.State);
+        TestAssert.Equal(ProcessFaultCodes.OutputHandlerFailed, result.Fault!.Code);
+        TestAssert.Null(result.ExitCode);
+        TestAssert.Equal("OOOOO", result.StandardOutput.Text);
+        TestAssert.Throws<ProcessException>(() => result.EnsureCompleted());
+    }
+
+    [Test, DisplayName("output/a-handler-call-longer-than-the-grace-period-keeps-the-output")]
+    public async Task LongHandlerCallKeepsOutputAsync()
+    {
+        var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(60), drainGracePeriod: TimeSpan.FromMilliseconds(300))
+        {
+            StandardInput = ProcessStandardInput.Closed,
+            DetachFromTerminal = true,
+        };
+        var handler = new SlowLineHandler(TimeSpan.FromMilliseconds(1500));
+        ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy())
+            .RunAsync(Request(options, "interleave", "2", "0"), handler).ConfigureAwait(false);
+
+        AssertExited(result);
+        TestAssert.False(result.StandardOutput.DrainTimedOut, "A running handler call was taken for a held pipe.");
+        TestAssert.False(result.StandardError.DrainTimedOut, "A running handler call was taken for a held pipe.");
+        TestAssert.Equal(4, handler.Lines.Count);
+        TestAssert.Equal("out-0\nout-1\n", result.StandardOutput.Text);
+    }
+
+    [Test, DisplayName("termination/a-non-interactive-child-cannot-open-the-callers-terminal")]
+    public async Task NonInteractiveChildHasNoTerminalAsync()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Console.WriteLine("SKIP pseudo-terminal case outside Linux: it runs the runner under util-linux script.");
+            return;
+        }
+
+        // The runner runs in a pseudo-terminal session. Detached, a child that reads /dev/tty fails at once instead
+        // of being stopped by SIGTTIN; attached, it shares the caller's group and terminal.
+        string detached = await RunInTerminalAsync("run-probe", "detach", "read-tty", "read").ConfigureAwait(false);
+        TestAssert.True(detached.Contains("state=Exited code=0 group=own out=no-tty", StringComparison.Ordinal), detached);
+        string attached = await RunInTerminalAsync("run-probe", "attach", "read-tty").ConfigureAwait(false);
+        TestAssert.True(attached.Contains("state=Exited code=0 group=none out=tty", StringComparison.Ordinal), attached);
+    }
+
+    [Test, DisplayName("termination/an-ignored-sigchld-never-reports-exited-without-a-code")]
+    public async Task IgnoredChildSignalKeepsExitCodeAsync()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Console.WriteLine("SKIP SIGCHLD on Windows.");
+            return;
+        }
+
+        // sh starts the runner with SIGCHLD ignored, so the kernel would reap its children itself.
+        string command = "trap '' CHLD; exec " + ShellQuote(ChildProcessFixture.ExecutablePath) +
+            " --process-test-child run-probe detach pressure 1 1 7";
+        string output = await RunCapturedAsync("sh", ["-c", command]).ConfigureAwait(false);
+        // The kernel reaps the child, so its exit code is gone: the run ends at exit as not observed, rather than
+        // as Exited without a code or at the timeout.
+        TestAssert.True(output.Contains("state=ExecutionFailed code=none group=own out=O", StringComparison.Ordinal), output);
+    }
+
     [Test, DisplayName("output/runners-that-cannot-stream-replay-the-capture")]
     public async Task DefaultImplementationReplaysCaptureAsync()
     {
@@ -143,6 +214,7 @@ internal sealed partial class ProcessOutputTests
             var options = new ProcessExecutionOptions(drainGracePeriod: TimeSpan.FromSeconds(2))
             {
                 StandardInput = ProcessStandardInput.Closed,
+                DetachFromTerminal = true,
             };
             ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy(), observer)
                 .RunAsync(Request(options, "orphan-tree", markerPath), handler, cancellation.Token)
@@ -188,6 +260,7 @@ internal sealed partial class ProcessOutputTests
             var options = new ProcessExecutionOptions(drainGracePeriod: TimeSpan.FromSeconds(20))
             {
                 StandardInput = ProcessStandardInput.Closed,
+                DetachFromTerminal = true,
             };
             ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy())
                 .RunAsync(Request(options, "term-aware", markerPath, "exit"), new ReadyHandler(cancellation),
@@ -222,6 +295,7 @@ internal sealed partial class ProcessOutputTests
             var options = new ProcessExecutionOptions(drainGracePeriod: TimeSpan.FromMilliseconds(500))
             {
                 StandardInput = ProcessStandardInput.Closed,
+                DetachFromTerminal = true,
             };
             ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy(), observer)
                 .RunAsync(Request(options, "term-aware", markerPath, "ignore"), new ReadyHandler(cancellation),
@@ -295,6 +369,48 @@ internal sealed partial class ProcessOutputTests
         TestAssert.Equal(string.Empty, result.StandardOutput.Text);
     }
 
+    private static Task<string> RunInTerminalAsync(params string[] arguments)
+    {
+        string command = ShellQuote(ChildProcessFixture.ExecutablePath) + " --process-test-child " +
+            string.Join(' ', arguments.Select(ShellQuote));
+        return RunCapturedAsync("script", ["-qec", command, "/dev/null"]);
+    }
+
+    private static async Task<string> RunCapturedAsync(string fileName, string[] arguments)
+    {
+        using var process = new Process();
+        process.StartInfo = new ProcessStartInfo(fileName)
+        {
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        foreach (string argument in arguments)
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        process.Start();
+        process.StandardInput.Close();
+        Task<string> output = process.StandardOutput.ReadToEndAsync();
+        Task<string> error = process.StandardError.ReadToEndAsync();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        try
+        {
+            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw new InvalidOperationException($"{fileName} did not finish: a child hung on the terminal.");
+        }
+
+        return await output.ConfigureAwait(false) + await error.ConfigureAwait(false);
+    }
+
+    private static string ShellQuote(string value) => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+
     private static ProcessRequest Request(ProcessExecutionOptions options, string mode, params string[] arguments) =>
         new(ChildProcessFixture.ExecutablePath, ChildProcessFixture.CreateArguments(mode, arguments), options: options);
 
@@ -316,6 +432,33 @@ internal sealed partial class ProcessOutputTests
         {
             return true;
         }
+    }
+
+    // The runner keeps an exited Unix child as an unreaped zombie until the run ends, which Process.HasExited
+    // reports as running. On Linux, read the state from /proc; elsewhere, wait for the child to finish exiting.
+    private static bool HasEnded(int processId)
+    {
+        if (OperatingSystem.IsLinux())
+        {
+            string stat = Path.Combine("/proc", processId.ToString(CultureInfo.InvariantCulture), "stat");
+            try
+            {
+                string text = File.ReadAllText(stat);
+                return text[(text.LastIndexOf(')') + 2)..].StartsWith('Z');
+            }
+            catch (IOException)
+            {
+                return true;
+            }
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return HasExited(processId);
+        }
+
+        Thread.Sleep(1000);
+        return true;
     }
 
     private static async Task<bool> WaitForExitAsync(int processId)
@@ -444,6 +587,38 @@ internal sealed partial class ProcessOutputTests
 
             LineCount++;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FailAfterExitHandler(IdentityObserver observer) : IProcessOutputHandler
+    {
+        public bool ChildHadExited { get; private set; }
+
+        public async ValueTask OnChunkAsync(ProcessOutputChunk chunk, CancellationToken cancellationToken)
+        {
+            DateTimeOffset deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(10);
+            while (!HasEnded(observer.Identity!.ProcessId) && DateTimeOffset.UtcNow < deadline)
+            {
+                await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+            }
+
+            ChildHadExited = HasEnded(observer.Identity!.ProcessId);
+            throw new InvalidOperationException("handler failure after exit");
+        }
+    }
+
+    private sealed class SlowLineHandler(TimeSpan delay) : IProcessOutputHandler
+    {
+        public List<string> Lines { get; } = [];
+
+        public async ValueTask OnLineAsync(ProcessOutputLine line, CancellationToken cancellationToken)
+        {
+            if (Lines.Count == 0)
+            {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+
+            Lines.Add(line.Text);
         }
     }
 

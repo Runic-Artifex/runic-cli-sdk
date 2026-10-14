@@ -57,16 +57,34 @@ internal abstract class ChildProcess : IDisposable
             return ManagedChildProcess.StartProcess(request);
         }
 
-        // A child in its own process group cannot read the controlling terminal: the terminal stops a
-        // background group that reads it (SIGTTIN). A child that inherits a terminal stays in the caller's group.
-        bool inheritsTerminal = request.Options.StandardInput.Mode == ProcessStandardInputMode.Inherit &&
-            !Console.IsInputRedirected;
-        if (!inheritsTerminal && UnixGroupProcess.TryStart(request, out ChildProcess? child))
+        // With a controlling terminal, a child in a background process group of its own is stopped (SIGTTIN,
+        // SIGTTOU) when it prompts on /dev/tty, as ssh, sudo, git and gpg do, and no longer receives the terminal's
+        // Ctrl+C or SIGHUP. Such a child stays in the caller's group unless the request detaches it into a new
+        // session, where it has no controlling terminal and opening /dev/tty fails.
+        bool detach = request.Options.DetachFromTerminal;
+        // With SIGCHLD ignored, Process.Start would never see the child exit, so this runner starts it either way.
+        if ((detach || !HasControllingTerminal() || UnixGroupProcess.ChildSignalIgnored()) &&
+            UnixGroupProcess.TryStart(request, detach, out ChildProcess? child))
         {
             return child;
         }
 
         return ManagedChildProcess.StartProcess(request);
+    }
+
+    private static bool HasControllingTerminal()
+    {
+        try
+        {
+            using Microsoft.Win32.SafeHandles.SafeFileHandle terminal = File.OpenHandle(
+                "/dev/tty", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+            return true;
+        }
+        catch (Exception exception) when (!IsFatal(exception))
+        {
+            // ENXIO: this process has no controlling terminal.
+            return false;
+        }
     }
 
     protected static bool IsFatal(Exception exception) =>

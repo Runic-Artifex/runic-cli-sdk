@@ -24,15 +24,17 @@ public sealed class ProcessExecutionOptions
     private ProcessStandardInput standardInput = ProcessStandardInput.Inherit;
 
     /// <summary>
-    /// Gets options for callers without a terminal, such as a desktop application or a service: standard input is
-    /// closed, so a child that prompts reads end-of-file instead of waiting on the caller's terminal, and on Unix the
-    /// child always runs in its own process group. The other values are the defaults. To change them, pass
-    /// <see cref="ProcessStandardInput.Closed"/> to <see cref="StandardInput"/> of new options; check results with
-    /// <see cref="ProcessResult.EnsureCompleted"/> so that truncated output is not taken for complete output.
+    /// Gets options for unattended callers, such as a desktop application or a service: standard input is closed, so
+    /// a child that reads it gets end-of-file, and <see cref="DetachFromTerminal"/> is set, so on Unix a child that
+    /// prompts on <c>/dev/tty</c> (ssh, sudo, git credentials, gpg) fails to open it instead of waiting on the
+    /// terminal that started the caller. The other values are the defaults. To change them, set the same two
+    /// properties on new options; check results with <see cref="ProcessResult.EnsureCompleted"/> so that truncated
+    /// output is not taken for complete output.
     /// </summary>
     public static ProcessExecutionOptions NonInteractive { get; } = new()
     {
         StandardInput = ProcessStandardInput.Closed,
+        DetachFromTerminal = true,
     };
 
     /// <summary>Initializes process execution options.</summary>
@@ -107,6 +109,16 @@ public sealed class ProcessExecutionOptions
             standardInput = value;
         }
     }
+
+    /// <summary>
+    /// Gets a value indicating whether, on Unix, the child starts in a new session without a controlling terminal.
+    /// It then cannot open <c>/dev/tty</c>, so a tool that would prompt there fails instead of waiting, and it leads
+    /// its own process group, which cancellation and timeout terminate as a whole. False by default: a caller with a
+    /// controlling terminal then keeps the child in its own process group, so the child can prompt and receives the
+    /// terminal's Ctrl+C, and cancellation terminates the process tree; a caller without one, such as a service,
+    /// starts the child in a new process group anyway. No effect on Windows.
+    /// </summary>
+    public bool DetachFromTerminal { get; init; }
 
     /// <summary>Gets whether the child inherits the parent environment before request overrides are applied.</summary>
     public bool InheritEnvironment { get; init; } = true;

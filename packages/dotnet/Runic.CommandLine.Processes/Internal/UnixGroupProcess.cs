@@ -11,8 +11,8 @@ using System.Threading.Tasks;
 namespace Runic.CommandLine.Processes.Internal;
 
 /// <summary>
-/// A Unix child started with posix_spawn as the leader of a new process group, so that termination reaches
-/// descendants that were reparented after their parent exited.
+/// A Unix child started with posix_spawn as the leader of a new process group, or of a new session without a
+/// controlling terminal, so that termination reaches descendants that were reparented after their parent exited.
 /// </summary>
 internal sealed unsafe class UnixGroupProcess : ChildProcess
 {
@@ -22,8 +22,11 @@ internal sealed unsafe class UnixGroupProcess : ChildProcess
     private readonly AnonymousPipeServerStream output;
     private readonly AnonymousPipeServerStream error;
     private readonly TaskCompletionSource exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly object gate = new();
     private int? exitCode;
-    private int disposed;
+    private bool statusLost;
+    private bool reaped;
+    private bool disposed;
 
     private UnixGroupProcess(
         int processId,
@@ -49,14 +52,34 @@ internal sealed unsafe class UnixGroupProcess : ChildProcess
 
     internal override bool HasExited => exited.Task.IsCompleted;
 
-    internal override int? ExitCode => HasExited ? exitCode : null;
+    /// <summary>Gets the exit code, reaping the child; null while it runs or when another party reaped it.</summary>
+    internal override int? ExitCode
+    {
+        get
+        {
+            if (!HasExited)
+            {
+                return null;
+            }
 
-    /// <summary>Starts the child in a new process group, or returns false when this platform cannot.</summary>
+            lock (gate)
+            {
+                Reap();
+                return exitCode;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Starts the child as the leader of a new process group, or with <paramref name="newSession"/> of a new session
+    /// without a controlling terminal, or returns false when this platform cannot.
+    /// </summary>
     /// <exception cref="ProcessStartFailedException">The operating system rejected the start.</exception>
-    internal static bool TryStart(ProcessRequest request, [NotNullWhen(true)] out ChildProcess? child)
+    internal static bool TryStart(ProcessRequest request, bool newSession, [NotNullWhen(true)] out ChildProcess? child)
     {
         child = null;
-        // As PID 1, the runtime reaps every child itself, and the exit status would be lost.
+        // As PID 1, the runtime reaps every child itself, and the exit status would be lost; Process.Start
+        // handles that.
         if (unavailable || Environment.ProcessId == 1)
         {
             return false;
@@ -83,11 +106,12 @@ internal sealed unsafe class UnixGroupProcess : ChildProcess
             int processId;
             try
             {
-                processId = Spawn(path, request, input, output, error);
+                processId = Spawn(path, request, newSession, input, output, error);
             }
             catch (Exception exception) when (exception is EntryPointNotFoundException or DllNotFoundException)
             {
                 unavailable = true;
+                UnixNative.ReportUnavailable(exception);
                 input?.Dispose();
                 output.Dispose();
                 error.Dispose();
@@ -121,9 +145,19 @@ internal sealed unsafe class UnixGroupProcess : ChildProcess
 
     public override void Dispose()
     {
-        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        lock (gate)
         {
-            return;
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            // A leader that is still running is reaped by its waiter thread when it exits.
+            if (HasExited)
+            {
+                Reap();
+            }
         }
 
         input?.Dispose();
@@ -133,11 +167,73 @@ internal sealed unsafe class UnixGroupProcess : ChildProcess
 
     private void SignalGroup(int signal)
     {
-        // The group ID stays reserved while any member, or the unreaped leader, exists. Signals are only sent
-        // while the request runs, so the ID cannot have been reused by an unrelated group in the meantime.
-        if (Volatile.Read(ref disposed) == 0)
+        // The waiter does not reap the leader, so until Reap its PID, and with it the group ID, cannot be reused:
+        // a signal sent before then reaches only this group, also when the leader has already exited.
+        lock (gate)
         {
-            _ = UnixNative.Kill(-ProcessId, signal);
+            if (!reaped && !disposed)
+            {
+                _ = UnixNative.Kill(-ProcessId, signal);
+            }
+        }
+    }
+
+    // Called under the gate, after exit.
+    private void Reap()
+    {
+        if (reaped)
+        {
+            return;
+        }
+
+        reaped = true;
+        if (statusLost)
+        {
+            return;
+        }
+
+        while (true)
+        {
+            int result = UnixNative.WaitProcess(ProcessId, out int status, 0);
+            if (result == ProcessId)
+            {
+                int signal = status & 0x7f;
+                // Like Process.ExitCode, a child ended by a signal reports 128 plus the signal number.
+                exitCode = signal == 0 ? (status >> 8) & 0xff : 128 + signal;
+                return;
+            }
+
+            if (result == -1 && Marshal.GetLastPInvokeError() == UnixNative.ErrorInterrupted)
+            {
+                continue;
+            }
+
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether this process ignores SIGCHLD, so that the kernel reaps children itself.
+    /// Process.Start then never observes an exit; this runner observes it and reports the status as lost.
+    /// </summary>
+    internal static bool ChildSignalIgnored()
+    {
+        if (unavailable)
+        {
+            return false;
+        }
+
+        try
+        {
+            byte* previous = stackalloc byte[UnixNative.SigactionBufferSize];
+            new Span<byte>(previous, UnixNative.SigactionBufferSize).Clear();
+            // The handler is the first member of struct sigaction on Linux and macOS.
+            return UnixNative.SignalAction(UnixNative.SignalChild, null, previous) == 0 &&
+                *(IntPtr*)previous == UnixNative.SignalIgnore;
+        }
+        catch (Exception exception) when (exception is EntryPointNotFoundException or DllNotFoundException)
+        {
+            return false;
         }
     }
 
@@ -153,34 +249,48 @@ internal sealed unsafe class UnixGroupProcess : ChildProcess
 
     private void WaitForExit()
     {
-        int? code = null;
+        byte* info = stackalloc byte[UnixNative.SiginfoBufferSize];
+        bool lost = false;
         while (true)
         {
-            int result = UnixNative.WaitProcess(ProcessId, out int status, 0);
-            if (result == ProcessId)
+            int result = UnixNative.WaitId(
+                UnixNative.IdTypeProcess,
+                (uint)ProcessId,
+                info,
+                UnixNative.WaitExited | UnixNative.WaitNoWait);
+            if (result == 0)
             {
-                int signal = status & 0x7f;
-                // Like Process.ExitCode, a child ended by a signal reports 128 plus the signal number.
-                code = signal == 0 ? (status >> 8) & 0xff : 128 + signal;
                 break;
             }
 
-            if (result == -1 && Marshal.GetLastPInvokeError() == UnixNative.ErrorInterrupted)
+            if (Marshal.GetLastPInvokeError() == UnixNative.ErrorInterrupted)
             {
                 continue;
             }
 
-            // ECHILD: SIGCHLD is ignored and the kernel reaped the child; the exit code is unknown.
+            // ECHILD: another party reaped the child, for example the kernel because SIGCHLD was ignored after the
+            // start. The exit code is unknown, and the runner reports the request as not observed.
+            lost = true;
             break;
         }
 
-        exitCode = code;
-        exited.TrySetResult();
+        lock (gate)
+        {
+            statusLost = lost;
+            // Already reaped by someone else: the PID may be reused, so never signal the group again.
+            reaped |= lost;
+            exited.TrySetResult();
+            if (disposed)
+            {
+                Reap();
+            }
+        }
     }
 
     private static int Spawn(
         string path,
         ProcessRequest request,
+        bool newSession,
         AnonymousPipeServerStream? input,
         AnonymousPipeServerStream output,
         AnonymousPipeServerStream error)
@@ -217,15 +327,21 @@ internal sealed unsafe class UnixGroupProcess : ChildProcess
 
             ThrowIfFailed(UnixNative.AttributesInit(attributes));
             attributesReady = true;
+            // A new session also leads a new process group; setpgid would fail for a session leader.
             ThrowIfFailed(UnixNative.AttributesSetFlags(
                 attributes,
-                UnixNative.PosixSpawnSetProcessGroup | UnixNative.PosixSpawnSetSignalDefault |
-                UnixNative.PosixSpawnSetSignalMask));
-            ThrowIfFailed(UnixNative.AttributesSetProcessGroup(attributes, 0));
-            // The runtime blocks and ignores signals (SIGPIPE) that the child must receive normally.
+                (short)((newSession ? UnixNative.PosixSpawnSetSession : UnixNative.PosixSpawnSetProcessGroup) |
+                    UnixNative.PosixSpawnSetSignalDefault | UnixNative.PosixSpawnSetSignalMask)));
+            if (!newSession)
+            {
+                ThrowIfFailed(UnixNative.AttributesSetProcessGroup(attributes, 0));
+            }
+
+            // exec resets caught signals, but not ignored ones. Like Process.Start, restore only SIGPIPE, which the
+            // runtime ignores; a disposition the caller inherited as ignored, such as SIGHUP under nohup, is kept.
             ThrowIfFailed(UnixNative.SignalSetEmpty(signals));
             ThrowIfFailed(UnixNative.AttributesSetSignalMask(attributes, signals));
-            ThrowIfFailed(UnixNative.SignalSetFill(signals));
+            ThrowIfFailed(UnixNative.SignalSetAdd(signals, UnixNative.SignalPipe));
             ThrowIfFailed(UnixNative.AttributesSetSignalDefault(attributes, signals));
 
             int result = UnixNative.PosixSpawn(

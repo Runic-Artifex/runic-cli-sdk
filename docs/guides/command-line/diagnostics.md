@@ -203,8 +203,10 @@ text resources or correct its spelling. With `RUNIC_COMMANDLINE_DEBUG=1`,
 ### RCLI0024
 
 JSON output alias conflict. The alias declared with
-`CommandCatalogBuilder.JsonOutputAlias`, such as `--json`, is also the name or
-an alias of a command option, or catalogs combined with
+`CommandCatalogBuilder.JsonOutputAlias`, such as `--json`, is `--output` (the
+default output selector, which would make the flag mean something else under a
+host whose transport option has another name), is also the name or an alias of
+a command option, or catalogs combined with
 `CommandCatalog.Combine` declare different aliases. The alias is recognized
 before any command option, so remove the option, or keep it and do not declare
 the alias.

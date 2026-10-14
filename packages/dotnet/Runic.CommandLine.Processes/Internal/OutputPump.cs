@@ -146,6 +146,7 @@ internal sealed class OutputDelivery
     private readonly TaskCompletionSource failed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private volatile bool stopped;
     private long progress;
+    private int inFlight;
 
     internal OutputDelivery(IProcessOutputHandler handler, CancellationToken cancellationToken)
     {
@@ -158,6 +159,9 @@ internal sealed class OutputDelivery
 
     /// <summary>Counts completed handler calls, so a drain can tell a busy handler from a held pipe.</summary>
     internal long Progress => Interlocked.Read(ref progress);
+
+    /// <summary>Gets a value indicating whether a handler call is running.</summary>
+    internal bool IsBusy => Volatile.Read(ref inFlight) != 0;
 
     /// <summary>Stops all later calls; a call in progress is not interrupted.</summary>
     internal void Stop() => stopped = true;
@@ -175,6 +179,7 @@ internal sealed class OutputDelivery
         }
 
         await gate.WaitAsync().ConfigureAwait(false);
+        bool entered = false;
         try
         {
             if (stopped)
@@ -182,6 +187,8 @@ internal sealed class OutputDelivery
                 return;
             }
 
+            entered = true;
+            Interlocked.Increment(ref inFlight);
             if (!bytes.IsEmpty)
             {
                 await handler.OnChunkAsync(new ProcessOutputChunk(stream, bytes), cancellationToken)
@@ -213,6 +220,11 @@ internal sealed class OutputDelivery
         }
         finally
         {
+            if (entered)
+            {
+                Interlocked.Decrement(ref inFlight);
+            }
+
             gate.Release();
         }
     }

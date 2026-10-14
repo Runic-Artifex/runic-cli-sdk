@@ -91,14 +91,17 @@ ProcessResult result = await runner.RunAsync(request, new LogLines(log), cancell
 - **Backpressure.** The runner reads the next chunk of a channel only after the
   handler's task completes. A slow handler fills the pipe and then slows the
   child instead of growing memory. After the child exits, the runner keeps
-  draining while the handler makes progress, until it is idle for
-  `DrainGracePeriod`, or the request is cancelled or times out.
+  draining while a handler call runs or the handler makes progress, until it is
+  idle for `DrainGracePeriod`, or the request is cancelled or times out. A
+  handler call that never returns therefore keeps a request without a timeout
+  open until it is cancelled. Only an idle pipe counts as `DrainTimedOut`.
 - **Capture.** The result still holds the bounded capture of both channels, with
   `IsTruncated` and `ObservedByteCount`. Set the limits to `0` to keep nothing
   but the counts.
 - **Failure.** If the handler throws while the request is neither cancelled nor
   timed out, the runner terminates the child as on cancellation and returns
-  `ExecutionFailed` with `RCLI6009`. No call starts after the result is returned.
+  `ExecutionFailed` with `RCLI6009`, also when the child had already exited. No
+  call starts after the result is returned.
 
 `IProcessRunner.RunAsync(request, outputHandler, cancellationToken)` has a
 default implementation for runners that cannot stream, such as a test double:
@@ -110,22 +113,43 @@ error to the handler, in that order.
 On cancellation or timeout the runner stops the child and everything it
 started:
 
-- **Unix.** The child starts as the leader of a new process group. The runner
+- **Unix, own process group.** The child leads a new process group. The runner
   sends `SIGTERM` to the group, waits up to `DrainGracePeriod` for the child to
   exit and the pipes to close, and then sends `SIGKILL` to whatever is left of
   the group, also a descendant whose parent already exited. A tool such as
-  `nix` can release its locks in that grace period. A descendant that calls
-  `setsid` or `setpgid` leaves the group and is not reached.
+  `nix` can release its locks in that grace period. The runner reaps the child
+  only after its last signal, so the group ID cannot be reused by another group
+  meanwhile. A descendant that calls `setsid` or `setpgid` leaves the group and
+  is not reached.
+- **Unix, caller's process group.** The child gets `SIGTERM` and, after the
+  grace period, the runner kills its process tree.
 - **Windows.** The child joins a job object right after it starts, and the
   runner terminates the job and the process tree at once. A descendant the child
   started before it joined the job is reached through the process tree only.
 
-A child that inherits a terminal (`StandardInput` is `Inherit` and the caller's
-stdin is a terminal) stays in the caller's process group, because a terminal
-stops a background group that reads it. It receives `SIGTERM` and, after the
-grace period, the runner kills its process tree. When the caller is process 1,
-for example in a container, the runtime reaps every child itself, so the child
-also stays in the caller's group.
+Which group a Unix child gets depends on the caller's terminal:
+
+- **A caller with a controlling terminal**, such as a command-line application,
+  keeps the child in its own process group. A background group would be stopped
+  (`SIGTTIN`, `SIGTTOU`) when the child prompts on `/dev/tty`, as ssh, sudo, git
+  credentials and gpg do, and would no longer receive the terminal's Ctrl+C or
+  `SIGHUP`.
+- **A caller without one**, such as a service, a CI job or a desktop application
+  started from the desktop, starts the child in a new process group.
+- **`DetachFromTerminal = true`** (part of `ProcessExecutionOptions.NonInteractive`)
+  starts the child in a new session without a controlling terminal, in either
+  case. Opening `/dev/tty` then fails, so a tool that would prompt fails at once
+  instead of waiting, and cancellation reaches the whole group.
+
+Inherited ignored signals, such as `SIGHUP` under `nohup`, stay ignored in the
+child; only `SIGPIPE`, which the .NET runtime ignores, is reset. When the caller
+is process 1, for example in a container, the runtime reaps every child itself,
+so the child stays in the caller's group. When the caller ignores `SIGCHLD`, the
+kernel reaps the child and its exit code is lost: the result is then
+`ExecutionFailed` (`RCLI6006`), never `Exited` without a code. The runner
+resolves the C library from the running process, which covers glibc, musl
+(Alpine) and macOS. If it cannot, children run in the caller's group, the runner
+writes a `Trace` warning, and `ProcessIdentity.ProcessGroupId` is null.
 
 `IProcessObserver.OnStarted(ProcessIdentity, DateTimeOffset)` receives the
 child's process ID and, on Unix, its process group ID, for logs or a list of
@@ -145,12 +169,13 @@ var request = new ProcessRequest(
         timeout: TimeSpan.FromMinutes(5), standardOutputLimitBytes: 16 * 1024 * 1024)
     {
         StandardInput = ProcessStandardInput.Closed,
+        DetachFromTerminal = true,
     });
 ProcessResult result = (await runner.RunAsync(request, cancellationToken)).EnsureCompleted(cancellationToken);
 ```
 
 `ProcessExecutionOptions.NonInteractive` is the default options with closed
-stdin. `EnsureCompleted` returns the result when the child exited and both
+stdin and `DetachFromTerminal`. `EnsureCompleted` returns the result when the child exited and both
 captures are complete, and throws `OperationCanceledException` for a cancelled
 request and `ProcessException` otherwise: `RCLI6010` for a timeout, `RCLI6011`
 when a capture was truncated or cut off after the drain grace period, and the

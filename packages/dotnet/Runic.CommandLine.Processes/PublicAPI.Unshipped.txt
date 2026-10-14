@@ -11,6 +11,8 @@ Runic.CommandLine.Processes.ProcessException
 Runic.CommandLine.Processes.ProcessException.Fault.get -> Runic.CommandLine.CommandFault!
 Runic.CommandLine.Processes.ProcessException.ProcessException(Runic.CommandLine.Processes.ProcessResult! result, Runic.CommandLine.CommandFault! fault) -> void
 Runic.CommandLine.Processes.ProcessException.Result.get -> Runic.CommandLine.Processes.ProcessResult!
+Runic.CommandLine.Processes.ProcessExecutionOptions.DetachFromTerminal.get -> bool
+Runic.CommandLine.Processes.ProcessExecutionOptions.DetachFromTerminal.init -> void
 Runic.CommandLine.Processes.ProcessIdentity
 Runic.CommandLine.Processes.ProcessIdentity.ProcessGroupId.get -> int?
 Runic.CommandLine.Processes.ProcessIdentity.ProcessId.get -> int

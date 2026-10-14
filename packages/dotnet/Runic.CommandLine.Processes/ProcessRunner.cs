@@ -254,12 +254,29 @@ public sealed class ProcessRunner : IProcessRunner
 
         DrainOutcome drain = state == ProcessState.Exited
             ? await AwaitDrainAsync(pipes, options.DrainGracePeriod, delivery, linked.Token).ConfigureAwait(false)
-            : await TerminateAndDrainAsync(pipes, options.DrainGracePeriod).ConfigureAwait(false);
+            : await TerminateAndDrainAsync(pipes, options.DrainGracePeriod, delivery).ConfigureAwait(false);
         delivery?.Stop();
+
+        // A short child can exit before its handler fails on output that is still in the pipe.
+        if (state == ProcessState.Exited && delivery?.Failure.IsCompleted == true)
+        {
+            state = ProcessState.ExecutionFailed;
+            fault = new CommandFault(ProcessFaultCodes.OutputHandlerFailed, "The output handler failed.");
+        }
+
+        int? exitCode = state == ProcessState.Exited ? child.ExitCode : null;
+        if (state == ProcessState.Exited && exitCode is null)
+        {
+            // Another party reaped the child, for example because SIGCHLD was ignored, so its outcome is unknown.
+            state = ProcessState.ExecutionFailed;
+            fault = new CommandFault(
+                ProcessFaultCodes.ExecutionFailed,
+                "The process lifecycle could not be observed safely.");
+        }
 
         return Complete(
             state,
-            state == ProcessState.Exited ? child.ExitCode : null,
+            exitCode,
             standardOutput.ToOutput(drain.StandardOutputTimedOut),
             standardError.ToOutput(drain.StandardErrorTimedOut),
             null,
@@ -432,7 +449,7 @@ public sealed class ProcessRunner : IProcessRunner
 
     // Cancellation, timeout or failure: ask the process group to stop (SIGTERM), give it the drain grace period to
     // exit and close its pipes, then kill whatever is left of the group (SIGKILL) and wait once more.
-    private async Task<DrainOutcome> TerminateAndDrainAsync(Pipes pipes, TimeSpan gracePeriod)
+    private async Task<DrainOutcome> TerminateAndDrainAsync(Pipes pipes, TimeSpan gracePeriod, OutputDelivery? delivery)
     {
         pipes.Child.RequestStop();
         Task all = Task.WhenAll(
@@ -446,12 +463,13 @@ public sealed class ProcessRunner : IProcessRunner
             return default;
         }
 
-        return await ClosePipesAsync(pipes).ConfigureAwait(false);
+        return await ClosePipesAsync(pipes, delivery).ConfigureAwait(false);
     }
 
     // Normal exit: a descendant that inherited a pipe can hold it open after the child exits, so wait at most the
-    // grace period for the pipes to close. While an output handler still makes progress, the wait goes on until
-    // the handler is idle for the grace period, or the request is cancelled or times out.
+    // grace period for the pipes to close. While an output handler makes progress or a handler call is still
+    // running, the wait goes on until the handler is idle for the grace period, or the request is cancelled or
+    // times out.
     private async Task<DrainOutcome> AwaitDrainAsync(
         Pipes pipes,
         TimeSpan gracePeriod,
@@ -461,9 +479,10 @@ public sealed class ProcessRunner : IProcessRunner
         long progress = delivery?.Progress ?? 0;
         while (!await WaitAsync(pipes.All, gracePeriod).ConfigureAwait(false))
         {
-            if (delivery is null || cancellationToken.IsCancellationRequested || delivery.Progress == progress)
+            if (delivery is null || cancellationToken.IsCancellationRequested ||
+                (delivery.Progress == progress && !delivery.IsBusy))
             {
-                return await ClosePipesAsync(pipes).ConfigureAwait(false);
+                return await ClosePipesAsync(pipes, delivery).ConfigureAwait(false);
             }
 
             progress = delivery.Progress;
@@ -485,9 +504,14 @@ public sealed class ProcessRunner : IProcessRunner
         }
     }
 
-    private async Task<DrainOutcome> ClosePipesAsync(Pipes pipes)
+    // A pipe still open blames a descendant that holds it, unless a handler call is still running: then the
+    // handler, not a descendant, kept the pipe from draining.
+    private async Task<DrainOutcome> ClosePipesAsync(Pipes pipes, OutputDelivery? delivery)
     {
-        var outcome = new DrainOutcome(!pipes.StandardOutput.IsCompleted, !pipes.StandardError.IsCompleted);
+        bool handlerBusy = delivery?.IsBusy == true;
+        var outcome = new DrainOutcome(
+            !pipes.StandardOutput.IsCompleted && !handlerBusy,
+            !pipes.StandardError.IsCompleted && !handlerBusy);
         pipes.Child.Close(pipes.Child.StandardOutput);
         pipes.Child.Close(pipes.Child.StandardError);
         await Task.WhenAny(pipes.All, Task.Delay(TimeSpan.FromMilliseconds(100), timeProvider)).ConfigureAwait(false);

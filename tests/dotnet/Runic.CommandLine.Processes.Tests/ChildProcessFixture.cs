@@ -37,6 +37,8 @@ internal static class ChildProcessFixture
             "orphan-tree" => await RunOrphanTreeAsync(args).ConfigureAwait(false),
             "orphan-middle" => StartOrphanLeaf(args),
             "term-aware" => await RunTermAwareAsync(args).ConfigureAwait(false),
+            "read-tty" => ReadTerminal(args),
+            "run-probe" => await RunProbeAsync(args).ConfigureAwait(false),
             _ => 97,
         };
     }
@@ -276,6 +278,54 @@ internal static class ChildProcessFixture
         Console.WriteLine("READY");
         await Task.Delay(30000).ConfigureAwait(false);
         return 0;
+    }
+
+    // Opens the controlling terminal; with "read", also waits for a byte from it, as a password prompt does.
+    private static int ReadTerminal(string[] args)
+    {
+        try
+        {
+            using var terminal = new FileStream("/dev/tty", FileMode.Open, FileAccess.ReadWrite);
+            Console.WriteLine("tty");
+            if (args.Length > 2 && args[2] == "read")
+            {
+                _ = terminal.ReadByte();
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Console.WriteLine("no-tty");
+        }
+
+        return 0;
+    }
+
+    // Runs the fixture mode in args[3..] through ProcessRunner and prints the result on one line. args[2] selects
+    // NonInteractive ("detach") or closed stdin in the caller's terminal session ("attach").
+    private static async Task<int> RunProbeAsync(string[] args)
+    {
+        var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10), drainGracePeriod: TimeSpan.FromSeconds(1))
+        {
+            StandardInput = ProcessStandardInput.Closed,
+            DetachFromTerminal = args[2] == "detach",
+        };
+        var observer = new ProbeObserver();
+        ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy(), observer).RunAsync(new ProcessRequest(
+            ExecutablePath, CreateArguments(args[3], args[4..]), options: options)).ConfigureAwait(false);
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"state={result.State} code={result.ExitCode?.ToString(CultureInfo.InvariantCulture) ?? "none"} group={(observer.Identity?.ProcessGroupId is null ? "none" : "own")} out={result.StandardOutput.Text.Trim()}"));
+        return 0;
+    }
+
+    private sealed class ProbeObserver : IProcessObserver
+    {
+        public ProcessIdentity? Identity { get; private set; }
+
+        public void OnStarted(ProcessIdentity process, DateTimeOffset startedAt) => Identity = process;
+
+        public void OnCompleted(ProcessState state, TimeSpan duration)
+        {
+        }
     }
 
     private static async Task WriteLineAsync(Stream stream, string line)
