@@ -26,6 +26,10 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
   `Runic.CommandLine.Processes` and application codes, can be translated this way.
 - Command, option and argument descriptions use their `DescriptionKey`. Those
   keys belong to the application.
+- `CommandPrompts` resolves its own text (hints, Yes and No, errors and the
+  `RCLI4001` diagnostics) through these keys. Prompt questions and choice labels
+  are application text: resolve them with
+  `new CommandTextContext(context.Culture, context.TextResolver)`.
 - Arguments arrive in the order listed. The names describe each position; an
   argument named `parameter` is an option spelling such as `--limit` or an
   argument placeholder such as `<name>`.
@@ -60,7 +64,18 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `help.requires` | | requires |
 | `help.conflicts` | | conflicts |
 | `completion.invalid-shell` | | Choose a completion shell: bash, zsh, fish or powershell. |
+| `prompts.select-hint` | | Arrow keys to move, Enter to confirm |
+| `prompts.multi-select-hint` | | Arrow keys to move, Space to select, A for all, Enter to confirm |
+| `prompts.yes` | | Yes |
+| `prompts.no` | | No |
+| `prompts.choose-one` | `count` | Enter a number from 1 to {count} |
+| `prompts.choose-many` | `count` | Enter numbers from 1 to {count}, separated by commas |
+| `prompts.answer-yes-no` | `yes`, `no` | Answer {yes} or {no}. |
+| `prompts.required` | | An answer is required. |
+| `prompts.cancelled` | | Cancelled |
+| `prompts.done` | | Done |
 | `faults.RCLI4000` | | The command was cancelled. |
+| `faults.RCLI4001` | | The message of its `diagnostics.prompt-*` diagnostic, below. |
 | `faults.RCLI5000` | | The command could not be completed. |
 | `hints.RCLI5000` | | Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr. |
 | `diagnostics.unknown-option` | `option` | An unrecognized option was supplied. ({option}) |
@@ -98,6 +113,9 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `diagnostics.file-not-found` | `parameter` | {parameter} requires an existing file; check the path and permissions. |
 | `diagnostics.directory-not-found` | `parameter` | {parameter} requires an existing directory; check the path and permissions. |
 | `diagnostics.environment-value-source` | `parameter`, `variable` | The value for {parameter} came from environment variable {variable}. |
+| `diagnostics.prompt-requires-terminal` | `prompt` | {prompt} needs an answer, but the command is not running in an interactive terminal. Pass the value on the command line. |
+| `diagnostics.prompt-json-output` | `prompt` | {prompt} needs an answer, but JSON output never prompts. Pass the value on the command line. |
+| `diagnostics.prompt-disabled` | `prompt` | {prompt} needs an answer, but prompts are disabled. Pass the value on the command line. |
 
 `CommandTextContext.ValidateDescriptionKeys(catalog)` reports application
 `DescriptionKey` values a resolver does not resolve (`RCLI0023`).

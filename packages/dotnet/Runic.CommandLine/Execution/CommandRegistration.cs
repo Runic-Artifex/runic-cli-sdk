@@ -95,7 +95,11 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                     request.Invocation.Path,
                     request.Invocation.OutputClassification.Mode!.Value,
                     request.Culture,
-                    request.CorrelationId);
+                    request.CorrelationId)
+                {
+                    TextResolver = request.TextResolver,
+                    PromptsDisabled = request.PromptsDisabled,
+                };
                 Observe(observer, new CommandExecutionEvent(
                     CommandExecutionEventKind.Started,
                     context.Path,
@@ -159,6 +163,23 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                     CommandExitCategory.Cancelled,
                     new CommandFault("RCLI4000", "The command was cancelled."));
                 diagnostics = NoDiagnostics;
+            }
+            catch (CommandPromptCancelledException)
+            {
+                // Escape or the end of input during a prompt: the user cancelled, as with Ctrl+C.
+                outcome = CommandOutcome.Failure<TResult>(
+                    CommandExitCategory.Cancelled,
+                    new CommandFault("RCLI4000", "The command was cancelled."));
+                diagnostics = NoDiagnostics;
+            }
+            catch (CommandPromptUnavailableException exception)
+            {
+                CommandDiagnostic diagnostic = exception.Diagnostic;
+                outcome = CommandOutcome.Failure<TResult>(
+                    CommandExitCategory.Usage,
+                    new CommandFault(CommandPromptUnavailableException.Code, diagnostic.Message),
+                    [diagnostic]);
+                diagnostics = outcome.Diagnostics;
             }
             catch (Exception exception) when (!IsFatal(exception))
             {

@@ -82,6 +82,15 @@ public sealed class CommandExecutionContext
     /// <summary>Gets the opaque correlation identifier.</summary>
     public string CorrelationId { get; }
 
+    /// <summary>
+    /// Gets or sets the application's text resolver, which <see cref="CommandPrompts"/> uses for framework prompt text.
+    /// Handlers can resolve their own prompt messages with <c>new CommandTextContext(context.Culture, context.TextResolver)</c>.
+    /// </summary>
+    public ICommandTextResolver? TextResolver { get; init; }
+
+    // Set by CommandApp from RUNIC_COMMANDLINE_NO_INPUT.
+    internal bool PromptsDisabled { get; init; }
+
     private static void ValidateCorrelationId(string correlationId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);

@@ -86,8 +86,31 @@ public static class CommandTextKeys
     /// <summary>The error for an unsupported completion shell.</summary>
     public const string CompletionInvalidShell = "completion.invalid-shell";
 
+    /// <summary>The key hint of a redrawn select prompt (<c>Arrow keys to move, Enter to confirm</c>).</summary>
+    public const string PromptSelectHint = "prompts.select-hint";
+    /// <summary>The key hint of a redrawn multi-select prompt.</summary>
+    public const string PromptMultiSelectHint = "prompts.multi-select-hint";
+    /// <summary>The affirmative answer of a confirm prompt (<c>Yes</c>); its first letter is also accepted.</summary>
+    public const string PromptYes = "prompts.yes";
+    /// <summary>The negative answer of a confirm prompt (<c>No</c>); its first letter is also accepted.</summary>
+    public const string PromptNo = "prompts.no";
+    /// <summary>The input request of a plain select prompt; argument: <c>count</c>.</summary>
+    public const string PromptChooseOne = "prompts.choose-one";
+    /// <summary>The input request of a plain multi-select prompt; argument: <c>count</c>.</summary>
+    public const string PromptChooseMany = "prompts.choose-many";
+    /// <summary>The error after an unrecognized confirm answer; arguments: <c>yes</c>, <c>no</c>.</summary>
+    public const string PromptAnswerYesNo = "prompts.answer-yes-no";
+    /// <summary>The error after an empty answer or an empty required multi-select.</summary>
+    public const string PromptRequired = "prompts.required";
+    /// <summary>The summary of a cancelled prompt or task log (<c>Cancelled</c>).</summary>
+    public const string PromptCancelled = "prompts.cancelled";
+    /// <summary>The default summary of a successful task log (<c>Done</c>).</summary>
+    public const string PromptDone = "prompts.done";
+
     /// <summary>The <c>RCLI4000</c> fault message of a cancelled command.</summary>
     public const string FaultCancelled = "faults.RCLI4000";
+    /// <summary>The <c>RCLI4001</c> fault message of a prompt that needed an answer the command could not ask for.</summary>
+    public const string FaultPromptUnavailable = "faults.RCLI4001";
     /// <summary>The <c>RCLI5000</c> fault message of an unexpected failure.</summary>
     public const string FaultHostFailure = "faults.RCLI5000";
     /// <summary>The human-output hint after an <c>RCLI5000</c> fault that explains how to see the exception.</summary>
@@ -167,6 +190,12 @@ public static class CommandTextKeys
     public const string DiagnosticDirectoryNotFound = "diagnostics.directory-not-found";
     /// <summary>The note naming the environment variable an invalid value came from; arguments: <c>parameter</c>, <c>variable</c>.</summary>
     public const string DiagnosticEnvironmentValueSource = "diagnostics.environment-value-source";
+    /// <summary>A prompt without a default outside an interactive terminal; argument: <c>prompt</c>.</summary>
+    public const string DiagnosticPromptRequiresTerminal = "diagnostics.prompt-requires-terminal";
+    /// <summary>A prompt without a default with JSON output; argument: <c>prompt</c>.</summary>
+    public const string DiagnosticPromptJsonOutput = "diagnostics.prompt-json-output";
+    /// <summary>A prompt without a default while prompts are disabled; argument: <c>prompt</c>.</summary>
+    public const string DiagnosticPromptDisabled = "diagnostics.prompt-disabled";
 
     private const string DiagnosticPrefix = "diagnostics.";
     private const string FaultPrefix = "faults.";
@@ -179,7 +208,9 @@ public static class CommandTextKeys
         new(HelpExamples), new(HelpRequired), new(HelpDefault), new(HelpChoices), new(HelpEnvironment), new(HelpExisting),
         new(HelpPathKindFile), new(HelpPathKindDirectory), new(HelpMinimum), new(HelpMaximum), new(HelpRequires), new(HelpConflicts),
         new(CompletionInvalidShell),
-        new(FaultCancelled), new(FaultHostFailure), new(FaultHostFailureHint),
+        new(PromptSelectHint), new(PromptMultiSelectHint), new(PromptYes), new(PromptNo), new(PromptChooseOne, "count"),
+        new(PromptChooseMany, "count"), new(PromptAnswerYesNo, "yes", "no"), new(PromptRequired), new(PromptCancelled), new(PromptDone),
+        new(FaultCancelled), new(FaultPromptUnavailable), new(FaultHostFailure), new(FaultHostFailureHint),
         new(DiagnosticUnknownOption, "option"),
         new(DiagnosticUnknownOptionSuggestion, "option", "suggestion"),
         new(DiagnosticUnknownCommand, "command"),
@@ -215,6 +246,9 @@ public static class CommandTextKeys
         new(DiagnosticFileNotFound, "parameter"),
         new(DiagnosticDirectoryNotFound, "parameter"),
         new(DiagnosticEnvironmentValueSource, "parameter", "variable"),
+        new(DiagnosticPromptRequiresTerminal, "prompt"),
+        new(DiagnosticPromptJsonOutput, "prompt"),
+        new(DiagnosticPromptDisabled, "prompt"),
     ]);
 
     /// <summary>Returns the key <c>diagnostics.{kind}</c> a diagnostic of <paramref name="kind"/> uses unless it names its own key.</summary>

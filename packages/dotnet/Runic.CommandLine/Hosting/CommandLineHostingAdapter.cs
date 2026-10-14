@@ -187,7 +187,7 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
             invocation,
             input.Console,
             input.Culture,
-            input.CorrelationId) { ExceptionObserver = input.ExceptionObserver };
+            input.CorrelationId) { ExceptionObserver = input.ExceptionObserver, TextResolver = Presentation.TextResolver };
         CommandExecutor executor = _executor ?? _app!.CreateExecutor(invocation);
         CommandExecutionResult result = await executor.ExecuteAsync(
             request,

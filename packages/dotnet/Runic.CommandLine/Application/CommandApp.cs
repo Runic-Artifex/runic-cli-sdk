@@ -82,7 +82,11 @@ public sealed class CommandApp
                 CommandExecutor executor = CreateExecutor(parsed.Invocation!);
                 ICommandOutcomeSink sink = _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver, ShowHostFailureHint = debug is null && ExceptionObserver is null };
                 CommandExecutionResult result = await executor.ExecuteAsync(
-                    new CommandExecutionRequest(parsed.Invocation!, Console, culture, requestId) { ExceptionObserver = exceptionObserver },
+                    new CommandExecutionRequest(parsed.Invocation!, Console, culture, requestId)
+                    {
+                        ExceptionObserver = exceptionObserver, TextResolver = TextResolver,
+                        PromptsDisabled = CommandPrompts.IsDisabledBy(settings.GetEnvironmentVariable),
+                    },
                     debug is null ? sink : new CommandDebugOutput.FlushingSink(sink, debug), cancellation.Token).ConfigureAwait(false);
                 if (debug is not null) await debug.FlushAsync(Console, CancellationToken.None).ConfigureAwait(false);
                 return result.ExitCode;

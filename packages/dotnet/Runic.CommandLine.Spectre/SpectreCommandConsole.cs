@@ -9,7 +9,12 @@ using Spectre.Console.Rendering;
 namespace Runic.CommandLine.Spectre;
 
 /// <summary>Renders human output with Spectre.Console while preserving exact machine frames.</summary>
-public sealed class SpectreCommandConsole : ICommandConsole
+/// <remarks>
+/// As an <see cref="ICommandTerminal"/> it lets <see cref="CommandPrompts"/> redraw only when it would colour output itself:
+/// its colour and Unicode decisions and its width apply to prompts, and over the process console it uses Spectre's ANSI
+/// detection, which also enables ANSI in Windows consoles. Keys come from the wrapped console.
+/// </remarks>
+public sealed class SpectreCommandConsole : ICommandConsole, ICommandTerminal
 {
     private readonly ICommandConsole _inner;
     private readonly bool _color;
@@ -61,6 +66,32 @@ public sealed class SpectreCommandConsole : ICommandConsole
         IsErrorRedirected
             ? _inner.WriteErrorAsync(value, cancellationToken)
             : WriteAsync(new Text(value.ToString(), new Style(foreground: Color.Red)), true, cancellationToken);
+
+    /// <inheritdoc />
+    public bool SupportsAnsi => _color && !IsInputRedirected && !IsErrorRedirected && _inner switch
+    {
+        SystemCommandConsole when OperatingSystem.IsWindows() => DetectStandardErrorAnsi(),
+        ICommandTerminal terminal => terminal.SupportsAnsi,
+        _ => false,
+    };
+    /// <inheritdoc />
+    public bool SupportsUnicode => _unicode;
+    int ICommandTerminal.Width => _width;
+    /// <inheritdoc />
+    public ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken) =>
+        _inner is ICommandTerminal terminal ? terminal.ReadKeyAsync(cancellationToken) : throw new NotSupportedException("The wrapped console cannot read keys.");
+    /// <inheritdoc />
+    public ValueTask WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) =>
+        _inner is ICommandTerminal terminal ? terminal.WriteAsync(value, cancellationToken) : _inner.WriteErrorAsync(value, cancellationToken);
+
+    private static bool DetectStandardErrorAnsi()
+    {
+        try
+        {
+            return AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.Detect, Out = new AnsiConsoleOutput(System.Console.Error) }).Profile.Capabilities.Ansi;
+        }
+        catch (Exception exception) when (exception is IOException or PlatformNotSupportedException) { return false; }
+    }
 
     /// <summary>Renders a table, tree, panel, or other Spectre component to an invocation-local stream.</summary>
     public ValueTask WriteAsync(IRenderable value, bool standardError = false, CancellationToken cancellationToken = default)
