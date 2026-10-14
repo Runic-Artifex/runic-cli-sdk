@@ -1,4 +1,1 @@
 #nullable enable
-Runic.CommandLine.Spectre.SpectreCommandConsole.ReadKeyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.ConsoleKeyInfo>
-Runic.CommandLine.Spectre.SpectreCommandConsole.SupportsAnsi.get -> bool
-Runic.CommandLine.Spectre.SpectreCommandConsole.SupportsUnicode.get -> bool
