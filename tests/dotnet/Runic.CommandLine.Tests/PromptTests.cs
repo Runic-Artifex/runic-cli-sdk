@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Runic.CommandLine.Spectre;
@@ -119,6 +120,15 @@ internal sealed partial class PromptTests
         CommandAppTestResult result = await tester.RunAsync(["ask"]);
         AssertEx.Equal(0, result.ExitCode);
         AssertEx.Equal("0:cli/demo\n", result.StandardOutput);
+
+        // A test that keeps its console can check that every queued answer was read.
+        var console = new TestCommandConsole { IsInteractive = true };
+        console.QueueInput("1");
+        console.QueueInput("unused");
+        console.QueueKey(ConsoleKey.Enter);
+        AssertEx.Equal(0, await App(console, (prompts, token) => prompts.SelectAsync("Template", Templates, cancellationToken: token)).RunAsync(["ask"]));
+        AssertEx.Equal(1, console.PendingInputCount);
+        AssertEx.Equal(1, console.PendingKeyCount);
     }
 
     [Test, DisplayName("prompts/noninteractive-uses-defaults-silently")]
@@ -457,6 +467,172 @@ internal sealed partial class PromptTests
         await AssertEx.ThrowsAsync<ArgumentException>(async () => { await prompts.ConfirmAsync(""); });
     }
 
+    [Test, DisplayName("prompts/wide-and-emoji-text-is-measured-in-columns-and-cut-on-text-elements")]
+    public async ValueTask WideText()
+    {
+        CommandPromptChoice<string>[] choices = [new("a", "日本語のテンプレート名前", "説明"), new("b", "🚀🚀🚀🚀🚀🚀🚀🚀 rocket"), new("c", "👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽")];
+        var console = new TestCommandConsole { IsInteractive = true, SupportsAnsi = true, Width = 24 };
+        console.QueueKey(ConsoleKey.Enter);
+        AssertEx.Equal(0, await App(console, (prompts, token) => prompts.SelectAsync("Template", choices, cancellationToken: token)).RunAsync(["ask"]));
+        string[] lines = Frames(console.StandardError)[1].Split('\n');
+        AssertEx.Equal("│  › ● 日本語のテンプ…", lines[1]);
+        AssertEx.Equal("│    ○ 🚀🚀🚀🚀🚀🚀🚀…", lines[2]);
+        // A skin-tone modifier stays with its emoji; the cut never splits a surrogate pair or a text element.
+        AssertEx.Equal("│    ○ 👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽👍🏽…", lines[3]);
+        foreach (string line in lines)
+        {
+            AssertEx.True(ColumnWidth(line) <= 23, line);
+            AssertEx.True(!line.Any(char.IsSurrogate) || line.EnumerateRunes().All(rune => rune != Rune.ReplacementChar), line);
+        }
+
+        console = new TestCommandConsole { IsInteractive = true, SupportsAnsi = true, Width = 20 };
+        AssertEx.Equal(0, await App(console, async (prompts, token) =>
+        {
+            await using CommandTaskLog log = await prompts.StartTaskLogAsync("构建", 2, token);
+            await log.WriteLineAsync("编译中编译中编译中编译中编译中", token);
+            await log.WriteLineAsync("ééé combining marks take no columns at all", token);
+            await Task.Delay(250, token);
+            await log.SucceedAsync(cancellationToken: token);
+            return "ok";
+        }).RunAsync(["ask"]));
+        string frame = Frames(console.StandardError).Last(text => text.Contains("编译", StringComparison.Ordinal));
+        string[] logLines = frame.Split('\n');
+        AssertEx.Equal("│  编译中编译中编…", logLines[1]);
+        AssertEx.Equal("│  ééé combining m…", logLines[2]);
+        foreach (string line in logLines) AssertEx.True(ColumnWidth(line) <= 19, line);
+    }
+
+    // Columns as the prompts count them, for assertions: wide CJK and emoji 2, combining marks 0.
+    private static int ColumnWidth(string text)
+    {
+        int width = 0;
+        var elements = System.Globalization.StringInfo.GetTextElementEnumerator(text);
+        while (elements.MoveNext())
+        {
+            string element = elements.GetTextElement();
+            int first = char.ConvertToUtf32(element, 0);
+            width += first is >= 0x1100 and <= 0x115F or >= 0x2E80 and <= 0xA4CF or >= 0xAC00 and <= 0xD7A3 or >= 0xF900 and <= 0xFAFF
+                or >= 0xFF00 and <= 0xFF60 or >= 0x1F300 and <= 0x1FAFF ? 2 : 1;
+        }
+
+        return width;
+    }
+
+    [Test, DisplayName("prompts/frames-follow-the-terminal-size")]
+    public async ValueTask FramesFollowTerminalSize()
+    {
+        // A task log with more visible lines than the terminal has rows keeps its block one row short of the height.
+        var console = new ResizableConsole(Terminal()) { Height = 6 };
+        AssertEx.Equal(0, await App(console, async (prompts, token) =>
+        {
+            await using CommandTaskLog log = await prompts.StartTaskLogAsync("Build", 30, token);
+            for (int index = 0; index < 40; index++) await log.WriteLineAsync("line " + index, token);
+            await Task.Delay(250, token);
+            await log.SucceedAsync(cancellationToken: token);
+            return "ok";
+        }).RunAsync(["ask"]));
+        string[] frames = Frames(console.Inner.StandardError);
+        AssertEx.True(frames.Any(frame => frame.EndsWith("│  line 39", StringComparison.Ordinal)), console.Inner.StandardError);
+        AssertEx.True(frames.All(frame => frame.Split('\n').Length <= 5), console.Inner.StandardError);
+
+        // A long select scrolls within the height.
+        CommandPromptChoice<int>[] numbers = [.. Enumerable.Range(1, 20).Select(number => new CommandPromptChoice<int>(number, "choice " + number))];
+        console = new ResizableConsole(Terminal()) { Height = 8 };
+        for (int index = 0; index < 12; index++) console.Inner.QueueKey(ConsoleKey.DownArrow);
+        console.Inner.QueueKey(ConsoleKey.Enter);
+        AssertEx.Equal(0, await App(console, async (prompts, token) => (await prompts.SelectAsync("Number", numbers, cancellationToken: token)).ToString(CultureInfo.InvariantCulture)).RunAsync(["ask"]));
+        AssertEx.Equal("0:13\n", console.Inner.StandardOutput);
+        frames = Frames(console.Inner.StandardError);
+        AssertEx.True(frames.Skip(1).SkipLast(1).All(frame => frame.Split('\n').Length <= 7), console.Inner.StandardError);
+        AssertEx.True(frames.Any(frame => frame.Contains("› ● choice 13", StringComparison.Ordinal) && frame.Contains("│    …", StringComparison.Ordinal)), console.Inner.StandardError);
+
+        // After the terminal narrows, the previous frame's lines wrap, so the redraw moves up by the rows they take now.
+        CommandPromptChoice<string>[] wide = [new("a", "a-template-with-a-rather-long-name-number-one"), new("b", "b-template-with-a-rather-long-name-number-two")];
+        console = new ResizableConsole(Terminal()) { Width = 80 };
+        console.Inner.QueueKey(ConsoleKey.DownArrow);
+        console.Inner.QueueKey(ConsoleKey.Enter);
+        console.OnKeyRead = () => console.Width = 20;
+        AssertEx.Equal(0, await App(console, (prompts, token) => prompts.SelectAsync("Template", wide, cancellationToken: token)).RunAsync(["ask"]));
+        string error = console.Inner.StandardError;
+        int rows = Frames(error)[1].Split('\n').Sum(line => Math.Max(1, (line.Length + 19) / 20));
+        AssertEx.True(error.Contains($"\r\u001b[{rows - 1}A\u001b[J", StringComparison.Ordinal), $"expected {rows - 1} rows up: {error}");
+        AssertEx.True(Frames(error)[2].Split('\n').All(line => line.Length <= 19), error);
+    }
+
+    [Test, DisplayName("prompts/hosted-adapter-honours-the-no-input-variable")]
+    public async ValueTask HostedAdapterNoInput()
+    {
+        TestCommandConsole console = Interactive();
+        console.QueueInput("ada");
+        var adapter = new Runic.CommandLine.Hosting.CommandLineHostingAdapter(App(console, (prompts, token) => prompts.TextAsync("Name", cancellationToken: token)));
+        var input = new Runic.CommandLine.Hosting.HostedCommandLineLaunchInput(["ask"])
+        {
+            EnvironmentVariables = new Dictionary<string, string?> { ["RUNIC_COMMANDLINE_NO_INPUT"] = "1" },
+        };
+        AssertEx.Equal(CommandExitCodes.Usage, await adapter.RunAsync(adapter.Classify(input), console));
+        AssertEx.True(console.StandardError.StartsWith("RCLI4001: Name needs an answer, but prompts are disabled.", StringComparison.Ordinal), console.StandardError);
+
+        console = Interactive();
+        console.QueueInput("ada");
+        adapter = new Runic.CommandLine.Hosting.CommandLineHostingAdapter(App(console, (prompts, token) => prompts.TextAsync("Name", cancellationToken: token)));
+        AssertEx.Equal(0, await adapter.RunAsync(adapter.Classify(new Runic.CommandLine.Hosting.HostedCommandLineLaunchInput(["ask"])), console));
+        AssertEx.Equal("0:ada\n", console.StandardOutput);
+    }
+
+    [Test, DisplayName("prompts/a-line-typed-after-a-cancelled-prompt-answers-the-next-prompt")]
+    public async ValueTask CancelledReadIsAdopted()
+    {
+        var console = new SlowLineConsole();
+        using (var cancellation = new CancellationTokenSource())
+        {
+            Task<int> first = App(console, (prompts, token) => prompts.TextAsync("Name", cancellationToken: token)).RunAsync(["ask"], cancellation.Token);
+            await console.Reading.WaitAsync(TimeSpan.FromSeconds(30));
+            await cancellation.CancelAsync();
+            AssertEx.Equal(CommandExitCodes.Cancelled, await first.WaitAsync(TimeSpan.FromSeconds(30)));
+        }
+
+        Task<int> second = App(console, (prompts, token) => prompts.TextAsync("Name again", cancellationToken: token)).RunAsync(["ask"]);
+        console.Answer("ada");
+        AssertEx.Equal(0, await second.WaitAsync(TimeSpan.FromSeconds(30)));
+        AssertEx.Equal("0:ada\n", console.Output.StandardOutput);
+        AssertEx.Equal(1, console.Reads);
+    }
+
+    [Test, DisplayName("prompts/prompts-observe-the-invocation-token-without-one-being-passed")]
+    public async ValueTask InvocationTokenWithoutArgument()
+    {
+        var console = new WaitingConsole(Terminal());
+        using var cancellation = new CancellationTokenSource();
+        // The handler deliberately passes no token.
+#pragma warning disable CA2016
+        Task<int> run = App(console, (prompts, _) => prompts.SelectAsync("Template", Templates)).RunAsync(["ask"], cancellation.Token);
+#pragma warning restore CA2016
+        await console.Waiting.WaitAsync(TimeSpan.FromSeconds(30));
+        await cancellation.CancelAsync();
+        AssertEx.Equal(CommandExitCodes.Cancelled, await run.WaitAsync(TimeSpan.FromSeconds(30)));
+        AssertEx.True(console.Inner.StandardError.EndsWith(ShowCursor + "RCLI4000: The command was cancelled.\n", StringComparison.Ordinal), console.Inner.StandardError);
+    }
+
+    [Test, DisplayName("prompts/task-logs-animate-when-prompts-are-disabled")]
+    public async ValueTask TaskLogsAnimateWhenDisabled()
+    {
+        var settings = new ParseSettings(null) { GetEnvironmentVariable = name => name == "RUNIC_COMMANDLINE_NO_INPUT" ? "1" : null };
+        foreach ((ParseSettings? parse, bool interactive) in new[] { ((ParseSettings?)settings, true), (null, false) })
+        {
+            TestCommandConsole console = Terminal();
+            AssertEx.Equal(0, await App(console, async (prompts, token) =>
+            {
+                AssertEx.True(!prompts.IsInteractive);
+                await using CommandTaskLog log = await prompts.StartSpinnerAsync("Upload", token);
+                await log.SucceedAsync(cancellationToken: token);
+                return await prompts.TextAsync("Name", "app", cancellationToken: token);
+            }, parse, interactive: interactive).RunAsync(["ask"]));
+            AssertEx.Equal("0:app\n", console.StandardOutput);
+            AssertEx.True(console.StandardError.StartsWith(HideCursor, StringComparison.Ordinal), console.StandardError);
+            AssertEx.Equal("◇  Upload  Done\n", Frames(console.StandardError)[^1]);
+        }
+    }
+
     private sealed class DictionaryResolver(Dictionary<string, string> texts) : ICommandTextResolver
     {
         public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) =>
@@ -476,6 +652,7 @@ internal sealed partial class PromptTests
         public bool SupportsAnsi => inner.SupportsAnsi;
         public bool SupportsUnicode => inner.SupportsUnicode;
         public int Width => inner.Width;
+        public int Height => inner.Height;
 
         public async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
         {
@@ -491,9 +668,63 @@ internal sealed partial class PromptTests
             return inner.ReadKeyAsync(cancellationToken);
         }
 
-        public ValueTask WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => inner.WriteAsync(value, cancellationToken);
+        public ValueTask WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => inner.WriteErrorAsync(value, cancellationToken);
         public ValueTask WriteOutAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => inner.WriteOutAsync(value, cancellationToken);
         public ValueTask WriteOutBytesAsync(ReadOnlyMemory<byte> value, CancellationToken cancellationToken) => inner.WriteOutBytesAsync(value, cancellationToken);
         public ValueTask WriteErrorAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => inner.WriteErrorAsync(value, cancellationToken);
+    }
+
+    /// <summary>A terminal whose size the test changes; <see cref="OnKeyRead"/> runs before each key is returned.</summary>
+    private sealed class ResizableConsole(TestCommandConsole inner) : ICommandConsole, ICommandTerminal
+    {
+        public TestCommandConsole Inner => inner;
+        public int Width { get; set; } = inner.Width;
+        public int Height { get; set; } = inner.Height;
+        public Action? OnKeyRead { get; set; }
+        public bool IsInteractive => inner.IsInteractive;
+        public bool IsInputRedirected => inner.IsInputRedirected;
+        public bool IsOutputRedirected => inner.IsOutputRedirected;
+        public bool IsErrorRedirected => inner.IsErrorRedirected;
+        public bool SupportsAnsi => inner.SupportsAnsi;
+        public bool SupportsUnicode => inner.SupportsUnicode;
+        public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken) => inner.ReadLineAsync(cancellationToken);
+
+        public async ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken)
+        {
+            ConsoleKeyInfo key = await inner.ReadKeyAsync(cancellationToken);
+            OnKeyRead?.Invoke();
+            return key;
+        }
+
+        public ValueTask WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => inner.WriteErrorAsync(value, cancellationToken);
+        public ValueTask WriteOutAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => inner.WriteOutAsync(value, cancellationToken);
+        public ValueTask WriteOutBytesAsync(ReadOnlyMemory<byte> value, CancellationToken cancellationToken) => inner.WriteOutBytesAsync(value, cancellationToken);
+        public ValueTask WriteErrorAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => inner.WriteErrorAsync(value, cancellationToken);
+    }
+
+    /// <summary>A console whose line reads wait for <see cref="Answer"/>, ignoring their token like the process console.</summary>
+    private sealed class SlowLineConsole : ICommandConsole
+    {
+        private readonly TaskCompletionSource<string?> _answer = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _reading = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TestCommandConsole Output { get; } = new();
+        public int Reads;
+        public Task Reading => _reading.Task;
+        public void Answer(string line) => _answer.TrySetResult(line);
+        public bool IsInteractive => true;
+        public bool IsInputRedirected => false;
+        public bool IsOutputRedirected => true;
+        public bool IsErrorRedirected => false;
+
+        public async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Reads);
+            _reading.TrySetResult();
+            return await _answer.Task.WaitAsync(TimeSpan.FromMinutes(1), CancellationToken.None);
+        }
+
+        public ValueTask WriteOutAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => Output.WriteOutAsync(value, cancellationToken);
+        public ValueTask WriteOutBytesAsync(ReadOnlyMemory<byte> value, CancellationToken cancellationToken) => Output.WriteOutBytesAsync(value, cancellationToken);
+        public ValueTask WriteErrorAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => Output.WriteErrorAsync(value, cancellationToken);
     }
 }

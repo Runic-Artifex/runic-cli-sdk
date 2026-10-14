@@ -15,9 +15,9 @@ internal sealed class PromptTerminalTests
     private const string ChildSwitch = "--prompt-terminal-child";
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
 
-    public static bool IsChildInvocation(string[] args) => args.Length == 1 && args[0] == ChildSwitch;
+    public static bool IsChildInvocation(string[] args) => args.Length is 1 or 2 && args[0] == ChildSwitch;
 
-    public static async Task<int> RunChildAsync()
+    public static async Task<int> RunChildAsync(bool handleSignals = true)
     {
         CommandPromptChoice<string>[] choices = [new("web", "web"), new("cli", "cli"), new("lib", "lib")];
         var handler = new TestHandler(async (_, context, cancellationToken) =>
@@ -28,7 +28,8 @@ internal sealed class PromptTerminalTests
         });
         CommandCatalog catalog = new CommandCatalogBuilder().Command<TestOptions, TestHandler, TestResult>("ask", command => command
             .BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory(_ => handler)).Produces(new TestCodec())).Build();
-        return await new CommandApp(catalog) { Name = "prompts", ParseSettings = ParseSettings.Default }.RunAsync(["ask"]).ConfigureAwait(false);
+        return await new CommandApp(catalog) { Name = "prompts", ParseSettings = ParseSettings.Default, HandleCancelKeyPress = handleSignals }
+            .RunAsync(["ask"]).ConfigureAwait(false);
     }
 
     [Test, DisplayName("prompts/pty-arrow-keys-and-enter-answer-a-select")]
@@ -83,6 +84,43 @@ internal sealed class PromptTerminalTests
         AssertEx.True(child.Output.Contains("RCLI4000", StringComparison.Ordinal), child.Output);
     }
 
+    [Test, DisplayName("prompts/pty-asks-when-standard-output-is-piped")]
+    public async ValueTask AsksWhenStandardOutputIsPiped()
+    {
+        // Prompts draw on standard error, so a command whose result is captured, as in cd "$(tool pick-dir)", still asks.
+        await using TerminalChild? child = await TerminalChild.StartAsync(redirection: "| sed 's/^/piped:/'");
+        if (child is null) return;
+        await child.WaitForOutputAsync("Arrow keys");
+        await child.SendAsync("\u001b[B\r");
+        AssertEx.Equal(0, await child.WaitForExitAsync());
+        AssertEx.True(child.Output.Contains("piped:0:picked cli", StringComparison.Ordinal), child.Output);
+    }
+
+    [Test, DisplayName("prompts/pty-cannot-ask-when-standard-error-is-redirected")]
+    public async ValueTask CannotAskWhenStandardErrorIsRedirected()
+    {
+        // The question would be invisible, so the prompt fails with RCLI4001 (exit code 2) instead of waiting.
+        await using TerminalChild? child = await TerminalChild.StartAsync(redirection: "2>/dev/null; echo \"exit=$?\"");
+        if (child is null) return;
+        await child.WaitForExitAsync();
+        AssertEx.True(child.Output.Contains("exit=2", StringComparison.Ordinal), child.Output);
+        AssertEx.True(!child.Output.Contains("Template", StringComparison.Ordinal), child.Output);
+    }
+
+    [Test, DisplayName("prompts/pty-ctrl-c-without-signal-handling-still-restores-the-cursor")]
+    public async ValueTask CtrlCWithoutSignalHandling()
+    {
+        await using TerminalChild? child = await TerminalChild.StartAsync(mode: "unhandled");
+        if (child is null) return;
+        await child.WaitForOutputAsync("Arrow keys");
+        await child.SendAsync("\u0003");
+        int exitCode = await child.WaitForExitAsync();
+        AssertEx.True(exitCode != 0 && exitCode != CommandExitCodes.Cancelled, $"exit code {exitCode}");
+        string output = child.Output;
+        int hidden = output.LastIndexOf("\u001b[?25l", StringComparison.Ordinal);
+        AssertEx.True(hidden >= 0 && output.IndexOf("\u001b[?25h", hidden, StringComparison.Ordinal) > hidden, output);
+    }
+
     private sealed class TerminalChild : IAsyncDisposable
     {
         private readonly Process _process;
@@ -94,12 +132,13 @@ internal sealed class PromptTerminalTests
 
         public string Output { get { lock (_output) return _output.ToString(); } }
 
-        public static Task<TerminalChild?> StartAsync(string? noColor = null)
+        public static Task<TerminalChild?> StartAsync(string? noColor = null, string mode = "", string redirection = "")
         {
             if (!OperatingSystem.IsLinux() || FindScript() is not { } script) return Task.FromResult<TerminalChild?>(null);
             // script runs the command with sh -c on a new pseudo-terminal and copies its output to ours. env restores
             // SIGINT, which a noninteractive parent shell may have left ignored, so Ctrl+C reaches the runtime.
-            string command = "exec env --default-signal=INT " + Quote(Environment.ProcessPath!) + " " + ChildSwitch;
+            string childCommand = "env --default-signal=INT " + Quote(Environment.ProcessPath!) + " " + ChildSwitch + (mode.Length > 0 ? " " + mode : "");
+            string command = redirection.Length == 0 ? "exec " + childCommand : childCommand + " " + redirection;
             var start = new ProcessStartInfo(script)
             {
                 RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,

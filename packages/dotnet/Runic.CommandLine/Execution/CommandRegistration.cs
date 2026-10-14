@@ -99,6 +99,7 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                 {
                     TextResolver = request.TextResolver,
                     PromptsDisabled = request.PromptsDisabled,
+                    InvocationCancellation = cancellationToken,
                 };
                 Observe(observer, new CommandExecutionEvent(
                     CommandExecutionEventKind.Started,

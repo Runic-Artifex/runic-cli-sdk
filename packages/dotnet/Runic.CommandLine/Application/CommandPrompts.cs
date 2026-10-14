@@ -37,15 +37,16 @@ public sealed class CommandPromptChoice<T>
 /// </summary>
 /// <remarks>
 /// <para>
-/// Create one from the handler's <see cref="CommandExecutionContext"/> and pass the invocation's cancellation token, so
-/// that Ctrl+C cancels a waiting prompt with the <see cref="CommandExitCategory.Cancelled"/> exit code (4, <c>RCLI4000</c>).
+/// Create one from the handler's <see cref="CommandExecutionContext"/>. Prompts observe the invocation's cancellation
+/// token from the context as well as the token passed to each call, so Ctrl+C cancels a waiting prompt with the
+/// <see cref="CommandExitCategory.Cancelled"/> exit code (4, <c>RCLI4000</c>).
 /// Escape, and the end of input on a line prompt, cancel the same way.
 /// </para>
 /// <para>
 /// A prompt asks only when <see cref="IsInteractive"/> is true. Otherwise it returns its default without writing
 /// anything, and a prompt without a default fails the command with the usage exit code (2) and <c>RCLI4001</c>.
-/// Prompts never ask with JSON output, when the console is not interactive (for example when standard input or output
-/// is redirected), when <c>RUNIC_COMMANDLINE_NO_INPUT</c> is <c>1</c>, <c>true</c> or <c>yes</c>, or when the handler
+/// Prompts never ask with JSON output, when the console is not interactive (standard input or standard error, where
+/// prompts are written, is redirected; standard output may be), when <c>RUNIC_COMMANDLINE_NO_INPUT</c> is <c>1</c>, <c>true</c> or <c>yes</c>, or when the handler
 /// passes <c>interactive: false</c>, for example for its own <c>--yes</c> option.
 /// </para>
 /// <para>
@@ -62,6 +63,7 @@ public sealed class CommandPrompts
     internal const string NoInputEnvironmentVariable = "RUNIC_COMMANDLINE_NO_INPUT";
 
     private readonly PromptEngine _engine;
+    private readonly CancellationToken _invocation;
 
     /// <summary>Initializes prompts for one command invocation.</summary>
     /// <param name="context">The handler's execution context.</param>
@@ -75,6 +77,22 @@ public sealed class CommandPrompts
             : !context.Console.IsInteractive ? PromptUnavailableReason.NotInteractive
             : null;
         _engine = new PromptEngine(context.Console, new CommandTextContext(context.Culture, context.TextResolver), context.Path, reason);
+        _invocation = context.InvocationCancellation;
+    }
+
+    // Prompts observe the invocation's token as well as the caller's, so Ctrl+C reaches a prompt whose handler passed none.
+    private CancellationTokenSource? Link(ref CancellationToken token)
+    {
+        if (!_invocation.CanBeCanceled || token == _invocation) return null;
+        if (!token.CanBeCanceled)
+        {
+            token = _invocation;
+            return null;
+        }
+
+        var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _invocation);
+        token = linked.Token;
+        return linked;
     }
 
     /// <summary>Gets whether prompts ask the user; when false they return their defaults or fail with <c>RCLI4001</c>.</summary>
@@ -88,11 +106,12 @@ public sealed class CommandPrompts
     /// <param name="message">The question.</param>
     /// <param name="defaultValue">The answer for Enter alone and for noninteractive runs, or null to require an answer.</param>
     /// <param name="cancellationToken">The invocation's cancellation token.</param>
-    public ValueTask<bool> ConfirmAsync(string message, bool? defaultValue = null, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> ConfirmAsync(string message, bool? defaultValue = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
-        if (_engine.Reason is not null) return ValueTask.FromResult(defaultValue ?? throw _engine.Unavailable(message));
-        return _engine.ConfirmAsync(message, defaultValue, cancellationToken);
+        if (_engine.Reason is not null) return defaultValue ?? throw _engine.Unavailable(message);
+        using CancellationTokenSource? linked = Link(ref cancellationToken);
+        return await _engine.ConfirmAsync(message, defaultValue, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Asks for a line of text.</summary>
@@ -103,12 +122,13 @@ public sealed class CommandPrompts
     /// Without a validator an empty answer is rejected. Noninteractive runs return the default without validating it.
     /// </param>
     /// <param name="cancellationToken">The invocation's cancellation token.</param>
-    public ValueTask<string> TextAsync(string message, string? defaultValue = null, Func<string, string?>? validate = null,
+    public async ValueTask<string> TextAsync(string message, string? defaultValue = null, Func<string, string?>? validate = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
-        if (_engine.Reason is not null) return ValueTask.FromResult(defaultValue ?? throw _engine.Unavailable(message));
-        return _engine.TextAsync(message, defaultValue, validate, cancellationToken);
+        if (_engine.Reason is not null) return defaultValue ?? throw _engine.Unavailable(message);
+        using CancellationTokenSource? linked = Link(ref cancellationToken);
+        return await _engine.TextAsync(message, defaultValue, validate, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Asks the user to choose one of several choices.</summary>
@@ -124,6 +144,7 @@ public sealed class CommandPrompts
         string[] labels = Labels(choices, out string?[] hints);
         if (defaultIndex is < 0 || defaultIndex >= choices.Count) throw new ArgumentOutOfRangeException(nameof(defaultIndex));
         if (_engine.Reason is not null) return choices[defaultIndex ?? throw _engine.Unavailable(message)].Value;
+        using CancellationTokenSource? linked = Link(ref cancellationToken);
         return choices[await _engine.SelectAsync(message, labels, hints, defaultIndex, cancellationToken).ConfigureAwait(false)].Value;
     }
 
@@ -152,6 +173,7 @@ public sealed class CommandPrompts
         }
         else
         {
+            using CancellationTokenSource? linked = Link(ref cancellationToken);
             selected = await _engine.MultiSelectAsync(message, labels, hints, selected, required, cancellationToken).ConfigureAwait(false);
         }
 
@@ -164,7 +186,10 @@ public sealed class CommandPrompts
     /// <summary>Starts a spinner with a message until the returned log succeeds or fails.</summary>
     /// <param name="message">What the command is doing.</param>
     /// <param name="cancellationToken">Cancels writing the first frame.</param>
-    /// <remarks>Without a redrawing terminal, the message is written once as a plain line.</remarks>
+    /// <remarks>
+    /// The spinner animates on a terminal that can redraw, also when prompts are disabled; with JSON output or without
+    /// such a terminal the message is written once as a plain line.
+    /// </remarks>
     public ValueTask<CommandTaskLog> StartSpinnerAsync(string message, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);

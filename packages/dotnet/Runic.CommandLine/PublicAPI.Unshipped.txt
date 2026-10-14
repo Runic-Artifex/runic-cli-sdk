@@ -1,22 +1,6 @@
 #nullable enable
-const Runic.CommandLine.CommandTextKeys.DiagnosticConflictingOutputSelector = "diagnostics.conflicting-output-selector" -> string!
-const Runic.CommandLine.CommandTextKeys.DiagnosticPromptDisabled = "diagnostics.prompt-disabled" -> string!
-const Runic.CommandLine.CommandTextKeys.DiagnosticPromptJsonOutput = "diagnostics.prompt-json-output" -> string!
-const Runic.CommandLine.CommandTextKeys.DiagnosticPromptRequiresTerminal = "diagnostics.prompt-requires-terminal" -> string!
-const Runic.CommandLine.CommandTextKeys.FaultPromptUnavailable = "faults.RCLI4001" -> string!
-const Runic.CommandLine.CommandTextKeys.HelpJsonOutputAlias = "help.json-output-alias" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptAnswerYesNo = "prompts.answer-yes-no" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptCancelled = "prompts.cancelled" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptChooseMany = "prompts.choose-many" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptChooseOne = "prompts.choose-one" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptDone = "prompts.done" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptMultiSelectHint = "prompts.multi-select-hint" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptNo = "prompts.no" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptRequired = "prompts.required" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptSelectHint = "prompts.select-hint" -> string!
-const Runic.CommandLine.CommandTextKeys.PromptYes = "prompts.yes" -> string!
-Runic.CommandLine.CommandCatalogBuilder.JsonOutputAlias(string! name) -> Runic.CommandLine.CommandCatalogBuilder!
 Runic.CommandLine.CommandCatalog.JsonOutputAlias.get -> string?
+Runic.CommandLine.CommandCatalogBuilder.JsonOutputAlias(string! name) -> Runic.CommandLine.CommandCatalogBuilder!
 Runic.CommandLine.CommandExecutionContext.TextResolver.get -> Runic.CommandLine.ICommandTextResolver?
 Runic.CommandLine.CommandExecutionContext.TextResolver.init -> void
 Runic.CommandLine.CommandExecutionRequest.TextResolver.get -> Runic.CommandLine.ICommandTextResolver?
@@ -42,13 +26,30 @@ Runic.CommandLine.CommandTaskLog.SetStatusAsync(string? status, System.Threading
 Runic.CommandLine.CommandTaskLog.SucceedAsync(string? message = null, bool showLog = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 Runic.CommandLine.CommandTaskLog.WriteLineAsync(string! line, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 Runic.CommandLine.ICommandTerminal
+Runic.CommandLine.ICommandTerminal.Height.get -> int
 Runic.CommandLine.ICommandTerminal.ReadKeyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.ConsoleKeyInfo>
 Runic.CommandLine.ICommandTerminal.SupportsAnsi.get -> bool
 Runic.CommandLine.ICommandTerminal.SupportsUnicode.get -> bool
 Runic.CommandLine.ICommandTerminal.Width.get -> int
 Runic.CommandLine.ICommandTerminal.WriteAsync(System.ReadOnlyMemory<char> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.SystemCommandConsole.Height.get -> int
 Runic.CommandLine.SystemCommandConsole.ReadKeyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.ConsoleKeyInfo>
 Runic.CommandLine.SystemCommandConsole.SupportsAnsi.get -> bool
 Runic.CommandLine.SystemCommandConsole.SupportsUnicode.get -> bool
 Runic.CommandLine.SystemCommandConsole.Width.get -> int
-Runic.CommandLine.SystemCommandConsole.WriteAsync(System.ReadOnlyMemory<char> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+const Runic.CommandLine.CommandTextKeys.DiagnosticConflictingOutputSelector = "diagnostics.conflicting-output-selector" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticPromptDisabled = "diagnostics.prompt-disabled" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticPromptJsonOutput = "diagnostics.prompt-json-output" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticPromptRequiresTerminal = "diagnostics.prompt-requires-terminal" -> string!
+const Runic.CommandLine.CommandTextKeys.FaultPromptUnavailable = "faults.RCLI4001" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpJsonOutputAlias = "help.json-output-alias" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptAnswerYesNo = "prompts.answer-yes-no" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptCancelled = "prompts.cancelled" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptChooseMany = "prompts.choose-many" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptChooseOne = "prompts.choose-one" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptDone = "prompts.done" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptMultiSelectHint = "prompts.multi-select-hint" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptNo = "prompts.no" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptRequired = "prompts.required" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptSelectHint = "prompts.select-hint" -> string!
+const Runic.CommandLine.CommandTextKeys.PromptYes = "prompts.yes" -> string!

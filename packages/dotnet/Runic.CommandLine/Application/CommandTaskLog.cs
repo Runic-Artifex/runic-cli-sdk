@@ -11,7 +11,7 @@ namespace Runic.CommandLine;
 /// </summary>
 /// <remarks>
 /// <para>
-/// On a redrawing terminal the block animates on standard error until <see cref="SucceedAsync"/> or
+/// On a terminal that can redraw the block animates on standard error, also when prompts are disabled, until <see cref="SucceedAsync"/> or
 /// <see cref="FailAsync"/> replaces it with one summary line, followed by the log when requested. Otherwise, including
 /// with JSON output, the title, each line, each status and the summary are written as plain lines to standard error.
 /// </para>
@@ -43,7 +43,7 @@ public sealed class CommandTaskLog : IAsyncDisposable
     {
         _engine = engine;
         _terminal = terminal;
-        _style = terminal is null ? null : new PromptStyle(terminal.SupportsUnicode, terminal.Width);
+        _style = terminal is null ? null : new PromptStyle(terminal);
         _title = title;
         _visibleLines = visibleLines;
     }
@@ -209,7 +209,9 @@ public sealed class CommandTaskLog : IAsyncDisposable
         LineBuilder title = style.Line().Add(spinner[_tick % spinner.Length], PromptStyle.Accent).Add("  " + _title);
         if (_status is not null) title.Add("  " + _status, PromptStyle.Muted);
         var lines = new List<string> { title.ToString() };
-        int skip = Math.Max(0, _lines.Count - _visibleLines);
+        // The title and the visible lines stay below the terminal height, so a short terminal never scrolls copies.
+        int visible = Math.Min(_visibleLines, Math.Max(0, style.Height - 2));
+        int skip = Math.Max(0, _lines.Count - visible);
         foreach (string line in _lines)
         {
             if (skip-- > 0) continue;

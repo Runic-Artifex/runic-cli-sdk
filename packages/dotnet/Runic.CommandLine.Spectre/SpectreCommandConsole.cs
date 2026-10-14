@@ -76,12 +76,13 @@ public sealed class SpectreCommandConsole : ICommandConsole, ICommandTerminal
     };
     /// <inheritdoc />
     public bool SupportsUnicode => _unicode;
-    int ICommandTerminal.Width => _width;
+    // An explicit width stays fixed; a measured one follows the terminal when it is resized.
+    int ICommandTerminal.Width => !IsTerminalWidth ? _width : _inner is ICommandTerminal terminal ? terminal.Width : _width;
+    int ICommandTerminal.Height => _inner is ICommandTerminal terminal ? terminal.Height : 24;
     /// <inheritdoc />
     public ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken) =>
         _inner is ICommandTerminal terminal ? terminal.ReadKeyAsync(cancellationToken) : throw new NotSupportedException("The wrapped console cannot read keys.");
-    /// <inheritdoc />
-    public ValueTask WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) =>
+    ValueTask ICommandTerminal.WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) =>
         _inner is ICommandTerminal terminal ? terminal.WriteAsync(value, cancellationToken) : _inner.WriteErrorAsync(value, cancellationToken);
 
     private static bool DetectStandardErrorAnsi()

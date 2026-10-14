@@ -24,14 +24,20 @@ public interface ICommandTerminal
     /// <summary>Gets whether the terminal can show Unicode symbols; otherwise prompts use ASCII.</summary>
     bool SupportsUnicode { get; }
 
-    /// <summary>Gets the terminal width in columns. Redrawn lines are cut to fit so they never wrap.</summary>
+    /// <summary>Gets the terminal width in columns, read for every frame. Redrawn lines are cut to fit so they never wrap.</summary>
     int Width { get; }
+
+    /// <summary>Gets the terminal height in rows, read for every frame. A redrawn block stays at least one row shorter.</summary>
+    int Height { get; }
 
     /// <summary>Waits for one key press without echoing it.</summary>
     /// <param name="cancellationToken">Cancels the wait, for example after Ctrl+C.</param>
     ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken);
 
-    /// <summary>Writes characters, including ANSI control sequences, to standard error without styling or wrapping them.</summary>
+    /// <summary>
+    /// Writes characters, including ANSI control sequences, to standard error without styling or wrapping them.
+    /// Consoles implement this member explicitly, so it does not stand beside their standard-output writes.
+    /// </summary>
     /// <param name="value">The characters to write.</param>
     /// <param name="cancellationToken">Cancels the pending write.</param>
     ValueTask WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken);

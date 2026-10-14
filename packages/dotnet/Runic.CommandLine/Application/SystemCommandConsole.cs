@@ -19,7 +19,8 @@ public sealed class SystemCommandConsole : ICommandConsole, ICommandTerminal
     private readonly System.IO.TextWriter _output = Console.Out;
     private readonly System.IO.TextWriter _error = Console.Error;
     /// <inheritdoc />
-    public bool IsInteractive => !IsInputRedirected && !IsOutputRedirected;
+    /// <remarks>True when standard input and standard error are terminals; standard output may be redirected.</remarks>
+    public bool IsInteractive => !IsInputRedirected && !IsErrorRedirected;
     /// <inheritdoc />
     public bool IsInputRedirected => Console.IsInputRedirected;
     /// <inheritdoc />
@@ -48,6 +49,17 @@ public sealed class SystemCommandConsole : ICommandConsole, ICommandTerminal
     }
 
     /// <inheritdoc />
+    public int Height
+    {
+        get
+        {
+            if (Console.IsErrorRedirected) return 24;
+            try { return Console.WindowHeight >= 4 ? Console.WindowHeight : 24; }
+            catch (Exception exception) when (exception is System.IO.IOException or PlatformNotSupportedException) { return 24; }
+        }
+    }
+
+    /// <inheritdoc />
     /// <remarks>Polls for a key so that the token, which Ctrl+C cancels, ends the wait.</remarks>
     public async ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken)
     {
@@ -59,8 +71,7 @@ public sealed class SystemCommandConsole : ICommandConsole, ICommandTerminal
         }
     }
 
-    /// <inheritdoc />
-    public async ValueTask WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken)
+    async ValueTask ICommandTerminal.WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken)
     {
         await _error.WriteAsync(value, cancellationToken).ConfigureAwait(false);
         await _error.FlushAsync(cancellationToken).ConfigureAwait(false);

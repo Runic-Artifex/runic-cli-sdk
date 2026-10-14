@@ -14,7 +14,9 @@ namespace Runic.CommandLine;
 public interface ICommandConsole
 {
     /// <summary>
-    /// Gets whether the console can safely accept an interactive prompt.
+    /// Gets whether the console can safely accept an interactive prompt: standard input and standard error, where
+    /// prompts are written, are a terminal. Standard output may be redirected, so a prompting command's result can
+    /// still be captured or piped.
     /// </summary>
     bool IsInteractive { get; }
 

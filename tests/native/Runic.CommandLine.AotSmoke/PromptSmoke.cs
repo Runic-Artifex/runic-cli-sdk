@@ -73,6 +73,7 @@ internal static class PromptSmoke
         public bool SupportsAnsi => ansi;
         public bool SupportsUnicode => true;
         public int Width => 60;
+        public int Height => 24;
 
         public ScriptedConsole Key(ConsoleKey key, char character)
         {

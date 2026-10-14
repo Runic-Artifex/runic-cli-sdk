@@ -88,8 +88,11 @@ public sealed class CommandExecutionContext
     /// </summary>
     public ICommandTextResolver? TextResolver { get; init; }
 
-    // Set by CommandApp from RUNIC_COMMANDLINE_NO_INPUT.
+    // Set by CommandApp and the hosting adapter from RUNIC_COMMANDLINE_NO_INPUT.
     internal bool PromptsDisabled { get; init; }
+
+    // The invocation's token, which CommandPrompts observes even when a handler passes none.
+    internal CancellationToken InvocationCancellation { get; init; }
 
     private static void ValidateCorrelationId(string correlationId)
     {

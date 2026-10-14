@@ -76,7 +76,7 @@ public sealed class CommandExecutionRequest
     /// <summary>Gets or sets the text resolver passed to the handler's <see cref="CommandExecutionContext.TextResolver"/>.</summary>
     public ICommandTextResolver? TextResolver { get; init; }
 
-    // Set by CommandApp from RUNIC_COMMANDLINE_NO_INPUT; see CommandPrompts.
+    // Set by CommandApp and the hosting adapter from RUNIC_COMMANDLINE_NO_INPUT; see CommandPrompts.
     internal bool PromptsDisabled { get; init; }
 
     internal ICommandConsole HandlerConsole => Invocation.OutputClassification.Mode == CommandOutputMode.Json

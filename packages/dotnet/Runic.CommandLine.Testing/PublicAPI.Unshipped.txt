@@ -1,8 +1,12 @@
 #nullable enable
 Runic.CommandLine.Testing.CommandAppTester.CreateConsole.get -> System.Func<Runic.CommandLine.Testing.TestCommandConsole!>!
 Runic.CommandLine.Testing.CommandAppTester.CreateConsole.init -> void
-Runic.CommandLine.Testing.TestCommandConsole.QueueKey(System.ConsoleKeyInfo key) -> void
+Runic.CommandLine.Testing.TestCommandConsole.Height.get -> int
+Runic.CommandLine.Testing.TestCommandConsole.Height.init -> void
+Runic.CommandLine.Testing.TestCommandConsole.PendingInputCount.get -> int
+Runic.CommandLine.Testing.TestCommandConsole.PendingKeyCount.get -> int
 Runic.CommandLine.Testing.TestCommandConsole.QueueKey(System.ConsoleKey key) -> void
+Runic.CommandLine.Testing.TestCommandConsole.QueueKey(System.ConsoleKeyInfo key) -> void
 Runic.CommandLine.Testing.TestCommandConsole.QueueText(string! text) -> void
 Runic.CommandLine.Testing.TestCommandConsole.ReadKeyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.ConsoleKeyInfo>
 Runic.CommandLine.Testing.TestCommandConsole.SupportsAnsi.get -> bool
@@ -11,4 +15,3 @@ Runic.CommandLine.Testing.TestCommandConsole.SupportsUnicode.get -> bool
 Runic.CommandLine.Testing.TestCommandConsole.SupportsUnicode.init -> void
 Runic.CommandLine.Testing.TestCommandConsole.Width.get -> int
 Runic.CommandLine.Testing.TestCommandConsole.Width.init -> void
-Runic.CommandLine.Testing.TestCommandConsole.WriteAsync(System.ReadOnlyMemory<char> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

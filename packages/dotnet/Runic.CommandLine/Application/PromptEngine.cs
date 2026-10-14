@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -39,11 +41,20 @@ internal sealed class PromptEngine
         _path = path;
         Reason = reason;
         Rich = reason is null && _terminal is { SupportsAnsi: true };
+        // A task log takes no input, so --yes or RUNIC_COMMANDLINE_NO_INPUT keep its animation; only JSON output or a
+        // terminal that cannot redraw turn it into plain lines.
+        AnimatesTasks = reason != PromptUnavailableReason.JsonOutput && console.IsInteractive && _terminal is { SupportsAnsi: true };
     }
+
+    // One outstanding line read per console. A prompt cancelled while the user had not answered leaves its read
+    // running, because the process console cannot abandon a read; the next prompt on the same console adopts it, so
+    // the line the user types next answers that prompt instead of being lost.
+    private static readonly ConditionalWeakTable<ICommandConsole, StrongBox<Task<string?>?>> PendingReads = new();
 
     internal PromptUnavailableReason? Reason { get; }
     internal CommandTextContext Text { get; }
     internal bool Rich { get; }
+    internal bool AnimatesTasks { get; }
 
     internal string Resolve(string key, string fallback, params string[] arguments) => Text.Resolve(key, fallback, arguments);
 
@@ -72,12 +83,24 @@ internal sealed class PromptEngine
     {
         // The process console reads synchronously and ignores the token, so the read runs on the thread pool and the
         // prompt stops waiting when Ctrl+C cancels the token instead of when the user presses Enter.
+        ICommandConsole console = _console;
+        StrongBox<Task<string?>?> slot = PendingReads.GetValue(console, static _ => new StrongBox<Task<string?>?>());
+        Task<string?> read;
+        lock (slot)
+        {
+            if (slot.Value is not { IsCanceled: false, IsFaulted: false } pending)
+                slot.Value = pending = Task.Run(() => console.ReadLineAsync(CancellationToken.None).AsTask(), CancellationToken.None);
+            read = pending;
+        }
+
         string? line;
         try
         {
-            ICommandConsole console = _console;
-            line = await Task.Run(() => console.ReadLineAsync(cancellationToken).AsTask(), CancellationToken.None)
-                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            line = await read.WaitAsync(cancellationToken).ConfigureAwait(false);
+            lock (slot)
+            {
+                if (ReferenceEquals(slot.Value, read)) slot.Value = null;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -113,7 +136,7 @@ internal sealed class PromptEngine
 
     internal async ValueTask<CommandTaskLog> StartTaskLogAsync(string title, int visibleLines, CancellationToken cancellationToken)
     {
-        var log = new CommandTaskLog(this, Rich && _terminal is not null ? _terminal : null, title, visibleLines);
+        var log = new CommandTaskLog(this, AnimatesTasks ? _terminal : null, title, visibleLines);
         await log.StartAsync(cancellationToken).ConfigureAwait(false);
         return log;
     }
@@ -281,11 +304,13 @@ internal sealed class LinePrompts(PromptEngine engine)
     }
 }
 
-/// <summary>Symbols and colours of the redrawing prompts.</summary>
-internal sealed class PromptStyle(bool unicode, int width)
+/// <summary>Symbols and colours of the redrawing prompts. The size is read for every frame, so a resized terminal is followed.</summary>
+internal sealed class PromptStyle(ICommandTerminal terminal)
 {
     internal const string Accent = "36", Success = "32", Failure = "31", Warning = "33", Muted = "90", Inverse = "7";
-    internal int Width { get; } = Math.Max(20, width);
+    private readonly bool unicode = terminal.SupportsUnicode;
+    internal int Width => Math.Max(20, terminal.Width);
+    internal int Height => Math.Max(4, terminal.Height);
     internal string Active => unicode ? "◆" : "*";
     internal string Done => unicode ? "◇" : "o";
     internal string Cancelled => unicode ? "■" : "x";
@@ -300,10 +325,11 @@ internal sealed class PromptStyle(bool unicode, int width)
     internal string More => unicode ? "…" : "...";
     internal string[] Spinner => unicode ? ["◒", "◐", "◓", "◑"] : ["|", "/", "-", "\\"];
 
-    /// <summary>Builds one screen line, cut to the terminal width so it never wraps.</summary>
+    /// <summary>Builds one screen line, cut to the terminal width less one column so it never wraps.</summary>
     internal LineBuilder Line() => new(Width - 1, More);
 }
 
+/// <summary>Builds a line in terminal columns, cutting it on a text-element boundary and ending it with an ellipsis.</summary>
 internal sealed class LineBuilder(int limit, string more)
 {
     private readonly StringBuilder _text = new();
@@ -314,14 +340,16 @@ internal sealed class LineBuilder(int limit, string more)
     {
         if (_full || text.Length == 0) return this;
         text = PromptEngine.Sanitize(text);
-        if (_visible + text.Length > limit)
+        int width = TerminalCells.Width(text);
+        if (_visible + width > limit)
         {
-            int keep = Math.Max(0, limit - _visible - more.Length);
-            text = text[..Math.Min(text.Length, keep)] + more;
+            int moreWidth = TerminalCells.Width(more);
+            text = TerminalCells.Cut(text, Math.Max(0, limit - _visible - moreWidth), out width) + more;
+            width += moreWidth;
             _full = true;
         }
 
-        _visible += text.Length;
+        _visible += width;
         if (style is null) _text.Append(text);
         else _text.Append("\u001b[").Append(style).Append('m').Append(text).Append("\u001b[0m");
         return this;
@@ -336,7 +364,8 @@ internal sealed class TerminalFrame
     internal const string HideCursor = "\u001b[?25l", ShowCursor = "\u001b[?25h";
     private readonly ICommandTerminal _terminal;
     private readonly EventHandler _restoreOnExit;
-    private int _lines;
+    private readonly List<PosixSignalRegistration> _signals = new(3);
+    private int[] _widths = [];
     private int _ended;
 
     private TerminalFrame(ICommandTerminal terminal)
@@ -354,13 +383,21 @@ internal sealed class TerminalFrame
     {
         var frame = new TerminalFrame(terminal);
         AppDomain.CurrentDomain.ProcessExit += frame._restoreOnExit;
+        // Without CommandApp's signal handling a termination signal ends the process without ProcessExit. These
+        // registrations only show the cursor and leave the signal's default action (or another handler's choice) alone.
+        foreach (PosixSignal signal in new[] { PosixSignal.SIGINT, PosixSignal.SIGTERM, PosixSignal.SIGQUIT })
+        {
+            try { frame._signals.Add(PosixSignalRegistration.Create(signal, _ => frame._restoreOnExit(null, EventArgs.Empty))); }
+            catch (PlatformNotSupportedException) { }
+        }
+
         try
         {
             await terminal.WriteAsync(HideCursor.AsMemory(), cancellationToken).ConfigureAwait(false);
         }
         catch
         {
-            AppDomain.CurrentDomain.ProcessExit -= frame._restoreOnExit;
+            frame.Release();
             throw;
         }
 
@@ -380,17 +417,28 @@ internal sealed class TerminalFrame
         }
         finally
         {
-            AppDomain.CurrentDomain.ProcessExit -= _restoreOnExit;
+            Release();
         }
+    }
+
+    private void Release()
+    {
+        AppDomain.CurrentDomain.ProcessExit -= _restoreOnExit;
+        foreach (PosixSignalRegistration registration in _signals) registration.Dispose();
+        _signals.Clear();
     }
 
     private string Compose(IReadOnlyList<string> lines, bool final)
     {
         var builder = new StringBuilder();
-        if (_lines > 0)
+        if (_widths.Length > 0)
         {
+            // Lines were cut to the width of their frame; after the terminal narrowed they wrap, so count the rows
+            // they take now to get back to the first one.
+            int width = Math.Max(1, _terminal.Width), rows = 0;
+            foreach (int cells in _widths) rows += Math.Max(1, (cells + width - 1) / width);
             builder.Append('\r');
-            if (_lines > 1) builder.Append("\u001b[").Append((_lines - 1).ToString(CultureInfo.InvariantCulture)).Append('A');
+            if (rows > 1) builder.Append("\u001b[").Append((rows - 1).ToString(CultureInfo.InvariantCulture)).Append('A');
         }
 
         builder.Append("\u001b[J");
@@ -401,7 +449,7 @@ internal sealed class TerminalFrame
         }
 
         if (final && lines.Count > 0) builder.Append('\n');
-        _lines = final ? 0 : lines.Count;
+        _widths = final ? [] : [.. System.Linq.Enumerable.Select(lines, TerminalCells.VisibleWidth)];
         return builder.ToString();
     }
 }
@@ -410,7 +458,7 @@ internal sealed class TerminalFrame
 internal sealed class RichPrompts(PromptEngine engine, ICommandTerminal terminal)
 {
     private const int MaximumVisibleChoices = 10;
-    private readonly PromptStyle _style = new(terminal.SupportsUnicode, terminal.Width);
+    private readonly PromptStyle _style = new(terminal);
 
     internal async ValueTask<bool> ConfirmAsync(string message, bool? defaultValue, CancellationToken cancellationToken)
     {
@@ -568,8 +616,12 @@ internal sealed class RichPrompts(PromptEngine engine, ICommandTerminal terminal
     private static List<string> ChoiceLines(PromptStyle style, string[] labels, string?[] hints, int cursor,
         Func<int, string> marker, Func<int, string> markerStyle, string hint, string error)
     {
-        int first = labels.Length <= MaximumVisibleChoices ? 0 : Math.Clamp(cursor - MaximumVisibleChoices / 2, 0, labels.Length - MaximumVisibleChoices);
-        int last = Math.Min(labels.Length, first + MaximumVisibleChoices);
+        // The block stays below the terminal height: the question and hint lines, the choices and, when the list
+        // scrolls, a marker above and below.
+        int room = Math.Max(1, style.Height - 3);
+        int window = labels.Length <= Math.Min(MaximumVisibleChoices, room) ? labels.Length : Math.Max(1, Math.Min(MaximumVisibleChoices, room - 2));
+        int first = labels.Length <= window ? 0 : Math.Clamp(cursor - window / 2, 0, labels.Length - window);
+        int last = Math.Min(labels.Length, first + window);
         var lines = new List<string>();
         if (first > 0) lines.Add(style.Line().Add(style.Bar + "  ", PromptStyle.Accent).Add("  " + style.More, PromptStyle.Muted).ToString());
         for (int index = first; index < last; index++)

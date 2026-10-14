@@ -77,12 +77,20 @@ public sealed class TestCommandConsole : ICommandConsole, ICommandTerminal
     public bool SupportsUnicode { get; init; } = true;
     /// <inheritdoc />
     public int Width { get; init; } = 80;
+    /// <inheritdoc />
+    public int Height { get; init; } = 24;
+
+    /// <summary>Gets how many queued lines no prompt has read, so a test can check that every answer was used.</summary>
+    public int PendingInputCount => _input.Count;
+
+    /// <summary>Gets how many queued keys no prompt has read.</summary>
+    public int PendingKeyCount => _keys.Reader.Count;
 
     /// <summary>Returns the next queued key, waiting until one is queued or <paramref name="cancellationToken"/> is cancelled.</summary>
     public ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken) => _keys.Reader.ReadAsync(cancellationToken);
 
-    /// <summary>Appends characters to <see cref="StandardError"/>.</summary>
-    public ValueTask WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => WriteErrorAsync(value, cancellationToken);
+    // Terminal output is standard error.
+    ValueTask ICommandTerminal.WriteAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => WriteErrorAsync(value, cancellationToken);
 
     /// <inheritdoc />
     public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
