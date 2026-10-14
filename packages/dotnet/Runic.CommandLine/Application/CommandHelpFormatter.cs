@@ -292,7 +292,7 @@ public static class CommandHelpFormatter
         return Rune.ReplacementChar;
     }
 
-    private static int CellWidth(Rune rune)
+    internal static int CellWidth(Rune rune)
     {
         // Tab, the no-break sentinel and the soft hyphen (which terminals draw) take one cell.
         if (rune.Value is '\t' or NoBreak or 0x00AD) return 1;

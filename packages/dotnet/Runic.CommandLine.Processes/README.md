@@ -103,6 +103,24 @@ ProcessResult result = await runner.RunAsync(request, new LogLines(log), cancell
   `ExecutionFailed` with `RCLI6009`, also when the child had already exited. No
   call starts after the result is returned.
 
+In a command, a `CommandTaskLog` from `CommandPrompts` in `Runic.CommandLine`
+shows the last lines under a spinner, clears them on success and shows them on
+failure; without a terminal, and with JSON output, it writes plain lines to
+standard error:
+
+```csharp
+sealed class TaskLogLines(CommandTaskLog log) : IProcessOutputHandler
+{
+    public ValueTask OnLineAsync(ProcessOutputLine line, CancellationToken cancellationToken) =>
+        log.WriteLineAsync(line.Text, cancellationToken);
+}
+
+await using CommandTaskLog log = await prompts.StartTaskLogAsync("nix build", visibleLines: 6, cancellationToken);
+ProcessResult result = await runner.RunAsync(request, new TaskLogLines(log), cancellationToken);
+if (result.State == ProcessState.Exited && result.ExitCode == 0) await log.SucceedAsync(cancellationToken: cancellationToken);
+else await log.FailAsync($"nix build ended in {result.State}", cancellationToken: cancellationToken);
+```
+
 `IProcessRunner.RunAsync(request, outputHandler, cancellationToken)` has a
 default implementation for runners that cannot stream, such as a test double:
 it runs the request and then passes the captured standard output and standard

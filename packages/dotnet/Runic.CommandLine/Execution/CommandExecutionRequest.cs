@@ -73,6 +73,12 @@ public sealed class CommandExecutionRequest
     /// <summary>Gets or sets an opt-in observer for internal failures. Exceptions from this callback are ignored.</summary>
     public Action<Exception>? ExceptionObserver { get; init; }
 
+    /// <summary>Gets or sets the text resolver passed to the handler's <see cref="CommandExecutionContext.TextResolver"/>.</summary>
+    public ICommandTextResolver? TextResolver { get; init; }
+
+    // Set by CommandApp and the hosting adapter from RUNIC_COMMANDLINE_NO_INPUT; see CommandPrompts.
+    internal bool PromptsDisabled { get; init; }
+
     internal ICommandConsole HandlerConsole => Invocation.OutputClassification.Mode == CommandOutputMode.Json
         ? new MachineHandlerConsole(Console) : Console;
 

@@ -15,7 +15,7 @@ The managed suites under `tests/dotnet` (Contracts, Hosting, Processes and the m
   metapackage is not used: it adds TUnit's assertion library and the MTP telemetry extension, and the suites keep their
   own assertion helpers. Set `TUnitImplicitUsings` to `false` and import `TUnit.Core`, as the repository does not use
   implicit usings. TUnit generates the entry point, so a suite has no `Program.cs`. The Processes and main suites start
-  their own executable as a child process (the process fixture and the signal cases); they set
+  their own executable as a child process (the process fixture, and the signal and prompt terminal cases); they set
   `GenerateTestingPlatformEntryPoint` to `false`, and their `Program.cs` runs the child before it builds the test
   application the way the generated entry point does.
 - **Lock file.** Set `RestorePackagesWithLockFile` to `true` and `RestoreLockedMode` to `true` when `CI` is `true`, and
@@ -42,8 +42,10 @@ The managed suites under `tests/dotnet` (Contracts, Hosting, Processes and the m
   parallelism for a suite, make sure no case shares mutable static state, the current directory, environment variables,
   ports or files with another case. The Contracts, Hosting and main suites limit themselves to one case per processor
   with `ParallelLimiter<ProcessorCountParallelLimit>` in `AssemblyInfo.cs`. A case or class that cannot run alongside
-  others is `[NotInParallel]`: the Hosting case that sets `HOST_VALUE`, the main suite's signal and native shell
-  completion cases, which start processes with fixed deadlines, and its two cases that count calls in static fields.
+  others is `[NotInParallel]`: the Hosting case that sets `HOST_VALUE`, the main suite's signal, prompt terminal and
+  native shell completion cases, which start processes with fixed deadlines, and its two cases that count calls in
+  static fields. The prompt terminal cases answer a prompt on a real pseudo-terminal through util-linux `script` on
+  Linux, and return early where `script` is missing.
   Every Processes case starts child processes and races them against timeouts, so that suite runs `[NotInParallel]` as
   a whole. Pass `--maximum-parallel-tests 1` to run cases one at a time while debugging.
 - **IDE.** Visual Studio, Rider and the C# Dev Kit discover MTP test projects when their Microsoft.Testing.Platform

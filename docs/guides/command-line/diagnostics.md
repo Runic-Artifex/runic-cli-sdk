@@ -11,7 +11,7 @@ tag of the package you use, so the page always matches your version.
 | `RCLI0002`–`RCLI0024` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
 | `RCLI1001`–`RCLI1016` | Parser | Usage diagnostics (exit code 2) |
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
-| `RCLI4000`, `RCLI5000` | Execution | Cancellation and host faults |
+| `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
 | `RCLI6001`–`RCLI6011` | `Runic.CommandLine.Processes` | Process faults returned to the command |
 | `RCLI9001`–`RCLI9043` | Source generator | Compiler errors and warnings |
 
@@ -327,8 +327,21 @@ environment variable, and names that variable.
 
 ### RCLI4000
 
-The command was cancelled, for example by Ctrl+C, before it completed. The exit
-category is `Cancelled`.
+The command was cancelled, for example by Ctrl+C, before it completed. Ctrl+C,
+Escape or the end of input while a `CommandPrompts` prompt waits also cancel the
+command this way. The exit category is `Cancelled`, exit code 4.
+
+### RCLI4001
+
+A `CommandPrompts` prompt without a default needed an answer, but the command
+could not ask for one. The diagnostic kind names the reason:
+`prompt-json-output` (JSON output never prompts), `prompt-requires-terminal`
+(standard input or standard error, where prompts are written, is not a
+terminal; standard output may be redirected) or `prompt-disabled`
+(`RUNIC_COMMANDLINE_NO_INPUT` is set, or the handler created the prompts with
+`interactive: false`). Its argument is the prompt's question. Pass the value
+another way, usually as an option, or give the prompt a default. The exit
+category is `Usage`, exit code 2.
 
 ### RCLI5000
 

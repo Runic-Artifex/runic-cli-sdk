@@ -38,9 +38,9 @@ public enum CommandExitCategory
 /// <list type="table">
 /// <listheader><term>Exit code</term><description>Category and typical cause</description></listheader>
 /// <item><term>0</term><description><see cref="CommandExitCategory.Success"/>, including help, version and completion scripts.</description></item>
-/// <item><term>2</term><description><see cref="CommandExitCategory.Usage"/>: unknown command or option, missing, malformed or out-of-range input (<c>RCLI1xxx</c>, <c>RCLI2xxx</c>).</description></item>
+/// <item><term>2</term><description><see cref="CommandExitCategory.Usage"/>: unknown command or option, missing, malformed or out-of-range input (<c>RCLI1xxx</c>, <c>RCLI2xxx</c>), or a prompt that cannot ask (<c>RCLI4001</c>).</description></item>
 /// <item><term>3</term><description><see cref="CommandExitCategory.Validation"/>: a handler rejected well-formed input, for example a business rule.</description></item>
-/// <item><term>4</term><description><see cref="CommandExitCategory.Cancelled"/>: Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation.</description></item>
+/// <item><term>4</term><description><see cref="CommandExitCategory.Cancelled"/>: Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation, or the user cancelled a prompt.</description></item>
 /// <item><term>5</term><description><see cref="CommandExitCategory.Unavailable"/>: a required resource or service was unavailable, including "not found".</description></item>
 /// <item><term>10</term><description><see cref="CommandExitCategory.CommandFailure"/>: the command reported another expected failure.</description></item>
 /// <item><term>70</term><description><see cref="CommandExitCategory.HostFailure"/>: an unexpected exception or infrastructure failure (<c>RCLI5000</c>).</description></item>

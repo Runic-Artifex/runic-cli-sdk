@@ -36,6 +36,8 @@ internal static class Program
         var presenter = new Runic.CommandLine.Spectre.SpectreCommandConsole(human, width: 40, color: false);
         await presenter.WriteAsync(new global::Spectre.Console.Table().AddColumn("Status").AddRow("Ready")).ConfigureAwait(false);
         if (!human.StandardOutput.Contains("Ready", StringComparison.Ordinal)) return 30;
+        int prompts = await PromptSmoke.RunAsync().ConfigureAwait(false);
+        if (prompts != 0) return prompts;
         await presenter.WithProgressAsync("Checking", static (_, _) => Task.CompletedTask).ConfigureAwait(false);
         var runnerOutput = new BufferCommandConsole();
         if (await new CommandApp(catalog) { Console = runnerOutput, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--output=json"]).ConfigureAwait(false) != 0) return 40;
