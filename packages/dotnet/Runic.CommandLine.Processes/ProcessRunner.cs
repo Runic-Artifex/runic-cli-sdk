@@ -1,10 +1,9 @@
 using System;
 using System.Buffers;
-using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Runic.CommandLine.Processes.Internal;
 
 namespace Runic.CommandLine.Processes;
 
@@ -47,9 +46,28 @@ public sealed class ProcessRunner : IProcessRunner
         this.platform = platform;
     }
 
+
     /// <inheritdoc />
+    public ValueTask<ProcessResult> RunAsync(
+        ProcessRequest request,
+        CancellationToken cancellationToken = default) =>
+        RunAsync(request, null, cancellationToken);
+
+    /// <summary>Runs one bounded request and passes its output to a handler while it runs.</summary>
+    /// <param name="request">The immutable process request.</param>
+    /// <param name="outputHandler">Receives the output while the child runs; null runs the request without one.</param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    /// <returns>A sanitized terminal result, with the bounded capture of both streams.</returns>
+    /// <remarks>
+    /// If the handler throws while the request is neither cancelled nor timed out, the runner terminates the child
+    /// as on cancellation and returns <see cref="ProcessState.ExecutionFailed"/> with
+    /// <see cref="ProcessFaultCodes.OutputHandlerFailed"/>. After the result is returned, the handler is not called
+    /// again; a call that ignores its cancellation token may still be running.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "The required output handler parameter keeps calls unambiguous; the earlier overload is unchanged.")]
     public async ValueTask<ProcessResult> RunAsync(
         ProcessRequest request,
+        IProcessOutputHandler? outputHandler,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -134,16 +152,6 @@ public sealed class ProcessRunner : IProcessRunner
                 startedAt);
         }
 
-        ProcessStartInfo startInfo;
-        try
-        {
-            startInfo = CreateStartInfo(effectiveRequest);
-        }
-        catch (Exception exception) when (!IsFatal(exception))
-        {
-            return StartFailed(ProcessStartFailureCategory.InvalidRequest, startedAt);
-        }
-
         if (cancellationToken.IsCancellationRequested)
         {
             return Complete(
@@ -156,67 +164,84 @@ public sealed class ProcessRunner : IProcessRunner
                 startedAt);
         }
 
-        using var process = new Process { StartInfo = startInfo };
+        ChildProcess child;
         try
         {
-            if (!process.Start())
-            {
-                return StartFailed(ProcessStartFailureCategory.Other, startedAt);
-            }
+            child = ChildProcess.Start(effectiveRequest);
         }
         catch (Exception exception) when (!IsFatal(exception))
         {
             return StartFailed(ClassifyStartFailure(exception), startedAt);
         }
 
-        NotifyStarted(startedAt);
+        using (child)
+        {
+            return await RunStartedAsync(child, effectiveRequest, outputHandler, startedAt, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
 
-        Task<CapturedOutput> stdoutTask = DrainAsync(
-            process.StandardOutput.BaseStream,
-            effectiveRequest.Options.StandardOutputLimitBytes,
-            effectiveRequest.Options.StandardOutputEncoding);
-        Task<CapturedOutput> stderrTask = DrainAsync(
-            process.StandardError.BaseStream,
-            effectiveRequest.Options.StandardErrorLimitBytes,
-            effectiveRequest.Options.StandardErrorEncoding);
+    private async Task<ProcessResult> RunStartedAsync(
+        ChildProcess child,
+        ProcessRequest request,
+        IProcessOutputHandler? outputHandler,
+        DateTimeOffset startedAt,
+        CancellationToken cancellationToken)
+    {
+        NotifyStarted(new ProcessIdentity(child.ProcessId, child.ProcessGroupId), startedAt);
+        ProcessExecutionOptions options = request.Options;
 
-        ProcessState state = ProcessState.Exited;
-        var termination = new TerminationRequest(process);
-        using CancellationTokenSource? timeout = CreateTimeout(effectiveRequest.Options.Timeout);
+        using CancellationTokenSource? timeout = CreateTimeout(options.Timeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             timeout?.Token ?? CancellationToken.None);
+        OutputDelivery? delivery = outputHandler is null ? null : new OutputDelivery(outputHandler, linked.Token);
+        var standardOutput = new OutputCapture(options.StandardOutputLimitBytes, options.StandardOutputEncoding);
+        var standardError = new OutputCapture(options.StandardErrorLimitBytes, options.StandardErrorEncoding);
+        Task standardOutputPump = OutputPump.PumpAsync(child.StandardOutput, standardOutput,
+            ProcessOutputChannel.StandardOutput, delivery, options.StandardOutputEncoding);
+        Task standardErrorPump = OutputPump.PumpAsync(child.StandardError, standardError,
+            ProcessOutputChannel.StandardError, delivery, options.StandardErrorEncoding);
 
         using var inputStop = CancellationTokenSource.CreateLinkedTokenSource(linked.Token);
-        Stream? inputStream = effectiveRequest.Options.StandardInput.Mode == ProcessStandardInputMode.Inherit
-            ? null
-            : process.StandardInput.BaseStream;
-        Task inputTask = inputStream is null
+        Stream? inputStream = child.StandardInput;
+        Task input = inputStream is null
             ? Task.CompletedTask
-            : WriteInputAsync(inputStream, effectiveRequest.Options.StandardInput.Bytes, inputStop.Token);
+            : WriteInputAsync(inputStream, options.StandardInput.Bytes, inputStop.Token);
+        var pipes = new Pipes(child, standardOutputPump, standardErrorPump, input);
 
+        ProcessState state = ProcessState.Exited;
+        CommandFault? fault = null;
         try
         {
-            await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
+            Task exit = child.WaitForExitAsync(linked.Token);
+            if (delivery is not null &&
+                await Task.WhenAny(exit, delivery.Failure).ConfigureAwait(false) != exit &&
+                !child.HasExited)
+            {
+                state = ProcessState.ExecutionFailed;
+                fault = new CommandFault(ProcessFaultCodes.OutputHandlerFailed, "The output handler failed.");
+            }
+            else
+            {
+                await exit.ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
-            if (HasExited(process))
-            {
-                state = ProcessState.Exited;
-            }
-            else
+            if (!child.HasExited)
             {
                 state = cancellationToken.IsCancellationRequested
                     ? ProcessState.Cancelled
                     : ProcessState.TimedOut;
-                termination.Request();
             }
         }
         catch (Exception exception) when (!IsFatal(exception))
         {
             state = ProcessState.ExecutionFailed;
-            termination.Request();
+            fault = new CommandFault(
+                ProcessFaultCodes.ExecutionFailed,
+                "The process lifecycle could not be observed safely.");
         }
 
         // A child may exit without reading all input, or a descendant may inherit the read end.
@@ -224,85 +249,22 @@ public sealed class ProcessRunner : IProcessRunner
         inputStop.Cancel();
         if (inputStream is not null)
         {
-            TryClose(inputStream);
+            child.Close(inputStream);
         }
 
-        DrainOutcome drain = state is ProcessState.Cancelled or ProcessState.TimedOut or ProcessState.ExecutionFailed
-            ? await AwaitTerminationAndDrainAsync(
-                process,
-                stdoutTask,
-                stderrTask,
-                inputTask,
-                effectiveRequest.Options.DrainGracePeriod).ConfigureAwait(false)
-            : await AwaitDrainAsync(
-                process,
-                stdoutTask,
-                stderrTask,
-                inputTask,
-                effectiveRequest.Options.DrainGracePeriod).ConfigureAwait(false);
-
-        ProcessOutput standardOutput = GetOutput(stdoutTask, drain.StandardOutputTimedOut);
-        ProcessOutput standardError = GetOutput(stderrTask, drain.StandardErrorTimedOut);
-        int? exitCode = state == ProcessState.Exited ? TryGetExitCode(process) : null;
-        ProcessStartFailureCategory? failureCategory = null;
-        CommandFault? fault = state == ProcessState.ExecutionFailed
-            ? new CommandFault(
-                ProcessFaultCodes.ExecutionFailed,
-                "The process lifecycle could not be observed safely.")
-            : null;
+        DrainOutcome drain = state == ProcessState.Exited
+            ? await AwaitDrainAsync(pipes, options.DrainGracePeriod, delivery, linked.Token).ConfigureAwait(false)
+            : await TerminateAndDrainAsync(pipes, options.DrainGracePeriod).ConfigureAwait(false);
+        delivery?.Stop();
 
         return Complete(
             state,
-            exitCode,
-            standardOutput,
-            standardError,
-            failureCategory,
+            state == ProcessState.Exited ? child.ExitCode : null,
+            standardOutput.ToOutput(drain.StandardOutputTimedOut),
+            standardError.ToOutput(drain.StandardErrorTimedOut),
+            null,
             fault,
             startedAt);
-    }
-
-    private static ProcessStartInfo CreateStartInfo(ProcessRequest request)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = request.FileName,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = request.Options.StandardInput.Mode != ProcessStandardInputMode.Inherit,
-            CreateNoWindow = true,
-            StandardOutputEncoding = request.Options.StandardOutputEncoding,
-            StandardErrorEncoding = request.Options.StandardErrorEncoding,
-        };
-
-        if (request.WorkingDirectory is not null)
-        {
-            startInfo.WorkingDirectory = request.WorkingDirectory;
-        }
-
-        for (int index = 0; index < request.Arguments.Count; index++)
-        {
-            startInfo.ArgumentList.Add(request.Arguments[index]);
-        }
-
-        if (!request.Options.InheritEnvironment)
-        {
-            startInfo.Environment.Clear();
-        }
-
-        foreach (System.Collections.Generic.KeyValuePair<string, string?> pair in request.Environment)
-        {
-            if (pair.Value is null)
-            {
-                startInfo.Environment.Remove(pair.Key);
-            }
-            else
-            {
-                startInfo.Environment[pair.Key] = pair.Value;
-            }
-        }
-
-        return startInfo;
     }
 
     private ProcessRequest ResolveRequest(ProcessRequest request)
@@ -468,109 +430,67 @@ public sealed class ProcessRunner : IProcessRunner
         }
     }
 
-    private static async Task<CapturedOutput> DrainAsync(Stream stream, int limit, Encoding encoding)
+    // Cancellation, timeout or failure: ask the process group to stop (SIGTERM), give it the drain grace period to
+    // exit and close its pipes, then kill whatever is left of the group (SIGKILL) and wait once more.
+    private async Task<DrainOutcome> TerminateAndDrainAsync(Pipes pipes, TimeSpan gracePeriod)
     {
-        byte[] readBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
-        byte[] retained = limit == 0 ? Array.Empty<byte>() : new byte[limit];
-        int retainedCount = 0;
-        long observed = 0;
-
-        try
-        {
-            while (true)
-            {
-                int read = await stream.ReadAsync(readBuffer.AsMemory(0, readBuffer.Length)).ConfigureAwait(false);
-                if (read == 0)
-                {
-                    break;
-                }
-
-                observed = SaturatingAdd(observed, read);
-                int toCopy = Math.Min(read, retained.Length - retainedCount);
-                if (toCopy > 0)
-                {
-                    readBuffer.AsSpan(0, toCopy).CopyTo(retained.AsSpan(retainedCount));
-                    retainedCount += toCopy;
-                }
-            }
-        }
-        catch (Exception exception) when (!IsFatal(exception))
-        {
-            // Stream teardown may race bounded post-termination cleanup. Retained bytes remain valid.
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(readBuffer);
-        }
-
-        string text;
-        try
-        {
-            text = encoding.GetString(retained, 0, retainedCount);
-        }
-        catch (Exception exception) when (!IsFatal(exception))
-        {
-            text = string.Empty;
-        }
-
-        return new CapturedOutput(text, observed, observed > limit);
-    }
-
-    private async Task<DrainOutcome> AwaitTerminationAndDrainAsync(
-        Process process,
-        Task<CapturedOutput> stdoutTask,
-        Task<CapturedOutput> stderrTask,
-        Task inputTask,
-        TimeSpan gracePeriod)
-    {
+        pipes.Child.RequestStop();
         Task all = Task.WhenAll(
-            IgnoreFailureAsync(process.WaitForExitAsync(CancellationToken.None)),
-            IgnoreFailureAsync(stdoutTask),
-            IgnoreFailureAsync(stderrTask),
-            IgnoreFailureAsync(inputTask));
-        try
+            IgnoreFailureAsync(pipes.Child.WaitForExitAsync(CancellationToken.None)),
+            pipes.All);
+        bool completed = await WaitAsync(all, gracePeriod).ConfigureAwait(false);
+        // Also when the leader exited: a descendant that ignored the request must not outlive the request.
+        pipes.Child.Kill();
+        if (completed || await WaitAsync(all, gracePeriod).ConfigureAwait(false))
         {
-            await all.WaitAsync(gracePeriod, timeProvider).ConfigureAwait(false);
             return default;
         }
-        catch (TimeoutException)
-        {
-            return await ClosePipesAsync(process, stdoutTask, stderrTask, inputTask).ConfigureAwait(false);
-        }
+
+        return await ClosePipesAsync(pipes).ConfigureAwait(false);
     }
 
+    // Normal exit: a descendant that inherited a pipe can hold it open after the child exits, so wait at most the
+    // grace period for the pipes to close. While an output handler still makes progress, the wait goes on until
+    // the handler is idle for the grace period, or the request is cancelled or times out.
     private async Task<DrainOutcome> AwaitDrainAsync(
-        Process process,
-        Task<CapturedOutput> stdoutTask,
-        Task<CapturedOutput> stderrTask,
-        Task inputTask,
-        TimeSpan gracePeriod)
+        Pipes pipes,
+        TimeSpan gracePeriod,
+        OutputDelivery? delivery,
+        CancellationToken cancellationToken)
     {
-        Task drains = Task.WhenAll(stdoutTask, stderrTask, inputTask);
+        long progress = delivery?.Progress ?? 0;
+        while (!await WaitAsync(pipes.All, gracePeriod).ConfigureAwait(false))
+        {
+            if (delivery is null || cancellationToken.IsCancellationRequested || delivery.Progress == progress)
+            {
+                return await ClosePipesAsync(pipes).ConfigureAwait(false);
+            }
+
+            progress = delivery.Progress;
+        }
+
+        return default;
+    }
+
+    private async Task<bool> WaitAsync(Task task, TimeSpan timeout)
+    {
         try
         {
-            await drains.WaitAsync(gracePeriod, timeProvider).ConfigureAwait(false);
-            return default;
+            await task.WaitAsync(timeout, timeProvider).ConfigureAwait(false);
+            return true;
         }
         catch (TimeoutException)
         {
-            // A descendant that inherited a pipe can hold it open after the child exits.
-            return await ClosePipesAsync(process, stdoutTask, stderrTask, inputTask).ConfigureAwait(false);
+            return false;
         }
     }
 
-    private async Task<DrainOutcome> ClosePipesAsync(
-        Process process,
-        Task<CapturedOutput> stdoutTask,
-        Task<CapturedOutput> stderrTask,
-        Task inputTask)
+    private async Task<DrainOutcome> ClosePipesAsync(Pipes pipes)
     {
-        var outcome = new DrainOutcome(!stdoutTask.IsCompleted, !stderrTask.IsCompleted);
-        TryClose(process.StandardOutput.BaseStream);
-        TryClose(process.StandardError.BaseStream);
-
-        Task drains = Task.WhenAll(stdoutTask, stderrTask, inputTask);
-        await Task.WhenAny(drains, Task.Delay(TimeSpan.FromMilliseconds(100), timeProvider)).ConfigureAwait(false);
+        var outcome = new DrainOutcome(!pipes.StandardOutput.IsCompleted, !pipes.StandardError.IsCompleted);
+        pipes.Child.Close(pipes.Child.StandardOutput);
+        pipes.Child.Close(pipes.Child.StandardError);
+        await Task.WhenAny(pipes.All, Task.Delay(TimeSpan.FromMilliseconds(100), timeProvider)).ConfigureAwait(false);
         return outcome;
     }
 
@@ -594,17 +514,6 @@ public sealed class ProcessRunner : IProcessRunner
         catch (Exception exception) when (!IsFatal(exception))
         {
         }
-    }
-
-    private static ProcessOutput GetOutput(Task<CapturedOutput> task, bool drainTimedOut)
-    {
-        if (task.Status != TaskStatus.RanToCompletion)
-        {
-            return drainTimedOut ? new ProcessOutput(string.Empty, 0, false, true) : EmptyOutput;
-        }
-
-        CapturedOutput capture = task.Result;
-        return new ProcessOutput(capture.Text, capture.ObservedBytes, capture.IsTruncated, drainTimedOut);
     }
 
     private CancellationTokenSource? CreateTimeout(TimeSpan timeout) =>
@@ -644,6 +553,7 @@ public sealed class ProcessRunner : IProcessRunner
 
     private static ProcessStartFailureCategory ClassifyStartFailure(Exception exception) => exception switch
     {
+        ProcessStartFailedException startFailure => startFailure.Category,
         System.ComponentModel.Win32Exception windowsException when windowsException.NativeErrorCode is 2 or 3 =>
             ProcessStartFailureCategory.NotFound,
         System.ComponentModel.Win32Exception windowsException when windowsException.NativeErrorCode is 5 =>
@@ -674,35 +584,12 @@ public sealed class ProcessRunner : IProcessRunner
             "The process request is not permitted by the configured policy.");
     }
 
-    private static int? TryGetExitCode(Process process)
-    {
-        try
-        {
-            return process.ExitCode;
-        }
-        catch (Exception exception) when (!IsFatal(exception))
-        {
-            return null;
-        }
-    }
 
-    private static bool HasExited(Process process)
+    private void NotifyStarted(ProcessIdentity process, DateTimeOffset startedAt)
     {
         try
         {
-            return process.HasExited;
-        }
-        catch (Exception exception) when (!IsFatal(exception))
-        {
-            return false;
-        }
-    }
-
-    private void NotifyStarted(DateTimeOffset startedAt)
-    {
-        try
-        {
-            observer?.OnStarted(startedAt);
+            observer?.OnStarted(process, startedAt);
         }
         catch (Exception exception) when (!IsFatal(exception))
         {
@@ -720,60 +607,28 @@ public sealed class ProcessRunner : IProcessRunner
         }
     }
 
-    private static long SaturatingAdd(long current, int value) =>
-        current > long.MaxValue - value ? long.MaxValue : current + value;
-
     private static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException or StackOverflowException or AccessViolationException;
 
-    private readonly record struct CapturedOutput(string Text, long ObservedBytes, bool IsTruncated);
-
     private readonly record struct DrainOutcome(bool StandardOutputTimedOut, bool StandardErrorTimedOut);
 
-    private sealed class TerminationRequest
+    private sealed class Pipes
     {
-        private readonly Process process;
-        private int requested;
-
-        internal TerminationRequest(Process process)
+        internal Pipes(ChildProcess child, Task standardOutput, Task standardError, Task input)
         {
-            this.process = process;
+            Child = child;
+            StandardOutput = standardOutput;
+            StandardError = standardError;
+            All = Task.WhenAll(standardOutput, standardError, IgnoreFailureAsync(input));
         }
 
-        internal void Request()
-        {
-            if (Interlocked.Exchange(ref requested, 1) != 0)
-            {
-                return;
-            }
+        internal ChildProcess Child { get; }
 
-            try
-            {
-                process.Kill(entireProcessTree: true);
-            }
-            catch (PlatformNotSupportedException)
-            {
-                TryKillSingleProcess();
-            }
-            catch (NotSupportedException)
-            {
-                TryKillSingleProcess();
-            }
-            catch (Exception exception) when (!IsFatal(exception))
-            {
-            }
-        }
+        internal Task StandardOutput { get; }
 
-        private void TryKillSingleProcess()
-        {
-            try
-            {
-                process.Kill();
-            }
-            catch (Exception exception) when (!IsFatal(exception))
-            {
-            }
-        }
+        internal Task StandardError { get; }
+
+        internal Task All { get; }
     }
 }
 

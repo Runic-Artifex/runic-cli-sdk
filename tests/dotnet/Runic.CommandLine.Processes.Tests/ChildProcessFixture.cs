@@ -32,6 +32,11 @@ internal static class ChildProcessFixture
             "tree-leaf" => await RunTreeLeafAsync(args).ConfigureAwait(false),
             "orphan-input-holder" => await StartPipeHolderAsync(args, isolateOutputs: true).ConfigureAwait(false),
             "orphan-pipe-holder" => await StartPipeHolderAsync(args).ConfigureAwait(false),
+            "interleave" => await InterleaveAsync(args).ConfigureAwait(false),
+            "flood-lines" => await FloodLinesAsync(args).ConfigureAwait(false),
+            "orphan-tree" => await RunOrphanTreeAsync(args).ConfigureAwait(false),
+            "orphan-middle" => StartOrphanLeaf(args),
+            "term-aware" => await RunTermAwareAsync(args).ConfigureAwait(false),
             _ => 97,
         };
     }
@@ -177,6 +182,106 @@ internal static class ChildProcessFixture
             Encoding.UTF8).ConfigureAwait(false);
         Console.WriteLine("READY");
         return 0;
+    }
+
+    // Writes "out-N" and "err-N" lines alternately, with a pause after each, flushing every line.
+    private static async Task<int> InterleaveAsync(string[] args)
+    {
+        int count = ParseNonNegativeInt32(args, 2);
+        int pauseMilliseconds = ParseNonNegativeInt32(args, 3);
+        using Stream output = Console.OpenStandardOutput();
+        using Stream error = Console.OpenStandardError();
+        for (int index = 0; index < count; index++)
+        {
+            await WriteLineAsync(output, $"out-{index}").ConfigureAwait(false);
+            await Task.Delay(pauseMilliseconds).ConfigureAwait(false);
+            await WriteLineAsync(error, $"err-{index}").ConfigureAwait(false);
+            await Task.Delay(pauseMilliseconds).ConfigureAwait(false);
+        }
+
+        return 0;
+    }
+
+    // Writes numbered 64-byte lines to stdout as fast as the pipe accepts them.
+    private static async Task<int> FloodLinesAsync(string[] args)
+    {
+        int count = ParseNonNegativeInt32(args, 2);
+        using Stream output = Console.OpenStandardOutput();
+        byte[] line = new byte[64];
+        for (int index = 0; index < count; index++)
+        {
+            Encoding.ASCII.GetBytes(index.ToString("D8", CultureInfo.InvariantCulture)).CopyTo(line, 0);
+            line.AsSpan(8, 55).Fill((byte)'x');
+            line[63] = (byte)'\n';
+            await output.WriteAsync(line).ConfigureAwait(false);
+        }
+
+        await output.FlushAsync().ConfigureAwait(false);
+        return 0;
+    }
+
+    // Starts a middle process that starts a sleeping leaf and exits at once, so the leaf is reparented and a walk
+    // of the process tree from this process no longer finds it. Prints READY with the leaf's PID, then sleeps.
+    private static async Task<int> RunOrphanTreeAsync(string[] args)
+    {
+        string markerPath = args[2];
+        using var middle = new Process();
+        middle.StartInfo = new ProcessStartInfo { FileName = ExecutablePath, UseShellExecute = false };
+        middle.StartInfo.ArgumentList.Add(ChildSwitch);
+        middle.StartInfo.ArgumentList.Add("orphan-middle");
+        middle.StartInfo.ArgumentList.Add(markerPath);
+        if (!middle.Start())
+        {
+            return 96;
+        }
+
+        await middle.WaitForExitAsync().ConfigureAwait(false);
+        Console.WriteLine($"READY {await File.ReadAllTextAsync(markerPath).ConfigureAwait(false)}");
+        await Task.Delay(30000).ConfigureAwait(false);
+        return 0;
+    }
+
+    private static int StartOrphanLeaf(string[] args)
+    {
+        using var leaf = new Process();
+        leaf.StartInfo = new ProcessStartInfo { FileName = ExecutablePath, UseShellExecute = false };
+        leaf.StartInfo.ArgumentList.Add(ChildSwitch);
+        leaf.StartInfo.ArgumentList.Add("sleep");
+        leaf.StartInfo.ArgumentList.Add("30000");
+        if (!leaf.Start())
+        {
+            return 96;
+        }
+
+        File.WriteAllText(args[2], leaf.Id.ToString(CultureInfo.InvariantCulture), Encoding.UTF8);
+        return 0;
+    }
+
+    // Handles SIGTERM: "exit" records it in the marker file and exits, "ignore" records it and keeps running.
+    private static async Task<int> RunTermAwareAsync(string[] args)
+    {
+        string markerPath = args[2];
+        bool ignore = string.Equals(args[3], "ignore", StringComparison.Ordinal);
+        using var termination = System.Runtime.InteropServices.PosixSignalRegistration.Create(
+            System.Runtime.InteropServices.PosixSignal.SIGTERM,
+            context =>
+            {
+                File.WriteAllText(markerPath, "SIGTERM", Encoding.UTF8);
+                context.Cancel = ignore;
+                if (!ignore)
+                {
+                    Environment.Exit(0);
+                }
+            });
+        Console.WriteLine("READY");
+        await Task.Delay(30000).ConfigureAwait(false);
+        return 0;
+    }
+
+    private static async Task WriteLineAsync(Stream stream, string line)
+    {
+        await stream.WriteAsync(Encoding.UTF8.GetBytes(line + "\n")).ConfigureAwait(false);
+        await stream.FlushAsync().ConfigureAwait(false);
     }
 
     private static async Task<int> RunTreeLeafAsync(string[] args)

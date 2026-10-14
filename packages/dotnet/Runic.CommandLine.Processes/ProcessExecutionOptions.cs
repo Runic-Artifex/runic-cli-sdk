@@ -18,15 +18,28 @@ public sealed class ProcessExecutionOptions
     /// <summary>The hard ceiling for post-termination drain grace.</summary>
     public static readonly TimeSpan MaximumDrainGracePeriod = TimeSpan.FromMinutes(1);
 
+    // Declared before NonInteractive, whose initializer runs the constructor.
+    private static readonly TimeSpan MaximumTimerDuration = TimeSpan.FromMilliseconds(4294967294);
+
     private ProcessStandardInput standardInput = ProcessStandardInput.Inherit;
 
-    private static readonly TimeSpan MaximumTimerDuration = TimeSpan.FromMilliseconds(4294967294);
+    /// <summary>
+    /// Gets options for callers without a terminal, such as a desktop application or a service: standard input is
+    /// closed, so a child that prompts reads end-of-file instead of waiting on the caller's terminal, and on Unix the
+    /// child always runs in its own process group. The other values are the defaults. To change them, pass
+    /// <see cref="ProcessStandardInput.Closed"/> to <see cref="StandardInput"/> of new options; check results with
+    /// <see cref="ProcessResult.EnsureCompleted"/> so that truncated output is not taken for complete output.
+    /// </summary>
+    public static ProcessExecutionOptions NonInteractive { get; } = new()
+    {
+        StandardInput = ProcessStandardInput.Closed,
+    };
 
     /// <summary>Initializes process execution options.</summary>
     /// <param name="timeout">Maximum execution time, or <see cref="System.Threading.Timeout.InfiniteTimeSpan"/>.</param>
     /// <param name="standardOutputLimitBytes">Maximum retained standard-output bytes.</param>
     /// <param name="standardErrorLimitBytes">Maximum retained standard-error bytes.</param>
-    /// <param name="drainGracePeriod">Bounded wait after a termination request.</param>
+    /// <param name="drainGracePeriod">Bounded wait for pipes after exit and for the process group after SIGTERM.</param>
     /// <param name="standardOutputEncoding">Standard-output encoding; UTF-8 without a BOM by default.</param>
     /// <param name="standardErrorEncoding">Standard-error encoding; UTF-8 without a BOM by default.</param>
     /// <param name="allowWindowsBatchFiles">
@@ -80,7 +93,10 @@ public sealed class ProcessExecutionOptions
         AllowWindowsBatchFiles = allowWindowsBatchFiles;
     }
 
-    /// <summary>Gets the child input mode. Inherits the caller's stdin by default.</summary>
+    /// <summary>
+    /// Gets the child input mode. Inherits the caller's stdin by default, which suits a command-line application
+    /// whose tools may prompt; see <see cref="NonInteractive"/> for callers without a terminal.
+    /// </summary>
     /// <exception cref="ArgumentNullException">The input is null.</exception>
     public ProcessStandardInput StandardInput
     {
@@ -104,7 +120,11 @@ public sealed class ProcessExecutionOptions
     /// <summary>Gets the standard-error retained-byte cap.</summary>
     public int StandardErrorLimitBytes { get; }
 
-    /// <summary>Gets the bounded drain grace period after termination.</summary>
+    /// <summary>
+    /// Gets the grace period that bounds the waits after a child exits or is stopped: for its pipes to close after
+    /// exit; on cancellation or timeout, for the process group to exit after SIGTERM before SIGKILL; and once more
+    /// for the pipes after SIGKILL.
+    /// </summary>
     public TimeSpan DrainGracePeriod { get; }
 
     /// <summary>Gets the standard-output encoding.</summary>

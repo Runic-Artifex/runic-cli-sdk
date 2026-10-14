@@ -9,6 +9,8 @@
     <Description>Bounded and cancellable local process execution for command-line clients.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
+    <!-- The source-generated P/Invokes of the process group and job object code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

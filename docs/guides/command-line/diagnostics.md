@@ -12,7 +12,7 @@ tag of the package you use, so the page always matches your version.
 | `RCLI1001`–`RCLI1016` | Parser | Usage diagnostics (exit code 2) |
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI5000` | Execution | Cancellation and host faults |
-| `RCLI6001`–`RCLI6008` | `Runic.CommandLine.Processes` | Process faults returned to the command |
+| `RCLI6001`–`RCLI6011` | `Runic.CommandLine.Processes` | Process faults returned to the command |
 | `RCLI9001`–`RCLI9043` | Source generator | Compiler errors and warnings |
 
 Parse and binding diagnostics are written for the people who run your
@@ -379,6 +379,26 @@ A batch file path or argument contains a `cmd.exe` metacharacter
 (`% ! ^ & | < > " ( )`) or a line break. These are rejected rather than
 escaped. When arguments come from users, run the underlying executable instead,
 for example `node` with the package's script path.
+
+### RCLI6009
+
+The output handler passed to `RunAsync` threw while the request was neither
+cancelled nor timed out. The runner terminated the child and its descendants,
+and the result is `ExecutionFailed`. The handler's exception is not part of the
+result; log it in the handler.
+
+### RCLI6010
+
+`ProcessResult.EnsureCompleted` found a request whose timeout elapsed. The
+runner already terminated the child and its descendants.
+
+### RCLI6011
+
+`ProcessResult.EnsureCompleted` found incomplete captured output. The fault's
+`stream` detail is `standardOutput` or `standardError`, and its `reason` is
+`truncated` when the child wrote more than the capture limit, or `drainTimedOut`
+when a descendant held the pipe open after the child exited. Raise the limit,
+or pass an output handler to process the output as it arrives.
 
 ## Source generator
 
