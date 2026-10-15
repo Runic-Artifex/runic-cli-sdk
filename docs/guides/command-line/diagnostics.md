@@ -441,10 +441,32 @@ extra attribute or add the missing one.
 
 ### RCLI9003
 
-Unsupported generated command type. The parameter type cannot be bound: use a
-supported scalar, enum, nullable scalar, array or `IReadOnlyList<T>` of those,
-add `[ConvertWith]` for another type, or make a `[FromServices]` type
-accessible. Positional arguments cannot be Boolean; use an option flag.
+Unsupported generated command type. The message names the parameter, its
+type and the reason it cannot be bound:
+
+- An argument or option binds `string`, `int`, `long`, `double`, `decimal`,
+  `bool`, `Guid`, `FileInfo`, `DirectoryInfo`, an enum, a nullable of these, or
+  an array or `IReadOnlyList<T>` of them. Add `[ConvertWith]` for another type,
+  or use `[FromServices]` to inject it.
+- Positional arguments cannot be Boolean; use an option flag.
+- A `[FromServices]` type and the types that contain it must be `public` or
+  `internal`, and containing types must not be generic or file-local.
+- The generator cannot resolve the type. Source generators all run against the
+  code you wrote and do not see each other's output, so a type that another
+  generator emits is unknown to the command generator even though the rest of
+  the build compiles against it. A Runic Translations text class such as
+  `HelloText` is such a type. Inject a type declared in source or a referenced
+  assembly instead; for Runic Translations, inject `ITranslationManager` and
+  create the text class in the command:
+
+  ```csharp
+  [Command("hello")]
+  internal static string Hello([FromServices] ITranslationManager translations) =>
+      new HelloText(translations).Messages.greeting;
+  ```
+
+  The same message appears, next to `CS0246`, when the type is not declared at
+  all.
 
 ### RCLI9004
 

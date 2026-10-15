@@ -99,6 +99,71 @@ internal sealed class ErrorCauseTests
         return ValueTask.CompletedTask;
     }
 
+    // Issue #28: a Runic Translations text class injected with [FromServices] failed with a bare RCLI9003. Generators
+    // run against the compilation before any generator output is added, so the command generator sees the text class
+    // as an error type even when another generator in the same build declares it.
+    [Test, DisplayName("causes/generator-explains-a-service-type-from-another-generator")]
+    public ValueTask ServiceTypeFromAnotherGenerator()
+    {
+        CSharpCompilation compilation = GeneratorTests.CreateCompilation(Usings + """
+            internal static class Commands
+            {
+                [Command("hello")] internal static string Hello([FromServices] Example.Translations.HelloText text) => "";
+                [Command("option")] internal static string Option([Option("--text")] Example.Translations.HelloText? text = null) => "";
+            }
+            """);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new CommandLineGenerator(), new TextClassGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out Compilation output, out _);
+        // The other generator's class is part of the build: the type itself resolves.
+        AssertEx.True(output.GetTypeByMetadataName("Example.Translations.HelloText") is not null);
+        ImmutableArray<Diagnostic> diagnostics = driver.GetRunResult().Results[0].Diagnostics;
+        Diagnostic[] unsupported = diagnostics.Where(static diagnostic => diagnostic.Id == "RCLI9003").ToArray();
+        AssertEx.Equal(2, unsupported.Length, string.Join("\n", diagnostics));
+        AssertEx.Equal(2, diagnostics.Length, string.Join("\n", diagnostics));
+        string hello = Text(unsupported.Single(static diagnostic => Text(diagnostic).Contains("command 'hello'", StringComparison.Ordinal)));
+        AssertEx.Equal("Parameter 'text' on command 'hello' has unsupported type 'Example.Translations.HelloText'; the command generator cannot resolve this type: "
+            + "it is undeclared or produced by another source generator (such as a Runic Translations text class), and source generators do not see each other's output. "
+            + "Inject a type declared in source or a referenced assembly instead (for Runic Translations, ITranslationManager) and create the generated type from it in the command", hello);
+        string option = Text(unsupported.Single(static diagnostic => Text(diagnostic).Contains("command 'option'", StringComparison.Ordinal)));
+        AssertEx.True(option.EndsWith("Use a type declared in source or a referenced assembly", StringComparison.Ordinal), option);
+        AssertEx.True(!option.Contains("ITranslationManager", StringComparison.Ordinal), option);
+        return ValueTask.CompletedTask;
+    }
+
+    [Test, DisplayName("causes/generator-names-why-a-parameter-type-is-unsupported")]
+    public ValueTask UnsupportedTypeReasons()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Generate("""
+            internal static class Commands
+            {
+                private sealed class Hidden { }
+                [Command("hidden")] internal static string HiddenService([FromServices] Hidden hidden) => "";
+                [Command("uri")] internal static string Uri([Option("--uri")] System.Uri? uri = null) => "";
+                [Command("flag")] internal static string Flag([Argument] bool value) => "";
+            }
+            """);
+        Diagnostic[] unsupported = diagnostics.Where(static diagnostic => diagnostic.Id == "RCLI9003").ToArray();
+        AssertEx.Equal(3, unsupported.Length, string.Join("\n", diagnostics));
+        AssertEx.True(unsupported.Any(static diagnostic => Text(diagnostic) == "Parameter 'hidden' on command 'hidden' has unsupported type 'Commands.Hidden'; "
+            + "a [FromServices] type and the types that contain it must be public or internal, and containing types must not be generic or file-local"),
+            string.Join("\n", unsupported.Select(Text)));
+        AssertEx.True(unsupported.Any(static diagnostic => Text(diagnostic).StartsWith("Parameter 'uri' on command 'uri' has unsupported type 'System.Uri?'; an argument or option binds string,", StringComparison.Ordinal)
+            && Text(diagnostic).EndsWith("add [ConvertWith] for another type, or [FromServices] to inject it", StringComparison.Ordinal)),
+            string.Join("\n", unsupported.Select(Text)));
+        AssertEx.True(unsupported.Any(static diagnostic => Text(diagnostic) == "Parameter 'value' on command 'flag' has unsupported type 'bool'; a positional argument cannot be Boolean, use an [Option] flag"),
+            string.Join("\n", unsupported.Select(Text)));
+        return ValueTask.CompletedTask;
+    }
+
+    // Stands in for the Runic Translations generator, which declares a text class from its inputs in the same build.
+    // (Post-initialization output would be visible to other generators; ordinary source output is not.)
+    private sealed class TextClassGenerator : IIncrementalGenerator
+    {
+        public void Initialize(IncrementalGeneratorInitializationContext context) =>
+            context.RegisterSourceOutput(context.CompilationProvider, static (output, _) => output.AddSource("HelloText.g.cs",
+                "namespace Example.Translations { public sealed partial class HelloText { public HelloText(object manager) { } } }"));
+    }
+
     [Test, DisplayName("causes/generator-splits-result-metadata-errors-by-cause")]
     public ValueTask ResultMetadataCauses()
     {
