@@ -22,7 +22,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
 
     private static readonly DiagnosticDescriptor InvalidCommand = new("RCLI9001", "Invalid generated command", "Command '{0}' must be a non-generic static method with a supported result type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9001");
     private static readonly DiagnosticDescriptor InvalidParameter = new("RCLI9002", "Invalid generated command parameter", "Parameter '{0}' on command '{1}' must have exactly one supported binding attribute or be a supported context parameter", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9002");
-    private static readonly DiagnosticDescriptor UnsupportedType = new("RCLI9003", "Unsupported generated command type", "Parameter '{0}' on command '{1}' has unsupported type '{2}'", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9003");
+    private static readonly DiagnosticDescriptor UnsupportedType = new("RCLI9003", "Unsupported generated command type", "Parameter '{0}' on command '{1}' has unsupported type '{2}'{3}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9003");
     private static readonly DiagnosticDescriptor DuplicateName = new("RCLI9004", "Duplicate generated command name", "Command name '{0}' is declared more than once", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9004");
     private static readonly DiagnosticDescriptor InvalidMetadata = new("RCLI9005", "Invalid generated command metadata", "Command '{0}' has invalid {1}: '{2}'", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9005");
     private static readonly DiagnosticDescriptor VariadicArgumentNotLast = new("RCLI9020", "Multi-value argument is not last", "Argument '{0}' on command '{1}' accepts multiple values; only the last argument may do so", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9020");
@@ -232,6 +232,18 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             Report(diagnostics, InvalidParameter, parameter, parameter.Name, methodName);
             return null;
         }
+        // Generators run against the compilation before any generator output is added, so a type another generator
+        // emits (for example a Runic Translations text class) is an error type here even though the build resolves it.
+        // A value binding fails on such a type anyway, so name the cause; a service type is checked only at the top
+        // level, which keeps an injected generic over such a type (emitted by its display name) as before.
+        if (service is not null ? parameter.Type.TypeKind == TypeKind.Error : ContainsErrorType(parameter.Type))
+        {
+            string reason = service is not null
+                ? "; the command generator cannot resolve this type: it is undeclared or produced by another source generator (such as a Runic Translations text class), and source generators do not see each other's output. Inject a type declared in source or a referenced assembly instead (for Runic Translations, ITranslationManager) and create the generated type from it in the command"
+                : "; the command generator cannot resolve this type: it is undeclared or produced by another source generator, and source generators do not see each other's output. Use a type declared in source or a referenced assembly";
+            Report(diagnostics, UnsupportedType, parameter, parameter.Name, methodName, parameter.Type.ToDisplayString(), reason);
+            return null;
+        }
         AttributeData? converter = FindAttribute(parameter, "Runic.CommandLine.ConvertWithAttribute");
         AttributeData? validator = FindAttribute(parameter, "Runic.CommandLine.ValidateWithAttribute");
         if (argument is null && option is null && (converter is not null || validator is not null))
@@ -263,7 +275,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         {
             if (!IsAccessibleType(parameter.Type))
             {
-                Report(diagnostics, UnsupportedType, parameter, parameter.Name, methodName, parameter.Type.ToDisplayString());
+                Report(diagnostics, UnsupportedType, parameter, parameter.Name, methodName, parameter.Type.ToDisplayString(),
+                    "; a [FromServices] type and the types that contain it must be public or internal, and containing types must not be generic or file-local");
                 return null;
             }
             return new ParameterModel(parameter, ParameterKind.Service, parameter.Name, null, ImmutableArray<string>.Empty, null, false);
@@ -314,7 +327,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         }
         if (FindAttribute(parameter, "Runic.CommandLine.ConvertWithAttribute") is null && !IsValueType(parameter.Type) && !((option is not null || argument is not null) && IsList(parameter.Type)))
         {
-            Report(diagnostics, UnsupportedType, parameter, parameter.Name, methodName, parameter.Type.ToDisplayString());
+            Report(diagnostics, UnsupportedType, parameter, parameter.Name, methodName, parameter.Type.ToDisplayString(),
+                "; an argument or option binds string, int, long, double, decimal, bool, Guid, FileInfo, DirectoryInfo, an enum, a nullable of these, or an array or IReadOnlyList<T> of them; add [ConvertWith] for another type, or [FromServices] to inject it");
             return null;
         }
 
@@ -367,7 +381,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
 
         if (IsBoolean(parameter.Type))
         {
-            Report(diagnostics, UnsupportedType, parameter, parameter.Name, methodName, parameter.Type.ToDisplayString());
+            Report(diagnostics, UnsupportedType, parameter, parameter.Name, methodName, parameter.Type.ToDisplayString(),
+                "; a positional argument cannot be Boolean, use an [Option] flag");
             return null;
         }
         return new ParameterModel(parameter, ParameterKind.Argument, id, null, ImmutableArray<string>.Empty, parameter.HasExplicitDefaultValue ? parameter.ExplicitDefaultValue : null, parameter.HasExplicitDefaultValue || IsNullable(parameter), allowMultipleArgumentValues);
@@ -735,6 +750,13 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static string Type(ITypeSymbol type) => type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
     private static string Kebab(string value) => string.Concat(value.Select((character, index) => index > 0 && char.IsUpper(character) ? "-" + char.ToLowerInvariant(character) : char.ToLowerInvariant(character).ToString()));
     private static string Literal(string value) => SymbolDisplay.FormatLiteral(value, quote: true);
+    private static bool ContainsErrorType(ITypeSymbol type) => type switch
+    {
+        { TypeKind: TypeKind.Error } => true,
+        IArrayTypeSymbol array => ContainsErrorType(array.ElementType),
+        INamedTypeSymbol named => named.TypeArguments.Any(ContainsErrorType),
+        _ => false,
+    };
     private static bool IsAccessible(ISymbol symbol) => symbol.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal;
     private static bool IsAccessibleType(ITypeSymbol type) => type is not INamedTypeSymbol named || (IsAccessible(named) && HasAccessibleNonGenericContainingTypes(named));
     private static bool HasAccessibleNonGenericContainingTypes(ISymbol symbol)
