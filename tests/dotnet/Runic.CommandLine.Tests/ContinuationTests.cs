@@ -53,6 +53,45 @@ internal sealed class ContinuationTests
         return ValueTask.CompletedTask;
     }
 
+    [Test, DisplayName("continuation/tester-run-continues-on-the-calling-thread")]
+    public ValueTask TesterRunContinues()
+    {
+        var probe = new ContinuationProbe { ExitCode = 42 };
+        var tester = new CommandAppTester(console => new CommandApp(GeneratedCommandCatalog.Create())
+        {
+            Console = console,
+            ParseSettings = ParseSettings.Default,
+            HandleCancelKeyPress = false,
+            ScopeFactory = CommandScopes.FromServices(CommandServices.Empty.With(probe)),
+        });
+        CommandAppTestResult? result = null;
+        int callingThread = -1;
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                callingThread = Environment.CurrentManagedThreadId;
+                result = tester.Run(["continue"]);
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.Start();
+        AssertEx.True(thread.Join(TimeSpan.FromSeconds(30)), "Run did not return.");
+        if (failure is not null) throw new InvalidOperationException("Run failed.", failure);
+
+        AssertEx.Equal(new CommandAppTestResult(42, "started\n", ""), result);
+        AssertEx.True(probe.CouldContinue);
+        AssertEx.Equal(callingThread, probe.ContinuationThread);
+
+        // A failed invocation reports its own exit code and runs nothing.
+        probe = new ContinuationProbe { ExitCode = 42 };
+        tester = new CommandAppTester(console => App(probe));
+        AssertEx.Equal(CommandExitCodes.CommandFailure, tester.Run(["continue", "--fail"]).ExitCode);
+        AssertEx.True(probe.Registered && probe.ContinuationThread is null);
+        return ValueTask.CompletedTask;
+    }
+
     [Test, DisplayName("continuation/asynchronous-entry-points-cannot-continue")]
     public async ValueTask AsynchronousEntryPointsCannotContinue()
     {

@@ -21,6 +21,23 @@ using var frame = CommandTestEnvelope.Parse(result.StandardOutput);
 For prompt tests, construct `TestCommandConsole` with explicit capability flags
 and call `QueueInput`. Each tester run gets fresh output buffers.
 
+## Test a continuation
+
+`Run` is the synchronous counterpart of `RunAsync`. It runs the application with
+`CommandApp.Run`, so a command that hands a continuation back with
+`CommandExecutionContext.ContinueOnCallingThread` has it run on the thread that
+calls `Run`:
+
+```csharp
+CommandAppTestResult result = tester.Run(["ui", "--no-open"]);
+```
+
+`ExitCode` is the continuation's result, or the invocation's exit code when it
+failed or handed nothing back. `StandardOutput` and `StandardError` are captured
+after the continuation returned. Call it from a test that does not hold a
+`SynchronizationContext` the handler depends on; the invocation itself runs
+without one.
+
 ## Script prompt answers
 
 `CommandPrompts` reads one line per prompt from an interactive

@@ -725,10 +725,19 @@ without the caller's `SynchronizationContext`, and `HandleCancelKeyPress` signal
 handling ends before the continuation starts; the host handles its own shutdown.
 An exception from the continuation propagates from `Run`.
 
+Test such a command with `CommandAppTester.Run`, the synchronous counterpart of
+`RunAsync`: it runs the continuation on the calling thread and returns its exit
+code with the output captured after it returned.
+
 `CanContinueOnCallingThread` is false under `RunAsync`, the hosting adapter and a
 directly used `CommandExecutor`, where `ContinueOnCallingThread` throws
 `InvalidOperationException` (a `RCLI5000` host failure). A command that can also
-run there, such as one exercised through `CommandAppTester`, checks it first.
+run there checks it first. The hosting adapter does not support continuations
+because it does not own the entry point or its thread: the host calls its
+asynchronous `RunAsync` from its own startup, possibly after an `await` or on a UI
+loop, so there is no blocked caller to return to. A host decides before its UI
+starts with the synchronous `Classify` instead
+([#52](https://github.com/Runic-Artifex/runic-cli-sdk/issues/52) tracks support).
 `Main` must not `await` before calling `Run`: after an `await`, a top-level program
 resumes on a thread-pool thread. The mechanism has no UI dependency and works
 with generated and explicitly registered commands and NativeAOT.
