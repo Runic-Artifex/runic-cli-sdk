@@ -70,6 +70,36 @@ internal sealed class CompletionOptionTests
         return ValueTask.CompletedTask;
     }
 
+    // With an unnamed root command (runic-cli-sdk#43), root help is the command's help and lists the option.
+    [Test, DisplayName("completion-option/works-with-an-unnamed-root-command")]
+    public async ValueTask RootCommand()
+    {
+        var builder = new CommandCatalogBuilder().CompletionOption("--completions");
+        string[]? received = null;
+        builder.Command<TestOptions, TestHandler, TestResult>("run", command => command
+            .Argument("words", "words", CommandArity.ZeroOrMore)
+            .BindWith(new TestBinder((invocation, _) =>
+            {
+                received = invocation.Arguments.SelectMany(argument => argument.Values).ToArray();
+                return ValueTask.FromResult(CommandOutcome.Success(new TestOptions()));
+            }))
+            .CreateHandlerWith(new TestHandlerFactory())
+            .Produces(new TestCodec()));
+        CommandCatalog catalog = builder.RootCommand("run").Build();
+        string help = CommandHelpFormatter.Format(catalog, "fixture", CommandPath.Root);
+        AssertEx.True(help.Contains("--completions <shell>", StringComparison.Ordinal) && help.Contains("[words...]", StringComparison.Ordinal) &&
+            !help.Contains("completion <shell>", StringComparison.Ordinal), help);
+        AssertEx.SequenceEqual(Shells, CommandCompletion.Query(catalog, ["--completions", ""]).Candidates);
+
+        var console = new TestCommandConsole();
+        CommandApp App() => new(catalog) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false };
+        AssertEx.Equal(0, await App().RunAsync(["--completions", "zsh"]));
+        AssertEx.True(console.StandardOutput.StartsWith("#compdef fixture", StringComparison.Ordinal), console.StandardOutput);
+        console = new TestCommandConsole();
+        AssertEx.Equal(0, await App().RunAsync(["completion", "run"]));
+        AssertEx.SequenceEqual(["completion", "run"], received!);
+    }
+
     [Test, DisplayName("completion-option/hosting-adapter-classifies-and-presents-it")]
     public async ValueTask HostingAdapter()
     {
