@@ -197,7 +197,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
 
         if (!TryGetResultMetadata(diagnostics, method, name!, result!, shape, out string? payloadType, out INamedTypeSymbol? jsonContext)) return null;
 
-        payloadType ??= shape is ResultShape.Unit or ResultShape.UnitTask ? "runic.unit/1" : "runic.text/1";
+        payloadType ??= IsUnitResult(result!, shape) ? "runic.unit/1" : "runic.text/1";
         if (!IsPayloadType(payloadType!))
         {
             Report(diagnostics, InvalidMetadata, method, name, "result payload type", payloadType);
@@ -493,7 +493,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             name,
             isDefault,
             LocationInfo.From(method),
-            shape is ResultShape.Unit or ResultShape.UnitTask ? "global::Runic.CommandLine.CommandUnit" : Type(result),
+            shape is ResultShape.Unit or ResultShape.UnitTask ? UnitResultType : Type(result),
             shape,
             payloadType,
             jsonContext is null ? null : JsonContextInstance(jsonContext),
@@ -546,7 +546,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         source.Append(" } }").AppendLine();
         if (command.JsonContextInstance is null)
         {
-            string codec = command.Shape is ResultShape.Unit or ResultShape.UnitTask ? "Unit" : "String";
+            string codec = result == UnitResultType ? "Unit" : "String";
             source.Append("    private static class __Codec").Append(index).Append(" { public static global::Runic.CommandLine.ICommandResultCodec<").Append(result).Append("> Instance => global::Runic.CommandLine.CommandResultCodecs.").Append(codec).AppendLine("; }");
             return;
         }
@@ -651,6 +651,13 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static AttributeData? FindAttribute(ISymbol symbol, string name) => symbol.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == name);
     private static string GetId(IParameterSymbol parameter, AttributeData? argument) => argument?.ConstructorArguments.Length == 1 && argument.ConstructorArguments[0].Value is string id ? id : Kebab(parameter.Name);
     private static string GetCommandName(IMethodSymbol method) => method.GetAttributes().First(item => item.AttributeClass?.ToDisplayString() == "Runic.CommandLine.CommandAttribute").ConstructorArguments[0].Value as string ?? method.Name;
+    private const string UnitResultType = "global::Runic.CommandLine.CommandUnit";
+
+    // void, Task, ValueTask and CommandUnit (also as Task<T>, ValueTask<T> or CommandOutcome<T>) produce no value: they
+    // share runic.unit/1, the built-in unit codec, and write nothing as human output or a payload-shaped JSON alias.
+    private static bool IsUnitResult(ITypeSymbol result, ResultShape shape) =>
+        shape is ResultShape.Unit or ResultShape.UnitTask || Type(result) == UnitResultType;
+
     // Reports the specific cause (RCLI9028, RCLI9005, RCLI9041 or RCLI9042); string and unit results need no metadata.
     private static bool TryGetResultMetadata(List<DiagnosticInfo> diagnostics, IMethodSymbol method, string name, ITypeSymbol result, ResultShape shape, out string? payloadType, out INamedTypeSymbol? jsonContext)
     {
@@ -659,7 +666,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         jsonContext = attribute?.ConstructorArguments.Length > 1 ? attribute.ConstructorArguments[1].Value as INamedTypeSymbol : null;
         if (attribute is null)
         {
-            if (result.SpecialType is SpecialType.System_String or SpecialType.System_Void || shape is ResultShape.UnitTask) return true;
+            if (result.SpecialType is SpecialType.System_String || IsUnitResult(result, shape)) return true;
             string hint = result.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64
                 ? "; an integer result is payload data, not the exit code: return CommandOutcome<T> with a CommandExitCategory, or configure an IExitCodePolicy, to choose the exit code"
                 : string.Empty;

@@ -528,9 +528,12 @@ list options; remove it from a scalar option.
 ### RCLI9028
 
 Missing command result metadata. A command that returns a type other than
-`string` or no value must declare
+`string`, `void`, `Task`, `ValueTask` or `CommandUnit` must declare
 `[CommandResult("<name>/<major>", typeof(MyJsonContext))]` so its JSON payload
-has an identity and source-generated metadata. An `int` or `long` result is
+has an identity and source-generated metadata. The same holds when the result
+is wrapped in `Task<T>`, `ValueTask<T>` or `CommandOutcome<T>`: a
+`CommandOutcome<CommandUnit>` command needs no metadata and behaves like a
+`void` command, with the payload type `runic.unit/1`. An `int` or `long` result is
 payload data, not the process exit code: to choose the exit code, return
 `CommandOutcome<T>` with a `CommandExitCategory`, or configure an
 `IExitCodePolicy`. An empty payload type is reported as `RCLI9005`, an
