@@ -11,3 +11,5 @@ const Runic.CommandLine.CommandTextKeys.HelpJsonPayloadOutputAlias = "help.json-
 Runic.CommandLine.CommandApp.Run(string![]! args, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> int
 Runic.CommandLine.CommandExecutionContext.CanContinueOnCallingThread.get -> bool
 Runic.CommandLine.CommandExecutionContext.ContinueOnCallingThread(System.Func<int>! continuation) -> void
+Runic.CommandLine.CommandPrompts.IntroAsync(string! title, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.CommandPrompts.OutroAsync(string! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
