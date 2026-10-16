@@ -11,7 +11,7 @@ namespace Runic.CommandLine.Processes;
 public sealed class ProcessRunner : IProcessRunner
 {
     private const int BufferSize = 81920;
-    private static readonly ProcessOutput EmptyOutput = new(string.Empty, 0, false, false);
+    private static readonly ProcessOutput EmptyOutput = ProcessResult.Empty;
     private static readonly SearchValues<char> BatchArgumentMetacharacters =
         SearchValues.Create("%!^&|<>\"()\r\n");
     private static readonly SearchValues<char> BatchPathMetacharacters = SearchValues.Create("%!\"\r\n");
@@ -239,9 +239,7 @@ public sealed class ProcessRunner : IProcessRunner
         catch (Exception exception) when (!IsFatal(exception))
         {
             state = ProcessState.ExecutionFailed;
-            fault = new CommandFault(
-                ProcessFaultCodes.ExecutionFailed,
-                "The process lifecycle could not be observed safely.");
+            fault = new CommandFault(ProcessFaultCodes.ExecutionFailed, ProcessResult.ExecutionFailedMessage);
         }
 
         // A child may exit without reading all input, or a descendant may inherit the read end.
@@ -269,9 +267,7 @@ public sealed class ProcessRunner : IProcessRunner
         {
             // Another party reaped the child, for example because SIGCHLD was ignored, so its outcome is unknown.
             state = ProcessState.ExecutionFailed;
-            fault = new CommandFault(
-                ProcessFaultCodes.ExecutionFailed,
-                "The process lifecycle could not be observed safely.");
+            fault = new CommandFault(ProcessFaultCodes.ExecutionFailed, ProcessResult.ExecutionFailedMessage);
         }
 
         return Complete(
@@ -550,7 +546,7 @@ public sealed class ProcessRunner : IProcessRunner
             EmptyOutput,
             EmptyOutput,
             category,
-            CreateStartFault(category),
+            ProcessResult.CreateStartFault(category),
             startedAt);
 
     private ProcessResult Complete(
@@ -589,23 +585,12 @@ public sealed class ProcessRunner : IProcessRunner
         _ => ProcessStartFailureCategory.Other,
     };
 
-    private static CommandFault CreateStartFault(ProcessStartFailureCategory category) =>
-        new(
-            ProcessFaultCodes.StartFailed,
-            "The process could not be started.",
-            new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["category"] = category.ToString(),
-            });
-
     private static CommandFault NormalizePolicyFault(CommandFault fault)
     {
         string code = fault.Code == ProcessFaultCodes.WorkingDirectoryRejected
             ? ProcessFaultCodes.WorkingDirectoryRejected
             : ProcessFaultCodes.ExecutableRejected;
-        return new CommandFault(
-            code,
-            "The process request is not permitted by the configured policy.");
+        return new CommandFault(code, ProcessResult.PolicyRejectionMessage);
     }
 
 

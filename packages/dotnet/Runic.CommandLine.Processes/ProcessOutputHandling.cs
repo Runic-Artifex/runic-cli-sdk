@@ -14,29 +14,49 @@ public enum ProcessOutputChannel
     StandardError = 1,
 }
 
-/// <summary>One decoded line of live child output.</summary>
+/// <summary>One decoded line of live child output, or one part of a line longer than 64 Ki characters.</summary>
 public readonly struct ProcessOutputLine
 {
     private readonly string? text;
 
-    /// <summary>Initializes a line.</summary>
+    /// <summary>Initializes a complete line, or the last part of a long line.</summary>
     /// <param name="channel">The pipe the line was read from.</param>
     /// <param name="text">The line without its terminator.</param>
     /// <exception cref="ArgumentNullException">The text is null.</exception>
     public ProcessOutputLine(ProcessOutputChannel channel, string text)
+        : this(channel, text, isPartial: false)
+    {
+    }
+
+    /// <summary>Initializes a line or one part of a long line.</summary>
+    /// <param name="channel">The pipe the line was read from.</param>
+    /// <param name="text">The line or part, without its terminator.</param>
+    /// <param name="isPartial">Whether the line continues in the next line of the same channel.</param>
+    /// <exception cref="ArgumentNullException">The text is null.</exception>
+    public ProcessOutputLine(ProcessOutputChannel channel, string text, bool isPartial)
     {
         ArgumentNullException.ThrowIfNull(text);
         Channel = channel;
         this.text = text;
+        IsPartial = isPartial;
     }
 
     /// <summary>Gets the pipe the line was read from.</summary>
     public ProcessOutputChannel Channel { get; }
 
     /// <summary>
-    /// Gets the line, decoded with the channel's encoding, without its <c>\n</c> or <c>\r\n</c> terminator.
+    /// Gets the line, decoded with the channel's encoding, without its <c>\n</c> or <c>\r\n</c> terminator; or, for a
+    /// line longer than 64 Ki characters, one part of it.
     /// </summary>
     public string Text => text ?? string.Empty;
+
+    /// <summary>
+    /// Gets a value indicating whether this is one part of a line longer than 64 Ki characters that continues in the
+    /// next line of the same channel. The runner passes such a line on in parts of at most 64 Ki characters, never
+    /// between the two halves of a surrogate pair; the last part, and every line that fits, is not partial.
+    /// Concatenate the parts up to and including the next line that is not partial to get the whole line.
+    /// </summary>
+    public bool IsPartial { get; }
 }
 
 /// <summary>One chunk of raw child output as it was read from the pipe.</summary>
@@ -79,7 +99,10 @@ public readonly struct ProcessOutputChunk
 /// </remarks>
 public interface IProcessOutputHandler
 {
-    /// <summary>Called for each complete line, and for the final line when the channel ends without a terminator.</summary>
+    /// <summary>
+    /// Called for each complete line, and for the final line when the channel ends without a terminator. A line longer
+    /// than 64 Ki characters arrives in parts; see <see cref="ProcessOutputLine.IsPartial"/>.
+    /// </summary>
     /// <param name="line">The line.</param>
     /// <param name="cancellationToken">Cancelled when the request is cancelled or times out.</param>
     /// <returns>A task that completes when the runner may continue reading.</returns>
