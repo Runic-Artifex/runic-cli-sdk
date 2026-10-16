@@ -360,6 +360,9 @@ public static class CommandCompletion
                 else input+=("$item"); fi
                 previous=$item
               done
+              # Bash before 4.0 splits COMP_WORDS only at shell metacharacters, while readline still replaces just the
+              # text after the last = of COMP_WORDBREAKS, so the option prefix is left out of the reply there too.
+              if (( BASH_VERSINFO[0] < 4 )) && [[ "${COMP_WORDS[COMP_CWORD]}" == *=* && "$COMP_WORDBREAKS" == *=* ]]; then split_value=1; fi
               {{function}}_query "${input[@]}"
               COMPREPLY=("${reply[@]}")
               if (( query_kind != 0 )); then
