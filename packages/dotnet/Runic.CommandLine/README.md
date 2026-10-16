@@ -64,6 +64,30 @@ listed in help and completions. Giving both `--json` and `--output` is a usage
 error (`RCLI1016`), and a command option spelled `--json` fails catalog
 validation (`RCLI0024`).
 
+When the existing flag's consumers read the bare document rather than an
+envelope, declare it with the payload shape:
+
+```csharp
+CommandCatalog catalog = GeneratedCommandCatalog.Create(
+    builder => builder.JsonOutputAlias("--json", JsonOutputShape.Payload));
+```
+
+`hello greet Ada --json` then writes `"Hello, Ada!"` and one LF to standard
+output, the payload serialized with the command's result metadata and nothing
+else. A command without a result writes nothing. A failed or cancelled command
+writes the payload of its declared failure data (see "Declared domain failure
+and recovery data") the same way, or nothing when it declared none. Its
+diagnostics are human text on standard error, followed by its `humanOutput`, written
+exactly in place of the `CODE: message` fault line, so a legacy contract keeps its
+own error text; without `humanOutput` the fault line is written. The exit code is the one the
+envelope would report. Help, version and usage errors on a command line that
+gives the flag are human text, so `hello --bogus --json` writes its `RCLI1001`
+line to standard error. `--output json` and `RUNIC_COMMANDLINE_OUTPUT=json` keep
+writing the `runic.commandline/1` envelope, and `CommandExecutionContext.OutputShape`
+tells a handler or a custom outcome sink which shape was selected. Failure data
+keeps its 65,536-byte bound, because the same outcome can also be written as an
+envelope; a success payload is not bound by the protocol's frame limit.
+
 ## Method-first inputs and results
 
 - Scalars: strings, integers, long integers, decimals, doubles, GUIDs, enums and
@@ -664,6 +688,59 @@ policy wins even when the catalog declares a default command.
 See the runnable [hosted example](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/HostedExample.cs)
 for service injection and the complete launch flow. The example's UI branch is a
 console placeholder for an application's existing UI launcher.
+
+### Start a UI host on the main thread
+
+Some hosts must start on the process's main thread before any `await`, such as a
+desktop host whose event loop owns that thread. `CommandApp.RunAsync` parses and
+executes asynchronously, so a command cannot start such a host itself. Instead it
+hands a synchronous continuation back to `Main` with
+`CommandExecutionContext.ContinueOnCallingThread`, and `Main` runs the application
+with `CommandApp.Run`, which blocks until the invocation completes and then
+invokes the continuation on the thread that called it:
+
+```csharp
+// Program.cs: a synchronous Main, so this thread is the process's main thread.
+return CreateCommandApp().Run(args);
+
+internal static class DashboardCommands
+{
+    [Command("ui", Description = "Open the dashboard.")]
+    internal static async Task Ui(CommandExecutionContext context,
+        [Option("--flake")] string? flake = null, CancellationToken cancellationToken = default)
+    {
+        // Load and validate asynchronously; a failure here is an ordinary command fault.
+        DashboardSettings settings = await DashboardSettings.LoadAsync(flake, cancellationToken);
+        context.ContinueOnCallingThread(() =>
+            DesktopEventLoop.Run(DashboardHost.Options(), desktop => Dashboard.RunAsync(settings, desktop)));
+    }
+}
+```
+
+`Run` returns the continuation's result as the exit code. It runs the continuation
+only when the invocation succeeded and was not cancelled, after its output was
+written and its scope disposed, so capture values rather than scoped services.
+Help, version and usage errors never reach the command. The invocation runs
+without the caller's `SynchronizationContext`, and `HandleCancelKeyPress` signal
+handling ends before the continuation starts; the host handles its own shutdown.
+An exception from the continuation propagates from `Run`.
+
+Test such a command with `CommandAppTester.Run`, the synchronous counterpart of
+`RunAsync`: it runs the continuation on the calling thread and returns its exit
+code with the output captured after it returned.
+
+`CanContinueOnCallingThread` is false under `RunAsync`, the hosting adapter and a
+directly used `CommandExecutor`, where `ContinueOnCallingThread` throws
+`InvalidOperationException` (a `RCLI5000` host failure). A command that can also
+run there checks it first. The hosting adapter does not support continuations
+because it does not own the entry point or its thread: the host calls its
+asynchronous `RunAsync` from its own startup, possibly after an `await` or on a UI
+loop, so there is no blocked caller to return to. A host decides before its UI
+starts with the synchronous `Classify` instead
+([#52](https://github.com/Runic-Artifex/runic-cli-sdk/issues/52) tracks support).
+`Main` must not `await` before calling `Run`: after an `await`, a top-level program
+resumes on a thread-pool thread. The mechanism has no UI dependency and works
+with generated and explicitly registered commands and NativeAOT.
 
 ### Framework presentation failures and command ownership
 

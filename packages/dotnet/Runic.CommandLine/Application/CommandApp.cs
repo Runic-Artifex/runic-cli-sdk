@@ -58,7 +58,46 @@ public sealed class CommandApp
     public Func<CommandPath, string>? FormatHelp { get; init; }
 
     /// <summary>Parses, presents framework requests, or executes one invocation, returning its process exit code.</summary>
-    public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
+    public Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default) =>
+        RunCoreAsync(args, continuation: null, cancellationToken);
+
+    /// <summary>
+    /// Parses, presents framework requests, or executes one invocation as <see cref="RunAsync"/> does, blocking the
+    /// calling thread until it completes, then runs the continuation that the command handed back with
+    /// <see cref="CommandExecutionContext.ContinueOnCallingThread"/>, if any, on the calling thread.
+    /// </summary>
+    /// <param name="args">The command-line arguments.</param>
+    /// <param name="cancellationToken">Cancels the invocation; the continuation does not observe it.</param>
+    /// <returns>
+    /// The continuation's result when the command handed one back and succeeded, otherwise the invocation's
+    /// process exit code.
+    /// </returns>
+    /// <remarks>
+    /// Call it from a synchronous <c>Main</c> (one without <see langword="await"/>) so the calling thread is the
+    /// process's main thread, for example to start a UI host that must own the main thread. The invocation runs
+    /// without the caller's <see cref="SynchronizationContext"/>, so a handler's awaits never wait for the blocked
+    /// thread. Process signal handling (<see cref="HandleCancelKeyPress"/>) ends before the continuation runs.
+    /// </remarks>
+    public int Run(string[] args, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        var continuation = new CommandContinuation();
+        SynchronizationContext? callerContext = SynchronizationContext.Current;
+        int exitCode;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try
+        {
+            exitCode = RunCoreAsync(args, continuation, cancellationToken).GetAwaiter().GetResult();
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(callerContext);
+        }
+
+        return continuation.Take() is { } next ? next() : exitCode;
+    }
+
+    private async Task<int> RunCoreAsync(string[] args, CommandContinuation? continuation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(args);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -86,8 +125,11 @@ public sealed class CommandApp
                     {
                         ExceptionObserver = exceptionObserver, TextResolver = TextResolver,
                         PromptsDisabled = CommandPrompts.IsDisabledBy(settings.GetEnvironmentVariable),
+                        Continuation = continuation,
                     },
                     debug is null ? sink : new CommandDebugOutput.FlushingSink(sink, debug), cancellation.Token).ConfigureAwait(false);
+                // Only a successful invocation that nobody asked to stop hands its continuation back.
+                if (!result.IsSuccess || cancellation.IsCancellationRequested) continuation?.Take();
                 if (debug is not null) await debug.FlushAsync(Console, CancellationToken.None).ConfigureAwait(false);
                 return result.ExitCode;
             }

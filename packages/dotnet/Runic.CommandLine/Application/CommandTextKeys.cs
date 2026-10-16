@@ -58,6 +58,8 @@ public static class CommandTextKeys
     public const string HelpOutputFormat = "help.output-format";
     /// <summary>The description of the JSON output alias (<c>Same as {option} json</c>); argument: <c>option</c>.</summary>
     public const string HelpJsonOutputAlias = "help.json-output-alias";
+    /// <summary>The description of a JSON output alias of payload shape (<c>Write the result as JSON</c>).</summary>
+    public const string HelpJsonPayloadOutputAlias = "help.json-payload-output-alias";
     /// <summary>The examples section heading (<c>Examples</c>).</summary>
     public const string HelpExamples = "help.examples";
     /// <summary>The note for a required option or argument (<c>required</c>).</summary>
@@ -204,7 +206,7 @@ public static class CommandTextKeys
     public static IReadOnlyList<CommandTextKey> All { get; } = new ReadOnlyCollection<CommandTextKey>(
     [
         new(HelpUsage), new(HelpCommandPlaceholder), new(HelpOptionsPlaceholder), new(HelpDefaultCommand), new(HelpCompletion),
-        new(HelpCommands), new(HelpArguments), new(HelpOptions), new(HelpShowHelp), new(HelpShowVersion), new(HelpOutputFormat), new(HelpJsonOutputAlias, "option"),
+        new(HelpCommands), new(HelpArguments), new(HelpOptions), new(HelpShowHelp), new(HelpShowVersion), new(HelpOutputFormat), new(HelpJsonOutputAlias, "option"), new(HelpJsonPayloadOutputAlias),
         new(HelpExamples), new(HelpRequired), new(HelpDefault), new(HelpChoices), new(HelpEnvironment), new(HelpExisting),
         new(HelpPathKindFile), new(HelpPathKindDirectory), new(HelpMinimum), new(HelpMaximum), new(HelpRequires), new(HelpConflicts),
         new(CompletionInvalidShell),

@@ -43,6 +43,11 @@ internal static class Program
         if (await new CommandApp(catalog) { Console = runnerOutput, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--output=json"]).ConfigureAwait(false) != 0) return 40;
         using (JsonDocument ping = JsonDocument.Parse(runnerOutput.StandardOutput))
             if (ping.RootElement.GetProperty("payload").GetString() != "pong") return 50;
+        var payloadOutput = new BufferCommandConsole();
+        if (await new CommandApp(GeneratedCommandCatalog.Create(builder => builder.JsonOutputAlias("--json", JsonOutputShape.Payload)))
+            { Console = payloadOutput, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--json"]).ConfigureAwait(false) != 0 ||
+            payloadOutput.StandardOutput != "\"pong\"\n") return 51;
+        if (!RunsContinuationOnCallingThread(catalog)) return 52;
         var hosted = new CommandLineHostingAdapter(catalog, new CommandExecutor(EmptyScopeFactory.Instance))
         {
             Presentation = new() { Name = "smoke", HelpPresenter = new SpectreHelpPresenter() },
@@ -63,6 +68,33 @@ internal static class Program
 
     [Command("ping")]
     internal static string Ping() => "pong";
+
+    private static int s_continuationThread = -1;
+
+    // Main is asynchronous here, so CommandApp.Run gets a thread of its own to hand the continuation back to.
+    private static bool RunsContinuationOnCallingThread(CommandCatalog catalog)
+    {
+        int exitCode = -1;
+        int callingThread = -1;
+        var thread = new Thread(() =>
+        {
+            callingThread = Environment.CurrentManagedThreadId;
+            exitCode = new CommandApp(catalog) { Console = new BufferCommandConsole(), HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.Run(["handoff"]);
+        });
+        thread.Start();
+        return thread.Join(TimeSpan.FromSeconds(30)) && exitCode == 7 && s_continuationThread == callingThread;
+    }
+
+    [Command("handoff")]
+    internal static async Task Handoff(CommandExecutionContext context)
+    {
+        await Task.Yield();
+        context.ContinueOnCallingThread(static () =>
+        {
+            s_continuationThread = Environment.CurrentManagedThreadId;
+            return 7;
+        });
+    }
 
     [Command("smoke")]
     [DefaultCommand]

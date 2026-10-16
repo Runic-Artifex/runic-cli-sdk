@@ -54,6 +54,12 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         CommandOutputClassification initialOutputClassification = ClassifyOutput(
             transportOutput.ExplicitOutputMode,
             settings);
+        // The legacy contract of a payload-shaped alias covers the whole command line that gives it, including
+        // its framework output, so the shape follows the flag rather than the selection it produced.
+        if (transportOutput.AliasGiven && catalog.JsonOutputAliasShape == JsonOutputShape.Payload)
+        {
+            initialOutputClassification = initialOutputClassification.WithShape(JsonOutputShape.Payload);
+        }
 
         // The transport is framework-owned. Validate its shape before command
         // resolution so a command error cannot make the selected presentation
@@ -872,6 +878,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     {
         CommandOutputMode? explicitOutputMode = null;
         string? seenSpelling = null;
+        bool aliasGiven = false;
 
         for (int index = 0; index < tokens.Length; index++)
         {
@@ -886,11 +893,13 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 continue;
             }
 
+            aliasGiven |= transport.IsAlias(spelling);
+
             if (seenSpelling is not null)
             {
                 bool conflict = !string.Equals(seenSpelling, spelling, StringComparison.Ordinal);
                 return new TransportOutputScan(
-                    explicitOutputMode,
+                    explicitOutputMode, aliasGiven,
                     new TransportOutputIssue(
                         conflict ? ConflictingOutputSelectorCode : DuplicateOptionCode,
                         conflict ? "conflicting-output-selector" : "duplicate-option",
@@ -902,7 +911,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             if (transport.IsAlias(spelling) && !string.Equals(token, spelling, StringComparison.Ordinal))
             {
                 return new TransportOutputScan(
-                    explicitOutputMode,
+                    explicitOutputMode, aliasGiven,
                     new TransportOutputIssue(UnexpectedOptionValueCode, "unexpected-option-value", index, [spelling]));
             }
 
@@ -917,7 +926,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                     transport))
                 {
                     return new TransportOutputScan(
-                        explicitOutputMode,
+                        explicitOutputMode, aliasGiven,
                         new TransportOutputIssue(
                             MissingOptionValueCode,
                             "missing-option-value",
@@ -937,7 +946,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             if (!TryParseOutputMode(value, out CommandOutputMode mode))
             {
                 return new TransportOutputScan(
-                    explicitOutputMode,
+                    explicitOutputMode, aliasGiven,
                     new TransportOutputIssue(
                         InvalidOutputModeCode,
                         "invalid-output-mode",
@@ -948,7 +957,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             explicitOutputMode = mode;
         }
 
-        return new TransportOutputScan(explicitOutputMode, null);
+        return new TransportOutputScan(explicitOutputMode, aliasGiven, null);
     }
 
     private static bool IsTransportValueBoundary(
@@ -1210,6 +1219,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
     private sealed record TransportOutputScan(
         CommandOutputMode? ExplicitOutputMode,
+        bool AliasGiven,
         TransportOutputIssue? Issue);
 
     private sealed record TransportOutputIssue(

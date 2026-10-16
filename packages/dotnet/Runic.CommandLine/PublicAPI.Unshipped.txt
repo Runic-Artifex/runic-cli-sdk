@@ -1,1 +1,13 @@
 #nullable enable
+Runic.CommandLine.CommandCatalog.JsonOutputAliasShape.get -> Runic.CommandLine.JsonOutputShape
+Runic.CommandLine.CommandCatalogBuilder.JsonOutputAlias(string! name, Runic.CommandLine.JsonOutputShape shape) -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.CommandExecutionContext.OutputShape.get -> Runic.CommandLine.JsonOutputShape
+Runic.CommandLine.CommandExecutionContext.OutputShape.init -> void
+Runic.CommandLine.CommandOutputClassification.Shape.get -> Runic.CommandLine.JsonOutputShape
+Runic.CommandLine.JsonOutputShape
+Runic.CommandLine.JsonOutputShape.Envelope = 0 -> Runic.CommandLine.JsonOutputShape
+Runic.CommandLine.JsonOutputShape.Payload = 1 -> Runic.CommandLine.JsonOutputShape
+const Runic.CommandLine.CommandTextKeys.HelpJsonPayloadOutputAlias = "help.json-payload-output-alias" -> string!
+Runic.CommandLine.CommandApp.Run(string![]! args, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> int
+Runic.CommandLine.CommandExecutionContext.CanContinueOnCallingThread.get -> bool
+Runic.CommandLine.CommandExecutionContext.ContinueOnCallingThread(System.Func<int>! continuation) -> void

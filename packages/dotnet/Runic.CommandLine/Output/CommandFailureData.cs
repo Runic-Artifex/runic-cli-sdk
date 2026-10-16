@@ -140,6 +140,15 @@ public sealed class CommandFailureData
         writer.WriteEndObject();
     }
 
+    // The payload alone, as a JSON output alias of payload shape writes it: the compact value and one LF.
+    internal byte[] PayloadDocument()
+    {
+        byte[] document = GC.AllocateUninitializedArray<byte>(_payloadUtf8.Length + 1);
+        _payloadUtf8.CopyTo(document, 0);
+        document[^1] = (byte)'\n';
+        return document;
+    }
+
     private static byte[] CompactPayload(JsonElement payload)
     {
         byte[] bytes = StrictUtf8.GetBytes(payload.GetRawText());

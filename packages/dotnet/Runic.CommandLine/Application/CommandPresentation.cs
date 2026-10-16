@@ -68,7 +68,8 @@ public sealed class CommandPresentation
         ICommandConsole console, CultureInfo culture, string requestId, CancellationToken cancellationToken)
     {
         var textContext = new CommandTextContext(culture, TextResolver);
-        if (parsed.Kind == ParseOutcomeKind.Help && parsed.OutputClassification?.Mode == CommandOutputMode.Human && HelpPresenter is not null && FormatHelp is null)
+        CommandOutputMode mode = FrameworkOutputMode(parsed.OutputClassification);
+        if (parsed.Kind == ParseOutcomeKind.Help && mode == CommandOutputMode.Human && HelpPresenter is not null && FormatHelp is null)
         {
             await HelpPresenter.WriteAsync(catalog, Name, parsed.HelpRequest!.Path, outputOptionName, textContext, console, cancellationToken).ConfigureAwait(false);
             return 0;
@@ -85,13 +86,17 @@ public sealed class CommandPresentation
         {
             string text = parsed.Kind == ParseOutcomeKind.Version ? Version :
                 FormatHelp?.Invoke(parsed.HelpRequest!.Path) ?? CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, textContext, outputOptionName,
-                    HelpWidth(console, parsed.OutputClassification?.Mode ?? CommandOutputMode.Human));
+                    HelpWidth(console, mode));
             response = CommandResponse.Succeeded(requestId, parsed.Kind == ParseOutcomeKind.Version ? "version" : "help", CommandResultCodecs.String.PayloadType, text);
         }
-        await CommandOutputDispatcher.DispatchAsync(parsed.OutputClassification?.Mode ?? CommandOutputMode.Human,
+        await CommandOutputDispatcher.DispatchAsync(mode,
             console, culture, response, CommandResultCodecs.String, textContext, cancellationToken).ConfigureAwait(false);
         return response.ExitCode;
     }
+
+    // A payload-shaped JSON alias keeps a legacy contract that has no envelope for help, version or usage errors.
+    private static CommandOutputMode FrameworkOutputMode(CommandOutputClassification? classification) =>
+        classification is { Shape: JsonOutputShape.Payload } ? CommandOutputMode.Human : classification?.Mode ?? CommandOutputMode.Human;
 
     // Human help on the process terminal follows its width, one column short so a full line never triggers the
     // legacy Windows console's automatic wrap. Redirected, test and machine output use the fixed default.

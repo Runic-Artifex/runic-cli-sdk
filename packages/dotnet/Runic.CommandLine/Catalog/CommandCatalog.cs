@@ -11,11 +11,13 @@ public sealed class CommandCatalog
     internal CommandCatalog(
         IReadOnlyList<CommandDescriptor> commands,
         CommandDescriptor? defaultCommand = null,
-        string? jsonOutputAlias = null)
+        string? jsonOutputAlias = null,
+        JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope)
     {
         Commands = commands;
         DefaultCommand = defaultCommand;
         JsonOutputAlias = jsonOutputAlias;
+        JsonOutputAliasShape = jsonOutputAliasShape;
         _commandsByName = new Dictionary<string, CommandDescriptor>(StringComparer.Ordinal);
         foreach (CommandDescriptor command in commands)
         {
@@ -35,9 +37,15 @@ public sealed class CommandCatalog
 
     /// <summary>
     /// Gets the application's flag that stands for the output selector with the value <c>json</c>, such as
-    /// <c>--json</c> for <c>--output json</c>, or null. See <see cref="CommandCatalogBuilder.JsonOutputAlias"/>.
+    /// <c>--json</c> for <c>--output json</c>, or null. See <see cref="CommandCatalogBuilder.JsonOutputAlias(string)"/>.
     /// </summary>
     public string? JsonOutputAlias { get; }
+
+    /// <summary>
+    /// Gets what <see cref="JsonOutputAlias"/> writes: the <c>runic.commandline/1</c> envelope, as the output
+    /// selector does, or the bare payload. See <see cref="CommandCatalogBuilder.JsonOutputAlias(string, JsonOutputShape)"/>.
+    /// </summary>
+    public JsonOutputShape JsonOutputAliasShape { get; }
 
     /// <summary>Combines independently created catalogs in the supplied order.</summary>
     /// <remarks>
@@ -53,6 +61,7 @@ public sealed class CommandCatalog
         var issues = new List<CommandCatalogIssue>();
         CommandDescriptor? defaultCommand = null;
         string? jsonOutputAlias = null;
+        JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope;
         foreach (CommandCatalog catalog in catalogs)
         {
             ArgumentNullException.ThrowIfNull(catalog);
@@ -65,8 +74,19 @@ public sealed class CommandCatalog
                         "root",
                         $"Combined catalogs declare different JSON output aliases: '{jsonOutputAlias}' and '{declaredAlias}'."));
                 }
+                else if (jsonOutputAlias is not null && jsonOutputAliasShape != catalog.JsonOutputAliasShape)
+                {
+                    issues.Add(new CommandCatalogIssue(
+                        "RCLI0024",
+                        "root",
+                        $"Combined catalogs declare the JSON output alias '{declaredAlias}' with different output shapes."));
+                }
 
-                jsonOutputAlias ??= declaredAlias;
+                if (jsonOutputAlias is null)
+                {
+                    jsonOutputAlias = declaredAlias;
+                    jsonOutputAliasShape = catalog.JsonOutputAliasShape;
+                }
             }
 
             if (catalog.DefaultCommand is not null)
@@ -90,7 +110,7 @@ public sealed class CommandCatalog
 
         if (jsonOutputAlias is not null) ValidateJsonOutputAlias(jsonOutputAlias, commands, "", issues);
         if (issues.Count != 0) throw new CommandCatalogValidationException(issues);
-        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias);
+        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape);
 
         void Register(string spelling, string owner)
         {

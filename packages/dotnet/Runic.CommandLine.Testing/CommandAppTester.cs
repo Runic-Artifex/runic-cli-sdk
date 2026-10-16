@@ -23,6 +23,19 @@ public sealed class CommandAppTester
         int exitCode = await _createApp(console).RunAsync(args, cancellationToken).ConfigureAwait(false);
         return new CommandAppTestResult(exitCode, console.StandardOutput, console.StandardError);
     }
+
+    /// <summary>
+    /// Runs one invocation with a fresh console from <see cref="CreateConsole"/> through <see cref="CommandApp.Run"/>,
+    /// so a command can hand a continuation back with <see cref="CommandExecutionContext.ContinueOnCallingThread"/>.
+    /// The continuation runs on the thread that calls this method, and the result reports its exit code and the
+    /// output captured once it has returned.
+    /// </summary>
+    public CommandAppTestResult Run(string[] args, CancellationToken cancellationToken = default)
+    {
+        TestCommandConsole console = CreateConsole() ?? throw new InvalidOperationException("CreateConsole returned null.");
+        int exitCode = _createApp(console).Run(args, cancellationToken);
+        return new CommandAppTestResult(exitCode, console.StandardOutput, console.StandardError);
+    }
 }
 
 /// <summary>Captured process-facing application behavior.</summary>
