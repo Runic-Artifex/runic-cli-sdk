@@ -110,6 +110,25 @@ public static class CommandCompletion
         };
     }
 
+    private static readonly string[] Shells = ["bash", "zsh", "fish", "powershell"];
+
+    // A completion request is the built-in command with its shell, or the declared completion option as the first
+    // argument. The shell is null when the request does not name exactly one.
+    internal static bool IsRequest(CommandCatalog catalog, IReadOnlyList<string> args, out string? shell)
+    {
+        shell = null;
+        if (catalog.CompletionOption is { } option)
+        {
+            if (args.Count == 0) return false;
+            if (args[0] == option) { shell = args.Count == 2 ? args[1] : null; return true; }
+            if (args[0].Length > option.Length && args[0].StartsWith(option, StringComparison.Ordinal) && args[0][option.Length] == '=')
+            { shell = args.Count == 1 ? args[0][(option.Length + 1)..] : null; return true; }
+            return false;
+        }
+        if (args.Count == 2 && args[0] == "completion" && catalog.HasCompletionCommand) { shell = args[1]; return true; }
+        return false;
+    }
+
     internal static IReadOnlyList<CommandOptionDescriptor> GlobalOptions(CommandCatalog catalog) =>
         Array.AsReadOnly(Descendants(catalog.Commands).SelectMany(command => command.Options).Where(option => option.IsGlobal)
             .DistinctBy(option => option.Name, StringComparer.Ordinal).ToArray());
@@ -140,10 +159,11 @@ public static class CommandCompletion
             if (DefaultNode != 0)
                 foreach (var option in Nodes[DefaultNode].Options)
                     Nodes[0].Options.TryAdd(option.Key, option.Value with { TargetNode = DefaultNode });
-            if (!catalog.TryGetCommand("completion", out _))
+            if (catalog.CompletionOption is { } completionOption) Nodes[0].Options.TryAdd(completionOption, new Value(1, Shells, CommandPathKind.None));
+            else if (catalog.HasCompletionCommand)
             {
                 int completion = Nodes.Count; Nodes.Add(new Node()); Nodes[0].Children.Add("completion", completion);
-                Nodes[completion].Arguments.Add(new Value(1, ["bash", "zsh", "fish", "powershell"], CommandPathKind.None));
+                Nodes[completion].Arguments.Add(new Value(1, Shells, CommandPathKind.None));
             }
             // The help command resolves the same command path without suggesting parameter values.
             int helpRoot = Nodes.Count;
@@ -153,7 +173,7 @@ public static class CommandCompletion
             {
                 foreach (var child in Nodes[source].Children.ToArray())
                 {
-                    if (source == 0 && (child.Key == "help" || (child.Key == "completion" && !catalog.TryGetCommand("completion", out _)))) continue;
+                    if (source == 0 && (child.Key == "help" || (child.Key == "completion" && catalog.HasCompletionCommand))) continue;
                     int id = Nodes.Count; Nodes.Add(new Node()); Nodes[target].Children.Add(child.Key, id); CopyHelp(child.Value, id);
                 }
             }
@@ -328,7 +348,7 @@ public static class CommandCompletion
         {
             text.Append(System.Globalization.CultureInfo.InvariantCulture, $$"""
               local -a input=()
-              local i previous='' split_value=0 count unquoted active_quote current_quote='' escaped
+              local i j previous='' split_value=0 count unquoted active_quote current_quote='' escaped character
               for (( i=1; i<=COMP_CWORD; i++ )); do
                 {{function}}_unquote "${COMP_WORDS[i]}"
                 item=$unquoted; count=${#input[@]}
@@ -352,10 +372,18 @@ public static class CommandCompletion
               for (( i=0; i<${#COMPREPLY[@]}; i++ )); do
                 item="${COMPREPLY[i]}"
                 (( split_value )) && item="${item#"$query_prefix"}"
-                if [[ "$current_quote" == "'" ]]; then
-                  escaped="${item//\'/\'\\\'\'}"
-                elif [[ "$current_quote" == '"' ]]; then
-                  escaped="${item//\\/\\\\}"; escaped="${escaped//\"/\\\"}"; escaped="${escaped//\$/\\\$}"; escaped="${escaped//\`/\\\`}"
+                if [[ -n "$current_quote" ]]; then
+                  # Escape character by character: Bash before 4.3 keeps backslashes in a quoted ${item//...} replacement.
+                  escaped=''
+                  for (( j=0; j<${#item}; j++ )); do
+                    character="${item:j:1}"
+                    if [[ "$current_quote" == "'" ]]; then
+                      [[ "$character" == "'" ]] && character="'\\''"
+                    else
+                      case "$character" in '\'|'"'|'$'|'`') character="\\$character" ;; esac
+                    fi
+                    escaped+="$character"
+                  done
                 else printf -v escaped '%q' "$item"; fi
                 COMPREPLY[i]=$escaped
               done

@@ -8,7 +8,7 @@ tag of the package you use, so the page always matches your version.
 
 | Codes | Reported by | Where it appears |
 |---|---|---|
-| `RCLI0002`–`RCLI0024` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
+| `RCLI0002`–`RCLI0025` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
 | `RCLI1001`–`RCLI1016` | Parser | Usage diagnostics (exit code 2) |
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
@@ -213,6 +213,15 @@ a command option, or catalogs combined with
 different output shapes (`JsonOutputShape`). The alias is recognized
 before any command option, so remove the option, or keep it and do not declare
 the alias.
+
+### RCLI0025
+
+Completion option conflict. The option declared with
+`CommandCatalogBuilder.CompletionOption`, such as `--completions`, is also the
+name or an alias of a command option, is `--output` or the JSON output alias,
+or catalogs combined with `CommandCatalog.Combine` declare different completion
+options. The option is recognized before the command line is parsed, so rename
+one of them.
 
 ## Parsing
 

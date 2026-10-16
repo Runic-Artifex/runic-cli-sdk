@@ -8,12 +8,14 @@ internal sealed partial class CompletionHelpTests
     public ValueTask BashReadline() => ShellReadline("bash");
     [Test, NotInParallel, DisplayName("completion/zsh-line-editor-preserves-literal-arguments")]
     public ValueTask ZshReadline() => ShellReadline("zsh");
+    // Bash before 4.3 keeps the backslashes of a quoted ${value//pattern/replacement} replacement (runic-cli-sdk#31).
+    // BASH_COMPAT=42 selects that behavior in a current Bash; macOS runs the plain case with its /bin/bash 3.2.
+    [Test, NotInParallel, DisplayName("completion/bash-4.2-quoting-preserves-literal-arguments")]
+    public ValueTask BashCompatibleReadline() => ShellReadline("bash", bashCompatibility: "42");
 
-    private static async ValueTask ShellReadline(string shell)
+    private static async ValueTask ShellReadline(string shell, string bashCompatibility = "")
     {
         if (OperatingSystem.IsWindows()) { Console.WriteLine("SKIP native shell PTY requires a Unix terminal."); return; }
-        // macOS ships Bash 3.2, which leaves the inserted quoted value open: runic-cli-sdk#31.
-        if (shell == "bash" && OperatingSystem.IsMacOS()) { Console.WriteLine("SKIP Bash 3.2 literal insertion, runic-cli-sdk#31."); return; }
         await WithDirectory(async directory =>
         {
             string completion = Path.Combine(directory, "completion." + shell);
@@ -25,6 +27,7 @@ internal sealed partial class CompletionHelpTests
             await File.WriteAllTextAsync(harness, """
                 import errno, json, os, pty, re, select, shlex, shutil, signal, sys, time
                 shell = sys.argv[2]
+                compatibility = sys.argv[3]
                 executable = shutil.which(shell)
                 if not executable:
                     print('SKIP unavailable native terminal shell: ' + shell)
@@ -32,6 +35,7 @@ internal sealed partial class CompletionHelpTests
                 pid, terminal = pty.fork()
                 if pid == 0:
                     os.environ.update(PS1='__READY__ ', PS2='__MORE__ ', TERM='dumb', INPUTRC='/dev/null')
+                    if compatibility: os.environ['BASH_COMPAT'] = compatibility
                     arguments = [executable, '--noprofile', '--norc', '-i'] if shell == 'bash' else [executable, '-f', '-i']
                     os.execv(executable, arguments)
                 def prompt():
@@ -106,6 +110,7 @@ internal sealed partial class CompletionHelpTests
             process.StartInfo.ArgumentList.Add(harness);
             process.StartInfo.ArgumentList.Add(completion);
             process.StartInfo.ArgumentList.Add(shell);
+            process.StartInfo.ArgumentList.Add(bashCompatibility);
             try { process.Start(); }
             catch (System.ComponentModel.Win32Exception) { Console.WriteLine("SKIP native shell PTY requires Python 3."); return; }
             Task<string> output = process.StandardOutput.ReadToEndAsync();

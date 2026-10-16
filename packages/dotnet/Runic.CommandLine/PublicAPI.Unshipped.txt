@@ -38,3 +38,5 @@ Runic.CommandLine.CommandCatalog.RootCommand.get -> Runic.CommandLine.CommandDes
 Runic.CommandLine.CommandCatalogBuilder.RootCommand(string! name) -> Runic.CommandLine.CommandCatalogBuilder!
 Runic.CommandLine.RootCommandAttribute
 Runic.CommandLine.RootCommandAttribute.RootCommandAttribute() -> void
+Runic.CommandLine.CommandCatalog.CompletionOption.get -> string?
+Runic.CommandLine.CommandCatalogBuilder.CompletionOption(string! name) -> Runic.CommandLine.CommandCatalogBuilder!

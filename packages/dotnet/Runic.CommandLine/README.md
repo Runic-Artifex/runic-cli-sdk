@@ -238,6 +238,19 @@ scripts do not perform service lookups. See
 [discovery, validation and custom results](#discovery-validation-and-custom-results)
 for the shell details.
 
+An application whose users already run `tool --completions bash` declares that
+option instead of the command:
+
+```csharp
+CommandCatalog catalog = GeneratedCommandCatalog.Create(builder => builder.CompletionOption("--completions"));
+```
+
+The option is recognized as the first argument, as `--completions bash` or
+`--completions=bash`, appears in root help and in the generated scripts, and
+replaces the built-in `completion` command, so a default command can take
+`completion` as an ordinary argument. A missing or unknown shell is a usage
+error. A command option spelled like it fails catalog validation with `RCLI0025`.
+
 `Runic.CommandLine.Testing` supplies `CommandAppTester`, a configurable
 `TestCommandConsole` with queued input, and strict JSON frame assertions. Supply
 explicit ParseSettings to keep environment-dependent tests deterministic.
@@ -807,7 +820,7 @@ frame; use the exit code and your internal observer to detect these failures.
 Argument/decision ownership errors in `PresentAsync` remain API usage exceptions.
 
 A catalog-owned root command or alias named `completion` takes precedence over the
-built-in script command. This works for manual and generated catalogs. Built-in
+built-in script command, and a declared `CompletionOption` replaces it. This works for manual and generated catalogs. Built-in
 scripts use the configured transport selector (for example `--runic-output`).
 With a custom selector, they retain `--output` only if it is an actual catalog
 option. Direct callers can use

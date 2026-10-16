@@ -110,9 +110,9 @@ public sealed class CommandApp
             CommandDebugOutput? debug = CommandDebugOutput.IsEnabled(settings.GetEnvironmentVariable ?? (static _ => null)) ? new CommandDebugOutput() : null;
             Action<Exception>? exceptionObserver = debug?.Observe(ExceptionObserver) ?? ExceptionObserver;
             CommandPresentation presentation = CreatePresentation(exceptionObserver);
-            if (args.Length == 2 && args[0] == "completion" && !_catalog.TryGetCommand("completion", out _))
+            if (CommandCompletion.IsRequest(_catalog, args, out string? shell))
             {
-                return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, args[1], settings.TransportOutputOptionName, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
+                return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, shell, settings.TransportOutputOptionName, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
             }
             ParseOutcome parsed = PortableCommandSyntaxAdapter.Instance.Parse(_catalog, args.Length == 0 && _catalog.DefaultCommand is null ? ["--help"] : args, settings);
             string requestId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);

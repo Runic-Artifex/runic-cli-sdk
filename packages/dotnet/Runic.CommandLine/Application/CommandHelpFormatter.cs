@@ -80,7 +80,7 @@ public static class CommandHelpFormatter
         foreach (CommandDescriptor child in otherCommands)
             rows.Add(new(child.Name + (ReferenceEquals(child, catalog.DefaultCommand) ? " (" + context.Resolve(CommandTextKeys.HelpDefaultCommand, "default") + ")" : "") +
                 (child.Aliases.Count > 0 ? " (" + string.Join(", ", child.Aliases) + ")" : ""), context.Description(child.Help, child.DescriptionKey)));
-        if (path.Count == 0 && !catalog.TryGetCommand("completion", out _))
+        if (path.Count == 0 && catalog.HasCompletionCommand)
             rows.Add(new("completion <shell>", context.Resolve(CommandTextKeys.HelpCompletion, "Generate bash, zsh, fish or PowerShell completions")));
         AppendSection(text, context.Resolve(CommandTextKeys.HelpCommands, "Commands"), rows, width);
         rows.Clear();
@@ -100,6 +100,8 @@ public static class CommandHelpFormatter
             rows.Add(new(jsonAlias, catalog.JsonOutputAliasShape == JsonOutputShape.Payload
                 ? context.Resolve(CommandTextKeys.HelpJsonPayloadOutputAlias, "Write the result as JSON")
                 : context.Resolve(CommandTextKeys.HelpJsonOutputAlias, "Same as " + outputOptionName + " json", [outputOptionName])));
+        if (path.Count == 0 && catalog.CompletionOption is { } completionOption)
+            rows.Add(new(completionOption + " <shell>", context.Resolve(CommandTextKeys.HelpCompletion, "Generate bash, zsh, fish or PowerShell completions")));
         AppendSection(text, context.Resolve(CommandTextKeys.HelpOptions, "Options"), rows, width);
         if (command?.Help.Examples.Count > 0)
         {

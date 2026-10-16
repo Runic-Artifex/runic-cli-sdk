@@ -49,10 +49,10 @@ public sealed class CommandPresentation
     private static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException or AccessViolationException or AppDomainUnloadedException or BadImageFormatException;
 
-    internal async ValueTask<int> WriteCompletionAsync(CommandCatalog catalog, string shell, string outputOptionName, ICommandConsole console, CultureInfo culture, CancellationToken cancellationToken)
+    internal async ValueTask<int> WriteCompletionAsync(CommandCatalog catalog, string? shell, string outputOptionName, ICommandConsole console, CultureInfo culture, CancellationToken cancellationToken)
     {
         string script;
-        try { script = CommandCompletion.Generate(catalog, CompletionExecutableName ?? Name, shell, outputOptionName); }
+        try { script = CommandCompletion.Generate(catalog, CompletionExecutableName ?? Name, shell ?? "", outputOptionName); }
         catch (ArgumentException)
         {
             string message = new CommandTextContext(culture, TextResolver).Resolve(CommandTextKeys.CompletionInvalidShell, "Choose a completion shell: bash, zsh, fish or powershell.");
