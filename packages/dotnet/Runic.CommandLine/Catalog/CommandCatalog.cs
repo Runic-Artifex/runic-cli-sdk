@@ -13,9 +13,11 @@ public sealed class CommandCatalog
         CommandDescriptor? defaultCommand = null,
         string? jsonOutputAlias = null,
         JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope,
-        bool defaultCommandIsRoot = false)
+        bool defaultCommandIsRoot = false,
+        string? completionOption = null)
     {
         Commands = commands;
+        CompletionOption = completionOption;
         DefaultCommand = defaultCommand;
         RootCommand = defaultCommandIsRoot ? defaultCommand : null;
         JsonOutputAlias = jsonOutputAlias;
@@ -58,6 +60,16 @@ public sealed class CommandCatalog
     /// </summary>
     public JsonOutputShape JsonOutputAliasShape { get; }
 
+    /// <summary>
+    /// Gets the application's option that writes a shell completion script, such as <c>--completions</c> for
+    /// <c>tool --completions bash</c>, or null when the built-in <c>completion</c> command does. See
+    /// <see cref="CommandCatalogBuilder.CompletionOption(string)"/>.
+    /// </summary>
+    public string? CompletionOption { get; }
+
+    // The built-in completion command exists unless the application declared a completion option or owns the name.
+    internal bool HasCompletionCommand => CompletionOption is null && !_commandsByName.ContainsKey("completion");
+
     /// <summary>Combines independently created catalogs in the supplied order.</summary>
     /// <remarks>
     /// This is the composition point for generated and explicitly registered
@@ -74,9 +86,23 @@ public sealed class CommandCatalog
         bool defaultCommandIsRoot = false;
         string? jsonOutputAlias = null;
         JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope;
+        string? completionOption = null;
         foreach (CommandCatalog catalog in catalogs)
         {
             ArgumentNullException.ThrowIfNull(catalog);
+            if (catalog.CompletionOption is { } declaredOption)
+            {
+                if (completionOption is not null && !string.Equals(completionOption, declaredOption, StringComparison.Ordinal))
+                {
+                    issues.Add(new CommandCatalogIssue(
+                        "RCLI0025",
+                        "root",
+                        $"Combined catalogs declare different completion options: '{completionOption}' and '{declaredOption}'."));
+                }
+
+                completionOption ??= declaredOption;
+            }
+
             if (catalog.JsonOutputAlias is { } declaredAlias)
             {
                 if (jsonOutputAlias is not null && !string.Equals(jsonOutputAlias, declaredAlias, StringComparison.Ordinal))
@@ -122,8 +148,9 @@ public sealed class CommandCatalog
         }
 
         if (jsonOutputAlias is not null) ValidateJsonOutputAlias(jsonOutputAlias, commands, "", issues);
+        if (completionOption is not null) ValidateCompletionOption(completionOption, jsonOutputAlias, commands, issues);
         if (issues.Count != 0) throw new CommandCatalogValidationException(issues);
-        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape, defaultCommandIsRoot);
+        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape, defaultCommandIsRoot, completionOption);
 
         void Register(string spelling, string owner)
         {
@@ -159,6 +186,43 @@ public sealed class CommandCatalog
             }
 
             ValidateJsonOutputAlias(alias, command.Subcommands, path, issues);
+        }
+    }
+
+    // The completion option is recognized before parsing, so no option and no other framework flag may share its spelling.
+    internal static void ValidateCompletionOption(
+        string completionOption,
+        string? jsonOutputAlias,
+        IReadOnlyList<CommandDescriptor> commands,
+        List<CommandCatalogIssue> issues)
+    {
+        if (completionOption == "--output" || string.Equals(completionOption, jsonOutputAlias, StringComparison.Ordinal))
+        {
+            issues.Add(new CommandCatalogIssue(
+                "RCLI0025",
+                "root",
+                $"The completion option '{completionOption}' is spelled like the output selector or the JSON output alias."));
+        }
+
+        Visit(commands, "");
+        void Visit(IReadOnlyList<CommandDescriptor> level, string parentPath)
+        {
+            foreach (CommandDescriptor command in level)
+            {
+                string path = parentPath.Length == 0 ? command.Name : parentPath + " " + command.Name;
+                foreach (CommandOptionDescriptor option in command.Options)
+                {
+                    if (string.Equals(option.Name, completionOption, StringComparison.Ordinal) || System.Linq.Enumerable.Contains(option.Aliases, completionOption, StringComparer.Ordinal))
+                    {
+                        issues.Add(new CommandCatalogIssue(
+                            "RCLI0025",
+                            path,
+                            $"Option '{option.Id}' of command '{path}' is spelled like the completion option '{completionOption}'."));
+                    }
+                }
+
+                Visit(command.Subcommands, path);
+            }
         }
     }
 

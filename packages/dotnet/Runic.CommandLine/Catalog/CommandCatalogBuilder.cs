@@ -13,6 +13,7 @@ public sealed class CommandCatalogBuilder
     private bool _defaultCommandIsRoot;
     private string? _jsonOutputAlias;
     private JsonOutputShape _jsonOutputAliasShape;
+    private string? _completionOption;
     private readonly List<Action<CommandBuilderNode>> _globalOptions = [];
 
     /// <summary>Adds an option to every command. It may also precede the command path.</summary>
@@ -127,6 +128,44 @@ public sealed class CommandCatalogBuilder
 
         _jsonOutputAlias = name;
         _jsonOutputAliasShape = shape;
+        return this;
+    }
+
+    /// <summary>
+    /// Declares an option that writes a shell completion script, such as <c>--completions</c>, for an application
+    /// whose users already run <c>tool --completions bash</c>. It replaces the built-in <c>completion</c> command,
+    /// which then is neither recognized nor listed, so the application's own commands and arguments keep the word.
+    /// </summary>
+    /// <param name="name">A long option spelling such as <c>--completions</c>.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentException">
+    /// The name is not a long option spelling (<c>--</c>, a lowercase letter, then lowercase letters, digits or
+    /// hyphens), or is <c>--help</c> or <c>--version</c>.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// The option is recognized as the first argument, with the shell as its value: <c>--completions bash</c> or
+    /// <c>--completions=bash</c>, and nothing after it. The shells are those of
+    /// <see cref="CommandCompletion.Generate(CommandCatalog, string, string)"/>. A missing or unknown shell, or any
+    /// further argument, is a usage error (exit code 2) with the message of an unknown shell. The option appears
+    /// in root help and in the generated completions.
+    /// </para>
+    /// <para>
+    /// <see cref="Build"/> reports <c>RCLI0025</c> for a command option spelled like it, and for an option spelled
+    /// like the JSON output alias or <c>--output</c>, the default output selector.
+    /// </para>
+    /// </remarks>
+    public CommandCatalogBuilder CompletionOption(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (!ParseSettings.IsLongOptionSpelling(name) || name is "--help" or "--version")
+        {
+            throw new ArgumentException(
+                "The completion option must be a long option spelling other than --help and --version.",
+                nameof(name));
+        }
+
+        _completionOption = name;
         return this;
     }
 
@@ -251,6 +290,12 @@ public sealed class CommandCatalogBuilder
             if (issues.Count != 0) throw new CommandCatalogValidationException(CommandDescriptor.Freeze(issues));
         }
 
+        if (_completionOption is not null)
+        {
+            CommandCatalog.ValidateCompletionOption(_completionOption, _jsonOutputAlias, descriptors, issues);
+            if (issues.Count != 0) throw new CommandCatalogValidationException(CommandDescriptor.Freeze(issues));
+        }
+
         CommandDescriptor? defaultCommand = null;
         if (_defaultCommandName is not null)
         {
@@ -265,7 +310,7 @@ public sealed class CommandCatalogBuilder
                 throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", defaultCommand.Name, $"The root command '{_defaultCommandName}' has no spelling, so it cannot have aliases or subcommands.")]);
             }
         }
-        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot);
+        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot, _completionOption);
     }
 
     private void AddGlobals(CommandBuilderNode node)

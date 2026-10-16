@@ -66,7 +66,7 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
                 owner: _decisionOwner);
         }
 
-        if (input.Arguments.Count == 2 && input.Arguments[0] == "completion" && !_catalog.TryGetCommand("completion", out _))
+        if (CommandCompletion.IsRequest(_catalog, input.Arguments, out _))
             return new HostedCommandLineDecision(HostedCommandLineDecisionKind.Completion, input, owner: _decisionOwner);
 
         ParseOutcome outcome = _syntaxAdapter.Parse(
@@ -167,7 +167,7 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
         decision.ValidateOwner(_decisionOwner);
         if (decision.Kind == HostedCommandLineDecisionKind.Completion)
-            return Presentation.GuardAsync(() => Presentation.WriteCompletionAsync(_catalog, decision.Arguments[1], decision.LaunchInput.TransportOutputOptionName, console, culture, cancellationToken), cancellationToken);
+            return Presentation.GuardAsync(() => Presentation.WriteCompletionAsync(_catalog, CommandCompletion.IsRequest(_catalog, decision.Arguments, out string? shell) ? shell : null, decision.LaunchInput.TransportOutputOptionName, console, culture, cancellationToken), cancellationToken);
         if (decision.Kind is not (HostedCommandLineDecisionKind.Help or HostedCommandLineDecisionKind.Version or HostedCommandLineDecisionKind.Invalid) || decision.ParseOutcome is null)
             throw new InvalidOperationException("Presentation requires a framework decision created by this adapter.");
         if (_app?.PresentFrameworkRequest is { } present)

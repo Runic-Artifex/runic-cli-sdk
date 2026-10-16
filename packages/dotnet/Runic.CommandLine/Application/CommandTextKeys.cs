@@ -42,7 +42,7 @@ public static class CommandTextKeys
     public const string HelpOptionsPlaceholder = "help.options-placeholder";
     /// <summary>The marker after the default command (<c>default</c>).</summary>
     public const string HelpDefaultCommand = "help.default-command";
-    /// <summary>The description of the built-in <c>completion</c> command.</summary>
+    /// <summary>The description of the built-in <c>completion</c> command and of a declared completion option.</summary>
     public const string HelpCompletion = "help.completion";
     /// <summary>The commands section heading (<c>Commands</c>).</summary>
     public const string HelpCommands = "help.commands";
