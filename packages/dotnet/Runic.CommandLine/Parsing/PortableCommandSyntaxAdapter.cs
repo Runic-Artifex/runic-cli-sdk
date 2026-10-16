@@ -172,6 +172,9 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         CommandOutputClassification selectedOutputClassification)
     {
         var positionalTokens = new List<IndexedToken>();
+        CommandArgumentDescriptor? trailing = null;
+        foreach (CommandArgumentDescriptor argument in resolved.Command.Arguments) if (argument.IsTrailing) trailing = argument;
+        var trailingValues = new List<string>();
         var optionBindings = new List<MutableBinding>();
         var optionBindingIndexes = new Dictionary<string, int>(StringComparer.Ordinal);
         CommandOutputMode? explicitOutputMode = null;
@@ -199,8 +202,9 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                     return OutputError(selectedOutputClassification, 0, resolved.Path);
                 }
 
+                // The root command's help is the application's help.
                 return ParseOutcome.FromHelp(
-                    new HelpRequest(resolved.Path),
+                    new HelpRequest(ReferenceEquals(resolved.Command, catalog.RootCommand) ? CommandPath.Root : resolved.Path),
                     selectedOutputClassification);
             }
 
@@ -373,7 +377,9 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 continue;
             }
 
-            positionalTokens.Add(new IndexedToken(token, index));
+            // After --, a command with trailing arguments gives every token to them rather than to its positional arguments.
+            if (!recognizeOptions && trailing is not null) trailingValues.Add(token);
+            else positionalTokens.Add(new IndexedToken(token, index));
             index++;
         }
 
@@ -410,7 +416,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 outputClassification: CurrentOutputClassification(), suggestion:CommandSuggestions.Commands(positionalTokens[0].Value, resolved.Command.Subcommands));
 
         ParseOutcome? argumentError = BindArguments(
-            resolved.Command.Arguments,
+            PositionalArguments(resolved.Command.Arguments),
             resolved.Path,
             positionalTokens,
             tokens.Length,
@@ -451,6 +457,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 binding.Values.AddRange(canonical);
             }
         }
+        if (trailing is not null && trailingValues.Count > 0)
+            argumentBindings = [.. argumentBindings!, new CommandValueBinding(trailing.Id, trailingValues.ToArray())];
         var canonicalArguments = new CommandValueBinding[argumentBindings!.Count];
         for (int argumentIndex = 0; argumentIndex < canonicalArguments.Length; argumentIndex++)
         {
@@ -481,10 +489,22 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 outputClassification) { EnvironmentOptionIds = environmentOptionIds });
     }
 
+    // Trailing arguments are always last and receive only the tokens after --.
+    private static IReadOnlyList<CommandArgumentDescriptor> PositionalArguments(IReadOnlyList<CommandArgumentDescriptor> arguments)
+    {
+        int count = arguments.Count;
+        while (count > 0 && arguments[count - 1].IsTrailing) count--;
+        if (count == arguments.Count) return arguments;
+        var positional = new CommandArgumentDescriptor[count];
+        for (int index = 0; index < count; index++) positional[index] = arguments[index];
+        return positional;
+    }
+
     private static CommandArgumentDescriptor? ArgumentAt(IReadOnlyList<CommandArgumentDescriptor> arguments, int position)
     {
         foreach (CommandArgumentDescriptor argument in arguments)
         {
+            if (argument.IsTrailing) break;
             if (argument.Arity.Maximum is null || position < argument.Arity.Maximum) return argument;
             position -= argument.Arity.Maximum.Value;
         }

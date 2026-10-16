@@ -16,3 +16,25 @@ Runic.CommandLine.CommandPrompts.OutroAsync(string! message, System.Threading.Ca
 Runic.CommandLine.Hosting.HostedCommandLineExecutionInput.AcceptsContinuation.get -> bool
 Runic.CommandLine.Hosting.HostedCommandLineExecutionInput.AcceptsContinuation.init -> void
 Runic.CommandLine.Hosting.HostedCommandLineExecutionResult.Continuation.get -> System.Func<int>?
+Runic.CommandLine.ArgumentAttribute.Required.get -> bool
+Runic.CommandLine.ArgumentAttribute.Required.set -> void
+Runic.CommandLine.CommandArgumentDescriptor.IsTrailing.get -> bool
+Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>.TrailingArguments(string! id, string! name, bool isSensitive = false, string? descriptionKey = null) -> Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>!
+Runic.CommandLine.TrailingArgumentsAttribute
+Runic.CommandLine.TrailingArgumentsAttribute.Description.get -> string?
+Runic.CommandLine.TrailingArgumentsAttribute.Description.set -> void
+Runic.CommandLine.TrailingArgumentsAttribute.DescriptionKey.get -> string?
+Runic.CommandLine.TrailingArgumentsAttribute.DescriptionKey.set -> void
+Runic.CommandLine.TrailingArgumentsAttribute.Hidden.get -> bool
+Runic.CommandLine.TrailingArgumentsAttribute.Hidden.set -> void
+Runic.CommandLine.TrailingArgumentsAttribute.Id.get -> string?
+Runic.CommandLine.TrailingArgumentsAttribute.Sensitive.get -> bool
+Runic.CommandLine.TrailingArgumentsAttribute.Sensitive.set -> void
+Runic.CommandLine.TrailingArgumentsAttribute.TrailingArgumentsAttribute() -> void
+Runic.CommandLine.TrailingArgumentsAttribute.TrailingArgumentsAttribute(string! id) -> void
+Runic.CommandLine.TrailingArgumentsAttribute.ValueName.get -> string?
+Runic.CommandLine.TrailingArgumentsAttribute.ValueName.set -> void
+Runic.CommandLine.CommandCatalog.RootCommand.get -> Runic.CommandLine.CommandDescriptor?
+Runic.CommandLine.CommandCatalogBuilder.RootCommand(string! name) -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.RootCommandAttribute
+Runic.CommandLine.RootCommandAttribute.RootCommandAttribute() -> void

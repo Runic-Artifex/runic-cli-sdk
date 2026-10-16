@@ -46,6 +46,13 @@ greet Ada` emits one versioned response. An application without a default comman
 shows help for an empty invocation; the lower-level parser retains its existing
 empty-input classification for hosted UI launch decisions.
 
+An application whose grammar is one command marks it `[RootCommand]` instead.
+Its name is then not a command spelling, so `hello run` passes `run` to it as an
+argument, and `hello --help` is that command's help: its description,
+arguments, options and examples, followed by the application's other commands.
+The name stays the command's identity in JSON output (`"command": "greet"`).
+Hand-built catalogs call `builder.RootCommand("greet")`.
+
 See the runnable [command-line example](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/README.md).
 
 ### Keep an existing `--json` flag
@@ -94,10 +101,19 @@ envelope; a success payload is not bound by the protocol's frame limit.
   nullable scalars. Boolean options are presence flags; nullable Boolean options
   accept an explicit Boolean value.
 - C# defaults and nullable inputs are optional. A non-nullable scalar option with
-  no default is required. `Required = true` explicitly requires flags and lists.
+  no default is required. `Required = true` explicitly requires flags and lists,
+  and on an `[Argument]` requires at least one value of a list argument or a
+  value of a nullable one.
 - Arrays and `IReadOnlyList<T>` support the scalar types above. Options append one
   value per occurrence; `AllowMultipleValues = true` also accepts several values
   after one occurrence. A variadic positional must be last.
+- `[TrailingArguments] IReadOnlyList<string> native` receives every token after
+  `--`, for arguments a command forwards to another tool. Positional arguments
+  then receive only the tokens before `--`, so `tool build home -- --option x`
+  binds `home` to the command's words and `--option x` to `native`, and the
+  forwarded tokens never fail the words' choices. Help shows `[-- native...]`,
+  and completion after `--` offers the trailing arguments' choices. Hand-built
+  catalogs call `TrailingArguments(id, name)` on the command builder.
 - `[Option(..., Description = "...", ValueName = "PATH", Choices = ["a", "b"],
   EnvironmentVariable = "APP_VALUE", Sensitive = true)]` supplies shared metadata.
   Explicit input wins over the environment, then C# defaults. A flag's

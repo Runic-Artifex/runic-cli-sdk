@@ -9,8 +9,10 @@ public sealed class CommandArgumentDescriptor
         CommandArity arity,
         bool isSensitive,
         string? descriptionKey,
-        CommandHelp? help = null)
+        CommandHelp? help = null,
+        bool isTrailing = false)
     {
+        IsTrailing = isTrailing;
         Id = id;
         Name = name;
         Arity = arity;
@@ -36,4 +38,11 @@ public sealed class CommandArgumentDescriptor
 
     /// <summary>Gets the optional localization key for help text.</summary>
     public string? DescriptionKey { get; }
+
+    /// <summary>
+    /// Gets whether the argument receives every token after <c>--</c> instead of positional tokens. A command has
+    /// at most one such argument, it is the last of <see cref="CommandDescriptor.Arguments"/>, and positional
+    /// arguments then receive no token after <c>--</c>.
+    /// </summary>
+    public bool IsTrailing { get; }
 }

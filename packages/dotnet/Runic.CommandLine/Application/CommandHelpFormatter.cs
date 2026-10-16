@@ -42,21 +42,26 @@ public static class CommandHelpFormatter
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(path);
         ArgumentOutOfRangeException.ThrowIfLessThan(width, MinimumWidth);
-        CommandDescriptor? command = null;
+        // Root help is the help of the application's unnamed root command, when it has one.
+        CommandDescriptor? command = path.Count == 0 ? catalog.RootCommand : null;
         foreach (string segment in path.Segments)
         {
             if (command is null) catalog.TryGetCommand(segment, out command);
             else command.TryGetSubcommand(segment, out command);
         }
+        IEnumerable<CommandDescriptor> otherCommands = (path.Count == 0 || command is null ? catalog.Commands : command.Subcommands)
+            .Where(child => !child.Help.Hidden && !ReferenceEquals(child, catalog.RootCommand));
         var text = new StringBuilder();
         string usagePrefix = context.Resolve(CommandTextKeys.HelpUsage, "Usage") + ": ";
         var usage = new StringBuilder(applicationName);
         if (path.Count > 0) usage.Append(' ').Append(path);
+        else if (catalog.RootCommand is not null) { if (otherCommands.Any()) usage.Append(" [").Append(context.Resolve(CommandTextKeys.HelpCommandPlaceholder, "command")).Append(']'); }
         else if (catalog.Commands.Count > 0) usage.Append(" <").Append(context.Resolve(CommandTextKeys.HelpCommandPlaceholder, "command")).Append('>');
         if (command is not null)
             foreach (CommandArgumentDescriptor argument in command.Arguments.Where(argument => !argument.Help.Hidden))
-                usage.Append(' ').Append(argument.Arity.Minimum == 0 ? '[' : '<').Append(argument.Help.ValueName ?? argument.Name)
-                    .Append(argument.Arity.Maximum != 1 ? "..." : "").Append(argument.Arity.Minimum == 0 ? ']' : '>');
+                usage.Append(' ').Append(argument.IsTrailing ? "[-- " + (argument.Help.ValueName ?? argument.Name) + "...]" :
+                    (argument.Arity.Minimum == 0 ? "[" : "<") + (argument.Help.ValueName ?? argument.Name) +
+                    (argument.Arity.Maximum != 1 ? "..." : "") + (argument.Arity.Minimum == 0 ? "]" : ">"));
         usage.Append(" [").Append(context.Resolve(CommandTextKeys.HelpOptionsPlaceholder, "options")).Append(']');
         text.Append(usagePrefix);
         int usageIndent = CellWidth(usagePrefix);
@@ -72,7 +77,7 @@ public static class CommandHelpFormatter
             AppendParagraphs(text, details, width, preformatted: true);
         }
         var rows = new List<Row>();
-        foreach (CommandDescriptor child in (command?.Subcommands ?? catalog.Commands).Where(child => !child.Help.Hidden))
+        foreach (CommandDescriptor child in otherCommands)
             rows.Add(new(child.Name + (ReferenceEquals(child, catalog.DefaultCommand) ? " (" + context.Resolve(CommandTextKeys.HelpDefaultCommand, "default") + ")" : "") +
                 (child.Aliases.Count > 0 ? " (" + string.Join(", ", child.Aliases) + ")" : ""), context.Description(child.Help, child.DescriptionKey)));
         if (path.Count == 0 && !catalog.TryGetCommand("completion", out _))

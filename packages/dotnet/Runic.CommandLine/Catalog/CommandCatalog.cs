@@ -12,15 +12,19 @@ public sealed class CommandCatalog
         IReadOnlyList<CommandDescriptor> commands,
         CommandDescriptor? defaultCommand = null,
         string? jsonOutputAlias = null,
-        JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope)
+        JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope,
+        bool defaultCommandIsRoot = false)
     {
         Commands = commands;
         DefaultCommand = defaultCommand;
+        RootCommand = defaultCommandIsRoot ? defaultCommand : null;
         JsonOutputAlias = jsonOutputAlias;
         JsonOutputAliasShape = jsonOutputAliasShape;
         _commandsByName = new Dictionary<string, CommandDescriptor>(StringComparer.Ordinal);
         foreach (CommandDescriptor command in commands)
         {
+            // The root command has no spelling: its name is only its identity in output.
+            if (ReferenceEquals(command, RootCommand)) continue;
             _commandsByName.Add(command.Name, command);
             foreach (string alias in command.Aliases)
             {
@@ -34,6 +38,13 @@ public sealed class CommandCatalog
 
     /// <summary>Gets the command selected when the first token is not a root command.</summary>
     public CommandDescriptor? DefaultCommand { get; }
+
+    /// <summary>
+    /// Gets the application's unnamed root command, or null. It is also the <see cref="DefaultCommand"/>, but its
+    /// name is not a command spelling, help does not list it, and the application's help is its help. See
+    /// <see cref="CommandCatalogBuilder.RootCommand(string)"/>.
+    /// </summary>
+    public CommandDescriptor? RootCommand { get; }
 
     /// <summary>
     /// Gets the application's flag that stands for the output selector with the value <c>json</c>, such as
@@ -60,6 +71,7 @@ public sealed class CommandCatalog
         var spellings = new Dictionary<string, string>(StringComparer.Ordinal);
         var issues = new List<CommandCatalogIssue>();
         CommandDescriptor? defaultCommand = null;
+        bool defaultCommandIsRoot = false;
         string? jsonOutputAlias = null;
         JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope;
         foreach (CommandCatalog catalog in catalogs)
@@ -98,6 +110,7 @@ public sealed class CommandCatalog
                 else
                 {
                     defaultCommand = catalog.DefaultCommand;
+                    defaultCommandIsRoot = catalog.RootCommand is not null;
                 }
             }
             foreach (CommandDescriptor command in catalog.Commands)
@@ -110,7 +123,7 @@ public sealed class CommandCatalog
 
         if (jsonOutputAlias is not null) ValidateJsonOutputAlias(jsonOutputAlias, commands, "", issues);
         if (issues.Count != 0) throw new CommandCatalogValidationException(issues);
-        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape);
+        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape, defaultCommandIsRoot);
 
         void Register(string spelling, string owner)
         {

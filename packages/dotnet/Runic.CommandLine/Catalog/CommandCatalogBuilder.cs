@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization.Metadata;
 
 namespace Runic.CommandLine;
@@ -9,6 +10,7 @@ public sealed class CommandCatalogBuilder
 {
     private readonly List<CommandBuilderNode> _commands = [];
     private string? _defaultCommandName;
+    private bool _defaultCommandIsRoot;
     private string? _jsonOutputAlias;
     private JsonOutputShape _jsonOutputAliasShape;
     private readonly List<Action<CommandBuilderNode>> _globalOptions = [];
@@ -28,6 +30,33 @@ public sealed class CommandCatalogBuilder
     public CommandCatalogBuilder DefaultCommand(string name)
     {
         _defaultCommandName = name ?? throw new ArgumentNullException(nameof(name));
+        _defaultCommandIsRoot = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Selects a registered root command as the application's unnamed root command, for an application whose
+    /// grammar is that command: <c>tool --dry-run home switch</c> rather than <c>tool run --dry-run home switch</c>.
+    /// </summary>
+    /// <param name="name">The registered command's name.</param>
+    /// <returns>This builder.</returns>
+    /// <remarks>
+    /// <para>
+    /// The command receives every command line that does not start with another root command, as a
+    /// <see cref="DefaultCommand(string)"/> does, but its name is not a command spelling: <c>tool run</c> passes
+    /// <c>run</c> to it as an argument. Root help (<c>tool --help</c>, <c>tool help</c>) is the command's help,
+    /// with its description, arguments, options and examples, and lists the application's other commands. The
+    /// name remains the command's identity in JSON output and in <see cref="ParsedInvocation.Path"/>.
+    /// </para>
+    /// <para>
+    /// <see cref="Build"/> reports <c>RCLI0018</c> unless the name is a registered command without aliases or
+    /// subcommands. This replaces an earlier <see cref="DefaultCommand(string)"/> call, and that call replaces it.
+    /// </para>
+    /// </remarks>
+    public CommandCatalogBuilder RootCommand(string name)
+    {
+        _defaultCommandName = name ?? throw new ArgumentNullException(nameof(name));
+        _defaultCommandIsRoot = true;
         return this;
     }
 
@@ -230,8 +259,13 @@ public sealed class CommandCatalogBuilder
             {
                 throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", "root", $"The default command '{_defaultCommandName}' must name a registered root command.")]);
             }
+
+            if (_defaultCommandIsRoot && (defaultCommand.Aliases.Count > 0 || defaultCommand.Subcommands.Count > 0))
+            {
+                throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", defaultCommand.Name, $"The root command '{_defaultCommandName}' has no spelling, so it cannot have aliases or subcommands.")]);
+            }
         }
-        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape);
+        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot);
     }
 
     private void AddGlobals(CommandBuilderNode node)
@@ -361,6 +395,31 @@ public sealed class CommandBuilder<TOptions, THandler, TResult>
         string? descriptionKey = null)
     {
         _node.AddArgument(id, name, arity, isSensitive, descriptionKey);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds an argument that receives every token after <c>--</c>, for example native arguments the command forwards
+    /// to another tool. Positional arguments then receive only the tokens before <c>--</c>, so forwarded tokens
+    /// never mix with the command's own words or fail their choices.
+    /// </summary>
+    /// <param name="id">The stable identifier used by binders.</param>
+    /// <param name="name">The help-facing name.</param>
+    /// <param name="isSensitive">Whether the values must be redacted from diagnostics.</param>
+    /// <param name="descriptionKey">The optional localization key for help text.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="InvalidOperationException">The command already has trailing arguments.</exception>
+    /// <remarks>
+    /// The argument accepts any number of values, including none, and binds like a list argument. A <c>--</c>
+    /// after the first one is a value. The usage line shows it as <c>[-- name...]</c>.
+    /// </remarks>
+    public CommandBuilder<TOptions, THandler, TResult> TrailingArguments(
+        string id,
+        string name,
+        bool isSensitive = false,
+        string? descriptionKey = null)
+    {
+        _node.AddArgument(id, name, CommandArity.ZeroOrMore, isSensitive, descriptionKey, isTrailing: true);
         return this;
     }
 
@@ -583,11 +642,13 @@ internal abstract class CommandBuilderNode
             (arity.Maximum?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "*") + " values";
     private HashSet<string> GlobalOptionIds { get; } = new(StringComparer.Ordinal);
 
-    internal void AddArgument(string id, string name, CommandArity arity, bool isSensitive, string? descriptionKey)
+    internal void AddArgument(string id, string name, CommandArity arity, bool isSensitive, string? descriptionKey, bool isTrailing = false)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
-        _arguments.Add(new ArgumentDefinition(id, name, arity, isSensitive, descriptionKey));
+        if (isTrailing && _arguments.Exists(static argument => argument.IsTrailing))
+            throw new InvalidOperationException("A command can have only one trailing-arguments parameter.");
+        _arguments.Add(new ArgumentDefinition(id, name, arity, isSensitive, descriptionKey, isTrailing));
     }
 
     internal void AddSubcommand(CommandBuilderNode command) => _subcommands.Add(command);
@@ -637,7 +698,8 @@ internal abstract class CommandBuilderNode
         }
 
         var arguments = new List<CommandArgumentDescriptor>(_arguments.Count);
-        foreach (ArgumentDefinition argument in _arguments)
+        // Trailing arguments come last, after the positional arguments, whatever the registration order.
+        foreach (ArgumentDefinition argument in _arguments.Where(static argument => !argument.IsTrailing).Concat(_arguments.Where(static argument => argument.IsTrailing)))
         {
             arguments.Add(new CommandArgumentDescriptor(
                 argument.Id,
@@ -645,7 +707,8 @@ internal abstract class CommandBuilderNode
                 argument.Arity,
                 argument.IsSensitive,
                 argument.DescriptionKey,
-                ParameterHelp.GetValueOrDefault(argument.Id)));
+                ParameterHelp.GetValueOrDefault(argument.Id),
+                argument.IsTrailing));
         }
 
         var children = new List<CommandDescriptor>(_subcommands.Count);
@@ -744,13 +807,15 @@ internal abstract class CommandBuilderNode
                 issues.Add(new CommandCatalogIssue("RCLI0003", path, $"Argument '{argument.Name}' has an empty description key."));
             }
 
+            // Trailing arguments bind only after --, so positional order rules do not apply to them.
+            if (argument.IsTrailing) continue;
             if (optional is not null && argument.Arity.Minimum != 0)
             {
                 issues.Add(new CommandCatalogIssue("RCLI0015", path, $"Required argument '{argument.Name}' cannot follow optional argument '{optional}'."));
             }
 
             if (argument.Arity.Minimum == 0) optional ??= argument.Name;
-            if (argument.Arity.Maximum is null && index != _arguments.Count - 1)
+            if (argument.Arity.Maximum is null && _arguments.Skip(index + 1).Any(static later => !later.IsTrailing))
             {
                 issues.Add(new CommandCatalogIssue("RCLI0016", path, $"Argument '{argument.Name}' accepts any number of values, so it must be the final argument."));
             }
@@ -818,7 +883,8 @@ internal abstract class CommandBuilderNode
         string Name,
         CommandArity Arity,
         bool IsSensitive,
-        string? DescriptionKey);
+        string? DescriptionKey,
+        bool IsTrailing = false);
 }
 
 internal sealed class CommandGroupBuilderNode(string name) : CommandBuilderNode(name)

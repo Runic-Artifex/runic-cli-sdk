@@ -73,7 +73,7 @@ public static class CommandCompletion
             { pending = option; prefix = selector + "="; current = current[prefix.Length..]; }
         }
         if (pending is not null && current.StartsWith('-') && prefix.Length == 0) pending = null;
-        Value? argument = model.Argument(node, position);
+        Value? argument = model.Argument(node, position, ended);
         IEnumerable<string> candidates;
         CommandPathKind kind;
         if (pending is not null) { candidates = pending.Choices; kind = pending.PathKind; }
@@ -126,6 +126,7 @@ public static class CommandCompletion
         internal Dictionary<string, int> Children { get; } = new(StringComparer.Ordinal);
         internal Dictionary<string, Value> Options { get; } = new(StringComparer.Ordinal);
         internal List<Value> Arguments { get; } = [];
+        internal Value? Trailing { get; set; }
     }
     private sealed class Model
     {
@@ -160,21 +161,30 @@ public static class CommandCompletion
             {
                 foreach (CommandDescriptor command in commands)
                 {
-                    if (command.Help.Hidden) continue;
+                    if (command.Help.Hidden && !ReferenceEquals(command, catalog.RootCommand)) continue;
                     int id = Nodes.Count; var node = new Node(); Nodes.Add(node);
-                    Nodes[parent].Children.Add(command.Name, id);
-                    foreach (string alias in command.Aliases) Nodes[parent].Children.Add(alias, id);
+                    // The unnamed root command is reached only as the default node.
+                    if (!ReferenceEquals(command, catalog.RootCommand))
+                    {
+                        Nodes[parent].Children.Add(command.Name, id);
+                        foreach (string alias in command.Aliases) Nodes[parent].Children.Add(alias, id);
+                    }
                     if (ReferenceEquals(command, catalog.DefaultCommand)) DefaultNode = id;
                     AddOptions(node, command.Options, output);
                     foreach (CommandArgumentDescriptor argument in command.Arguments)
-                        node.Arguments.Add(CreateValue(argument.Arity, argument.Help, argument.IsSensitive));
+                    {
+                        Value value = CreateValue(argument.Arity, argument.Help, argument.IsSensitive);
+                        if (argument.IsTrailing) node.Trailing = value; else node.Arguments.Add(value);
+                    }
                     AddChildren(id, command.Subcommands);
                 }
             }
         }
-        internal Value? Argument(int node, int position)
+        // After --, a command with trailing arguments completes them instead of its positional arguments.
+        internal Value? Argument(int node, int position, bool ended)
         {
             if (node == 0 && DefaultNode != 0) node = DefaultNode;
+            if (ended && Nodes[node].Trailing is { } trailing) return trailing;
             foreach (Value value in Nodes[node].Arguments)
             { if (position < value.Maximum) return value; position -= value.Maximum; }
             return null;
@@ -239,6 +249,8 @@ public static class CommandCompletion
         {
             int argumentNode = id == 0 && model.DefaultNode != 0 ? model.DefaultNode : id;
             text.Append("      ").Append(id).Append(")\n");
+            if (model.Nodes[argumentNode].Trailing is { } trailing)
+                text.Append("        if (( ${4:-0} )); then found=1; ").Append(BourneValue(trailing)).Append("; return; fi\n");
             long total = 0;
             foreach (Value value in model.Nodes[argumentNode].Arguments)
             {
@@ -298,7 +310,7 @@ public static class CommandCompletion
               done
               tokens=("${filtered[@]}")
             fi
-            {{function}}_lookup a "$node" "$position"
+            {{function}}_lookup a "$node" "$position" "$ended"
             query_kind=$kind; tokens+=("${values[@]}")
           fi
           for item in "${tokens[@]}"; do
@@ -371,6 +383,8 @@ public static class CommandCompletion
         {
             int argumentNode = id == 0 && model.DefaultNode != 0 ? model.DefaultNode : id;
             text.Append("      case ").Append(id).Append('\n');
+            if (model.Nodes[argumentNode].Trailing is { } trailing)
+                text.Append("        if test \"$argv[4]\" = 1\n          printf '%s\\n' ").Append(trailing.Maximum).Append(' ').Append((int)trailing.PathKind).Append(' ').Append(trailing.TargetNode).Append(' ').AppendJoin(' ', trailing.Choices.Select(FishQuote)).Append("\n          return\n        end\n");
             long total = 0;
             foreach (Value value in model.Nodes[argumentNode].Arguments)
             {
@@ -469,7 +483,7 @@ public static class CommandCompletion
                 end
               end
             end
-            set -l metadata ({{function}}_lookup a $node $position)
+            set -l metadata ({{function}}_lookup a $node $position $ended)
             if test (count $metadata) -gt 0
               set kind $metadata[2]
               set -a candidates $metadata[4..-1]
@@ -520,7 +534,7 @@ public static class CommandCompletion
         {
             text.Append("    @{ Children = (").Append(function).Append("_map -Pairs @(").AppendJoin(", ", node.Children.Select(pair => PowerShellQuote(pair.Key) + ", " + pair.Value)).Append(")); Options = (").Append(function).Append("_map -Pairs @(")
                 .AppendJoin(", ", node.Options.Select(pair => PowerShellQuote(pair.Key) + ", " + PowerShellValue(pair.Value))).Append(")); Arguments = @(")
-                .AppendJoin(", ", node.Arguments.Select(PowerShellValue)).Append(") }\n");
+                .AppendJoin(", ", node.Arguments.Select(PowerShellValue)).Append("); Trailing = ").Append(node.Trailing is { } trailing ? PowerShellValue(trailing) : "$null").Append(" }\n");
         }
         text.Append(System.Globalization.CultureInfo.InvariantCulture, $$"""
           )
@@ -553,8 +567,11 @@ public static class CommandCompletion
           else {
             if (!$ended) { $candidates += @($nodes[$node].Options.Keys); if (!$positional) { $candidates += @($nodes[$node].Children.Keys) } }
             $argumentNode = if ($node -eq 0) { {{model.DefaultNode}} } else { $node }
-            foreach ($argument in $nodes[$argumentNode].Arguments) {
-              if ($position -lt $argument.Maximum) { $candidates += $argument.Choices; $kind = $argument.Kind; break }; $position -= $argument.Maximum
+            if ($ended -and $null -ne $nodes[$argumentNode].Trailing) { $candidates += $nodes[$argumentNode].Trailing.Choices; $kind = $nodes[$argumentNode].Trailing.Kind }
+            else {
+              foreach ($argument in $nodes[$argumentNode].Arguments) {
+                if ($position -lt $argument.Maximum) { $candidates += $argument.Choices; $kind = $argument.Kind; break }; $position -= $argument.Maximum
+              }
             }
           }
           @{ Candidates = @($candidates | Where-Object { $_.StartsWith($current, [StringComparison]::Ordinal) } | ForEach-Object { $prefix + $_ } | Sort-Object -Unique -CaseSensitive); Kind = $kind; Prefix = $prefix; Current = $current }
