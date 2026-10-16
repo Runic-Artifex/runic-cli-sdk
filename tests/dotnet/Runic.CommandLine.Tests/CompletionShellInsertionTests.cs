@@ -108,11 +108,9 @@ internal sealed partial class CompletionHelpTests
             process.StartInfo.ArgumentList.Add(shell);
             try { process.Start(); }
             catch (System.ComponentModel.Win32Exception) { Console.WriteLine("SKIP native shell PTY requires Python 3."); return; }
-            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            Task<string> output = process.StandardOutput.ReadToEndAsync(cancellation.Token);
-            Task<string> errors = process.StandardError.ReadToEndAsync(cancellation.Token);
-            try { await process.WaitForExitAsync(cancellation.Token); }
-            catch { process.Kill(entireProcessTree: true); throw; }
+            Task<string> output = process.StandardOutput.ReadToEndAsync();
+            Task<string> errors = process.StandardError.ReadToEndAsync();
+            await WaitForExitOrKillAsync(process, shell + " readline harness");
             AssertEx.Equal(0, process.ExitCode, await errors);
             string actual = await output;
             if (actual.StartsWith("SKIP", StringComparison.Ordinal)) { Console.WriteLine(actual.Trim()); return; }
