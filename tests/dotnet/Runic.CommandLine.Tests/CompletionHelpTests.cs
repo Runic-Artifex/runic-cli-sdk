@@ -236,16 +236,29 @@ internal sealed partial class CompletionHelpTests
         process.StartInfo.ArgumentList.Add(script);
         try { process.Start(); }
         catch (System.ComponentModel.Win32Exception) { Console.WriteLine("SKIP unavailable native completion shell: " + shell); return null; }
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        Task<string> stdout = process.StandardOutput.ReadToEndAsync(cancellation.Token);
-        Task<string> stderr = process.StandardError.ReadToEndAsync(cancellation.Token);
-        try { await process.WaitForExitAsync(cancellation.Token); }
-        catch { process.Kill(entireProcessTree: true); throw; }
+        Task<string> stdout = process.StandardOutput.ReadToEndAsync();
+        Task<string> stderr = process.StandardError.ReadToEndAsync();
+        await WaitForExitOrKillAsync(process, shell);
         string output = await stdout;
         AssertEx.Equal(0, process.ExitCode, shell + ": " + await stderr);
         AssertEx.True((await stderr).Length == 0, shell + ": " + await stderr);
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => line.TrimEnd('\r').Split('\t')[0]).ToArray();
     }
+    // A cold PowerShell start on a busy CI runner can take well over ten seconds, so the deadline only catches a hung
+    // shell. A shell that misses it is killed and awaited before the test's temporary directory is deleted, so the
+    // failure names the shell instead of surfacing as a directory still in use by the killed process (Windows).
+    internal static async ValueTask WaitForExitOrKillAsync(Process process, string name)
+    {
+        using var cancellation = new CancellationTokenSource(ShellDeadline);
+        try { await process.WaitForExitAsync(cancellation.Token); }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+            throw new TimeoutException($"{name} did not exit within {ShellDeadline.TotalSeconds} seconds.");
+        }
+    }
+    private static readonly TimeSpan ShellDeadline = TimeSpan.FromSeconds(60);
     private static async ValueTask WithDirectory(Func<string, Task> action)
     {
         string directory = Path.Combine(Path.GetTempPath(), "runic-completion-" + Guid.NewGuid().ToString("N"));
