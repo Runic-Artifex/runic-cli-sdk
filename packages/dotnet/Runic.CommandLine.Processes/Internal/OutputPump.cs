@@ -70,21 +70,26 @@ internal sealed class OutputCapture
     }
 }
 
-/// <summary>Splits decoded output into lines; a line longer than the maximum is passed on in parts.</summary>
+/// <summary>
+/// Splits decoded output into lines; a line longer than the maximum is passed on in partial parts, never between the
+/// halves of a surrogate pair.
+/// </summary>
 internal sealed class LineSplitter
 {
     internal const int MaximumLineLength = 64 * 1024;
 
+    private readonly ProcessOutputChannel channel;
     private readonly Decoder decoder;
     private readonly StringBuilder pending = new();
     private char[] characters = Array.Empty<char>();
 
-    internal LineSplitter(Encoding encoding)
+    internal LineSplitter(ProcessOutputChannel channel, Encoding encoding)
     {
+        this.channel = channel;
         decoder = encoding.GetDecoder();
     }
 
-    internal void Decode(ReadOnlySpan<byte> bytes, List<string> lines, bool flush)
+    internal void Decode(ReadOnlySpan<byte> bytes, List<ProcessOutputLine> lines, bool flush)
     {
         int count = decoder.GetCharCount(bytes, flush);
         if (characters.Length < count)
@@ -109,30 +114,44 @@ internal sealed class LineSplitter
                 pending.Length--;
             }
 
-            lines.Add(pending.ToString());
+            lines.Add(new ProcessOutputLine(channel, pending.ToString(), isPartial: false));
             pending.Clear();
             text = text[(newline + 1)..];
         }
 
         if (flush && pending.Length > 0)
         {
-            lines.Add(pending.ToString());
+            Append(ReadOnlySpan<char>.Empty, lines, holdCarriageReturn: false);
+            lines.Add(new ProcessOutputLine(channel, pending.ToString(), isPartial: false));
             pending.Clear();
         }
     }
 
-    private void Append(ReadOnlySpan<char> text, List<string> lines)
+    // Holds at most one character more than the maximum and passes on a full part whenever it holds more. A trailing
+    // \r one past the maximum is held back, as it may begin a \r\n terminator, so that a line of exactly the maximum
+    // is not followed by an empty part; at the end of the stream it is text.
+    private void Append(ReadOnlySpan<char> text, List<ProcessOutputLine> lines, bool holdCarriageReturn = true)
     {
-        while (pending.Length + text.Length > MaximumLineLength)
+        while (true)
         {
-            int count = MaximumLineLength - pending.Length;
-            pending.Append(text[..count]);
-            lines.Add(pending.ToString());
-            pending.Clear();
-            text = text[count..];
-        }
+            int take = Math.Min(text.Length, MaximumLineLength + 1 - pending.Length);
+            pending.Append(text[..take]);
+            text = text[take..];
+            if (pending.Length <= MaximumLineLength ||
+                (holdCarriageReturn && text.IsEmpty && pending[^1] == '\r'))
+            {
+                return;
+            }
 
-        pending.Append(text);
+            int count = MaximumLineLength;
+            if (char.IsHighSurrogate(pending[count - 1]) && char.IsLowSurrogate(pending[count]))
+            {
+                count--;
+            }
+
+            lines.Add(new ProcessOutputLine(channel, pending.ToString(0, count), isPartial: true));
+            pending.Remove(0, count);
+        }
     }
 }
 
@@ -170,7 +189,7 @@ internal sealed class OutputDelivery
         ProcessOutputChannel stream,
         ReadOnlyMemory<byte> bytes,
         LineSplitter lines,
-        List<string> buffer,
+        List<ProcessOutputLine> buffer,
         bool final)
     {
         if (stopped)
@@ -198,14 +217,14 @@ internal sealed class OutputDelivery
 
             buffer.Clear();
             lines.Decode(bytes.Span, buffer, final);
-            foreach (string line in buffer)
+            foreach (ProcessOutputLine line in buffer)
             {
                 if (stopped)
                 {
                     return;
                 }
 
-                await handler.OnLineAsync(new ProcessOutputLine(stream, line), cancellationToken)
+                await handler.OnLineAsync(line, cancellationToken)
                     .ConfigureAwait(false);
                 Interlocked.Increment(ref progress);
             }
@@ -243,8 +262,8 @@ internal static class OutputPump
         Encoding encoding)
     {
         byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
-        LineSplitter? lines = delivery is null ? null : new LineSplitter(encoding);
-        var decoded = new List<string>();
+        LineSplitter? lines = delivery is null ? null : new LineSplitter(kind, encoding);
+        var decoded = new List<ProcessOutputLine>();
         try
         {
             while (true)
@@ -312,11 +331,11 @@ internal static class OutputReplay
 
         byte[] bytes = encoding.GetBytes(text);
         await handler.OnChunkAsync(new ProcessOutputChunk(stream, bytes), cancellationToken).ConfigureAwait(false);
-        var lines = new List<string>();
-        new LineSplitter(encoding).Decode(bytes, lines, flush: true);
-        foreach (string line in lines)
+        var lines = new List<ProcessOutputLine>();
+        new LineSplitter(stream, encoding).Decode(bytes, lines, flush: true);
+        foreach (ProcessOutputLine line in lines)
         {
-            await handler.OnLineAsync(new ProcessOutputLine(stream, line), cancellationToken).ConfigureAwait(false);
+            await handler.OnLineAsync(line, cancellationToken).ConfigureAwait(false);
         }
     }
 }

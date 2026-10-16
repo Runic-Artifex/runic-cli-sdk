@@ -84,8 +84,8 @@ internal sealed partial class ProcessOutputTests
     [Test, DisplayName("output/lines-split-on-lf-and-crlf-across-chunks")]
     public void LinesSplitAcrossChunks()
     {
-        var splitter = new LineSplitter(new UTF8Encoding(false));
-        var lines = new List<string>();
+        var splitter = new LineSplitter(ProcessOutputChannel.StandardOutput, new UTF8Encoding(false));
+        var lines = new List<ProcessOutputLine>();
         byte[] bytes = Encoding.UTF8.GetBytes("one\r\ntwo\nmünze\r\nlast");
         // Every chunk boundary, including one inside the two-byte "ü" and one between \r and \n.
         for (int index = 0; index < bytes.Length; index++)
@@ -93,15 +93,160 @@ internal sealed partial class ProcessOutputTests
             splitter.Decode(bytes.AsSpan(index, 1), lines, flush: false);
         }
 
-        TestAssert.SequenceEqual(SplitLines[..3], lines);
+        TestAssert.SequenceEqual(SplitLines[..3], Texts(lines));
         splitter.Decode(ReadOnlySpan<byte>.Empty, lines, flush: true);
-        TestAssert.SequenceEqual(SplitLines, lines);
-
-        lines.Clear();
-        var longLines = new LineSplitter(Encoding.ASCII);
-        longLines.Decode(Encoding.ASCII.GetBytes(new string('a', LineSplitter.MaximumLineLength + 5) + "\n"), lines, false);
-        TestAssert.SequenceEqual(new[] { new string('a', LineSplitter.MaximumLineLength), "aaaaa" }, lines);
+        TestAssert.SequenceEqual(SplitLines, Texts(lines));
+        TestAssert.False(lines.Any(line => line.IsPartial), "A short line was marked partial.");
     }
+
+    [Test, DisplayName("output/long-lines-arrive-in-parts-marked-partial")]
+    public void LongLinesArriveInMarkedParts()
+    {
+        const int Maximum = LineSplitter.MaximumLineLength;
+        string[] Split(string text, Encoding encoding, int chunkSize)
+        {
+            var splitter = new LineSplitter(ProcessOutputChannel.StandardError, encoding);
+            var lines = new List<ProcessOutputLine>();
+            byte[] bytes = encoding.GetBytes(text);
+            for (int index = 0; index < bytes.Length; index += chunkSize)
+            {
+                splitter.Decode(bytes.AsSpan(index, Math.Min(chunkSize, bytes.Length - index)), lines, flush: false);
+            }
+
+            splitter.Decode(ReadOnlySpan<byte>.Empty, lines, flush: true);
+            TestAssert.True(lines.All(line => line.Channel == ProcessOutputChannel.StandardError));
+            TestAssert.True(lines.All(line => line.Text.Length <= Maximum), "A part is longer than the maximum.");
+            return lines.Select(line => (line.IsPartial ? "+" : "=") + line.Text.Length.ToString(CultureInfo.InvariantCulture))
+                .ToArray();
+        }
+
+        // Each part but the last of a long line is partial, in one chunk and across many.
+        string twoAndAHalf = new string('a', (2 * Maximum) + 5) + "\nnext\n";
+        string[] parts = ["+65536", "+65536", "=5", "=4"];
+        TestAssert.SequenceEqual(parts, Split(twoAndAHalf, Encoding.ASCII, int.MaxValue));
+        TestAssert.SequenceEqual(parts, Split(twoAndAHalf, Encoding.ASCII, 4096));
+        // A line of exactly the maximum fits, also with \r\n split from it, and is not followed by an empty part.
+        string[] exact = ["=65536", "=1"];
+        TestAssert.SequenceEqual(exact, Split(new string('a', Maximum) + "\r\nb", Encoding.ASCII, int.MaxValue));
+        TestAssert.SequenceEqual(exact, Split(new string('a', Maximum) + "\r\nb", Encoding.ASCII, Maximum + 1));
+        TestAssert.SequenceEqual(exact, Split(new string('a', Maximum) + "\nb", Encoding.ASCII, Maximum));
+        // A \r one past the maximum that is not part of a terminator is text of the next part.
+        TestAssert.SequenceEqual(["+65536", "=2"], Split(new string('a', Maximum) + "\rx\n", Encoding.ASCII, Maximum + 1));
+        TestAssert.SequenceEqual(["+65536", "=1"], Split(new string('a', Maximum) + "\r", Encoding.ASCII, int.MaxValue));
+
+        // A part never ends between the halves of a surrogate pair.
+        var splitter = new LineSplitter(ProcessOutputChannel.StandardOutput, new UTF8Encoding(false));
+        var lines = new List<ProcessOutputLine>();
+        splitter.Decode(Encoding.UTF8.GetBytes(new string('a', Maximum - 1) + "\U0001F600b\n"), lines, flush: false);
+        TestAssert.Equal(2, lines.Count);
+        TestAssert.True(lines[0].IsPartial);
+        TestAssert.Equal(new string('a', Maximum - 1), lines[0].Text);
+        TestAssert.False(lines[1].IsPartial);
+        TestAssert.Equal("\U0001F600b", lines[1].Text);
+    }
+
+    [Test, DisplayName("output/the-runner-marks-the-parts-of-a-long-line")]
+    public async Task RunnerMarksLongLinePartsAsync()
+    {
+        var handler = new PartRecordingHandler();
+        ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy())
+            .RunAsync(Request(Unattended, "pressure", "150000", "3", "0"), handler).ConfigureAwait(false);
+
+        AssertExited(result);
+        TestAssert.SequenceEqual(
+            ["StandardError=3", "StandardOutput+65536", "StandardOutput+65536", "StandardOutput=18928"],
+            handler.Parts.OrderBy(part => part, StringComparer.Ordinal).ToArray());
+        TestAssert.Equal(new string('O', 150000), handler.Text(ProcessOutputChannel.StandardOutput));
+
+        // The replay of runners that cannot stream marks the parts in the same way.
+        var replayed = new PartRecordingHandler();
+        await ((IProcessRunner)new CapturedRunner(result)).RunAsync(new ProcessRequest("tool"), replayed)
+            .ConfigureAwait(false);
+        TestAssert.SequenceEqual(
+            handler.Parts.OrderBy(part => part, StringComparer.Ordinal).ToArray(),
+            replayed.Parts.OrderBy(part => part, StringComparer.Ordinal).ToArray());
+    }
+
+    [Test, DisplayName("output/a-stream-handler-writes-one-channel-and-forwards-all-output")]
+    public async Task StreamHandlerWritesChannelAsync()
+    {
+        using var file = new CountingStream();
+        var lines = new RecordingHandler();
+        var handler = new ProcessOutputStreamHandler(ProcessOutputChannel.StandardOutput, file, lines);
+        ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy())
+            .RunAsync(Request(new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(60), standardOutputLimitBytes: 0)
+            {
+                StandardInput = ProcessStandardInput.Closed,
+            }, "interleave", "3", "100"), handler).ConfigureAwait(false);
+
+        AssertExited(result);
+        TestAssert.Equal("out-0\nout-1\nout-2\n", Encoding.UTF8.GetString(file.ToArray()));
+        TestAssert.Equal(string.Empty, result.StandardOutput.Text);
+        TestAssert.Equal(file.Length, result.StandardOutput.ObservedByteCount);
+        // Every write was flushed before the next chunk, and the caller's stream stays open.
+        TestAssert.True(file.Writes > 0);
+        TestAssert.Equal(file.Writes, file.FlushesAfterWrite);
+        TestAssert.True(file.CanWrite, "The handler disposed the caller's stream.");
+        // The next handler still sees the chunks and lines of both channels.
+        TestAssert.SequenceEqual(
+            ["StandardOutput:out-0", "StandardError:err-0", "StandardOutput:out-1", "StandardError:err-1",
+                "StandardOutput:out-2", "StandardError:err-2"],
+            lines.Lines);
+        TestAssert.Equal("out-0\nout-1\nout-2\n", lines.ChunkText(ProcessOutputChannel.StandardOutput));
+        TestAssert.Equal("err-0\nerr-1\nerr-2\n", lines.ChunkText(ProcessOutputChannel.StandardError));
+
+        // Both channels can share one stream through a second handler, from a runner that cannot stream as well.
+        using var shared = new MemoryStream();
+        var both = new ProcessOutputStreamHandler(ProcessOutputChannel.StandardError, shared,
+            new ProcessOutputStreamHandler(ProcessOutputChannel.StandardOutput, shared));
+        await ((IProcessRunner)new CapturedRunner()).RunAsync(new ProcessRequest("tool"), both).ConfigureAwait(false);
+        TestAssert.Equal("a\nbe\n", Encoding.UTF8.GetString(shared.ToArray()));
+
+        TestAssert.Throws<ArgumentNullException>(() => _ = new ProcessOutputStreamHandler(ProcessOutputChannel.StandardOutput, null!));
+        using var readOnly = new MemoryStream([], writable: false);
+        TestAssert.Throws<ArgumentException>(() => _ = new ProcessOutputStreamHandler(ProcessOutputChannel.StandardOutput, readOnly));
+        TestAssert.Throws<ArgumentOutOfRangeException>(() => _ = new ProcessOutputStreamHandler((ProcessOutputChannel)2, shared));
+    }
+
+    [Test, DisplayName("output/a-slow-stream-applies-backpressure")]
+    public async Task SlowStreamAppliesBackpressureAsync()
+    {
+        const int TotalBytes = 4 * 1024 * 1024;
+        var observer = new IdentityObserver();
+        using var file = new CountingStream { Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
+        Task<ProcessResult> run = new ProcessRunner(new LocalExecutablePolicy(), observer)
+            .RunAsync(Request(Unattended, "pressure", TotalBytes.ToString(CultureInfo.InvariantCulture), "0", "0"),
+                new ProcessOutputStreamHandler(ProcessOutputChannel.StandardOutput, file))
+            .AsTask();
+
+        await file.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        await Task.Delay(1000).ConfigureAwait(false);
+        TestAssert.False(run.IsCompleted, "The run completed while its stream was blocked.");
+        TestAssert.False(HasExited(observer.Identity!.ProcessId), "The writer finished while its stream was blocked.");
+        TestAssert.True(file.Length < 1024 * 1024, $"The stream received {file.Length} bytes ahead.");
+        file.Gate.TrySetResult();
+
+        AssertExited(await run.WaitAsync(TimeSpan.FromSeconds(60)).ConfigureAwait(false));
+        TestAssert.Equal(TotalBytes, file.Length);
+    }
+
+    [Test, DisplayName("output/a-failing-stream-fails-the-handler")]
+    public async Task FailingStreamFailsHandlerAsync()
+    {
+        var observer = new IdentityObserver();
+        using var file = new CountingStream { FailWrites = true };
+        ProcessResult result = await new ProcessRunner(new LocalExecutablePolicy(), observer)
+            .RunAsync(Request(Unattended, "interleave", "100", "100"),
+                new ProcessOutputStreamHandler(ProcessOutputChannel.StandardOutput, file))
+            .ConfigureAwait(false);
+
+        TestAssert.Equal(ProcessState.ExecutionFailed, result.State);
+        TestAssert.Equal(ProcessFaultCodes.OutputHandlerFailed, result.Fault!.Code);
+        TestAssert.True(result.Duration < TimeSpan.FromSeconds(10), "The failed stream did not end the run.");
+        TestAssert.True(await WaitForExitAsync(observer.Identity!.ProcessId).ConfigureAwait(false));
+    }
+
+    private static string[] Texts(List<ProcessOutputLine> lines) => lines.Select(line => line.Text).ToArray();
 
     [Test, DisplayName("output/failing-handler-terminates-the-child")]
     public async Task FailingHandlerTerminatesChildAsync()
@@ -655,20 +800,77 @@ internal sealed partial class ProcessOutputTests
         }
     }
 
-    private sealed class CapturedRunner : IProcessRunner
+    private sealed class CapturedRunner(ProcessResult? result = null) : IProcessRunner
     {
-        public ValueTask<ProcessResult> RunAsync(ProcessRequest request, CancellationToken cancellationToken = default)
+        public ValueTask<ProcessResult> RunAsync(ProcessRequest request, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(result ?? ProcessResult.Exited(0, new ProcessOutput("a\nb"), new ProcessOutput("e\n")));
+    }
+
+    private sealed class PartRecordingHandler : IProcessOutputHandler
+    {
+        private readonly StringBuilder standardOutput = new();
+
+        public List<string> Parts { get; } = [];
+
+        public string Text(ProcessOutputChannel channel) =>
+            channel == ProcessOutputChannel.StandardOutput ? standardOutput.ToString() : string.Empty;
+
+        public ValueTask OnLineAsync(ProcessOutputLine line, CancellationToken cancellationToken)
         {
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            return ValueTask.FromResult(new ProcessResult(
-                ProcessState.Exited,
-                0,
-                new ProcessOutput("a\nb", 3, false, false),
-                new ProcessOutput("e\n", 2, false, false),
-                null,
-                null,
-                now,
-                now));
+            Parts.Add(line.Channel + (line.IsPartial ? "+" : "=") +
+                line.Text.Length.ToString(CultureInfo.InvariantCulture));
+            if (line.Channel == ProcessOutputChannel.StandardOutput)
+            {
+                standardOutput.Append(line.Text);
+            }
+
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    // A writable stream that records its writes and flushes, and can block or fail them.
+    private sealed class CountingStream : MemoryStream
+    {
+        private bool unflushed;
+
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource? Gate { get; init; }
+
+        public bool FailWrites { get; init; }
+
+        public int Writes { get; private set; }
+
+        public int FlushesAfterWrite { get; private set; }
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Entered.TrySetResult();
+            if (FailWrites)
+            {
+                throw new IOException("disk full");
+            }
+
+            if (Gate is not null)
+            {
+                await Gate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            TestAssert.False(unflushed, "A chunk was written before the previous one was flushed.");
+            await base.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+            Writes++;
+            unflushed = true;
+        }
+
+        public override Task FlushAsync(CancellationToken cancellationToken)
+        {
+            if (unflushed)
+            {
+                FlushesAfterWrite++;
+                unflushed = false;
+            }
+
+            return base.FlushAsync(cancellationToken);
         }
     }
 }

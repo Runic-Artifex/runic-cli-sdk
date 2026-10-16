@@ -80,8 +80,13 @@ ProcessResult result = await runner.RunAsync(request, new LogLines(log), cancell
 ```
 
 - **Lines.** A line is split at `\n`, and a trailing `\r` is removed. A line
-  longer than 64 Ki characters is passed on in parts, and the last line is
-  passed on when the stream ends without a terminator.
+  longer than 64 Ki characters is passed on in parts of at most 64 Ki
+  characters, never between the halves of a surrogate pair: every part but the
+  last has `IsPartial` set, so concatenate the parts up to the next line that is
+  not partial to rebuild the line. The last line is passed on when the stream
+  ends without a terminator. To keep output exactly as the child wrote it, such
+  as a large `nix eval --json` document, use the raw chunks or write the channel
+  to a stream.
 - **Order.** The handler is never called concurrently. Within one channel,
   chunks and lines arrive in the order the child wrote them, each chunk before
   the lines it completes. Standard output and standard error are separate pipes,
@@ -125,6 +130,69 @@ else await log.FailAsync($"nix build ended in {result.State}", cancellationToken
 default implementation for runners that cannot stream, such as a test double:
 it runs the request and then passes the captured standard output and standard
 error to the handler, in that order.
+
+### Write a channel to a file
+
+`ProcessOutputStreamHandler` writes the raw bytes of one channel to a stream,
+such as a file, while the child runs, and passes all output on to an optional
+next handler, so you can still show the lines:
+
+```csharp
+await using FileStream file = File.Create(outputPath);
+var handler = new ProcessOutputStreamHandler(
+    ProcessOutputChannel.StandardOutput, file, next: new LogLines(log));
+var request = new ProcessRequest(
+    "nix", ["eval", "--json", attribute],
+    options: new ProcessExecutionOptions(standardOutputLimitBytes: 0)
+    {
+        StandardInput = ProcessStandardInput.Closed,
+        DetachFromTerminal = true,
+    });
+ProcessResult result = await runner.RunAsync(request, handler, cancellationToken);
+```
+
+The bytes are written unchanged, without decoding or line splitting. Each chunk
+is written and flushed before the runner reads the next one, so a slow stream
+applies backpressure like a slow handler, and the stream holds the whole channel
+when the child exited and the result is returned. A failing write behaves like
+a failing handler: the result is `ExecutionFailed` with `RCLI6009`. The stream
+belongs to the caller; the handler never disposes it. For both channels, pass a
+second `ProcessOutputStreamHandler` for the other channel as `next`; the two may
+share one stream. Set the capture limit to `0`, as above, when the stream is the
+only copy you need.
+
+## Test doubles
+
+Code that takes an `IProcessRunner` can be tested without starting processes.
+`ProcessResult` has a factory for each terminal state, and `ProcessOutput` a
+public constructor for a capture:
+
+```csharp
+sealed class FakeRunner(ProcessResult result) : IProcessRunner
+{
+    public ValueTask<ProcessResult> RunAsync(ProcessRequest request, CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(result);
+}
+
+var runner = new FakeRunner(ProcessResult.Exited(0, new ProcessOutput("{\"ok\":true}\n")));
+var missing = new FakeRunner(ProcessResult.StartFailed(ProcessStartFailureCategory.NotFound));
+```
+
+The factories produce what `ProcessRunner` produces, so `EnsureCompleted` and
+the default streaming overload behave the same:
+
+- `Exited(exitCode, ...)` has an exit code and no fault.
+- `TimedOut(...)` and `Cancelled(...)` have neither.
+- `Rejected(fault)` and `StartFailed(category)` have empty output. The default
+  rejection fault is the runner's `RCLI6001`; `StartFailed` has the runner's
+  `RCLI6005` fault with the category in its `category` detail.
+- `ExecutionFailed(fault, ...)` defaults to `RCLI6006`; pass a `RCLI6009` fault
+  for a failed output handler.
+
+Each factory takes optional `startedAt` and `duration` values.
+`new ProcessOutput(text)` counts the text's UTF-8 bytes as observed; pass
+`observedByteCount`, `isTruncated` or `drainTimedOut` to fake a truncated or
+cut-off capture.
 
 ## Cancellation, timeout and descendants
 
