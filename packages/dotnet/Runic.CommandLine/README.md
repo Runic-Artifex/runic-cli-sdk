@@ -118,7 +118,11 @@ envelope; a success payload is not bound by the protocol's frame limit.
   static `Parse(string)`. `[ValidateWith(typeof(Validator))]` selects an
   `ICommandValueValidator<T>` with static `IsValid(T)`. Converted values are stored
   once during binding and reused by the handler.
-- `string`, `void`, `Task` and `ValueTask` results have built-in codecs. Typed
+- `string`, `void`, `Task` and `ValueTask` results have built-in codecs, as does
+  `CommandUnit`, also as `Task<CommandUnit>`, `ValueTask<CommandUnit>` or
+  `CommandOutcome<CommandUnit>`. A `CommandUnit` command behaves like a `void`
+  one: payload type `runic.unit/1`, no human output, and nothing on standard
+  output for a payload-shaped JSON alias. Typed
   application payloads retain `[CommandResult("example.result/1", typeof(JsonContext))]`
   and source-generated JSON metadata. An `int` result is payload data, never an
   implicit exit code. Use `CommandOutcome<T>` and an exit policy for domain exits.

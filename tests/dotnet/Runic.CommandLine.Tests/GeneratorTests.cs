@@ -153,6 +153,98 @@ internal sealed class GeneratorTests
         }
     }
 
+    [Test, DisplayName("generator/command-unit-results-behave-like-void")]
+    public async ValueTask CommandUnitResultsBehaveLikeVoid()
+    {
+        const string source = """
+            using System.Threading.Tasks;
+            using Runic.CommandLine;
+
+            internal static class Commands
+            {
+                [Command("void")]
+                public static void Void() { }
+
+                [Command("unit")]
+                public static CommandUnit Unit() => default;
+
+                [Command("task-unit")]
+                public static Task<CommandUnit> TaskUnit() => Task.FromResult(default(CommandUnit));
+
+                [Command("outcome")]
+                public static CommandOutcome<CommandUnit> Outcome() => CommandOutcome.Success(default(CommandUnit));
+
+                [Command("task-outcome")]
+                public static Task<CommandOutcome<CommandUnit>> TaskOutcome() => Task.FromResult(CommandOutcome.Success(default(CommandUnit)));
+
+                [Command("value-task-outcome")]
+                public static ValueTask<CommandOutcome<CommandUnit>> ValueTaskOutcome() => ValueTask.FromResult(CommandOutcome.Success(default(CommandUnit)));
+            }
+            """;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new CommandLineGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(CreateCompilation(source), out Compilation compiled, out var diagnostics);
+        AssertEx.Equal(0, diagnostics.Length, string.Join("\n", diagnostics));
+        using var bytes = new MemoryStream();
+        var emitted = compiled.Emit(bytes);
+        AssertEx.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        bytes.Position = 0;
+        var loader = new AssemblyLoadContext("command-unit-results", isCollectible: true);
+        try
+        {
+            MethodInfo create = loader.LoadFromStream(bytes).GetType("Runic.CommandLine.Generated.GeneratedCommandCatalog")!.GetMethod("Create")!;
+            var catalog = (CommandCatalog)create.Invoke(null, [(Action<CommandCatalogBuilder>)(builder => builder.JsonOutputAlias("--json", JsonOutputShape.Payload))])!;
+
+            async Task<(int ExitCode, string Human, string HumanError, string PayloadType, string Payload, string Alias, string AliasError)> RunAsync(string command)
+            {
+                var human = new TestCommandConsole();
+                int exitCode = await new CommandApp(catalog) { Console = human, HandleCancelKeyPress = false }.RunAsync([command]);
+                var json = new TestCommandConsole();
+                AssertEx.Equal(0, await new CommandApp(catalog) { Console = json, HandleCancelKeyPress = false }.RunAsync([command, "--output=json"]));
+                using JsonDocument envelope = CommandTestEnvelope.Parse(json.StandardOutput);
+                var alias = new TestCommandConsole();
+                AssertEx.Equal(0, await new CommandApp(catalog) { Console = alias, HandleCancelKeyPress = false }.RunAsync([command, "--json"]));
+                return (exitCode, human.StandardOutput, human.StandardError, envelope.RootElement.GetProperty("payloadType").GetString()!,
+                    envelope.RootElement.GetProperty("payload").GetRawText(), alias.StandardOutput, alias.StandardError);
+            }
+
+            var expected = await RunAsync("void");
+            AssertEx.Equal(0, expected.ExitCode);
+            AssertEx.Equal("runic.unit/1", expected.PayloadType);
+            AssertEx.Equal(string.Empty, expected.Human + expected.HumanError + expected.Alias + expected.AliasError);
+            foreach (string command in new[] { "unit", "task-unit", "outcome", "task-outcome", "value-task-outcome" })
+            {
+                AssertEx.Equal(expected, await RunAsync(command), command);
+            }
+        }
+        finally { loader.Unload(); }
+    }
+
+    [Test, DisplayName("generator/command-unit-results-accept-explicit-result-metadata")]
+    public ValueTask CommandUnitResultsAcceptExplicitResultMetadata()
+    {
+        // [CommandResult] still overrides the built-in identity and codec, as it does for a string result.
+        const string source = """
+            using System.Text.Json.Serialization;
+            using Runic.CommandLine;
+
+            [JsonSerializable(typeof(CommandUnit))]
+            internal sealed partial class UnitContext : JsonSerializerContext;
+
+            internal static class Commands
+            {
+                [Command("unit"), CommandResult("sample.unit/1", typeof(UnitContext))]
+                public static CommandOutcome<CommandUnit> Unit() => CommandOutcome.Success(default(CommandUnit));
+            }
+            """;
+        GeneratorRunResult result = CSharpGeneratorDriver.Create(new CommandLineGenerator())
+            .RunGenerators(CreateCompilation(source)).GetRunResult().Results.Single();
+        AssertEx.Equal(0, result.Diagnostics.Length, string.Join("\n", result.Diagnostics));
+        string generated = string.Concat(result.GeneratedSources.Select(static item => item.SourceText.ToString()));
+        AssertEx.True(generated.Contains("\"sample.unit/1\"", StringComparison.Ordinal) && generated.Contains("global::UnitContext.Default.GetTypeInfo", StringComparison.Ordinal), generated);
+        AssertEx.True(!generated.Contains("CommandResultCodecs.Unit", StringComparison.Ordinal), generated);
+        return ValueTask.CompletedTask;
+    }
+
     [Test, DisplayName("generator/partial-result-contexts-use-default-only-when-json-generation-completes-them")]
     public ValueTask PartialResultContexts()
     {
