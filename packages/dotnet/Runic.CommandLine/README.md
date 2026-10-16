@@ -687,6 +687,50 @@ See the runnable [hosted example](https://github.com/Runic-Artifex/runic-cli-sdk
 for service injection and the complete launch flow. The example's UI branch is a
 console placeholder for an application's existing UI launcher.
 
+### Start a UI host on the main thread
+
+Some hosts must start on the process's main thread before any `await`, such as a
+desktop host whose event loop owns that thread. `CommandApp.RunAsync` parses and
+executes asynchronously, so a command cannot start such a host itself. Instead it
+hands a synchronous continuation back to `Main` with
+`CommandExecutionContext.ContinueOnCallingThread`, and `Main` runs the application
+with `CommandApp.Run`, which blocks until the invocation completes and then
+invokes the continuation on the thread that called it:
+
+```csharp
+// Program.cs: a synchronous Main, so this thread is the process's main thread.
+return CreateCommandApp().Run(args);
+
+internal static class DashboardCommands
+{
+    [Command("ui", Description = "Open the dashboard.")]
+    internal static async Task Ui(CommandExecutionContext context,
+        [Option("--flake")] string? flake = null, CancellationToken cancellationToken = default)
+    {
+        // Load and validate asynchronously; a failure here is an ordinary command fault.
+        DashboardSettings settings = await DashboardSettings.LoadAsync(flake, cancellationToken);
+        context.ContinueOnCallingThread(() =>
+            DesktopEventLoop.Run(DashboardHost.Options(), desktop => Dashboard.RunAsync(settings, desktop)));
+    }
+}
+```
+
+`Run` returns the continuation's result as the exit code. It runs the continuation
+only when the invocation succeeded and was not cancelled, after its output was
+written and its scope disposed, so capture values rather than scoped services.
+Help, version and usage errors never reach the command. The invocation runs
+without the caller's `SynchronizationContext`, and `HandleCancelKeyPress` signal
+handling ends before the continuation starts; the host handles its own shutdown.
+An exception from the continuation propagates from `Run`.
+
+`CanContinueOnCallingThread` is false under `RunAsync`, the hosting adapter and a
+directly used `CommandExecutor`, where `ContinueOnCallingThread` throws
+`InvalidOperationException` (a `RCLI5000` host failure). A command that can also
+run there, such as one exercised through `CommandAppTester`, checks it first.
+`Main` must not `await` before calling `Run`: after an `await`, a top-level program
+resumes on a thread-pool thread. The mechanism has no UI dependency and works
+with generated and explicitly registered commands and NativeAOT.
+
 ### Framework presentation failures and command ownership
 
 Help, version, usage-error and completion presentation honor cancellation in both

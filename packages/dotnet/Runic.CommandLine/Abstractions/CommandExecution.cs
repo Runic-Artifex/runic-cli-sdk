@@ -102,6 +102,46 @@ public sealed class CommandExecutionContext
     /// </summary>
     public ICommandTextResolver? TextResolver { get; init; }
 
+    /// <summary>
+    /// Gets whether the entry point that started this invocation can run a continuation on its calling thread:
+    /// true under <see cref="CommandApp.Run"/>, false under <see cref="CommandApp.RunAsync"/>, the hosting adapter
+    /// and a directly used <see cref="CommandExecutor"/>. See <see cref="ContinueOnCallingThread"/>.
+    /// </summary>
+    public bool CanContinueOnCallingThread => Continuation is not null;
+
+    /// <summary>
+    /// Hands a synchronous continuation back to the thread that called <see cref="CommandApp.Run"/>, typically the
+    /// process's main thread. <see cref="CommandApp.Run"/> invokes it on that thread after the invocation has
+    /// completed (its output written and its scope disposed) and returns its result as the process exit code.
+    /// </summary>
+    /// <param name="continuation">
+    /// The work that must run on the calling thread, such as starting a UI host that requires the main thread.
+    /// Capture values, not scoped services: the invocation scope is disposed before it runs.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="continuation"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// <see cref="CanContinueOnCallingThread"/> is false, or the invocation already has a continuation.
+    /// </exception>
+    /// <remarks>
+    /// The continuation runs only when the invocation succeeds: it is discarded when the command fails, is
+    /// cancelled, or its output cannot be written. Help, version and usage errors never reach a command. An
+    /// exception from the continuation propagates from <see cref="CommandApp.Run"/>.
+    /// </remarks>
+    public void ContinueOnCallingThread(Func<int> continuation)
+    {
+        ArgumentNullException.ThrowIfNull(continuation);
+        if (Continuation is null)
+        {
+            throw new InvalidOperationException(
+                "Only CommandApp.Run runs a continuation on its calling thread; this invocation was started otherwise.");
+        }
+
+        Continuation.Set(continuation);
+    }
+
+    // Set by CommandApp.Run through the execution request.
+    internal CommandContinuation? Continuation { get; init; }
+
     // Set by CommandApp and the hosting adapter from RUNIC_COMMANDLINE_NO_INPUT.
     internal bool PromptsDisabled { get; init; }
 

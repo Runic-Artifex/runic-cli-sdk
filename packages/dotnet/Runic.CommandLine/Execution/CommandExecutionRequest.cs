@@ -79,6 +79,9 @@ public sealed class CommandExecutionRequest
     // Set by CommandApp and the hosting adapter from RUNIC_COMMANDLINE_NO_INPUT; see CommandPrompts.
     internal bool PromptsDisabled { get; init; }
 
+    // Set by CommandApp.Run; see CommandExecutionContext.ContinueOnCallingThread.
+    internal CommandContinuation? Continuation { get; init; }
+
     internal ICommandConsole HandlerConsole => Invocation.OutputClassification.Mode == CommandOutputMode.Json
         ? new MachineHandlerConsole(Console) : Console;
 
