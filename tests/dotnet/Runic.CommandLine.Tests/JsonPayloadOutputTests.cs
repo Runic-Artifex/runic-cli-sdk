@@ -40,8 +40,8 @@ internal sealed class JsonPayloadOutputTests
             AssertEx.True(!document.RootElement.TryGetProperty("protocol", out _));
         }
 
-        // The fault is human text on stderr; human-only output is not written.
-        AssertEx.Equal("RCLI3000: The clone failed.\n", console.StandardError);
+        // The command's human failure text replaces the fault line on stderr.
+        AssertEx.Equal("Inspect the retained directory.\n", console.StandardError);
 
         console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.HostFailure, await App(console).RunAsync(["fail", "--json"]));
@@ -49,6 +49,39 @@ internal sealed class JsonPayloadOutputTests
         AssertEx.True(console.StandardError.StartsWith("RCLI5000: ", StringComparison.Ordinal) &&
             !console.StandardError.Contains("internal-secret", StringComparison.Ordinal), console.StandardError);
     }
+
+    [Test, DisplayName("output-alias-payload/failure-text-replaces-the-fault-line")]
+    public async ValueTask FailureTextReplacesFaultLine()
+    {
+        // Without failure text: the document, then diagnostics and the CODE: message line.
+        var console = new TestCommandConsole();
+        AssertEx.Equal(CommandExitCodes.CommandFailure, await App(console).RunAsync(["payload-failure", "--json"]));
+        AssertEx.Equal("[\"left\"]\n", console.StandardOutput);
+        AssertEx.Equal("RCLI3999: Some items were skipped.\nTEST0001: The operation failed.\n", console.StandardError);
+
+        // With failure text: the diagnostics stay, the text replaces the fault line and is written exactly.
+        console = new TestCommandConsole();
+        AssertEx.Equal(CommandExitCodes.CommandFailure, await App(console).RunAsync(["payload-failure", "--human-text", "--json"]));
+        AssertEx.Equal("[\"left\"]\n", console.StandardOutput);
+        AssertEx.Equal("RCLI3999: Some items were skipped.\nError: the operation failed.\n", console.StandardError);
+
+        // Human mode keeps writing the failure text to stdout and the fault line to stderr.
+        console = new TestCommandConsole();
+        AssertEx.Equal(CommandExitCodes.CommandFailure, await App(console).RunAsync(["payload-failure", "--human-text"]));
+        AssertEx.Equal("Error: the operation failed.\n", console.StandardOutput);
+        AssertEx.True(console.StandardError.Contains("TEST0001: The operation failed.", StringComparison.Ordinal), console.StandardError);
+    }
+
+    private static readonly string[] LeftItems = ["left"];
+
+    [Command("payload-failure")]
+    internal static CommandOutcome<string> PayloadFailure([Option("--human-text")] bool humanText = false) =>
+        CommandOutcome.FailureWithData<string>(
+            CommandExitCategory.CommandFailure,
+            new CommandFault("TEST0001", "The operation failed."),
+            CommandFailureData.Create("tests.payload-failure/1", LeftItems, RecoveryJsonContext.Default.StringArray),
+            [new CommandDiagnostic("RCLI3999", "skipped", "Some items were skipped.", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Warning)],
+            humanText ? "Error: the operation failed.\n" : null);
 
     [Test, DisplayName("output-alias-payload/framework-output-stays-human")]
     public async ValueTask FrameworkOutputStaysHuman()

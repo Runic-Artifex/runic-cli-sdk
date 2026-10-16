@@ -71,7 +71,9 @@ public sealed class CommandOutcome<T>
     /// </summary>
     /// <remarks>
     /// This value is never included in the <c>runic.commandline/1</c> JSON
-    /// envelope. It is preserved exactly, including control characters, and is
+    /// envelope. A JSON output alias of payload shape writes it to standard
+    /// error in place of the fault line, because standard output then holds
+    /// the document. It is preserved exactly, including control characters, and is
     /// limited to one mebibyte of valid UTF-8 text.
     /// </remarks>
     public string? HumanOutput { get; }

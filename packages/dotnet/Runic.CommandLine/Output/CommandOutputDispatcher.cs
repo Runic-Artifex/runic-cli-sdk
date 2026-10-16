@@ -51,7 +51,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             string? payloadHint = ShowHostFailureHint && response.Fault?.Code == "RCLI5000"
                 ? textContext.Resolve(CommandDebugOutput.HostFailureHintKey, CommandDebugOutput.HostFailureHint)
                 : null;
-            return WritePayloadAsync(context.Console, context.Culture, response, codec, payloadHint, cancellationToken);
+            return WritePayloadAsync(context.Console, context.Culture, response, codec, outcome.HumanOutput, payloadHint, cancellationToken);
         }
 
         if (ShowHostFailureHint && context.OutputMode == CommandOutputMode.Human && response.Fault?.Code == "RCLI5000")
@@ -80,13 +80,14 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
     }
 
     // A JSON output alias of payload shape: standard output receives the bare document, standard error the human
-    // diagnostics and fault. The document is serialized before anything is written, so a serialization failure
-    // leaves both streams untouched.
+    // diagnostics and fault, or the command's own failure text in place of the fault line. The document is
+    // serialized before anything is written, so a serialization failure leaves both streams untouched.
     private static async ValueTask WritePayloadAsync<T>(
         ICommandConsole console,
         CultureInfo culture,
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
+        string? humanOutput,
         string? faultHint,
         CancellationToken cancellationToken)
     {
@@ -107,6 +108,14 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         if (response.FailureData is { } failureData)
         {
             await console.WriteOutBytesAsync(failureData.PayloadDocument(), cancellationToken).ConfigureAwait(false);
+        }
+
+        // Standard output belongs to the document, so the command's human failure text, which replaces the
+        // CODE: message line as a legacy contract's own error text, goes to standard error after the diagnostics.
+        if (humanOutput is { Length: > 0 })
+        {
+            await console.WriteErrorAsync((BuildDiagnostics(response.Diagnostics) + humanOutput).AsMemory(), cancellationToken).ConfigureAwait(false);
+            return;
         }
 
         await WriteHumanAsync(console, culture, response, codec, cancellationToken, faultHint).ConfigureAwait(false);
