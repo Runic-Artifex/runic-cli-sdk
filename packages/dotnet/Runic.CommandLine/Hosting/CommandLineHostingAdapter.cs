@@ -183,6 +183,7 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
     {
         ArgumentNullException.ThrowIfNull(input);
         ParsedInvocation invocation = input.Decision.GetInvocation(_decisionOwner);
+        CommandContinuation? continuation = input.AcceptsContinuation ? new CommandContinuation() : null;
         var request = new CommandExecutionRequest(
             invocation,
             input.Console,
@@ -193,13 +194,16 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
             TextResolver = Presentation.TextResolver,
             PromptsDisabled = CommandPrompts.IsDisabledBy(name =>
                 input.Decision.LaunchInput.EnvironmentVariables.TryGetValue(name, out string? value) ? value : null),
+            Continuation = continuation,
         };
         CommandExecutor executor = _executor ?? _app!.CreateExecutor(invocation);
         CommandExecutionResult result = await executor.ExecuteAsync(
             request,
             input.OutcomeSink,
             cancellationToken).ConfigureAwait(false);
-        return new HostedCommandLineExecutionResult(result);
+        // As under CommandApp.Run, only a successful invocation that nobody asked to stop hands its continuation back.
+        Func<int>? next = continuation?.Take();
+        return new HostedCommandLineExecutionResult(result, result.IsSuccess && !cancellationToken.IsCancellationRequested ? next : null);
     }
 
     /// <summary>

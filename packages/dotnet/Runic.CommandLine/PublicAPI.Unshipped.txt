@@ -13,3 +13,6 @@ Runic.CommandLine.CommandExecutionContext.CanContinueOnCallingThread.get -> bool
 Runic.CommandLine.CommandExecutionContext.ContinueOnCallingThread(System.Func<int>! continuation) -> void
 Runic.CommandLine.CommandPrompts.IntroAsync(string! title, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 Runic.CommandLine.CommandPrompts.OutroAsync(string! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.Hosting.HostedCommandLineExecutionInput.AcceptsContinuation.get -> bool
+Runic.CommandLine.Hosting.HostedCommandLineExecutionInput.AcceptsContinuation.init -> void
+Runic.CommandLine.Hosting.HostedCommandLineExecutionResult.Continuation.get -> System.Func<int>?

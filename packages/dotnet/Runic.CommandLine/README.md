@@ -745,15 +745,32 @@ Test such a command with `CommandAppTester.Run`, the synchronous counterpart of
 `RunAsync`: it runs the continuation on the calling thread and returns its exit
 code with the output captured after it returned.
 
-`CanContinueOnCallingThread` is false under `RunAsync`, the hosting adapter and a
-directly used `CommandExecutor`, where `ContinueOnCallingThread` throws
-`InvalidOperationException` (a `RCLI5000` host failure). A command that can also
-run there checks it first. The hosting adapter does not support continuations
-because it does not own the entry point or its thread: the host calls its
-asynchronous `RunAsync` from its own startup, possibly after an `await` or on a UI
-loop, so there is no blocked caller to return to. A host decides before its UI
-starts with the synchronous `Classify` instead
-([#52](https://github.com/Runic-Artifex/runic-cli-sdk/issues/52) tracks support).
+`CanContinueOnCallingThread` is false under `RunAsync`, the hosting adapter's
+`RunAsync` and a directly used `CommandExecutor`, where `ContinueOnCallingThread`
+throws `InvalidOperationException` (a `RCLI5000` host failure). A command that can
+also run there checks it first.
+
+The hosting adapter does not own the entry point or its thread, so it never runs
+a continuation itself. A host that can run one opts in with
+`AcceptsContinuation` on `HostedCommandLineExecutionInput` and receives it in
+`HostedCommandLineExecutionResult.Continuation`, after the command's output was
+written and its scope disposed, and only when the command succeeded and the
+host's token was not cancelled. The host runs it on the thread it chooses and
+orders it against its own shutdown:
+
+```csharp
+static int Main(string[] args)
+{
+    var adapter = new CommandLineHostingAdapter(app);
+    HostedCommandLineDecision decision = adapter.Classify(new HostedCommandLineLaunchInput(args));
+    if (!decision.CanExecute) return StartHostOrPresent(decision);
+    HostedCommandLineExecutionResult result = adapter.ExecuteAsync(
+        new HostedCommandLineExecutionInput(decision, console, culture, correlationId, sink) { AcceptsContinuation = true })
+        .AsTask().GetAwaiter().GetResult();
+    return result.Continuation is { } next ? next() : result.ExitCode;
+}
+```
+
 `Main` must not `await` before calling `Run`: after an `await`, a top-level program
 resumes on a thread-pool thread. The mechanism has no UI dependency and works
 with generated and explicitly registered commands and NativeAOT.
