@@ -104,8 +104,10 @@ public sealed class CommandExecutionContext
 
     /// <summary>
     /// Gets whether the entry point that started this invocation can run a continuation on its calling thread:
-    /// true under <see cref="CommandApp.Run"/>, false under <see cref="CommandApp.RunAsync"/>, the hosting adapter
-    /// and a directly used <see cref="CommandExecutor"/>. See <see cref="ContinueOnCallingThread"/>.
+    /// true under <see cref="CommandApp.Run"/> and under a hosting adapter execution whose input sets
+    /// <see cref="Hosting.HostedCommandLineExecutionInput.AcceptsContinuation"/>, false under
+    /// <see cref="CommandApp.RunAsync"/>, other hosting adapter executions and a directly used
+    /// <see cref="CommandExecutor"/>. See <see cref="ContinueOnCallingThread"/>.
     /// </summary>
     public bool CanContinueOnCallingThread => Continuation is not null;
 
@@ -125,7 +127,10 @@ public sealed class CommandExecutionContext
     /// <remarks>
     /// The continuation runs only when the invocation succeeds: it is discarded when the command fails, is
     /// cancelled, or its output cannot be written. Help, version and usage errors never reach a command. An
-    /// exception from the continuation propagates from <see cref="CommandApp.Run"/>.
+    /// exception from the continuation propagates from <see cref="CommandApp.Run"/>. Under a hosting adapter that
+    /// accepts continuations, the adapter returns it in
+    /// <see cref="Hosting.HostedCommandLineExecutionResult.Continuation"/> and the host runs it on a thread of its
+    /// choosing.
     /// </remarks>
     public void ContinueOnCallingThread(Func<int> continuation)
     {
@@ -133,7 +138,7 @@ public sealed class CommandExecutionContext
         if (Continuation is null)
         {
             throw new InvalidOperationException(
-                "Only CommandApp.Run runs a continuation on its calling thread; this invocation was started otherwise.");
+                "Only CommandApp.Run, or a hosting adapter execution that accepts continuations, runs a continuation; this invocation was started otherwise.");
         }
 
         Continuation.Set(continuation);

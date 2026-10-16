@@ -302,17 +302,27 @@ public sealed class HostedCommandLineExecutionInput
 
     /// <summary>Gets the outcome presentation sink.</summary>
     public ICommandOutcomeSink OutcomeSink { get; }
+
+    /// <summary>
+    /// Gets whether the host runs a continuation that the command hands back with
+    /// <see cref="CommandExecutionContext.ContinueOnCallingThread"/>. When true, the command sees
+    /// <see cref="CommandExecutionContext.CanContinueOnCallingThread"/> as true, and the continuation is returned in
+    /// <see cref="HostedCommandLineExecutionResult.Continuation"/> for the host to run on the thread it chooses. When
+    /// false, the default, the command cannot hand one back.
+    /// </summary>
+    public bool AcceptsContinuation { get; init; }
 }
 
 /// <summary>Contains the completed result returned by the command-line engine.</summary>
 public sealed class HostedCommandLineExecutionResult
 {
-    internal HostedCommandLineExecutionResult(CommandExecutionResult commandResult)
+    internal HostedCommandLineExecutionResult(CommandExecutionResult commandResult, Func<int>? continuation = null)
     {
         ArgumentNullException.ThrowIfNull(commandResult);
         ExitCategory = commandResult.ExitCategory;
         ExitCode = commandResult.ExitCode;
         Fault = commandResult.Fault;
+        Continuation = continuation;
     }
 
     /// <summary>Gets the semantic command outcome category.</summary>
@@ -326,6 +336,21 @@ public sealed class HostedCommandLineExecutionResult
 
     /// <summary>Gets whether the command engine completed successfully.</summary>
     public bool IsSuccess => ExitCategory == CommandExitCategory.Success;
+
+    /// <summary>
+    /// Gets the continuation that the command handed back with
+    /// <see cref="CommandExecutionContext.ContinueOnCallingThread"/>, or null. It is set only when the input
+    /// accepted one (<see cref="HostedCommandLineExecutionInput.AcceptsContinuation"/>), the command succeeded and
+    /// the host's cancellation token was not cancelled.
+    /// </summary>
+    /// <remarks>
+    /// The adapter never runs it. When <see cref="CommandLineHostingAdapter.ExecuteAsync"/> returns, the command's
+    /// output is written and its scope disposed; the host invokes the continuation on the thread that must run it,
+    /// typically the main thread, before or instead of its own shutdown, and usually returns its result as the
+    /// process exit code. To stay on the main thread, a host blocks on the execution from a synchronous
+    /// <c>Main</c> rather than awaiting it.
+    /// </remarks>
+    public Func<int>? Continuation { get; }
 }
 
 /// <summary>Classifies and executes command-line launches for an application host.</summary>

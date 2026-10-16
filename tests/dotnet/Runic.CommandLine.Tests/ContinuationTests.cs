@@ -108,6 +108,45 @@ internal sealed class ContinuationTests
         AssertEx.True(!probe.CouldContinue && probe.ContinuationThread is null);
     }
 
+    // runic-cli-sdk#52: a host that accepts continuations receives one in the execution result and runs it itself.
+    [Test, DisplayName("continuation/hosting-adapter-returns-an-accepted-continuation")]
+    public async ValueTask HostingAdapterReturnsContinuation()
+    {
+        async ValueTask<Hosting.HostedCommandLineExecutionResult> Execute(ContinuationProbe probe, bool accepts, params string[] args)
+        {
+            var adapter = new Hosting.CommandLineHostingAdapter(App(probe));
+            Hosting.HostedCommandLineDecision decision = adapter.Classify(new Hosting.HostedCommandLineLaunchInput(args));
+            return await adapter.ExecuteAsync(
+                new Hosting.HostedCommandLineExecutionInput(decision, probe.Console, System.Globalization.CultureInfo.InvariantCulture, "host", new CommandOutputDispatcher())
+                {
+                    AcceptsContinuation = accepts,
+                },
+                probe.Cancellation.Token);
+        }
+
+        var probe = new ContinuationProbe { ExitCode = 42 };
+        Hosting.HostedCommandLineExecutionResult result = await Execute(probe, accepts: true, "continue");
+        AssertEx.True(result.IsSuccess && probe.CouldContinue && probe.Registered && probe.ContinuationThread is null);
+        AssertEx.Equal(42, result.Continuation!());
+        AssertEx.Equal(Environment.CurrentManagedThreadId, probe.ContinuationThread);
+        AssertEx.Equal("started\n", probe.OutputAtContinuation);
+
+        // Without the opt-in the command cannot hand one back, as before.
+        probe = new ContinuationProbe { ExitCode = 42 };
+        result = await Execute(probe, accepts: false, "continue");
+        AssertEx.True(result.IsSuccess && !probe.CouldContinue && !probe.Registered && result.Continuation is null);
+
+        // As under CommandApp.Run, failure and cancellation discard it.
+        foreach (string[] args in DiscardingArguments)
+        {
+            probe = new ContinuationProbe { ExitCode = 42 };
+            result = await Execute(probe, accepts: true, args);
+            AssertEx.True(probe.Registered && result.Continuation is null, string.Join(' ', args));
+        }
+    }
+
+    private static readonly string[][] DiscardingArguments = [["continue", "--fail"], ["continue", "--cancel"], ["continue", "--cancel", "--ignore-cancel"]];
+
     [Test, DisplayName("continuation/run-sets-aside-the-callers-synchronization-context")]
     public ValueTask RunSetsAsideSynchronizationContext()
     {
