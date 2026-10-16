@@ -10,6 +10,7 @@ public sealed class CommandCatalogBuilder
     private readonly List<CommandBuilderNode> _commands = [];
     private string? _defaultCommandName;
     private string? _jsonOutputAlias;
+    private JsonOutputShape _jsonOutputAliasShape;
     private readonly List<Action<CommandBuilderNode>> _globalOptions = [];
 
     /// <summary>Adds an option to every command. It may also precede the command path.</summary>
@@ -48,7 +49,38 @@ public sealed class CommandCatalogBuilder
     /// <c>--output</c>, the default selector. When a host's output selector has the same spelling, the flag is the
     /// selector itself.
     /// </remarks>
-    public CommandCatalogBuilder JsonOutputAlias(string name)
+    public CommandCatalogBuilder JsonOutputAlias(string name) => JsonOutputAlias(name, JsonOutputShape.Envelope);
+
+    /// <summary>
+    /// Declares a flag that stands for the output selector with the value <c>json</c>, as
+    /// <see cref="JsonOutputAlias(string)"/> does, and selects what the flag writes. With
+    /// <see cref="JsonOutputShape.Payload"/>, an application keeps an existing <c>--json</c> contract whose
+    /// consumers read the bare document rather than a <c>runic.commandline/1</c> envelope.
+    /// </summary>
+    /// <param name="name">A long option spelling such as <c>--json</c>.</param>
+    /// <param name="shape">What the flag writes.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentException">The name is not a valid alias, as for <see cref="JsonOutputAlias(string)"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="shape"/> is not defined.</exception>
+    /// <remarks>
+    /// <para>
+    /// With <see cref="JsonOutputShape.Payload"/>, a command invoked with the flag writes, to standard output, its
+    /// success payload serialized with the result codec's JSON metadata and followed by one LF, and nothing else.
+    /// A command whose result is <see cref="CommandUnit"/> writes nothing. A failed or cancelled command writes the
+    /// payload of its <see cref="CommandOutcome{T}.FailureData"/> the same way, or nothing when it declared none;
+    /// its fault and diagnostics are human text on standard error, as without the flag. The exit code is the one
+    /// the envelope reports. Help, version and usage errors, including a usage error on a command line that gives
+    /// the flag, are presented as human text, so <c>tool --bogus --json</c> writes its error to standard error.
+    /// </para>
+    /// <para>
+    /// The output selector (<c>--output json</c>) and <c>RUNIC_COMMANDLINE_OUTPUT=json</c> still write the
+    /// envelope, so machine consumers that read the protocol are unaffected. A payload is not bounded by the
+    /// protocol's frame limit; declared failure data keeps its own bound
+    /// (<see cref="CommandFailureData.MaximumPayloadBytes"/>), because the same outcome can also be written as an
+    /// envelope.
+    /// </para>
+    /// </remarks>
+    public CommandCatalogBuilder JsonOutputAlias(string name, JsonOutputShape shape)
     {
         ArgumentNullException.ThrowIfNull(name);
         if (!ParseSettings.IsLongOptionSpelling(name) || name is "--help" or "--version")
@@ -58,7 +90,13 @@ public sealed class CommandCatalogBuilder
                 nameof(name));
         }
 
+        if (!Enum.IsDefined(shape))
+        {
+            throw new ArgumentOutOfRangeException(nameof(shape));
+        }
+
         _jsonOutputAlias = name;
+        _jsonOutputAliasShape = shape;
         return this;
     }
 
@@ -192,7 +230,7 @@ public sealed class CommandCatalogBuilder
                 throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", "root", $"The default command '{_defaultCommandName}' must name a registered root command.")]);
             }
         }
-        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias);
+        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape);
     }
 
     private void AddGlobals(CommandBuilderNode node)

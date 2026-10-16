@@ -2,7 +2,11 @@
 
 This directory is the language-neutral, offline contract for Runic.CommandLine
 command-line machine output. `--output json` or the captured
-`RUNIC_COMMANDLINE_OUTPUT=json` value selects this protocol. The namespace of
+`RUNIC_COMMANDLINE_OUTPUT=json` value selects this protocol, as does an
+application's JSON output alias such as `--json`. An alias that an application
+declares with the payload shape (`JsonOutputShape.Payload`) to keep an existing
+contract writes the bare payload or failure-data document instead, which is
+outside this protocol; the selector and the environment value still select it. The namespace of
 the implementation remains `Runic.CommandLine.*`; neither a parser
 package nor a hosting framework is part of the wire contract.
 

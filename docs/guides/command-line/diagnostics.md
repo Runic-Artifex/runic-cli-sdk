@@ -207,7 +207,8 @@ JSON output alias conflict. The alias declared with
 default output selector, which would make the flag mean something else under a
 host whose transport option has another name), is also the name or an alias of
 a command option, or catalogs combined with
-`CommandCatalog.Combine` declare different aliases. The alias is recognized
+`CommandCatalog.Combine` declare different aliases or the same alias with
+different output shapes (`JsonOutputShape`). The alias is recognized
 before any command option, so remove the option, or keep it and do not declare
 the alias.
 

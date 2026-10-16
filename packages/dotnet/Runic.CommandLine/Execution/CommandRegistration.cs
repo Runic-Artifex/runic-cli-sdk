@@ -97,6 +97,7 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                     request.Culture,
                     request.CorrelationId)
                 {
+                    OutputShape = request.Invocation.OutputClassification.Shape,
                     TextResolver = request.TextResolver,
                     PromptsDisabled = request.PromptsDisabled,
                     InvocationCancellation = cancellationToken,
@@ -230,7 +231,10 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
             request.Invocation.Path,
             request.Invocation.OutputClassification.Mode!.Value,
             request.Culture,
-            request.CorrelationId);
+            request.CorrelationId)
+        {
+            OutputShape = request.Invocation.OutputClassification.Shape,
+        };
 
         int exitCode = exitCodePolicy.GetExitCode(outcome.ExitCategory);
         // A handler may intentionally complete successfully after a graceful stop.

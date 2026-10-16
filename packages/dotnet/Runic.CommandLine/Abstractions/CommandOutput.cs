@@ -25,6 +25,19 @@ public enum CommandOutputModeSource
     ExplicitArgument = 2,
 }
 
+/// <summary>Identifies what JSON output contains. See <see cref="CommandCatalogBuilder.JsonOutputAlias(string, JsonOutputShape)"/>.</summary>
+public enum JsonOutputShape
+{
+    /// <summary>One <c>runic.commandline/1</c> response envelope, as the output selector writes it.</summary>
+    Envelope = 0,
+
+    /// <summary>
+    /// The command's own JSON document without the envelope: the success payload, or the declared failure data on
+    /// failure. Framework help, version and usage errors are human text.
+    /// </summary>
+    Payload = 1,
+}
+
 /// <summary>
 /// Represents the result of resolving explicit, environment, and default
 /// output-mode configuration.
@@ -35,12 +48,14 @@ public readonly record struct CommandOutputClassification
         bool isValid,
         CommandOutputMode? mode,
         CommandOutputModeSource? source,
-        string? invalidEnvironmentValue)
+        string? invalidEnvironmentValue,
+        JsonOutputShape shape = JsonOutputShape.Envelope)
     {
         IsValid = isValid;
         Mode = mode;
         Source = source;
         InvalidEnvironmentValue = invalidEnvironmentValue;
+        Shape = shape;
     }
 
     /// <summary>Gets a value indicating whether classification succeeded.</summary>
@@ -57,6 +72,16 @@ public readonly record struct CommandOutputClassification
     /// otherwise, null.
     /// </summary>
     public string? InvalidEnvironmentValue { get; }
+
+    /// <summary>
+    /// Gets what JSON output contains: <see cref="JsonOutputShape.Payload"/> when the command line gave the catalog's
+    /// JSON output alias declared with that shape, otherwise <see cref="JsonOutputShape.Envelope"/>. The output
+    /// selector and <c>RUNIC_COMMANDLINE_OUTPUT</c> always select the envelope.
+    /// </summary>
+    public JsonOutputShape Shape { get; }
+
+    internal CommandOutputClassification WithShape(JsonOutputShape shape) =>
+        new(IsValid, Mode, Source, InvalidEnvironmentValue, shape);
 }
 
 /// <summary>

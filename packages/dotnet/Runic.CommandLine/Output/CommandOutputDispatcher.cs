@@ -1,7 +1,10 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -43,6 +46,14 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
 
         var textContext = new CommandTextContext(context.Culture, TextResolver);
         response = textContext.Localize(response);
+        if (context.OutputMode == CommandOutputMode.Json && context.OutputShape == JsonOutputShape.Payload)
+        {
+            string? payloadHint = ShowHostFailureHint && response.Fault?.Code == "RCLI5000"
+                ? textContext.Resolve(CommandDebugOutput.HostFailureHintKey, CommandDebugOutput.HostFailureHint)
+                : null;
+            return WritePayloadAsync(context.Console, context.Culture, response, codec, payloadHint, cancellationToken);
+        }
+
         if (ShowHostFailureHint && context.OutputMode == CommandOutputMode.Human && response.Fault?.Code == "RCLI5000")
         {
             string hint = textContext.Resolve(CommandDebugOutput.HostFailureHintKey, CommandDebugOutput.HostFailureHint);
@@ -66,6 +77,51 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 response,
                 codec,
                 cancellationToken);
+    }
+
+    // A JSON output alias of payload shape: standard output receives the bare document, standard error the human
+    // diagnostics and fault. The document is serialized before anything is written, so a serialization failure
+    // leaves both streams untouched.
+    private static async ValueTask WritePayloadAsync<T>(
+        ICommandConsole console,
+        CultureInfo culture,
+        CommandResponse<T> response,
+        ICommandResultCodec<T> codec,
+        string? faultHint,
+        CancellationToken cancellationToken)
+    {
+        if (response.Success)
+        {
+            byte[]? document = string.Equals(codec.PayloadType, CommandResultCodecs.Unit.PayloadType, StringComparison.Ordinal)
+                ? null
+                : SerializePayload(response.Payload!, codec.TypeInfo);
+            await WriteDiagnosticsAsync(console, response.Diagnostics, cancellationToken).ConfigureAwait(false);
+            if (document is not null)
+            {
+                await console.WriteOutBytesAsync(document, cancellationToken).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        if (response.FailureData is { } failureData)
+        {
+            await console.WriteOutBytesAsync(failureData.PayloadDocument(), cancellationToken).ConfigureAwait(false);
+        }
+
+        await WriteHumanAsync(console, culture, response, codec, cancellationToken, faultHint).ConfigureAwait(false);
+    }
+
+    private static byte[] SerializePayload<T>(T payload, JsonTypeInfo<T> typeInfo)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Encoder = CommandJsonEncoding.Encoder }))
+        {
+            JsonSerializer.Serialize(writer, payload, typeInfo);
+        }
+
+        buffer.Write("\n"u8);
+        return buffer.WrittenSpan.ToArray();
     }
 
     private static async ValueTask DispatchFailureHumanOutputAsync<T>(

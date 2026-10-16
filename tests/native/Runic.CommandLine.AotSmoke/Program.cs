@@ -43,6 +43,10 @@ internal static class Program
         if (await new CommandApp(catalog) { Console = runnerOutput, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--output=json"]).ConfigureAwait(false) != 0) return 40;
         using (JsonDocument ping = JsonDocument.Parse(runnerOutput.StandardOutput))
             if (ping.RootElement.GetProperty("payload").GetString() != "pong") return 50;
+        var payloadOutput = new BufferCommandConsole();
+        if (await new CommandApp(GeneratedCommandCatalog.Create(builder => builder.JsonOutputAlias("--json", JsonOutputShape.Payload)))
+            { Console = payloadOutput, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--json"]).ConfigureAwait(false) != 0 ||
+            payloadOutput.StandardOutput != "\"pong\"\n") return 51;
         var hosted = new CommandLineHostingAdapter(catalog, new CommandExecutor(EmptyScopeFactory.Instance))
         {
             Presentation = new() { Name = "smoke", HelpPresenter = new SpectreHelpPresenter() },

@@ -51,6 +51,7 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `help.show-version` | | Show version |
 | `help.output-format` | | Select output format |
 | `help.json-output-alias` | `option` | Same as {option} json |
+| `help.json-payload-output-alias` | | Write the result as JSON |
 | `help.examples` | | Examples |
 | `help.required` | | required |
 | `help.default` | | default |

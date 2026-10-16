@@ -76,6 +76,20 @@ public sealed class CommandExecutionContext
     /// <summary>Gets the selected presentation mode.</summary>
     public CommandOutputMode OutputMode { get; }
 
+    /// <summary>
+    /// Gets or sets what JSON output contains when <see cref="OutputMode"/> is <see cref="CommandOutputMode.Json"/>:
+    /// <see cref="JsonOutputShape.Payload"/> when the command line gave a JSON output alias declared with that
+    /// shape. The default is <see cref="JsonOutputShape.Envelope"/>.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is not defined.</exception>
+    public JsonOutputShape OutputShape
+    {
+        get => _outputShape;
+        init => _outputShape = Enum.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(value));
+    }
+
+    private readonly JsonOutputShape _outputShape;
+
     /// <summary>Gets the culture selected for presentation.</summary>
     public CultureInfo Culture { get; }
 

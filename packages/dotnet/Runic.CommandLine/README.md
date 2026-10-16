@@ -64,6 +64,28 @@ listed in help and completions. Giving both `--json` and `--output` is a usage
 error (`RCLI1016`), and a command option spelled `--json` fails catalog
 validation (`RCLI0024`).
 
+When the existing flag's consumers read the bare document rather than an
+envelope, declare it with the payload shape:
+
+```csharp
+CommandCatalog catalog = GeneratedCommandCatalog.Create(
+    builder => builder.JsonOutputAlias("--json", JsonOutputShape.Payload));
+```
+
+`hello greet Ada --json` then writes `"Hello, Ada!"` and one LF to standard
+output, the payload serialized with the command's result metadata and nothing
+else. A command without a result writes nothing. A failed or cancelled command
+writes the payload of its declared failure data (see "Declared domain failure
+and recovery data") the same way, or nothing when it declared none, and its fault
+and diagnostics are human text on standard error. The exit code is the one the
+envelope would report. Help, version and usage errors on a command line that
+gives the flag are human text, so `hello --bogus --json` writes its `RCLI1001`
+line to standard error. `--output json` and `RUNIC_COMMANDLINE_OUTPUT=json` keep
+writing the `runic.commandline/1` envelope, and `CommandExecutionContext.OutputShape`
+tells a handler or a custom outcome sink which shape was selected. Failure data
+keeps its 65,536-byte bound, because the same outcome can also be written as an
+envelope; a success payload is not bound by the protocol's frame limit.
+
 ## Method-first inputs and results
 
 - Scalars: strings, integers, long integers, decimals, doubles, GUIDs, enums and
