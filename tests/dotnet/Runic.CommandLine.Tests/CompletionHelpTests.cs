@@ -37,6 +37,12 @@ internal sealed partial class CompletionHelpTests
             .BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory()).Produces(new TestCodec())
             .Option("other", "--sibling-only", CommandArity.Zero);
         CatalogTests.ValidCommand(builder, "deploy").Option("remote", "--remote-only", CommandArity.Zero);
+        // Trailing arguments complete after --, instead of the positional argument: runic-cli-sdk#42.
+        CatalogTests.ValidCommand(builder, "exec")
+            .Argument("target", "target", CommandArity.ZeroOrOne)
+            .TrailingArguments("native", "native")
+            .ParameterHelp("target", new CommandHelp(choices: ["prod", "stage"]))
+            .ParameterHelp("native", new CommandHelp(choices: ["--force-native", "prod-native"]));
         CatalogTests.ValidCommand(builder, "hidden-command").WithHelp(new CommandHelp { Hidden = true });
         return builder.DefaultCommand("deploy").Build();
     }
@@ -73,7 +79,7 @@ internal sealed partial class CompletionHelpTests
     private static readonly string[] Shells = ["bash", "zsh", "fish", "pwsh"];
     private static readonly string[] FishQuotedPrefixes = ["fixture cfg write --mode 'care", "fixture cfg write --mode careful\\ m"];
     private static readonly string[] PathSelectors = ["--directory", "--file"];
-    private static readonly string[] RootCommands = ["config", "deploy", "cfg"];
+    private static readonly string[] RootCommands = ["config", "deploy", "exec", "cfg"];
 
     private static readonly string[][] Contexts =
     [
@@ -89,6 +95,7 @@ internal sealed partial class CompletionHelpTests
         ["config", "set", "--tag", "red", "--", "th"], ["config", "set", "theme", "--"],
         ["config", "set", "--", ""], ["help", "cfg", ""], ["completion", ""],
         ["config", "get", "--"], ["deploy", "--"], ["--remote-only", ""],
+        ["exec", ""], ["exec", "--", ""], ["exec", "prod", "--", "pr"], ["exec", "--", "--fo"], ["exec", "--", "x", "--", ""],
     ];
 
     [Test, DisplayName("completion/query-follows-command-value-and-position")]
@@ -100,6 +107,9 @@ internal sealed partial class CompletionHelpTests
         AssertEx.SequenceEqual(["--mode=careful mode"], CommandCompletion.Query(catalog, ["cfg", "write", "--mode=care"]).Candidates);
         AssertEx.SequenceEqual(["theme"], CommandCompletion.Query(catalog, ["config", "set", "th"]).Candidates);
         AssertEx.SequenceEqual(["font size", "theme"], CommandCompletion.Query(catalog, ["config", "set", "--", ""]).Candidates);
+        AssertEx.SequenceEqual(["prod", "stage"], CommandCompletion.Query(catalog, ["exec", "st"]).Candidates.Concat(CommandCompletion.Query(catalog, ["exec", "pr"]).Candidates).Order(StringComparer.Ordinal));
+        AssertEx.SequenceEqual(["--force-native", "prod-native"], CommandCompletion.Query(catalog, ["exec", "--", ""]).Candidates);
+        AssertEx.SequenceEqual(["prod-native"], CommandCompletion.Query(catalog, ["exec", "prod", "--", "pr"]).Candidates);
         AssertEx.SequenceEqual(Array.Empty<string>(), CommandCompletion.Query(catalog, ["config", "set", "--secret", ""]).Candidates);
         foreach (string[] context in Contexts)
         {

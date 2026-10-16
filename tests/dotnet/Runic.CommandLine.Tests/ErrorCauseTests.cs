@@ -92,7 +92,7 @@ internal sealed class ErrorCauseTests
         Diagnostic unknown = Single(diagnostics, "RCLI9039");
         AssertEx.Equal(DiagnosticSeverity.Warning, unknown.Severity);
         AssertEx.True(Text(unknown).Contains("'verbose'", StringComparison.Ordinal));
-        AssertEx.Equal("Command 'config show' is marked [DefaultCommand], but only a single-segment root command can be the default",
+        AssertEx.Equal("Command 'config show' is marked [DefaultCommand] or [RootCommand], but only a single-segment root command can be the default",
             Text(Single(diagnostics, "RCLI9040")));
         AssertEx.True(diagnostics.All(static diagnostic => diagnostic.Location.GetLineSpan().StartLinePosition.Line > 2));
         AssertEx.Equal(6, diagnostics.Length, string.Join("\n", diagnostics));

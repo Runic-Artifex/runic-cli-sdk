@@ -28,13 +28,13 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor VariadicArgumentNotLast = new("RCLI9020", "Multi-value argument is not last", "Argument '{0}' on command '{1}' accepts multiple values; only the last argument may do so", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9020");
     private static readonly DiagnosticDescriptor ByReferenceParameter = new("RCLI9021", "By-reference command parameter", "Parameter '{0}' on command '{1}' cannot be passed by reference", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9021");
     private static readonly DiagnosticDescriptor UnboundDefaultValue = new("RCLI9022", "Default value on an unbound command parameter", "Parameter '{0}' on command '{1}' declares a default value but is not an argument or option", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9022");
-    private static readonly DiagnosticDescriptor RequiredOptionDefault = new("RCLI9023", "Required option with a default value", "Option '{0}' on command '{1}' cannot be required and declare a default value", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9023");
+    private static readonly DiagnosticDescriptor RequiredOptionDefault = new("RCLI9023", "Required parameter with a default value", "Parameter '{0}' on command '{1}' cannot be required and declare a default value", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9023");
     private static readonly DiagnosticDescriptor FlagDefaultsToTrue = new("RCLI9024", "Flag defaults to true", "Boolean option '{0}' on command '{1}' cannot default to true", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9024");
     private static readonly DiagnosticDescriptor ListOptionDefault = new("RCLI9025", "List option with a default value", "List option '{0}' on command '{1}' cannot declare a default value", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9025");
     private static readonly DiagnosticDescriptor MultipleValuesMismatch = new("RCLI9026", "AllowMultipleValues does not match the parameter type", "Parameter '{0}' on command '{1}' must set AllowMultipleValues exactly when its type is a list", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9026");
     private static readonly DiagnosticDescriptor ScalarOccurrencePolicy = new("RCLI9027", "Occurrence policy on a scalar option", "Option '{0}' on command '{1}' sets AllowMultipleOccurrences, which applies only to list options", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9027");
     private static readonly DiagnosticDescriptor InvalidResultMetadata = new("RCLI9028", "Missing command result metadata", "Command '{0}' returns '{1}', which needs [CommandResult(\"<name>/<major>\", typeof(<JsonSerializerContext>))] to describe its JSON payload{2}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9028");
-    private static readonly DiagnosticDescriptor MultipleDefaultCommands = new("RCLI9029", "Multiple default commands", "Command '{0}' is one of several commands marked [DefaultCommand]", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9029");
+    private static readonly DiagnosticDescriptor MultipleDefaultCommands = new("RCLI9029", "Multiple default commands", "Command '{0}' is one of several commands marked [DefaultCommand] or [RootCommand]", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9029");
 
     private static readonly DiagnosticDescriptor InvalidConverter = new("RCLI9030", "Invalid command converter", "Converter on parameter '{0}' must be an accessible, closed, non-abstract class or struct implementing ICommandValueConverter<{1}> with a concrete static implementation", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9030");
     private static readonly DiagnosticDescriptor InvalidValidator = new("RCLI9031", "Invalid command validator", "Validator on parameter '{0}' must be an accessible, closed, non-abstract class or struct implementing ICommandValueValidator<{1}> with a concrete static implementation", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9031");
@@ -45,7 +45,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor InvalidPathMetadata = new("RCLI9037", "Invalid path metadata", "Parameter '{0}' on command '{1}' sets MustExist or PathKind without a defined path kind; use FileInfo or DirectoryInfo, or set PathKind to File or Directory", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9037");
     private static readonly DiagnosticDescriptor InvalidOptionRelationship = new("RCLI9038", "Invalid option relationship", "Option '{0}' on command '{1}' lists '{2}' in Requires or ConflictsWith; name another option's ID (for example 'dry-run'), not its spelling, itself or an argument", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9038");
     private static readonly DiagnosticDescriptor UnknownOptionRelationship = new("RCLI9039", "Option relationship names an unknown option", "Option '{0}' on command '{1}' lists '{2}' in Requires or ConflictsWith, but the command declares no option with that ID; catalog validation fails unless a global option supplies it", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9039");
-    private static readonly DiagnosticDescriptor NestedDefaultCommand = new("RCLI9040", "Default command is not a root command", "Command '{0}' is marked [DefaultCommand], but only a single-segment root command can be the default", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9040");
+    private static readonly DiagnosticDescriptor NestedDefaultCommand = new("RCLI9040", "Default command is not a root command", "Command '{0}' is marked [DefaultCommand] or [RootCommand], but only a single-segment root command can be the default", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9040");
     private static readonly DiagnosticDescriptor InvalidResultContext = new("RCLI9041", "Invalid command result JSON context", "Command '{0}' names '{1}' in [CommandResult], which must be an accessible class deriving from JsonSerializerContext", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9041");
     private static readonly DiagnosticDescriptor MissingResultTypeMetadata = new("RCLI9042", "JSON context lacks the command result type", "Command '{0}' returns '{1}', but JSON context '{2}' has no [JsonSerializable(typeof({1}))]; add it to the context", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9042");
     private static readonly DiagnosticDescriptor ListConverter = new("RCLI9034", "Converter on a list parameter", "List parameter '{0}' cannot use ConvertWith; list binding converts each supported element type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9034");
@@ -164,6 +164,12 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         }
 
         IReadOnlyList<ParameterModel> arguments = parameters.Where(static parameter => parameter.Kind == ParameterKind.Argument).ToArray();
+        if (arguments.Count(static parameter => parameter.IsTrailing) > 1)
+        {
+            Report(diagnostics, InvalidMetadata, method, name, "second [TrailingArguments] parameter", arguments.Where(static parameter => parameter.IsTrailing).ElementAt(1).Id);
+            return null;
+        }
+        arguments = arguments.Where(static parameter => !parameter.IsTrailing).ToArray();
         ParameterModel[] variadicArguments = arguments.Where(static parameter => parameter.AllowMultipleValues).ToArray();
         if (variadicArguments.Length > 1 || (variadicArguments.Length == 1 && !ReferenceEquals(arguments[^1], variadicArguments[0])))
         {
@@ -188,7 +194,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
 
         if (!ValidateArgumentOrder(diagnostics, parameters, name!) || !ValidateRelationships(diagnostics, parameters, name!)) return null;
 
-        bool isDefault = FindAttribute(method, "Runic.CommandLine.DefaultCommandAttribute") is not null;
+        // An unnamed root command is a default command whose name is not a spelling.
+        bool isDefault = FindAttribute(method, "Runic.CommandLine.DefaultCommandAttribute") is not null || FindAttribute(method, "Runic.CommandLine.RootCommandAttribute") is not null;
         if (isDefault && name!.Contains(' '))
         {
             Report(diagnostics, NestedDefaultCommand, method, name);
@@ -210,10 +217,13 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
 
     private static ParameterModel? TryCreateParameter(List<DiagnosticInfo> diagnostics, IMethodSymbol method, IParameterSymbol parameter, Compilation compilation)
     {
-        AttributeData? argument = FindAttribute(parameter, "Runic.CommandLine.ArgumentAttribute");
+        AttributeData? positional = FindAttribute(parameter, "Runic.CommandLine.ArgumentAttribute");
+        AttributeData? trailing = FindAttribute(parameter, "Runic.CommandLine.TrailingArgumentsAttribute");
         AttributeData? option = FindAttribute(parameter, "Runic.CommandLine.OptionAttribute");
         AttributeData? service = FindAttribute(parameter, "Runic.CommandLine.FromServicesAttribute");
-        int count = (argument is null ? 0 : 1) + (option is null ? 0 : 1) + (service is null ? 0 : 1);
+        int count = (positional is null ? 0 : 1) + (trailing is null ? 0 : 1) + (option is null ? 0 : 1) + (service is null ? 0 : 1);
+        // Trailing arguments are an argument whose values are the tokens after --; they share its metadata names.
+        AttributeData? argument = positional ?? trailing;
         string methodName = GetCommandName(method);
         if (parameter.RefKind != RefKind.None)
         {
@@ -310,7 +320,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             return null;
         }
 
-        if (option is not null && parameter.HasExplicitDefaultValue && GetRequired(option))
+        if (parameter.HasExplicitDefaultValue && GetRequired((option ?? argument)!))
         {
             Report(diagnostics, RequiredOptionDefault, parameter, parameter.Name, methodName);
             return null;
@@ -371,6 +381,17 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             return new ParameterModel(parameter, ParameterKind.Option, id, spelling, aliases, parameter.HasExplicitDefaultValue ? parameter.ExplicitDefaultValue : null, parameter.HasExplicitDefaultValue || IsNullable(parameter), allowMultipleValues, isRequired, allowMultipleOccurrences);
         }
 
+        if (trailing is not null)
+        {
+            if (!IsList(parameter.Type))
+            {
+                Report(diagnostics, UnsupportedType, parameter, parameter.Name, methodName, parameter.Type.ToDisplayString(),
+                    "; [TrailingArguments] binds an array or IReadOnlyList<T> of a supported value type");
+                return null;
+            }
+            return new ParameterModel(parameter, ParameterKind.Argument, id, null, ImmutableArray<string>.Empty, null, true, true, IsTrailing: true);
+        }
+
         bool allowMultipleArgumentValues = GetAllowMultipleValues(argument!);
         if ((IsList(parameter.Type) && !allowMultipleArgumentValues) ||
             (allowMultipleArgumentValues && !IsList(parameter.Type)))
@@ -385,7 +406,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
                 "; a positional argument cannot be Boolean, use an [Option] flag");
             return null;
         }
-        return new ParameterModel(parameter, ParameterKind.Argument, id, null, ImmutableArray<string>.Empty, parameter.HasExplicitDefaultValue ? parameter.ExplicitDefaultValue : null, parameter.HasExplicitDefaultValue || IsNullable(parameter), allowMultipleArgumentValues);
+        return new ParameterModel(parameter, ParameterKind.Argument, id, null, ImmutableArray<string>.Empty, parameter.HasExplicitDefaultValue ? parameter.ExplicitDefaultValue : null, parameter.HasExplicitDefaultValue || IsNullable(parameter), allowMultipleArgumentValues, GetRequired(argument!));
     }
 
     private static void Report(List<DiagnosticInfo> diagnostics, DiagnosticDescriptor descriptor, ISymbol symbol, params string?[] arguments) =>
@@ -457,8 +478,13 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         }
         foreach (ParameterModel parameter in parameters.Where(static parameter => parameter.Kind == ParameterKind.Argument))
         {
-            bool sensitive = FindAttribute(parameter.Symbol, "Runic.CommandLine.ArgumentAttribute")!.NamedArguments.Any(static p => p.Key == "Sensitive" && p.Value.Value is true);
-            registration.Append(".Argument(").Append(Literal(parameter.Id)).Append(", ").Append(Literal(parameter.Id)).Append(", global::Runic.CommandLine.CommandArity.").Append(parameter.AllowMultipleValues ? "ZeroOrMore" : parameter.HasDefault ? "ZeroOrOne" : "ExactlyOne").Append(sensitive ? ", isSensitive: true" : "").Append(", descriptionKey: ").Append(NamedString(FindAttribute(parameter.Symbol, "Runic.CommandLine.ArgumentAttribute")!, "DescriptionKey")).Append(')');
+            bool sensitive = ArgumentMetadata(parameter.Symbol)!.NamedArguments.Any(static p => p.Key == "Sensitive" && p.Value.Value is true);
+            if (parameter.IsTrailing)
+            {
+                registration.Append(".TrailingArguments(").Append(Literal(parameter.Id)).Append(", ").Append(Literal(parameter.Id)).Append(sensitive ? ", isSensitive: true" : "").Append(", descriptionKey: ").Append(NamedString(ArgumentMetadata(parameter.Symbol)!, "DescriptionKey")).Append(')');
+                continue;
+            }
+            registration.Append(".Argument(").Append(Literal(parameter.Id)).Append(", ").Append(Literal(parameter.Id)).Append(", global::Runic.CommandLine.CommandArity.").Append(parameter.AllowMultipleValues ? (parameter.IsRequired ? "OneOrMore" : "ZeroOrMore") : parameter.HasDefault && !parameter.IsRequired ? "ZeroOrOne" : "ExactlyOne").Append(sensitive ? ", isSensitive: true" : "").Append(", descriptionKey: ").Append(NamedString(ArgumentMetadata(parameter.Symbol)!, "DescriptionKey")).Append(')');
         }
 
         AttributeData commandAttribute = FindAttribute(method, "Runic.CommandLine.CommandAttribute")!;
@@ -466,7 +492,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         registration.Append(".WithHelp(new global::Runic.CommandLine.CommandHelp(description: ").Append(NamedString(commandAttribute, "Description")).Append(", examples: ").Append(NamedArray(commandAttribute, "Examples")).Append(") { Hidden = ").Append(NamedBool(commandAttribute, "Hidden")).Append(", LongDescription = ").Append(NamedString(commandAttribute, "LongDescription")).Append(" })");
         foreach (ParameterModel parameter in parameters.Where(static p => p.Kind is ParameterKind.Option or ParameterKind.Argument))
         {
-            AttributeData metadata = FindAttribute(parameter.Symbol, parameter.Kind == ParameterKind.Option ? "Runic.CommandLine.OptionAttribute" : "Runic.CommandLine.ArgumentAttribute")!;
+            AttributeData metadata = (parameter.Kind == ParameterKind.Option ? FindAttribute(parameter.Symbol, "Runic.CommandLine.OptionAttribute") : ArgumentMetadata(parameter.Symbol))!;
             ITypeSymbol scalar = Scalar(parameter.Symbol.Type);
             bool numeric = IsNumeric(scalar);
             string choices = NamedArray(metadata, "Choices");
@@ -502,7 +528,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             string.Join(", ", boundParameters.Select(p => ParameterType(p.Symbol) + " " + EscapeIdentifier(p.Symbol.Name))),
             binder.ToString(),
             string.Join(", ", boundParameters.Select(p => EscapeIdentifier(p.Symbol.Name))),
-            invocation);
+            invocation,
+            FindAttribute(method, "Runic.CommandLine.RootCommandAttribute") is not null);
     }
 
     private static string Render(IReadOnlyList<CommandModel> commands, IReadOnlyList<GroupCandidate> groups)
@@ -517,7 +544,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         }
         foreach (GroupCandidate group in groups) source.Append("        ").Append(group.Registration).AppendLine();
         CommandModel? defaultCommand = commands.FirstOrDefault(static command => command.IsDefault);
-        if (defaultCommand is not null) source.Append("        .DefaultCommand(").Append(Literal(defaultCommand.Name)).AppendLine(")");
+        if (defaultCommand is not null) source.Append(defaultCommand.IsRoot ? "        .RootCommand(" : "        .DefaultCommand(").Append(Literal(defaultCommand.Name)).AppendLine(")");
         source.AppendLine("        ; configure?.Invoke(builder); return builder.Build(); }").AppendLine();
         for (int index = 0; index < commands.Count; index++) RenderCommand(source, commands[index], index);
         source.AppendLine("}");
@@ -579,7 +606,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     {
         string value = RawValueExpression(parameter, invocation);
         // Declared bounds apply after conversion and before custom validation.
-        AttributeData? metadata = FindAttribute(parameter.Symbol, "Runic.CommandLine.OptionAttribute") ?? FindAttribute(parameter.Symbol, "Runic.CommandLine.ArgumentAttribute");
+        AttributeData? metadata = FindAttribute(parameter.Symbol, "Runic.CommandLine.OptionAttribute") ?? ArgumentMetadata(parameter.Symbol);
         if (metadata is not null && (NamedBound(metadata, "Minimum") != "null" || NamedBound(metadata, "Maximum") != "null"))
             value = "global::Runic.CommandLine.GeneratedCommandBinding.CheckRange(" + value + ", " + invocation + ", " + Literal(parameter.Id) + ")";
         if (FindAttribute(parameter.Symbol, "Runic.CommandLine.ValidateWithAttribute")?.ConstructorArguments[0].Value is ITypeSymbol validator)
@@ -695,9 +722,9 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static bool ValidateArgumentOrder(List<DiagnosticInfo> diagnostics, List<ParameterModel> parameters, string commandName)
     {
         ParameterModel? optional = null;
-        foreach (ParameterModel argument in parameters.Where(static parameter => parameter.Kind == ParameterKind.Argument))
+        foreach (ParameterModel argument in parameters.Where(static parameter => parameter.Kind == ParameterKind.Argument && !parameter.IsTrailing))
         {
-            if (argument.HasDefault || argument.AllowMultipleValues) { optional ??= argument; continue; }
+            if ((argument.HasDefault || argument.AllowMultipleValues) && !argument.IsRequired) { optional ??= argument; continue; }
             if (optional is null) continue;
             Report(diagnostics, RequiredArgumentAfterOptional, argument.Symbol, argument.Id, commandName, optional.Id);
             return false;
@@ -886,7 +913,10 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         option.NamedArguments.FirstOrDefault(static pair => pair.Key == "AllowMultipleOccurrences").Value.Value as bool? ?? true;
     private static bool GetRequired(AttributeData option) =>
         option.NamedArguments.FirstOrDefault(static pair => pair.Key == "Required").Value.Value as bool? ?? false;
-    private sealed record ParameterModel(IParameterSymbol Symbol, ParameterKind Kind, string Id, string? Spelling, ImmutableArray<string> Aliases, object? DefaultValue, bool HasDefault, bool AllowMultipleValues = false, bool IsRequired = false, bool AllowMultipleOccurrences = true);
+    private sealed record ParameterModel(IParameterSymbol Symbol, ParameterKind Kind, string Id, string? Spelling, ImmutableArray<string> Aliases, object? DefaultValue, bool HasDefault, bool AllowMultipleValues = false, bool IsRequired = false, bool AllowMultipleOccurrences = true, bool IsTrailing = false);
+
+    private static AttributeData? ArgumentMetadata(IParameterSymbol parameter) =>
+        FindAttribute(parameter, "Runic.CommandLine.ArgumentAttribute") ?? FindAttribute(parameter, "Runic.CommandLine.TrailingArgumentsAttribute");
 
     private sealed record CommandCandidate(string SortKey, CommandModel? Command, EquatableArray<DiagnosticInfo> Diagnostics);
 
@@ -906,7 +936,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         string OptionsParameters,
         string BinderStatements,
         string BoundNames,
-        string Invocation);
+        string Invocation,
+        bool IsRoot = false);
 
     private sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationInfo? Location, EquatableArray<string> Arguments)
     {

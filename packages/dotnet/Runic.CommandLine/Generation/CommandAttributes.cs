@@ -51,6 +51,19 @@ public sealed class DefaultCommandAttribute : Attribute
 {
 }
 
+/// <summary>
+/// Marks one generated command as the application's unnamed root command: the default command whose name is not a
+/// command spelling and whose help is the application's help. See <see cref="CommandCatalogBuilder.RootCommand(string)"/>.
+/// </summary>
+/// <remarks>
+/// The <see cref="CommandAttribute"/> name stays the command's identity in JSON output. Use it instead of
+/// <see cref="DefaultCommandAttribute"/>; one command in a catalog can carry either.
+/// </remarks>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
+public sealed class RootCommandAttribute : Attribute
+{
+}
+
 /// <summary>Marks a parameter as a positional command argument.</summary>
 [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false, Inherited = false)]
 public sealed class ArgumentAttribute : Attribute
@@ -96,6 +109,49 @@ public sealed class ArgumentAttribute : Attribute
     /// <c>IReadOnlyList&lt;string&gt;</c> argument. The default is one value.
     /// </remarks>
     public bool AllowMultipleValues { get; set; }
+
+    /// <summary>Gets or sets whether this argument must be supplied.</summary>
+    /// <remarks>
+    /// A required list argument (<see cref="AllowMultipleValues"/>) needs at least one value. A single argument is
+    /// already required unless its type is nullable or it declares a C# default; <c>Required</c> makes a nullable
+    /// one required too. A required argument cannot declare a C# default (<c>RCLI9023</c>), and cannot follow an
+    /// optional argument (<c>RCLI9035</c>).
+    /// </remarks>
+    public bool Required { get; set; }
+}
+
+/// <summary>
+/// Marks a list parameter that receives every token after <c>--</c>, such as native arguments a command forwards to
+/// another tool. Positional arguments then receive only the tokens before <c>--</c>.
+/// </summary>
+/// <remarks>
+/// The parameter is an array or <c>IReadOnlyList&lt;T&gt;</c> of a supported value type and is empty when the command
+/// line has no <c>--</c> or nothing after it. A command has at most one. See
+/// <c>CommandBuilder.TrailingArguments</c> for catalogs built by hand.
+/// </remarks>
+[AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false, Inherited = false)]
+public sealed class TrailingArgumentsAttribute : Attribute
+{
+    /// <summary>Initializes trailing arguments using the parameter name as the stable identifier.</summary>
+    public TrailingArgumentsAttribute()
+    {
+    }
+
+    /// <summary>Initializes trailing arguments with an explicit stable identifier.</summary>
+    public TrailingArgumentsAttribute(string id) => Id = id ?? throw new ArgumentNullException(nameof(id));
+
+    /// <summary>Gets the optional stable identifier.</summary>
+    public string? Id { get; }
+    /// <summary>Gets or sets whether this entry is hidden from discovery.</summary>
+    public bool Hidden { get; set; }
+    /// <summary>Gets or sets the localization key for descriptive help; Description supplies its fallback.</summary>
+    public string? DescriptionKey { get; set; }
+    /// <summary>Gets or sets descriptive help.</summary>
+    public string? Description { get; set; }
+    /// <summary>Gets or sets the value placeholder.</summary>
+    public string? ValueName { get; set; }
+    /// <summary>Gets or sets whether values are sensitive.</summary>
+    public bool Sensitive { get; set; }
 }
 
 /// <summary>Marks a parameter as a named command option.</summary>

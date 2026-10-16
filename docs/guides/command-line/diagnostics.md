@@ -152,7 +152,9 @@ Invalid result payload identity. A result codec's `PayloadType` must be
 ### RCLI0018
 
 Unknown default command. The default command must name a registered
-single-segment root command. The generator reports this as `RCLI9040`.
+single-segment root command. The generator reports this as `RCLI9040`. A root
+command selected with `CommandCatalogBuilder.RootCommand` or `[RootCommand]` has
+no spelling, so it also cannot have aliases or subcommands.
 
 ### RCLI0019
 
@@ -436,7 +438,7 @@ reserved. Result types are checked separately (`RCLI9028`).
 ### RCLI9002
 
 Invalid generated command parameter. Each parameter needs exactly one of
-`[Argument]`, `[Option]` or `[FromServices]`, unless it is a context parameter
+`[Argument]`, `[TrailingArguments]`, `[Option]` or `[FromServices]`, unless it is a context parameter
 (`CancellationToken`, `CommandExecutionContext` or `ICommandConsole`). Remove the
 extra attribute or add the missing one.
 
@@ -450,6 +452,7 @@ type and the reason it cannot be bound:
   an array or `IReadOnlyList<T>` of them. Add `[ConvertWith]` for another type,
   or use `[FromServices]` to inject it.
 - Positional arguments cannot be Boolean; use an option flag.
+- `[TrailingArguments]` binds an array or `IReadOnlyList<T>` of those types.
 - A `[FromServices]` type and the types that contain it must be `public` or
   `internal`, and containing types must not be generic or file-local.
 - The generator cannot resolve the type. Source generators all run against the
@@ -479,8 +482,9 @@ command path. Rename one of them.
 Invalid generated command metadata. The message names the invalid item: a
 parameter ID, option spelling or alias (including the reserved `--help`, `-h`
 and `--version`), duplicate IDs or spellings within a command, a numeric range
-or a default outside it, a result payload type, or a description key that is
-empty, longer than 128 characters or contains control characters.
+or a default outside it, a result payload type, a second `[TrailingArguments]`
+parameter of the same command, or a description key that is empty, longer than
+128 characters or contains control characters.
 
 ### RCLI9020
 
@@ -501,8 +505,8 @@ options as CA1068 recommends.
 
 ### RCLI9023
 
-Required option with a default value. `Required = true` and a C# default
-contradict each other. Remove one of them.
+Required parameter with a default value. `Required = true` on an `[Option]` or
+an `[Argument]` and a C# default contradict each other. Remove one of them.
 
 ### RCLI9024
 
@@ -543,8 +547,8 @@ unusable context as `RCLI9041` and a context without the result type as
 ### RCLI9029
 
 Multiple default commands. At most one command may be marked
-`[DefaultCommand]`; every marked command is reported and none becomes the
-default.
+`[DefaultCommand]` or `[RootCommand]`; every marked command is reported and none
+becomes the default.
 
 ### RCLI9030
 
@@ -617,7 +621,7 @@ warning. Otherwise the catalog fails at startup with `RCLI0022`.
 
 ### RCLI9040
 
-Default command is not a root command. `[DefaultCommand]` applies only to a
+Default command is not a root command. `[DefaultCommand]` and `[RootCommand]` apply only to a
 single-segment command such as `[Command("list")]`, not to
 `[Command("config show")]`. Without this check the catalog would fail at
 startup with `RCLI0018`.
