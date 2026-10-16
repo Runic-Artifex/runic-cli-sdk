@@ -225,7 +225,8 @@ explicit ParseSettings to keep environment-dependent tests deterministic.
 ## Interactive prompts
 
 `CommandPrompts` asks questions in the style of `@clack/prompts`: select,
-multi-select, confirm and validated text, plus a spinner and a task log. Create
+multi-select, confirm and validated text, plus a spinner, a task log, and intro
+and outro lines. Create
 it from the handler's `CommandExecutionContext`. Prompts observe the
 invocation's cancellation token from the context, and also any token passed to
 a call:
@@ -236,6 +237,7 @@ internal static async Task<string> Init(CommandExecutionContext context, Cancell
     [Option("--template")] string? template = null, [Option("--yes", "-y")] bool yes = false)
 {
     var prompts = new CommandPrompts(context, interactive: !yes);
+    await prompts.IntroAsync("create-app", cancellationToken);
     template ??= await prompts.SelectAsync<string>("Template",
         [new("web", "Web app", "Vite and Svelte"), new("cli", "Command line")], defaultIndex: 0, cancellationToken);
     string name = await prompts.TextAsync("Project name", validate: value =>
@@ -246,6 +248,7 @@ internal static async Task<string> Init(CommandExecutionContext context, Cancell
     await log.WriteLineAsync("added 120 packages", cancellationToken);   // for example from a process output handler
     await log.SetStatusAsync("12s elapsed", cancellationToken);
     await log.SucceedAsync("Installed", cancellationToken: cancellationToken);   // clears the log lines
+    await prompts.OutroAsync($"cd {name} and run it.", cancellationToken);
     return $"Created {name} from {template}.";
 }
 ```
@@ -256,6 +259,12 @@ replaces the block with one summary line (the log stays with `showLog: true`),
 and `FailAsync` keeps up to the last 1000 lines below the summary. Lines are
 stripped of control characters and ANSI sequences, and members may be called
 from process output callbacks.
+
+`IntroAsync(title)` writes `┌  title` before the first prompt, and
+`OutroAsync(message)` writes `│` and `└  message` after the last one, as Clack's
+`intro` and `outro` do. Like a task log they take no input: they are styled on a
+terminal that can redraw, also when prompts are disabled, and are plain lines
+otherwise. Their text is stripped of control characters and ANSI sequences.
 
 To show a child process's live output in a task log, as `nix-manager` does,
 pass each line from `Runic.CommandLine.Processes` to the log:
@@ -301,9 +310,9 @@ frame's `RCLI4001` fault and diagnostic, whose argument is the question.
 `CommandApp` reads `RUNIC_COMMANDLINE_NO_INPUT` through its environment reader,
 so explicit `ParseSettings` without `GetEnvironmentVariable` ignore it. Add your
 own `--yes` or `--no-input` option and pass it as `interactive: false`.
-Disabling prompts does not affect spinners and task logs, which take no input:
-they still animate on a terminal that can redraw, and write plain lines only
-with JSON output or without such a terminal.
+Disabling prompts does not affect spinners, task logs, intros and outros, which
+take no input: they still animate or are styled on a terminal that can redraw,
+and write plain lines only with JSON output or without such a terminal.
 
 **Cancelling.** Ctrl+C while a prompt waits cancels the command with exit code
 4 (`RCLI4000`); so do Escape and the end of input (Ctrl+D) at a line prompt. The
@@ -336,6 +345,7 @@ including with `NO_COLOR` and `TERM=dumb`, every prompt asks one plain question
 that a screen reader reads in order and that is answered with one line:
 
 ```text
+create-app
 Template
   1. Web app - Vite and Svelte
   2. Command line
@@ -346,13 +356,15 @@ Installing
 added 120 packages
 Installing: 12s elapsed
 Installing: Installed
+cd demo and run it.
 ```
 
 A select accepts a number or a label; a multi-select accepts numbers or labels
 separated by commas; a confirm accepts the translated Yes or No, their first
 letters, or `y` and `n`. An unrecognized answer asks again. Without a terminal,
 including with JSON output, a task log writes its title, lines, status changes
-and summary as plain lines to standard error.
+and summary as plain lines to standard error, and an intro or outro writes its
+text as one plain line there.
 
 **Translation.** Hints, Yes and No, errors and the `RCLI4001` diagnostics
 resolve through `CommandApp.TextResolver`; the `prompts.*` keys are listed in

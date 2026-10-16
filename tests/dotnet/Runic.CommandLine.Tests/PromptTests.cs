@@ -432,6 +432,67 @@ internal sealed partial class PromptTests
         AssertEx.Equal("■  Wait  Cancelled\n", Frames(console.StandardError)[^1]);
     }
 
+    [Test, DisplayName("prompts/intro-and-outro-frame-the-prompts-on-a-terminal")]
+    public async ValueTask TerminalIntroAndOutro()
+    {
+        // Like a task log, the intro and outro take no input, so disabled prompts keep their styling.
+        foreach (bool interactive in new[] { true, false })
+        {
+            TestCommandConsole console = Terminal();
+            console.QueueKey(ConsoleKey.Enter);
+            AssertEx.Equal(0, await App(console, async (prompts, token) =>
+            {
+                await prompts.IntroAsync("create-\u001b[31mapp\u001b[0m\t1", token);
+                string name = await prompts.TextAsync("Name", "app", cancellationToken: token);
+                await prompts.OutroAsync("You're all set", token);
+                return name;
+            }, interactive: interactive).RunAsync(["ask"]));
+            AssertEx.Equal("0:app\n", console.StandardOutput);
+            string error = console.StandardError;
+            AssertEx.True(error.StartsWith("\u001b[90m┌  \u001b[0mcreate-app 1\n", StringComparison.Ordinal), error);
+            AssertEx.True(error.EndsWith("\u001b[90m│\u001b[0m\n\u001b[90m└  \u001b[0mYou're all set\n", StringComparison.Ordinal), error);
+            // A disabled prompt returns its default without writing anything.
+            AssertEx.Equal(interactive ? "◇  Name  app\n│\n└  You're all set\n" : "┌  create-app 1\n│\n└  You're all set\n", Frames(error)[^1]);
+        }
+
+        var ascii = new TestCommandConsole { IsInteractive = true, SupportsAnsi = true, SupportsUnicode = false, Width = 20 };
+        AssertEx.Equal(0, await App(ascii, async (prompts, token) =>
+        {
+            await prompts.IntroAsync("A rather long introduction", token);
+            await prompts.OutroAsync("Done", token);
+            return "ok";
+        }).RunAsync(["ask"]));
+        AssertEx.Equal(".  A rather long...\n|\n'  Done\n", Plain(ascii.StandardError));
+    }
+
+    [Test, DisplayName("prompts/intro-and-outro-write-plain-lines-without-a-terminal")]
+    public async ValueTask PlainIntroAndOutro()
+    {
+        foreach ((TestCommandConsole console, string[] args) in new[]
+        {
+            (new TestCommandConsole(), new[] { "ask" }),
+            (Interactive(), ["ask"]),
+            (new TestCommandConsole { IsInteractive = true, SupportsAnsi = false }, ["ask"]),
+            (Terminal(), ["ask", "--output=json"]),
+            (Terminal(), ["ask", "--json"]),
+        })
+        {
+            AssertEx.Equal(0, await App(console, async (prompts, token) =>
+            {
+                await prompts.IntroAsync("create-\u001b[31mapp\u001b[0m", token);
+                await prompts.OutroAsync("Done\u0007", token);
+                return "ok";
+            }, jsonAlias: true).RunAsync(args));
+            AssertEx.Equal("create-app\nDone\n", console.StandardError, string.Join(" ", args));
+            if (args.Length == 1) AssertEx.Equal("0:ok\n", console.StandardOutput);
+            else
+            {
+                using JsonDocument frame = CommandTestEnvelope.Parse(console.StandardOutput);
+                AssertEx.Equal("ok", frame.RootElement.GetProperty("payload").GetProperty("Text").GetString());
+            }
+        }
+    }
+
     [Test, DisplayName("prompts/spectre-console-redraws-only-when-it-colours")]
     public async ValueTask SpectreConsole()
     {
@@ -465,6 +526,8 @@ internal sealed partial class PromptTests
         await AssertEx.ThrowsAsync<ArgumentOutOfRangeException>(async () => { await prompts.MultiSelectAsync("Pick", Templates, [-1]); });
         await AssertEx.ThrowsAsync<ArgumentOutOfRangeException>(async () => { await prompts.StartTaskLogAsync("Build", 51); });
         await AssertEx.ThrowsAsync<ArgumentException>(async () => { await prompts.ConfirmAsync(""); });
+        await AssertEx.ThrowsAsync<ArgumentException>(async () => { await prompts.IntroAsync(" "); });
+        await AssertEx.ThrowsAsync<ArgumentNullException>(async () => { await prompts.OutroAsync(null!); });
     }
 
     [Test, DisplayName("prompts/wide-and-emoji-text-is-measured-in-columns-and-cut-on-text-elements")]

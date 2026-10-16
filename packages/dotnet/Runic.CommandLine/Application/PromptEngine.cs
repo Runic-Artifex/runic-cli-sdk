@@ -41,8 +41,8 @@ internal sealed class PromptEngine
         _path = path;
         Reason = reason;
         Rich = reason is null && _terminal is { SupportsAnsi: true };
-        // A task log takes no input, so --yes or RUNIC_COMMANDLINE_NO_INPUT keep its animation; only JSON output or a
-        // terminal that cannot redraw turn it into plain lines.
+        // A task log, an intro and an outro take no input, so --yes or RUNIC_COMMANDLINE_NO_INPUT keep their styling;
+        // only JSON output or a terminal that cannot redraw turn them into plain lines.
         AnimatesTasks = reason != PromptUnavailableReason.JsonOutput && console.IsInteractive && _terminal is { SupportsAnsi: true };
     }
 
@@ -139,6 +139,16 @@ internal sealed class PromptEngine
         var log = new CommandTaskLog(this, AnimatesTasks ? _terminal : null, title, visibleLines);
         await log.StartAsync(cancellationToken).ConfigureAwait(false);
         return log;
+    }
+
+    /// <summary>Writes the intro line that opens a sequence of prompts, or the two outro lines that close it.</summary>
+    internal ValueTask WriteFrameEdgeAsync(string text, bool outro, CancellationToken cancellationToken)
+    {
+        if (!AnimatesTasks) return WritePlainAsync(Sanitize(text) + "\n", cancellationToken);
+        var style = new PromptStyle(_terminal!);
+        string line = style.Line().Add((outro ? style.End : style.Start) + "  ", PromptStyle.Muted).Add(text).ToString() + "\n";
+        if (outro) line = style.Line().Add(style.Bar, PromptStyle.Muted).ToString() + "\n" + line;
+        return _terminal!.WriteAsync(line.AsMemory(), cancellationToken);
     }
 
     internal string Validate(string value, Func<string, string?>? validate) =>
@@ -316,6 +326,7 @@ internal sealed class PromptStyle(ICommandTerminal terminal)
     internal string Cancelled => unicode ? "■" : "x";
     internal string Error => unicode ? "▲" : "!";
     internal string Bar => unicode ? "│" : "|";
+    internal string Start => unicode ? "┌" : ".";
     internal string End => unicode ? "└" : "'";
     internal string Pointer => unicode ? "›" : ">";
     internal string RadioOn => unicode ? "●" : "(*)";

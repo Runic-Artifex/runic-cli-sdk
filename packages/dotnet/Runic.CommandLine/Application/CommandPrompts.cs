@@ -33,7 +33,8 @@ public sealed class CommandPromptChoice<T>
 }
 
 /// <summary>
-/// Asks the user questions during a command, and shows a spinner or a task log, while keeping the command scriptable.
+/// Asks the user questions during a command, and shows a spinner, a task log and intro and outro lines, while keeping the
+/// command scriptable.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -210,6 +211,34 @@ public sealed class CommandPrompts
         ArgumentOutOfRangeException.ThrowIfNegative(visibleLines);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(visibleLines, 50);
         return _engine.StartTaskLogAsync(title, visibleLines, cancellationToken);
+    }
+
+    /// <summary>Writes the line that opens a sequence of prompts, such as the name of the tool or the task.</summary>
+    /// <param name="title">The text after the opening corner.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <remarks>
+    /// On a terminal that can redraw this writes <c>┌  title</c> to standard error, also when prompts are disabled; with
+    /// JSON output or without such a terminal it writes the title as a plain line to standard error. Control characters
+    /// and ANSI sequences are removed.
+    /// </remarks>
+    public ValueTask IntroAsync(string title, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        return _engine.WriteFrameEdgeAsync(title, outro: false, cancellationToken);
+    }
+
+    /// <summary>Writes the lines that close a sequence of prompts, such as what the command did or what to do next.</summary>
+    /// <param name="message">The text after the closing corner.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <remarks>
+    /// On a terminal that can redraw this writes <c>│</c> and <c>└  message</c> to standard error, also when prompts are
+    /// disabled; with JSON output or without such a terminal it writes the message as a plain line to standard error.
+    /// Control characters and ANSI sequences are removed.
+    /// </remarks>
+    public ValueTask OutroAsync(string message, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        return _engine.WriteFrameEdgeAsync(message, outro: true, cancellationToken);
     }
 
     private static string[] Labels<T>(IReadOnlyList<CommandPromptChoice<T>> choices, out string?[] hints)
