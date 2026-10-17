@@ -63,3 +63,4 @@ Runic.CommandLine.Testing.TestCommandConsole.SupportsUnicode.get -> bool
 Runic.CommandLine.Testing.TestCommandConsole.SupportsUnicode.init -> void
 Runic.CommandLine.Testing.TestCommandConsole.Width.get -> int
 Runic.CommandLine.Testing.TestCommandConsole.Width.init -> void
+Runic.CommandLine.Testing.CommandAppTester.Run(string![]! args, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Runic.CommandLine.Testing.CommandAppTestResult!
