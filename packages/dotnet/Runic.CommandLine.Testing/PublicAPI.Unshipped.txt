@@ -1,2 +1,1 @@
 #nullable enable
-Runic.CommandLine.Testing.CommandAppTester.Run(string![]! args, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Runic.CommandLine.Testing.CommandAppTestResult!
