@@ -154,3 +154,40 @@ Before the first standalone publication, register NuGet trusted publishers for
 `Runic-Artifex/runic-cli-sdk`, `publish-preview.yml`, and the `preview`
 environment. Existing package ownership does not transfer trusted-publisher
 registration from the SDK repository.
+
+## Versioning and support from 1.0
+
+This policy takes effect with 1.0.0. Until then every release is a preview: any
+release may change or remove an API, and only the latest preview gets fixes. The
+[Runic SDK release guide](https://github.com/Runic-Artifex/runic-sdk/blob/main/eng/release/README.md#versioning-and-support-from-10)
+has the shared policy for the three SDKs: SemVer rules and what counts as
+breaking, enforcement, package tiers, .NET versions, deprecation and fixes. The
+[documentation portal](https://docs.runic-artifex.eu/support/policy/) states the
+same policy. For Command Line:
+
+- The four packages share the version in `eng/Versions.props` and are stable from
+  1.0.0. The generator stays embedded in `Runic.CommandLine`. Command Line has no
+  experimental APIs or preview packages.
+- Command Line depends on no other Runic SDK and ships first in the 1.0 release
+  train, before Runic Translations and Runic SDK. After 1.0 it releases minors
+  and patches independently; Runic Translations and the Runic SDK tools reference
+  it by NuGet minimum version.
+- Contracts covered by the breaking-change rules, besides the C# API of each
+  package's `PublicAPI.Shipped.txt`: the `RCLI` diagnostic IDs (see
+  [`AnalyzerReleases.Shipped.md`](../../packages/dotnet/Runic.CommandLine.Generators/AnalyzerReleases.Shipped.md)),
+  the `runic.commandline/1` JSON envelope, and the parsing rules and exit codes
+  that Command Line gives an application. Human-readable output and help text
+  are not a contract. Spectre.Console types appear in the public
+  API of `Runic.CommandLine.Spectre`; moving to a Spectre.Console version that
+  changes them is breaking.
+- Package validation runs against `RunicCommandLinePackageValidationBaselineVersion`
+  in `eng/Versions.props`; from 1.0 that is the latest stable release of the
+  major line, and a `CompatibilitySuppressions.xml` or a `*REMOVED*` entry is
+  allowed only as the shared policy describes.
+- The core package is managed and runs wherever .NET 10 does. Process and
+  terminal code is platform-specific, so NativeAOT applications are supported on
+  the RIDs that CI publishes and runs: today `linux-x64`, `win-x64` and
+  `osx-arm64`. `linux-arm64`, `win-arm64`, `linux-musl-x64` and
+  `linux-musl-arm64` are planned for 0.9, as for Runic SDK.
+- Bug and security fixes ship in a patch of the latest minor only. `[Obsolete]`
+  APIs stay for at least one minor release and are removed only in a major.
