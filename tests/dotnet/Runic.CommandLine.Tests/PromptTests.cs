@@ -175,7 +175,7 @@ internal sealed partial class PromptTests
             console.QueueKey(ConsoleKey.DownArrow);
             AssertEx.Equal(0, await App(console, (prompts, token) => prompts.SelectAsync("Template", Templates, 0, token), jsonAlias: true).RunAsync(args));
             using (JsonDocument frame = CommandTestEnvelope.Parse(console.StandardOutput))
-                AssertEx.Equal("web", frame.RootElement.GetProperty("payload").GetProperty("Text").GetString());
+                AssertEx.Equal("web", frame.RootElement.GetProperty("payload").GetProperty("text").GetString());
             AssertEx.Equal(string.Empty, console.StandardError);
 
             console = Terminal();
@@ -488,7 +488,7 @@ internal sealed partial class PromptTests
             else
             {
                 using JsonDocument frame = CommandTestEnvelope.Parse(console.StandardOutput);
-                AssertEx.Equal("ok", frame.RootElement.GetProperty("payload").GetProperty("Text").GetString());
+                AssertEx.Equal("ok", frame.RootElement.GetProperty("payload").GetProperty("text").GetString());
             }
         }
     }

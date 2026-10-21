@@ -89,19 +89,19 @@
       "runic.commandline.spectre": {
         "type": "Project",
         "dependencies": {
-          "Runic.CommandLine": "[0.6.0-preview.4, )",
-          "Spectre.Console": "[0.57.2, )"
+          "Runic.CommandLine": "[0.7.0-preview.3, )",
+          "Spectre.Console": "[0.57.2, 0.58.0)"
         }
       },
       "runic.commandline.testing": {
         "type": "Project",
         "dependencies": {
-          "Runic.CommandLine": "[0.6.0-preview.4, )"
+          "Runic.CommandLine": "[0.7.0-preview.3, )"
         }
       },
       "Spectre.Console": {
         "type": "CentralTransitive",
-        "requested": "[0.57.2, )",
+        "requested": "[0.57.2, 0.58.0)",
         "resolved": "0.57.2",
         "contentHash": "wzsB+P9i6F9G+cFOJxRotCiQWNSzZVAMxi8YMiHlGXXU1JLMXGp7zSSqBMmROZS2bzpK5jk+Saa7Evp8HwqhKg==",
         "dependencies": {

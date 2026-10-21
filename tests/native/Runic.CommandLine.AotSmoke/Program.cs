@@ -122,12 +122,13 @@ internal static class Program
         using JsonDocument document = JsonDocument.Parse(json);
         return document.RootElement.GetProperty("protocol").GetString() == CliProtocol.Identity &&
             document.RootElement.GetProperty("payloadType").GetString() == "runic.commandline.smoke/1" &&
-            document.RootElement.GetProperty("payload").GetProperty("Message").GetString() == "world:2:2.5:3:--app-flag|-3";
+            document.RootElement.GetProperty("payload").GetProperty("message").GetString() == "world:2:2.5:3:--app-flag|-3";
     }
 }
 
 internal sealed record SmokeResult(string Message);
 
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(SmokeResult))]
 internal sealed partial class SmokeJsonContext : JsonSerializerContext;
 

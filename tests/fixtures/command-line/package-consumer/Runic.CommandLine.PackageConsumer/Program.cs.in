@@ -132,7 +132,7 @@ internal static class Program
             new HostedCommandLineExecutionInput(decision, console, CultureInfo.InvariantCulture, "package-consumer-1", new CommandOutputDispatcher())).ConfigureAwait(false);
         if (!execution.IsSuccess) return 20;
         using JsonDocument json = JsonDocument.Parse(console.StandardOutput);
-        if (json.RootElement.GetProperty("payload").GetProperty("Message").GetString() != "Hello, world! application 3 --app-flag|-3|literal") return 30;
+        if (json.RootElement.GetProperty("payload").GetProperty("message").GetString() != "Hello, world! application 3 --app-flag|-3|literal") return 30;
         if (json.RootElement.GetProperty("diagnostics").GetArrayLength() != 1 ||
             json.RootElement.GetProperty("diagnostics")[0].GetProperty("code").GetString() != "RCLI3001") return 31;
 
@@ -284,6 +284,7 @@ internal static class Program
 
 internal sealed record ConsumerResult(string Message);
 
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(ConsumerResult))]
 internal sealed partial class ConsumerJsonContext : JsonSerializerContext;
 

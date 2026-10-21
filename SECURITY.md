@@ -14,8 +14,9 @@ investigate, and credit you in the advisory unless you prefer otherwise.
 
 ## Supported versions
 
-Runic Command Line is in preview. Fixes ship in the next preview release; earlier
-previews do not receive backported fixes. Upgrade to the
+Runic Command Line is in preview until 1.0, with plain `0.y.z` versions from
+0.8.0. Fixes ship in a patch of the latest minor release only; earlier releases
+do not receive backported fixes. Upgrade to the
 [latest release](https://github.com/Runic-Artifex/runic-cli-sdk/releases) before
 reporting.
 

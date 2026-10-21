@@ -4,6 +4,7 @@ using System.Runtime.Loader;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 using Runic.CommandLine.Generators;
 using Runic.CommandLine.Testing;
 
@@ -315,6 +316,99 @@ internal sealed class GeneratorTests
             AssertEx.True(generated.Contains(expected, StringComparison.Ordinal), expected + " was not generated.\n" + generated);
         }
         AssertEx.True(!generated.Contains("NestedContext.Default", StringComparison.Ordinal) && !generated.Contains("ImplementedContext.Default", StringComparison.Ordinal));
+        return ValueTask.CompletedTask;
+    }
+
+    [Test, DisplayName("generator/result-contexts-without-camel-case-warn")]
+    public ValueTask ResultContextsWithoutCamelCaseWarn()
+    {
+        const string source = """
+            using System.Collections.Generic;
+            using System.Text.Json;
+            using System.Text.Json.Serialization;
+            using Runic.CommandLine;
+
+            internal sealed record Report(string Status, int Count);
+
+            [JsonSerializable(typeof(Report))]
+            internal sealed partial class PlainContext : JsonSerializerContext;
+
+            [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
+            [JsonSerializable(typeof(Report))]
+            [JsonSerializable(typeof(IReadOnlyList<Report>))]
+            internal sealed partial class SnakeContext : JsonSerializerContext;
+
+            [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+            [JsonSerializable(typeof(Report))]
+            internal sealed partial class CamelContext : JsonSerializerContext;
+
+            [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+            [JsonSerializable(typeof(Report))]
+            internal sealed partial class WebContext : JsonSerializerContext;
+
+            [JsonSerializable(typeof(int))]
+            [JsonSerializable(typeof(IReadOnlyList<string>))]
+            [JsonSerializable(typeof(System.Guid))]
+            internal sealed partial class ScalarContext : JsonSerializerContext;
+
+            internal static class Commands
+            {
+                [Command("plain"), CommandResult("sample.plain/1", typeof(PlainContext))]
+                public static Report Plain() => new("Ready", 1);
+
+                [Command("snake"), CommandResult("sample.snake/1", typeof(SnakeContext))]
+                public static IReadOnlyList<Report> Snake() => [];
+
+                [Command("camel"), CommandResult("sample.camel/1", typeof(CamelContext))]
+                public static Report Camel() => new("Ready", 1);
+
+                [Command("web"), CommandResult("sample.web/1", typeof(WebContext))]
+                public static Report Web() => new("Ready", 1);
+
+                [Command("number"), CommandResult("sample.number/1", typeof(ScalarContext))]
+                public static int Number() => 1;
+
+                [Command("names"), CommandResult("sample.names/1", typeof(ScalarContext))]
+                public static IReadOnlyList<string> Names() => [];
+
+                [Command("id"), CommandResult("sample.id/1", typeof(ScalarContext))]
+                public static System.Guid Id() => default;
+            }
+            """;
+        GeneratorRunResult result = CSharpGeneratorDriver.Create(new CommandLineGenerator())
+            .RunGenerators(CreateCompilation(source)).GetRunResult().Results.Single();
+        Diagnostic[] warnings = result.Diagnostics.Where(static diagnostic => diagnostic.Id == "RCLI9044").ToArray();
+        AssertEx.Equal(2, warnings.Length, string.Join("\n", result.Diagnostics));
+        AssertEx.Equal(2, result.Diagnostics.Length, string.Join("\n", result.Diagnostics));
+        AssertEx.True(warnings.All(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning));
+        AssertEx.Equal(
+            "Command 'plain' returns 'Report' through JSON context 'PlainContext', which does not use camelCase: payload properties would be serialized PascalCase, "
+            + "while Runic payloads are camelCase; add [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)] to the context",
+            warnings[0].GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        AssertEx.True(warnings[1].GetMessage(System.Globalization.CultureInfo.InvariantCulture).StartsWith("Command 'snake' returns", StringComparison.Ordinal));
+        // The warning points at the [CommandResult] attribute, where a #pragma can suppress it, and the commands are still generated.
+        string[] lines = source.Split('\n');
+        foreach (Diagnostic warning in warnings)
+        {
+            LinePosition start = warning.Location.GetLineSpan().StartLinePosition;
+            AssertEx.True(lines[start.Line][start.Character..].StartsWith("CommandResult(", StringComparison.Ordinal), warning.ToString());
+        }
+        string generated = string.Concat(result.GeneratedSources.Select(static item => item.SourceText.ToString()));
+        AssertEx.True(generated.Contains("\"sample.plain/1\"", StringComparison.Ordinal) && generated.Contains("\"sample.snake/1\"", StringComparison.Ordinal), generated);
+        return ValueTask.CompletedTask;
+    }
+
+    // A compiler refuses a generator built against a newer Microsoft.CodeAnalysis than its own (CS9057). The lowest
+    // supported .NET 10 SDK feature band, 10.0.1xx, ships Roslyn 5.0.0; Directory.Packages.props pins that version.
+    [Test, DisplayName("generator/references-the-lowest-supported-compiler")]
+    public ValueTask ReferencesLowestSupportedCompiler()
+    {
+        AssemblyName[] references = typeof(CommandLineGenerator).Assembly.GetReferencedAssemblies()
+            .Where(static reference => reference.Name is "Microsoft.CodeAnalysis" or "Microsoft.CodeAnalysis.CSharp")
+            .ToArray();
+        AssertEx.Equal(2, references.Length, string.Join(", ", references.Select(static reference => reference.FullName)));
+        foreach (AssemblyName reference in references)
+            AssertEx.Equal(new Version(5, 0, 0, 0), reference.Version, reference.FullName);
         return ValueTask.CompletedTask;
     }
 

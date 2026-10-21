@@ -1,11 +1,10 @@
 ; Shipped analyzer releases
 ; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
 
-; Release headers must be System.Version values, so a preview release maps to a fourth component:
-; Release 0.6.0.1 is 0.6.0-preview.1, and X.Y.Z-preview.N is X.Y.Z.N for every version, so
-; 0.7.0-preview.1 is 0.7.0.1. A stable release uses four components ending in a number above every
-; preview of that version, so the final 0.7.0 is 0.7.0.1000 (and 0.7.1 is 0.7.1.1000). Headers then
-; sort in release order.
+; Release headers must be System.Version values. From 0.8.0 a release has a plain version, which is its own
+; header: ## Release 0.8.0. The earlier preview releases map X.Y.Z-preview.N to the fourth component X.Y.Z.N:
+; Release 0.6.0.1 is 0.6.0-preview.1 and 0.7.0.2 is 0.7.0-preview.2. Headers sort in release order, since
+; 0.8.0 sorts after every 0.7.0.N.
 ; Releases up to 0.6.0-preview.1 were built in the runic-sdk repository; each rule is listed under the
 ; first published Runic.CommandLine package whose generator contained it.
 

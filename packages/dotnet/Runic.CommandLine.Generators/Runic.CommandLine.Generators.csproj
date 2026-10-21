@@ -17,22 +17,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Analyzer-authoring rules, including release tracking for the generator's diagnostic IDs (RS2000-RS2008).
-         The compiler assemblies still come from the SDK below; this package adds only analyzers. -->
+    <!-- Analyzer-authoring rules, including release tracking for the generator's diagnostic IDs (RS2000-RS2008). -->
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <!-- The compiler API the generator builds against. A compiler refuses a generator that references a newer
+         Microsoft.CodeAnalysis than its own (CS9057), so Directory.Packages.props pins the version shipped by the
+         lowest supported .NET 10 SDK feature band (10.0.1xx: Roslyn 5.0.0), not the building SDK's compiler.
+         The compiler host supplies these assemblies at run time; they are not package dependencies. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
     <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="Microsoft.CodeAnalysis">
-      <HintPath>$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Microsoft.CodeAnalysis.CSharp">
-      <HintPath>$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
   </ItemGroup>
   <Import Project="../../../eng/build/command-line.targets" />
 </Project>

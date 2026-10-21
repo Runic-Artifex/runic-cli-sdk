@@ -13,7 +13,7 @@ tag of the package you use, so the page always matches your version.
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
 | `RCLI6001`–`RCLI6011` | `Runic.CommandLine.Processes` | Process faults returned to the command |
-| `RCLI9001`–`RCLI9043` | Source generator | Compiler errors and warnings |
+| `RCLI9001`–`RCLI9044` | Source generator | Compiler errors and warnings |
 
 Parse and binding diagnostics are written for the people who run your
 application, so their output carries no link to this page. Their codes, kinds
@@ -25,6 +25,21 @@ and arguments are stable; see the
 emitted by this library or its generator. An application documents its own
 codes and can link a fault or diagnostic to that documentation with
 `HelpUri`; see [Help links](#help-links).
+
+A diagnostic code in a `runic.commandline/1` response is always `RCLI` and four
+digits, so an application reports its own diagnostics in that range; a fault
+code may use any prefix. The Runic tools share the range in blocks of one
+hundred:
+
+| Codes | Application |
+|---|---|
+| `RCLI8100`–`RCLI8199` | `dotnet runic` (Runic SDK) |
+| `RCLI8200`–`RCLI8299` | `runic-translations` (Runic Translations) |
+| `RCLI8300`–`RCLI8399` | `runic-create` (Runic SDK) |
+
+The rest of the range, `RCLI8000`–`RCLI8099` and `RCLI8400`–`RCLI8999`, is free
+for any application. An application never uses codes outside `RCLI8000`–`RCLI8999`:
+the other `RCLI` codes belong to this library and its generator.
 
 ## Help links
 
@@ -430,7 +445,7 @@ or pass an output handler to process the output as it arrives.
 ## Source generator
 
 The source generator embedded in `Runic.CommandLine` reports `RCLI9xxx`
-compiler errors (and the `RCLI9039` warning) for `[Command]` methods it cannot
+compiler errors (and the `RCLI9039` and `RCLI9044` warnings) for `[Command]` methods it cannot
 turn into catalog entries. The generator skips an invalid command, so fix every
 error before relying on the generated catalog. Release tracking lives in
 [`AnalyzerReleases.Shipped.md`](../../../packages/dotnet/Runic.CommandLine.Generators/AnalyzerReleases.Shipped.md).
@@ -655,3 +670,25 @@ must be a leading part of at least one generated command name, such as
 `config` for `[Command("config show")]`; it must not name a command itself, and
 each group is described once. A misspelled path would otherwise add an empty
 group to help.
+
+### RCLI9044
+
+Command result JSON context does not use camelCase. The context named in
+`[CommandResult(payloadType, typeof(MyJsonContext))]` keeps the C# property
+names, so the payload is written as `{"Output":…}`. The `runic.commandline/1`
+envelope and Runic payloads use camelCase names, which a JSON consumer expects
+throughout one response. Declare the policy on the context:
+
+```csharp
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(MyResult))]
+internal sealed partial class MyJsonContext : JsonSerializerContext;
+```
+
+`[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]` also selects
+camelCase. A context without `[JsonSourceGenerationOptions]` counts as not
+camelCase. Results without property names, such as numbers, strings, enums or
+lists of them, are not reported. Changing the policy renames the payload
+properties, which breaks consumers of an existing payload type: keep the names
+of a published payload with `#pragma warning disable RCLI9044` or `<NoWarn>`,
+and switch to camelCase with the next major of that payload type.

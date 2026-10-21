@@ -112,7 +112,8 @@ internal sealed partial class ApplicationTests
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["report"]));
-        AssertEx.Equal("Status: Ready\nCount: 2\n", console.StandardOutput);
+        // Rows use the JSON property names, which SampleJsonContext makes camelCase.
+        AssertEx.Equal("status: Ready\ncount: 2\n", console.StandardOutput);
     }
     [Test, NotInParallel, DisplayName("app/custom-values-bind-once-and-validate")]
     public async ValueTask CustomValues()
@@ -215,5 +216,6 @@ internal sealed class PortValidator : ICommandValueValidator<PortNumber>
 }
 
 internal sealed record SampleReport(string Status, int Count);
+[System.Text.Json.Serialization.JsonSourceGenerationOptions(PropertyNamingPolicy = System.Text.Json.Serialization.JsonKnownNamingPolicy.CamelCase)]
 [System.Text.Json.Serialization.JsonSerializable(typeof(SampleReport))]
 internal sealed partial class SampleJsonContext : System.Text.Json.Serialization.JsonSerializerContext;

@@ -6,10 +6,12 @@ Command Line releases its four NuGet packages together: `Runic.CommandLine`,
 does not have a public package identity.
 
 Record behavior changes that need consumer action in `eng/release/notes/<version>.md`.
-Set the intended SemVer preview in `eng/Versions.props`, run `./eng/verify.sh`,
+Set the version (`0.y.z` until 1.0) in `eng/Versions.props`, run `./eng/verify.sh`,
 merge to `main` and wait for that commit's CI push run to succeed. Then dispatch
 **Publish preview** on `main` with the same version. Check **dry-run** first to run
-every check without publishing.
+every check without publishing. The workflow keeps the name `publish-preview.yml`
+and the `preview` environment for every release, because NuGet trusted publishing
+is registered for them; see [versioning](#versioning-and-support-from-10).
 
 The workflow does not test or pack again. Its `candidate` job (`contents: read`,
 `actions: read`, no environment) runs `eng/release/release.py`:
@@ -58,7 +60,7 @@ attestation from `publish-preview.yml` on `main`; the packages also have an SBOM
 attestation. Verify with the GitHub CLI (`gh auth login` first):
 
 ```sh
-version=0.7.0-preview.1
+version=0.8.0
 gh release download "v$version" -R Runic-Artifex/runic-cli-sdk
 gh attestation verify "Runic.CommandLine.$version.nupkg" -R Runic-Artifex/runic-cli-sdk \
   --signer-workflow Runic-Artifex/runic-cli-sdk/.github/workflows/publish-preview.yml
@@ -84,7 +86,10 @@ In a pull request in this repository:
 2. Move the rows of
    `packages/dotnet/Runic.CommandLine.Generators/AnalyzerReleases.Unshipped.md` into
    `AnalyzerReleases.Shipped.md` under a `## Release` header for the published
-   version (0.6.0-preview.N is 0.6.0.N; see the mapping at the top of that file).
+   version. A plain version is its own header (`## Release 0.8.0`). Headers must
+   be `System.Version` values, so the earlier `-preview.N` releases appear as
+   four-component headers (`0.7.0-preview.2` is `## Release 0.7.0.2`; see the note
+   at the top of that file); they sort before `0.8.0`.
 3. Set `RunicCommandLinePackageValidationBaselineVersion` in `eng/Versions.props`
    to the published version and delete any `CompatibilitySuppressions.xml` files,
    which describe breaks from the old baseline.
@@ -157,8 +162,14 @@ registration from the SDK repository.
 
 ## Versioning and support from 1.0
 
-This policy takes effect with 1.0.0. Until then every release is a preview: any
-release may change or remove an API, and only the latest preview gets fixes. The
+This policy takes effect with 1.0.0. Until then every release is a preview with a
+plain `0.y.z` version (from 0.8.0; earlier releases were `0.y.z-preview.N`): a new
+minor (`0.9.0`) may contain breaking changes, a patch (`0.8.1`) only fixes or adds,
+and only the latest minor gets fixes. Releases are still marked as prereleases on
+GitHub, and the workflow keeps the name `publish-preview.yml` and the `preview`
+environment, to which NuGet trusted publishing is bound. NuGet treats a plain
+`0.y.z` as a stable version, so consumers install it without `--prerelease`, and a
+floating `0.*` range picks it up. The
 [Runic SDK release guide](https://github.com/Runic-Artifex/runic-sdk/blob/main/eng/release/README.md#versioning-and-support-from-10)
 has the shared policy for the three SDKs: SemVer rules and what counts as
 breaking, enforcement, package tiers, .NET versions, deprecation and fixes. The
@@ -166,8 +177,14 @@ breaking, enforcement, package tiers, .NET versions, deprecation and fixes. The
 same policy. For Command Line:
 
 - The four packages share the version in `eng/Versions.props` and are stable from
-  1.0.0. The generator stays embedded in `Runic.CommandLine`. Command Line has no
+  1.0.0. Previews of a coming version from 1.0 are `x.y.0-rc.N`, and 1.0.0 itself
+  follows `1.0.0-rc.N`. The generator stays embedded in `Runic.CommandLine`. Command Line has no
   experimental APIs or preview packages.
+- The path to 1.0 is: 0.8.0 carries every breaking change of the 1.0 API
+  review; 0.9.0 only adds (the NativeAOT RIDs below, opt-in `@file` response
+  files, a per-command outcome presenter and a strict
+  `CommandTestEnvelope.Read<T>`); then `1.0.0-rc.N` takes fixes only, and 1.0.0
+  follows the last release candidate.
 - Command Line depends on no other Runic SDK and ships first in the 1.0 release
   train, before Runic Translations and Runic SDK. After 1.0 it releases minors
   and patches independently; Runic Translations and the Runic SDK tools reference
@@ -179,7 +196,12 @@ same policy. For Command Line:
   that Command Line gives an application. Human-readable output and help text
   are not a contract. Spectre.Console types appear in the public
   API of `Runic.CommandLine.Spectre`; moving to a Spectre.Console version that
-  changes them is breaking.
+  changes them is breaking. Spectre.Console is itself pre-1.0, so the dependency
+  is a range that ends before its next minor (`[0.57.2, 0.58)` in
+  `Directory.Packages.props`). The range moves only in a Command Line minor, after
+  the suites and the package consumer pass on the new Spectre.Console minor; an
+  application that needs a newer Spectre.Console earlier gets NuGet warning
+  `NU1608` and runs untested.
 - Package validation runs against `RunicCommandLinePackageValidationBaselineVersion`
   in `eng/Versions.props`; from 1.0 that is the latest stable release of the
   major line, and a `CompatibilitySuppressions.xml` or a `*REMOVED*` entry is
@@ -188,6 +210,46 @@ same policy. For Command Line:
   terminal code is platform-specific, so NativeAOT applications are supported on
   the RIDs that CI publishes and runs: today `linux-x64`, `win-x64` and
   `osx-arm64`. `linux-arm64`, `win-arm64`, `linux-musl-x64` and
-  `linux-musl-arm64` are planned for 0.9, as for Runic SDK.
+  `linux-musl-arm64` are planned for 0.9.0, because the Runic SDK tools that
+  bundle Command Line already run on them.
 - Bug and security fixes ship in a patch of the latest minor only. `[Obsolete]`
   APIs stay for at least one minor release and are removed only in a major.
+
+API rules that Command Line keeps, with the reason where it differs from a
+common .NET convention:
+
+- Every public enum and string set states whether it is closed (consumers may
+  switch over it exhaustively; a new value is breaking) or open (consumers must
+  handle unknown values; adding one is not breaking). The statement is part of
+  its XML documentation.
+- Constructors and positional records are frozen: adding a constructor
+  parameter is binary-breaking, so a type such as `CommandHelp`,
+  `CommandDiagnostic`, `CommandFault`, `ParseSettings`,
+  `ProcessExecutionOptions`, `ProcessRequest` or `CommandAppTestResult` grows
+  only through `init` properties.
+- The parser and execution interfaces stay public, because the command model is
+  parser-neutral and the Testing package, Runic Translations and applications
+  implement or construct them. A public interface grows only through default
+  interface members.
+- Observation uses Command Line's own interfaces (`ICommandExecutionObserver`,
+  `ExceptionObserver`, `IProcessObserver`) instead of `ILogger` or
+  `ActivitySource`, so the NativeAOT kernel needs no Microsoft.Extensions
+  dependency; an application bridges them to its logger.
+- `CommandFailureData.TryGet` returns false only for an unknown identity; a
+  known identity whose data does not match its shape throws
+  `CommandProtocolException`, because that is a protocol violation.
+- Command Line has no experimental APIs; a new API is either supported or not
+  public.
+- An `int` command result is payload data, not the exit code: exit codes come
+  from `CommandExitCategory` and the exit-code policy.
+- The generator accepts static command methods only, with services injected
+  through `[FromServices]`, so binding stays reflection-free and NativeAOT-safe
+  without activation rules.
+- `ProcessResult.EnsureCompleted` checks that the child ran to completion with
+  complete captures, not its exit code; the name follows
+  `HttpResponseMessage.EnsureSuccessStatusCode` rather than Runic SDK's
+  `ThrowIfFailed`, which would suggest an exit-code check. The public
+  `ProcessResult` factories exist for test doubles, and the Processes README
+  states the fault each state carries.
+- `SpectreCommandConsole.WithProgressAsync` returns `Task`, like Spectre's
+  progress API; progress is not a hot path, so it does not use `ValueTask`.

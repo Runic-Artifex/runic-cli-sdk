@@ -8,8 +8,12 @@
   <ItemGroup>
     <PackageVersion Include="Runic.Translations" Version="0.6.0-preview.1" />
     <PackageVersion Include="Runic.Translations.Build" Version="0.6.0-preview.1" />
-    <PackageVersion Include="Spectre.Console" Version="0.57.2" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <!-- Spectre.Console types are public API of Runic.CommandLine.Spectre, and Spectre.Console is pre-1.0, so the
+         range stops before its next minor. Move it in a Command Line minor after testing; see eng/release/README.md. -->
+    <PackageVersion Include="Spectre.Console" Version="[0.57.2, 0.58)" />
+    <!-- The generator compiles against the Roslyn of the lowest supported .NET 10 SDK band (10.0.1xx ships 5.0.0);
+         a newer version makes older compilers reject it with CS9057. The generator tests run it on the same version. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" />
     <!-- TUnit test projects (see CONTRIBUTING.md); keep TUnit.Core and TUnit.Engine on one version. -->

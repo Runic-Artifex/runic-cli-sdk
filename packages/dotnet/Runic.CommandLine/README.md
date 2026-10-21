@@ -9,12 +9,21 @@ parser, Generic Host, or UI framework.
 ## Install
 
 ```bash
-dotnet add package Runic.CommandLine --prerelease
+dotnet add package Runic.CommandLine
 ```
 
 The package targets `net10.0` and includes its portable contracts and host
-launch classification. It is a preview package: test updates before adopting
-them in a production command contract.
+launch classification. Until 1.0 its version is `0.y.z`: a new minor (`0.9.0`)
+may contain breaking changes, a patch (`0.8.1`) only fixes or adds, and only
+the latest minor gets fixes. Read the release notes before adopting a new minor
+in a production command contract.
+
+The embedded source generator needs the compiler of a .NET 10 SDK (any feature
+band from 10.0.100): `dotnet build`, Visual Studio with the SDK's compiler,
+Rider or the C# Dev Kit. A build whose compiler runs on .NET Framework, such as
+Visual Studio's own MSBuild compiler, cannot load the generator: it reports
+`CS8032`, and `Runic.CommandLine.Generated` is missing. Hand-built catalogs (see
+[lower-level registration](#lower-level-registration)) do not need the generator.
 
 ## A complete command-line application
 
@@ -142,6 +151,19 @@ envelope; a success payload is not bound by the protocol's frame limit.
   application payloads retain `[CommandResult("example.result/1", typeof(JsonContext))]`
   and source-generated JSON metadata. An `int` result is payload data, never an
   implicit exit code. Use `CommandOutcome<T>` and an exit policy for domain exits.
+- Declare the result's JSON context with camelCase property names, the
+  convention of the `runic.commandline/1` envelope and of Runic payloads.
+  System.Text.Json otherwise keeps the C# names (`{"Status":…}`), and the
+  generator warns with `RCLI9044`:
+
+  ```csharp
+  [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+  [JsonSerializable(typeof(Report))]
+  internal sealed partial class ReportJsonContext : JsonSerializerContext;
+  ```
+
+  The default human output prints the same names, so its rows read
+  `status: Ready`; register a presenter with `builder.Present` for other labels.
 
 CancellationToken, CommandExecutionContext and ICommandConsole parameters are
 injected automatically; other services use `[FromServices]`. Declare the token
@@ -176,7 +198,10 @@ ScopeFactory = CommandScopes.Create(serviceProvider.CreateAsyncScope, scope => s
 asynchronously when it implements `IAsyncDisposable`, otherwise through
 `IDisposable`. A missing service fails the invocation with the sanitized
 `RCLI5000` fault. Implement `ICommandExecutionScopeFactory` directly only for
-invocation-specific services, or use `CommandApp.CreateScopeFactory`.
+invocation-specific services, or use `CommandApp.CreateScopeFactory`, which
+receives the `ParsedInvocation` and returns the scope factory for that
+invocation. When both are set, `CreateScopeFactory` wins and `ScopeFactory` is
+not used; with neither, handlers get no services.
 
 ## Presentation and testing
 
@@ -252,7 +277,11 @@ replaces the built-in `completion` command, so a default command can take
 error. A command option spelled like it fails catalog validation with `RCLI0025`.
 
 `Runic.CommandLine.Testing` supplies `CommandAppTester`, a configurable
-`TestCommandConsole` with queued input, and strict JSON frame assertions. Supply
+`TestCommandConsole` with queued input, and `CommandTestEnvelope.Parse`. `Parse`
+checks the framing only: one unpadded JSON value ending in exactly one LF. It
+returns a `JsonDocument` and does not validate the envelope's members, its
+success and failure rules, limits or payload type; for that, read the frame with
+`CommandJsonEnvelopeReader.Read<T>(frame, expectedPayloadType, typeInfo)`. Supply
 explicit ParseSettings to keep environment-dependent tests deterministic.
 
 ## Interactive prompts
@@ -266,8 +295,9 @@ a call:
 
 ```csharp
 [Command("init", Description = "Create a project.")]
-internal static async Task<string> Init(CommandExecutionContext context, CancellationToken cancellationToken,
-    [Option("--template")] string? template = null, [Option("--yes", "-y")] bool yes = false)
+internal static async Task<string> Init(CommandExecutionContext context,
+    [Option("--template")] string? template = null, [Option("--yes", "-y")] bool yes = false,
+    CancellationToken cancellationToken = default)
 {
     var prompts = new CommandPrompts(context, interactive: !yes);
     await prompts.IntroAsync("create-app", cancellationToken);
