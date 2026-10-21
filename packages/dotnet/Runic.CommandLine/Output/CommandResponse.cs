@@ -59,7 +59,7 @@ public sealed class CommandResponse<T>
 
         RequestId = requestId;
         Command = command;
-        Success = success;
+        Succeeded = success;
         ExitCode = exitCode;
         PayloadType = payloadType;
         Payload = payload;
@@ -75,7 +75,7 @@ public sealed class CommandResponse<T>
     public string Command { get; }
 
     /// <summary>Gets whether command execution succeeded.</summary>
-    public bool Success { get; }
+    public bool Succeeded { get; }
 
     /// <summary>Gets the mapped process exit code.</summary>
     public int ExitCode { get; }
@@ -95,7 +95,7 @@ public sealed class CommandResponse<T>
     /// <summary>Gets the ordered, consumer-safe diagnostics.</summary>
     public IReadOnlyList<CommandDiagnostic> Diagnostics { get; }
 
-    internal static CommandResponse<T> Succeeded(
+    internal static CommandResponse<T> CreateSuccess(
         string requestId,
         string command,
         string payloadType,
@@ -103,7 +103,7 @@ public sealed class CommandResponse<T>
         IReadOnlyList<CommandDiagnostic>? diagnostics = null) =>
         new(requestId, command, true, 0, payloadType, payload, null, diagnostics);
 
-    internal static CommandResponse<T> Failed(
+    internal static CommandResponse<T> CreateFailure(
         string requestId,
         string command,
         int exitCode,
@@ -122,19 +122,19 @@ public sealed class CommandResponse<T>
     {
         ArgumentNullException.ThrowIfNull(outcome);
         CommandResponseValidation.ValidatePayloadType(payloadType, nameof(payloadType));
-        if (outcome.IsSuccess && exitCode != 0)
+        if (outcome.Succeeded && exitCode != 0)
         {
             throw new ArgumentException("A successful outcome must map to exit code zero.", nameof(exitCode));
         }
 
-        if (!outcome.IsSuccess && exitCode == 0)
+        if (!outcome.Succeeded && exitCode == 0)
         {
             throw new ArgumentException("A failed outcome cannot map to exit code zero.", nameof(exitCode));
         }
 
-        return outcome.IsSuccess
-            ? Succeeded(requestId, command, payloadType, outcome.Value, diagnostics)
-            : Failed(requestId, command, exitCode, outcome.Fault!, diagnostics, outcome.FailureData);
+        return outcome.Succeeded
+            ? CreateSuccess(requestId, command, payloadType, outcome.Value, diagnostics)
+            : CreateFailure(requestId, command, exitCode, outcome.Fault!, diagnostics, outcome.FailureData);
     }
 
     internal static CommandResponse<T> Read(
@@ -309,35 +309,23 @@ internal static class CommandResponseValidation
 public static class CommandResponse
 {
     /// <summary>Creates a successful response.</summary>
-    public static CommandResponse<T> Succeeded<T>(
+    public static CommandResponse<T> Success<T>(
         string requestId,
         string command,
         string payloadType,
         T? payload,
         IReadOnlyList<CommandDiagnostic>? diagnostics = null) =>
-        CommandResponse<T>.Succeeded(requestId, command, payloadType, payload, diagnostics);
+        CommandResponse<T>.CreateSuccess(requestId, command, payloadType, payload, diagnostics);
 
-    /// <summary>Creates a failed response.</summary>
-    public static CommandResponse<T> Failed<T>(
+    /// <summary>Creates a failed response with a sanitized fault and optional, separately declared domain data.</summary>
+    public static CommandResponse<T> Failure<T>(
         string requestId,
         string command,
         int exitCode,
         CommandFault fault,
-        IReadOnlyList<CommandDiagnostic>? diagnostics = null) =>
-        CommandResponse<T>.Failed(requestId, command, exitCode, fault, diagnostics);
-
-    /// <summary>Creates a failed response with separately declared domain data and a sanitized fault.</summary>
-    public static CommandResponse<T> FailedWithData<T>(
-        string requestId,
-        string command,
-        int exitCode,
-        CommandFault fault,
-        CommandFailureData failureData,
-        IReadOnlyList<CommandDiagnostic>? diagnostics = null)
-    {
-        ArgumentNullException.ThrowIfNull(failureData);
-        return CommandResponse<T>.Failed(requestId, command, exitCode, fault, diagnostics, failureData);
-    }
+        IReadOnlyList<CommandDiagnostic>? diagnostics = null,
+        CommandFailureData? failureData = null) =>
+        CommandResponse<T>.CreateFailure(requestId, command, exitCode, fault, diagnostics, failureData);
 
     /// <summary>Maps a frozen semantic outcome to a protocol response.</summary>
     public static CommandResponse<T> FromOutcome<T>(

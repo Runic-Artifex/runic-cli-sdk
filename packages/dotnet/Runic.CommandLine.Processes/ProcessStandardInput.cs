@@ -3,6 +3,7 @@ using System;
 namespace Runic.CommandLine.Processes;
 
 /// <summary>Specifies how the child receives standard input.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum ProcessStandardInputMode
 {
     /// <summary>Inherits the caller's standard-input handle.</summary>
@@ -20,7 +21,7 @@ public sealed class ProcessStandardInput
     public const int DefaultInputLimitBytes = 1024 * 1024;
 
     /// <summary>The hard accepted input payload ceiling.</summary>
-    public const int MaximumInputLimitBytes = 16 * 1024 * 1024;
+    public static int MaximumInputLimitBytes { get; } = 16 * 1024 * 1024;
 
     private readonly byte[] bytes;
 

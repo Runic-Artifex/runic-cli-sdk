@@ -53,7 +53,7 @@ public static class CommandJsonEnvelopeReader
             RejectDuplicateMembers(root, "response");
 
             string protocol = RequireString(root, "protocol");
-            if (!string.Equals(protocol, CliProtocol.Identity, StringComparison.Ordinal))
+            if (!string.Equals(protocol, CommandProtocol.Identity, StringComparison.Ordinal))
             {
                 throw Error("unsupported-protocol", "The command response protocol is not supported.");
             }

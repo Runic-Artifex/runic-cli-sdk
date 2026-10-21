@@ -1,21 +1,57 @@
 #nullable enable
+*REMOVED*Runic.CommandLine.CliProtocol
+*REMOVED*Runic.CommandLine.CommandApp.FormatHelp.get -> System.Func<Runic.CommandLine.CommandPath!, string!>?
+*REMOVED*Runic.CommandLine.CommandApp.FormatHelp.init -> void
 *REMOVED*Runic.CommandLine.CommandApp.HandleCancelKeyPress.get -> bool
 *REMOVED*Runic.CommandLine.CommandApp.HandleCancelKeyPress.init -> void
 Runic.CommandLine.CommandApp.HandleTerminationSignals.get -> bool
 Runic.CommandLine.CommandApp.HandleTerminationSignals.init -> void
+Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>.Option(string! id, string! name, Runic.CommandLine.CommandArity arity, Runic.CommandLine.CommandOptionRepeatPolicy repeatPolicy = Runic.CommandLine.CommandOptionRepeatPolicy.Error, bool isSensitive = false, string? descriptionKey = null, bool isRequired = false, params string![]! aliases) -> Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>!
+*REMOVED*Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>.Option(string! id, string! name, Runic.CommandLine.CommandArity arity, Runic.CommandLine.CommandOptionRepeatPolicy repeatPolicy = Runic.CommandLine.CommandOptionRepeatPolicy.Error, bool isSensitive = false, string? descriptionKey = null, params string![]! aliases) -> Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>!
+*REMOVED*Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>.Option(string! id, string! name, Runic.CommandLine.CommandArity arity, Runic.CommandLine.CommandOptionRepeatPolicy repeatPolicy, bool isSensitive, string? descriptionKey, bool isRequired, params string![]! aliases) -> Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>!
+*REMOVED*Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>.Option(string! id, string! name, Runic.CommandLine.CommandArity arity, Runic.CommandLine.CommandOptionRepeatPolicy repeatPolicy, bool? isRequired, params string![]! aliases) -> Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>!
 Runic.CommandLine.CommandCatalog.OutputSelector.get -> string!
 Runic.CommandLine.CommandCatalog.OutputSelectorAliases.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Runic.CommandLine.CommandCatalogBuilder.OutputSelector(string! name, params System.Collections.Generic.IEnumerable<string!>! hiddenAliases) -> Runic.CommandLine.CommandCatalogBuilder!
+*REMOVED*Runic.CommandLine.CommandDiagnosticSeverity.Error = 0 -> Runic.CommandLine.CommandDiagnosticSeverity
+Runic.CommandLine.CommandDiagnosticSeverity.Error = 2 -> Runic.CommandLine.CommandDiagnosticSeverity
+Runic.CommandLine.CommandDiagnosticSeverity.Information = 0 -> Runic.CommandLine.CommandDiagnosticSeverity
+*REMOVED*Runic.CommandLine.CommandDiagnosticSeverity.Information = 2 -> Runic.CommandLine.CommandDiagnosticSeverity
 Runic.CommandLine.CommandExecutionContext.ProtectShutdown() -> System.IDisposable!
+*REMOVED*Runic.CommandLine.CommandExecutionResult.IsSuccess.get -> bool
+Runic.CommandLine.CommandExecutionResult.Succeeded.get -> bool
+*REMOVED*Runic.CommandLine.CommandOutcome<T>.IsSuccess.get -> bool
+Runic.CommandLine.CommandOutcome<T>.Succeeded.get -> bool
+*REMOVED*Runic.CommandLine.CommandParsePresentation
+*REMOVED*Runic.CommandLine.CommandPresentation.FormatHelp.get -> System.Func<Runic.CommandLine.CommandPath!, string!>?
+*REMOVED*Runic.CommandLine.CommandPresentation.FormatHelp.init -> void
+Runic.CommandLine.CommandProtocol
+Runic.CommandLine.CommandResponse<T>.Succeeded.get -> bool
+*REMOVED*Runic.CommandLine.CommandResponse<T>.Success.get -> bool
+Runic.CommandLine.Generated.GeneratedCommandBinding
+Runic.CommandLine.Generated.GeneratedCommandBindingException
+Runic.CommandLine.Generated.GeneratedCommandBindingException.GeneratedCommandBindingException(string! parameterId, string! message) -> void
+Runic.CommandLine.Generated.GeneratedCommandBindingException.ParameterId.get -> string!
+*REMOVED*Runic.CommandLine.GeneratedCommandBinding
+*REMOVED*Runic.CommandLine.GeneratedCommandBindingException
+*REMOVED*Runic.CommandLine.GeneratedCommandBindingException.GeneratedCommandBindingException(string! parameterId, string! message) -> void
+*REMOVED*Runic.CommandLine.GeneratedCommandBindingException.ParameterId.get -> string!
+*REMOVED*Runic.CommandLine.Hosting.HostedCommandLineDecision.HostedCommandLineDecision(Runic.CommandLine.Hosting.HostedCommandLineDecisionKind kind, Runic.CommandLine.Hosting.HostedCommandLineLaunchInput! input, Runic.CommandLine.CommandPath? path = null, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null, Runic.CommandLine.CommandOutputClassification? outputClassification = null) -> void
+*REMOVED*Runic.CommandLine.Hosting.HostedCommandLineExecutionResult.IsSuccess.get -> bool
+Runic.CommandLine.Hosting.HostedCommandLineExecutionResult.Succeeded.get -> bool
 Runic.CommandLine.Hosting.HostedCommandLineLaunchInput.HostedCommandLineLaunchInput(System.Collections.Generic.IReadOnlyList<string!>! arguments, string? outputEnvironmentValue = null, Runic.CommandLine.Hosting.EmptyInputFallback emptyInputFallback = Runic.CommandLine.Hosting.EmptyInputFallback.Invalid, Runic.CommandLine.CommandOutputMode defaultOutputMode = Runic.CommandLine.CommandOutputMode.Human) -> void
 *REMOVED*Runic.CommandLine.Hosting.HostedCommandLineLaunchInput.HostedCommandLineLaunchInput(System.Collections.Generic.IReadOnlyList<string!>! arguments, string? outputEnvironmentValue = null, Runic.CommandLine.Hosting.EmptyInputFallback emptyInputFallback = Runic.CommandLine.Hosting.EmptyInputFallback.Invalid, Runic.CommandLine.CommandOutputMode defaultOutputMode = Runic.CommandLine.CommandOutputMode.Human, string! transportOutputOptionName = "--output") -> void
 *REMOVED*Runic.CommandLine.Hosting.HostedCommandLineLaunchInput.TransportOutputOptionName.get -> string!
+*REMOVED*Runic.CommandLine.Hosting.IHostedCommandLineAdapter
+*REMOVED*Runic.CommandLine.Hosting.IHostedCommandLineAdapter.Classify(Runic.CommandLine.Hosting.HostedCommandLineLaunchInput! input) -> Runic.CommandLine.Hosting.HostedCommandLineDecision!
+*REMOVED*Runic.CommandLine.Hosting.IHostedCommandLineAdapter.ExecuteAsync(Runic.CommandLine.Hosting.HostedCommandLineExecutionInput! input, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Hosting.HostedCommandLineExecutionResult!>
 Runic.CommandLine.ICommandHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, Runic.CommandLine.CommandTextContext! textContext, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 *REMOVED*Runic.CommandLine.ICommandHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName, Runic.CommandLine.CommandTextContext! textContext, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 *REMOVED*Runic.CommandLine.ICommandHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Runic.CommandLine.ParseSettings.ParseSettings(string? outputEnvironmentValue = null, Runic.CommandLine.CommandOutputMode defaultOutputMode = Runic.CommandLine.CommandOutputMode.Human) -> void
 *REMOVED*Runic.CommandLine.ParseSettings.ParseSettings(string? outputEnvironmentValue = null, Runic.CommandLine.CommandOutputMode defaultOutputMode = Runic.CommandLine.CommandOutputMode.Human, string! transportOutputOptionName = "--output") -> void
 *REMOVED*Runic.CommandLine.ParseSettings.TransportOutputOptionName.get -> string!
+*REMOVED*const Runic.CommandLine.CliProtocol.Identity = "runic.commandline/1" -> string!
 const Runic.CommandLine.CommandExitCodes.Cancelled = 130 -> int
 *REMOVED*const Runic.CommandLine.CommandExitCodes.Cancelled = 4 -> int
 const Runic.CommandLine.CommandExitCodes.CommandFailure = 1 -> int
@@ -26,9 +62,59 @@ const Runic.CommandLine.CommandExitCodes.Unavailable = 1 -> int
 *REMOVED*const Runic.CommandLine.CommandExitCodes.Unavailable = 5 -> int
 const Runic.CommandLine.CommandExitCodes.Validation = 2 -> int
 *REMOVED*const Runic.CommandLine.CommandExitCodes.Validation = 3 -> int
+const Runic.CommandLine.CommandProtocol.Identity = "runic.commandline/1" -> string!
 *REMOVED*static Runic.CommandLine.CommandCompletion.Generate(Runic.CommandLine.CommandCatalog! catalog, string! executable, string! shell, string! outputOptionName) -> string!
 static Runic.CommandLine.CommandCompletion.Query(Runic.CommandLine.CommandCatalog! catalog, System.Collections.Generic.IReadOnlyList<string!>! words) -> Runic.CommandLine.CommandCompletionResult!
 *REMOVED*static Runic.CommandLine.CommandCompletion.Query(Runic.CommandLine.CommandCatalog! catalog, System.Collections.Generic.IReadOnlyList<string!>! words, string! outputOptionName = "--output") -> Runic.CommandLine.CommandCompletionResult!
 *REMOVED*static Runic.CommandLine.CommandHelpFormatter.Format(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, Runic.CommandLine.CommandTextContext! context, string! outputOptionName = "--output", int width = 80) -> string!
 static Runic.CommandLine.CommandHelpFormatter.Format(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, Runic.CommandLine.CommandTextContext? context = null, int width = 80) -> string!
 *REMOVED*static Runic.CommandLine.CommandHelpFormatter.Format(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName = "--output") -> string!
+*REMOVED*static Runic.CommandLine.CommandOutcome.Failure<T>(Runic.CommandLine.CommandExitCategory category, Runic.CommandLine.CommandFault! fault) -> Runic.CommandLine.CommandOutcome<T>!
+static Runic.CommandLine.CommandOutcome.Failure<T>(Runic.CommandLine.CommandExitCategory category, Runic.CommandLine.CommandFault! fault, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null, string? humanOutput = null, Runic.CommandLine.CommandFailureData? failureData = null) -> Runic.CommandLine.CommandOutcome<T>!
+*REMOVED*static Runic.CommandLine.CommandOutcome.Failure<T>(Runic.CommandLine.CommandExitCategory category, Runic.CommandLine.CommandFault! fault, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics) -> Runic.CommandLine.CommandOutcome<T>!
+*REMOVED*static Runic.CommandLine.CommandOutcome.Failure<T>(Runic.CommandLine.CommandExitCategory category, Runic.CommandLine.CommandFault! fault, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics, string? humanOutput) -> Runic.CommandLine.CommandOutcome<T>!
+*REMOVED*static Runic.CommandLine.CommandOutcome.FailureWithData<T>(Runic.CommandLine.CommandExitCategory category, Runic.CommandLine.CommandFault! fault, Runic.CommandLine.CommandFailureData! failureData, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null, string? humanOutput = null) -> Runic.CommandLine.CommandOutcome<T>!
+*REMOVED*static Runic.CommandLine.CommandOutputDispatcher.DispatchAsync<T>(Runic.CommandLine.CommandOutputMode mode, Runic.CommandLine.ICommandConsole! console, System.Globalization.CultureInfo! culture, Runic.CommandLine.CommandResponse<T>! response, Runic.CommandLine.ICommandResultCodec<T>! codec, Runic.CommandLine.CommandTextContext! textContext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Runic.CommandLine.CommandOutputDispatcher.DispatchAsync<T>(Runic.CommandLine.CommandOutputMode mode, Runic.CommandLine.ICommandConsole! console, System.Globalization.CultureInfo! culture, Runic.CommandLine.CommandResponse<T>! response, Runic.CommandLine.ICommandResultCodec<T>! codec, Runic.CommandLine.CommandTextContext? textContext = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+*REMOVED*static Runic.CommandLine.CommandOutputDispatcher.DispatchAsync<T>(Runic.CommandLine.CommandOutputMode mode, Runic.CommandLine.ICommandConsole! console, System.Globalization.CultureInfo! culture, Runic.CommandLine.CommandResponse<T>! response, Runic.CommandLine.ICommandResultCodec<T>! codec, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+*REMOVED*static Runic.CommandLine.CommandParsePresentation.GetExitCode(Runic.CommandLine.ParseOutcome! outcome, System.Func<Runic.CommandLine.CommandDiagnostic!, int>! mapDiagnostic) -> int
+*REMOVED*static Runic.CommandLine.CommandParsePresentation.WriteHumanAsync(Runic.CommandLine.ParseOutcome! outcome, Runic.CommandLine.ICommandConsole! console, System.Func<Runic.CommandLine.CommandDiagnostic!, System.Globalization.CultureInfo!, string!>! formatDiagnostic, System.Globalization.CultureInfo! culture, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+*REMOVED*static Runic.CommandLine.CommandResponse.Failed<T>(string! requestId, string! command, int exitCode, Runic.CommandLine.CommandFault! fault, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null) -> Runic.CommandLine.CommandResponse<T>!
+*REMOVED*static Runic.CommandLine.CommandResponse.FailedWithData<T>(string! requestId, string! command, int exitCode, Runic.CommandLine.CommandFault! fault, Runic.CommandLine.CommandFailureData! failureData, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null) -> Runic.CommandLine.CommandResponse<T>!
+static Runic.CommandLine.CommandResponse.Failure<T>(string! requestId, string! command, int exitCode, Runic.CommandLine.CommandFault! fault, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null, Runic.CommandLine.CommandFailureData? failureData = null) -> Runic.CommandLine.CommandResponse<T>!
+*REMOVED*static Runic.CommandLine.CommandResponse.Succeeded<T>(string! requestId, string! command, string! payloadType, T? payload, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null) -> Runic.CommandLine.CommandResponse<T>!
+static Runic.CommandLine.CommandResponse.Success<T>(string! requestId, string! command, string! payloadType, T? payload, System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>? diagnostics = null) -> Runic.CommandLine.CommandResponse<T>!
+static Runic.CommandLine.Generated.GeneratedCommandBinding.Argument(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> string!
+static Runic.CommandLine.Generated.GeneratedCommandBinding.Arguments(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> System.Collections.Generic.IReadOnlyList<string!>!
+static Runic.CommandLine.Generated.GeneratedCommandBinding.CheckRange<T>(T value, Runic.CommandLine.ParsedInvocation! invocation, string! id) -> T
+static Runic.CommandLine.Generated.GeneratedCommandBinding.Convert<T, TConverter>(string! value, string! id) -> T
+static Runic.CommandLine.Generated.GeneratedCommandBinding.Failure<TOptions>(Runic.CommandLine.ParsedInvocation! invocation, Runic.CommandLine.Generated.GeneratedCommandBindingException! exception) -> Runic.CommandLine.CommandOutcome<TOptions>!
+static Runic.CommandLine.Generated.GeneratedCommandBinding.Flag(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> bool
+static Runic.CommandLine.Generated.GeneratedCommandBinding.Option(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> string!
+static Runic.CommandLine.Generated.GeneratedCommandBinding.Options(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> System.Collections.Generic.IReadOnlyList<string!>!
+static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseBoolean(string! value, string! id) -> bool
+static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseDecimal(string! value, string! id) -> decimal
+static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseDouble(string! value, string! id) -> double
+static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseEnum<T>(string! value, string! id) -> T
+static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseGuid(string! value, string! id) -> System.Guid
+static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseInt32(string! value, string! id) -> int
+static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseInt64(string! value, string! id) -> long
+static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseValues<T>(System.Collections.Generic.IReadOnlyList<string!>! values, System.Func<string!, T>! convert) -> T[]!
+static Runic.CommandLine.Generated.GeneratedCommandBinding.Validate<T, TValidator>(T value, string! id) -> T
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.Argument(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> string!
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.Arguments(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> System.Collections.Generic.IReadOnlyList<string!>!
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.CheckRange<T>(T value, Runic.CommandLine.ParsedInvocation! invocation, string! id) -> T
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.Convert<T, TConverter>(string! value, string! id) -> T
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.Failure<TOptions>(Runic.CommandLine.ParsedInvocation! invocation, Runic.CommandLine.GeneratedCommandBindingException! exception) -> Runic.CommandLine.CommandOutcome<TOptions>!
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.Flag(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> bool
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.Option(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> string!
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.Options(Runic.CommandLine.ParsedInvocation! invocation, string! id) -> System.Collections.Generic.IReadOnlyList<string!>!
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.ParseBoolean(string! value, string! id) -> bool
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.ParseDecimal(string! value, string! id) -> decimal
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.ParseDouble(string! value, string! id) -> double
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.ParseEnum<T>(string! value, string! id) -> T
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.ParseGuid(string! value, string! id) -> System.Guid
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.ParseInt32(string! value, string! id) -> int
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.ParseInt64(string! value, string! id) -> long
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.ParseValues<T>(System.Collections.Generic.IReadOnlyList<string!>! values, System.Func<string!, T>! convert) -> T[]!
+*REMOVED*static Runic.CommandLine.GeneratedCommandBinding.Validate<T, TValidator>(T value, string! id) -> T

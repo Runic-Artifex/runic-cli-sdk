@@ -18,8 +18,6 @@ public sealed class CommandPresentation
     public ICommandTextResolver? TextResolver { get; init; }
     /// <summary>Gets the human help renderer.</summary>
     public ICommandHelpPresenter? HelpPresenter { get; init; }
-    /// <summary>Gets an optional application-specific help formatter.</summary>
-    public Func<CommandPath, string>? FormatHelp { get; init; }
     /// <summary>Gets the policy used for framework errors; use the executor's policy for consistency.</summary>
     public IExitCodePolicy ExitCodePolicy { get; init; } = DefaultExitCodePolicy.Instance;
 
@@ -69,7 +67,7 @@ public sealed class CommandPresentation
     {
         var textContext = new CommandTextContext(culture, TextResolver);
         CommandOutputMode mode = FrameworkOutputMode(parsed.OutputClassification);
-        if (parsed.Kind == ParseOutcomeKind.Help && mode == CommandOutputMode.Human && HelpPresenter is not null && FormatHelp is null)
+        if (parsed.Kind == ParseOutcomeKind.Help && mode == CommandOutputMode.Human && HelpPresenter is not null)
         {
             await HelpPresenter.WriteAsync(catalog, Name, parsed.HelpRequest!.Path, textContext, console, cancellationToken).ConfigureAwait(false);
             return 0;
@@ -79,15 +77,15 @@ public sealed class CommandPresentation
         {
             CommandDiagnostic diagnostic = parsed.Diagnostics[0];
             int exitCode = ExitCodePolicy.GetExitCode(CommandExitCategory.Usage);
-            response = CommandResponse.Failed<string>(requestId, diagnostic.Path.Count > 0 ? diagnostic.Path.ToString() : "root", exitCode,
+            response = CommandResponse.Failure<string>(requestId, diagnostic.Path.Count > 0 ? diagnostic.Path.ToString() : "root", exitCode,
                 new CommandFault(diagnostic.Code, diagnostic.Message), parsed.Diagnostics);
         }
         else
         {
             string text = parsed.Kind == ParseOutcomeKind.Version ? Version :
-                FormatHelp?.Invoke(parsed.HelpRequest!.Path) ?? CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, textContext,
+                CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, textContext,
                     HelpWidth(console, mode));
-            response = CommandResponse.Succeeded(requestId, parsed.Kind == ParseOutcomeKind.Version ? "version" : "help", CommandResultCodecs.String.PayloadType, text);
+            response = CommandResponse.Success(requestId, parsed.Kind == ParseOutcomeKind.Version ? "version" : "help", CommandResultCodecs.String.PayloadType, text);
         }
         await CommandOutputDispatcher.DispatchAsync(mode,
             console, culture, response, CommandResultCodecs.String, textContext, cancellationToken).ConfigureAwait(false);

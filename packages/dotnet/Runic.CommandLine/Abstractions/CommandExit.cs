@@ -6,7 +6,10 @@ namespace Runic.CommandLine;
 /// Identifies the semantic category of a command-line outcome independently of
 /// the numeric exit code selected by a host.
 /// </summary>
-/// <remarks><see cref="CommandExitCodes"/> lists the default exit code of each category.</remarks>
+/// <remarks>
+/// <see cref="CommandExitCodes"/> lists the default exit code of each category. Closed: these values are complete,
+/// and adding one is a breaking change, so every <see cref="IExitCodePolicy"/> may switch over them exhaustively.
+/// </remarks>
 public enum CommandExitCategory
 {
     /// <summary>The command completed successfully.</summary>

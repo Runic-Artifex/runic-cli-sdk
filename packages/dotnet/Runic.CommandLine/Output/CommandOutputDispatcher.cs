@@ -61,7 +61,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         }
 
         return context.OutputMode == CommandOutputMode.Human &&
-            !outcome.IsSuccess &&
+            !outcome.Succeeded &&
             outcome.HumanOutput is { Length: > 0 } humanOutput
             ? DispatchFailureHumanOutputAsync(
                 context.Console,
@@ -70,7 +70,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 codec,
                 humanOutput,
                 cancellationToken)
-            : DispatchAsync(
+            : DispatchCoreAsync(
                 context.OutputMode,
                 context.Console,
                 context.Culture,
@@ -91,7 +91,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         string? faultHint,
         CancellationToken cancellationToken)
     {
-        if (response.Success)
+        if (response.Succeeded)
         {
             byte[]? document = string.Equals(codec.PayloadType, CommandResultCodecs.Unit.PayloadType, StringComparison.Ordinal)
                 ? null
@@ -142,7 +142,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CancellationToken cancellationToken)
     {
         await console.WriteOutAsync(humanOutput.AsMemory(), cancellationToken).ConfigureAwait(false);
-        await DispatchAsync(
+        await DispatchCoreAsync(
             CommandOutputMode.Human,
             console,
             culture,
@@ -152,13 +152,36 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
     }
 
     /// <summary>Writes a response through the supplied console using the selected output mode.</summary>
+    /// <param name="mode">The output mode.</param>
+    /// <param name="console">The invocation-local console.</param>
+    /// <param name="culture">The presentation culture.</param>
+    /// <param name="response">The response to write.</param>
+    /// <param name="codec">The payload codec.</param>
+    /// <param name="textContext">
+    /// Optional text resolution for framework text in human output; machine identities and the sanitizer are
+    /// unchanged. English text when null.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the write.</param>
     public static ValueTask DispatchAsync<T>(
         CommandOutputMode mode,
         ICommandConsole console,
         CultureInfo culture,
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
+        CommandTextContext? textContext = null,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        return DispatchCoreAsync(mode, console, culture, textContext is null ? response : textContext.Localize(response), codec, cancellationToken);
+    }
+
+    private static ValueTask DispatchCoreAsync<T>(
+        CommandOutputMode mode,
+        ICommandConsole console,
+        CultureInfo culture,
+        CommandResponse<T> response,
+        ICommandResultCodec<T> codec,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(console);
         ArgumentNullException.ThrowIfNull(culture);
@@ -182,17 +205,6 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         };
     }
 
-    /// <summary>Writes a response with explicit text resolution while preserving machine identities and the existing sanitizer.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "The required CommandTextContext parameter keeps calls unambiguous; the earlier overload is unchanged.")]
-    public static ValueTask DispatchAsync<T>(CommandOutputMode mode, ICommandConsole console, CultureInfo culture,
-        CommandResponse<T> response, ICommandResultCodec<T> codec, CommandTextContext textContext,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(textContext);
-        ArgumentNullException.ThrowIfNull(response);
-        return DispatchAsync(mode, console, culture, textContext.Localize(response), codec, cancellationToken);
-    }
-
     private static async ValueTask WriteHumanAsync<T>(
         ICommandConsole console,
         CultureInfo culture,
@@ -201,7 +213,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CancellationToken cancellationToken,
         string? faultHint = null)
     {
-        if (response.Success)
+        if (response.Succeeded)
         {
             await WriteDiagnosticsAsync(console, response.Diagnostics, cancellationToken).ConfigureAwait(false);
             await codec.WriteHumanAsync(response.Payload!, console, culture, cancellationToken).ConfigureAwait(false);

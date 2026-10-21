@@ -9,6 +9,7 @@ using Runic.CommandLine;
 namespace Runic.CommandLine.Hosting;
 
 /// <summary>Controls how an explicitly empty launch is classified.</summary>
+/// <remarks>Open: a later minor release may add values, so code that switches over them must handle an unknown value.</remarks>
 public enum EmptyInputFallback
 {
     /// <summary>Preserve command-line grammar behavior and report an invalid launch.</summary>
@@ -19,6 +20,7 @@ public enum EmptyInputFallback
 }
 
 /// <summary>Identifies the neutral result of hosted command-line classification.</summary>
+/// <remarks>Open: a later minor release may add values, so code that switches over them must handle an unknown value.</remarks>
 public enum HostedCommandLineDecisionKind
 {
     /// <summary>A valid command invocation is ready for command-line execution.</summary>
@@ -108,22 +110,6 @@ public sealed class HostedCommandLineDecision
 {
     private readonly ParsedInvocation? _invocation;
     private readonly object? _owner;
-
-    /// <summary>Initializes an immutable decision for a custom hosted adapter.</summary>
-    /// <remarks>
-    /// An invocation created through this constructor is executable only by the
-    /// adapter that created it. The first-party adapter attaches its parsed
-    /// invocation internally so it can delegate to <see cref="CommandExecutor"/>.
-    /// </remarks>
-    public HostedCommandLineDecision(
-        HostedCommandLineDecisionKind kind,
-        HostedCommandLineLaunchInput input,
-        CommandPath? path = null,
-        IReadOnlyList<CommandDiagnostic>? diagnostics = null,
-        CommandOutputClassification? outputClassification = null)
-        : this(kind, input, null, null, path, diagnostics, outputClassification)
-    {
-    }
 
     internal HostedCommandLineDecision(
         HostedCommandLineDecisionKind kind,
@@ -327,7 +313,7 @@ public sealed class HostedCommandLineExecutionResult
     public CommandFault? Fault { get; }
 
     /// <summary>Gets whether the command engine completed successfully.</summary>
-    public bool IsSuccess => ExitCategory == CommandExitCategory.Success;
+    public bool Succeeded => ExitCategory == CommandExitCategory.Success;
 
     /// <summary>
     /// Gets the continuation that the command handed back with
@@ -343,16 +329,4 @@ public sealed class HostedCommandLineExecutionResult
     /// <c>Main</c> rather than awaiting it.
     /// </remarks>
     public Func<int>? Continuation { get; }
-}
-
-/// <summary>Classifies and executes command-line launches for an application host.</summary>
-public interface IHostedCommandLineAdapter
-{
-    /// <summary>Classifies captured inputs without executing a handler or creating a scope.</summary>
-    HostedCommandLineDecision Classify(HostedCommandLineLaunchInput input);
-
-    /// <summary>Delegates a valid invocation to the command-line execution engine.</summary>
-    ValueTask<HostedCommandLineExecutionResult> ExecuteAsync(
-        HostedCommandLineExecutionInput input,
-        CancellationToken cancellationToken = default);
 }

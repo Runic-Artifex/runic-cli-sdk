@@ -1,6 +1,7 @@
 namespace Runic.CommandLine.Processes;
 
 /// <summary>Describes the terminal state of a process request.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum ProcessState
 {
     /// <summary>The child exited, regardless of its exit code.</summary>
@@ -23,20 +24,21 @@ public enum ProcessState
 }
 
 /// <summary>Classifies a sanitized process-start failure.</summary>
+/// <remarks>Open: a later minor release may add values, so code that switches over them must handle an unknown value.</remarks>
 public enum ProcessStartFailureCategory
 {
+    /// <summary>The start failed for another sanitized reason.</summary>
+    Other = 0,
+
     /// <summary>The executable or working directory was not found.</summary>
-    NotFound = 0,
+    NotFound = 1,
 
     /// <summary>The operating system denied access.</summary>
-    AccessDenied = 1,
+    AccessDenied = 2,
 
     /// <summary>The request was not accepted by the process API.</summary>
-    InvalidRequest = 2,
+    InvalidRequest = 3,
 
     /// <summary>The executable format or platform is unsupported.</summary>
-    Unsupported = 3,
-
-    /// <summary>The start failed for another sanitized reason.</summary>
-    Other = 4,
+    Unsupported = 4,
 }

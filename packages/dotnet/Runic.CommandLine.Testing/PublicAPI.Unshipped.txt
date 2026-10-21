@@ -1,3 +1,8 @@
 #nullable enable
+*REMOVED*Runic.CommandLine.Testing.CommandTestCancellation
+*REMOVED*Runic.CommandLine.Testing.TestExecutionScopeFactory
+*REMOVED*Runic.CommandLine.Testing.TestExecutionScopeFactory.CreateScope() -> Runic.CommandLine.ICommandExecutionScope!
+*REMOVED*Runic.CommandLine.Testing.TestExecutionScopeFactory.TestExecutionScopeFactory(System.IServiceProvider! services) -> void
+*REMOVED*static Runic.CommandLine.Testing.CommandTestCancellation.CancelledToken.get -> System.Threading.CancellationToken
 static Runic.CommandLine.Testing.CommandTestEnvironment.Capture(System.Collections.Generic.IReadOnlyDictionary<string!, string?>? variables = null) -> Runic.CommandLine.ParseSettings!
 *REMOVED*static Runic.CommandLine.Testing.CommandTestEnvironment.ParseSettings(string? output = null) -> Runic.CommandLine.ParseSettings!

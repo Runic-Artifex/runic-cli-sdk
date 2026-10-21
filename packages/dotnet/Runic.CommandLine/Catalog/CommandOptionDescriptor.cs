@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 namespace Runic.CommandLine;
 
 /// <summary>Defines how repeated occurrences of an option are handled.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum CommandOptionRepeatPolicy
 {
     /// <summary>A second occurrence is a parse error.</summary>

@@ -55,8 +55,6 @@ public sealed class CommandApp
     public bool HandleTerminationSignals { get; init; } = true;
     /// <summary>Gets or sets a renderer for human catalog help.</summary>
     public ICommandHelpPresenter? HelpPresenter { get; init; }
-    /// <summary>Gets or sets an optional application-specific help formatter.</summary>
-    public Func<CommandPath, string>? FormatHelp { get; init; }
 
     /// <summary>Parses, presents framework requests, or executes one invocation, returning its process exit code.</summary>
     public Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default) =>
@@ -131,7 +129,7 @@ public sealed class CommandApp
                     },
                     debug is null ? sink : new CommandDebugOutput.FlushingSink(sink, debug), cancellation.Token).ConfigureAwait(false);
                 // Only a successful invocation that nobody asked to stop hands its continuation back.
-                if (!result.IsSuccess || cancellation.IsCancellationRequested) continuation?.Take();
+                if (!result.Succeeded || cancellation.IsCancellationRequested) continuation?.Take();
                 if (debug is not null) await debug.FlushAsync(Console, CancellationToken.None).ConfigureAwait(false);
                 return result.ExitCode;
             }
@@ -154,7 +152,7 @@ public sealed class CommandApp
     internal CommandPresentation CreatePresentation(Action<Exception>? exceptionObserver) => new()
     {
         Name = Name, Version = Version, CompletionExecutableName = CompletionExecutableName,
-        TextResolver = TextResolver, HelpPresenter = HelpPresenter, FormatHelp = FormatHelp, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = exceptionObserver,
+        TextResolver = TextResolver, HelpPresenter = HelpPresenter, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = exceptionObserver,
     };
 
     internal CommandExecutor CreateExecutor(ParsedInvocation invocation)

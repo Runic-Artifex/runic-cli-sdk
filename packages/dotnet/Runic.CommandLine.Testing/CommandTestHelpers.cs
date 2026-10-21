@@ -43,13 +43,6 @@ public static class CommandTestInvocation
     public static ParsedInvocation Parse(CommandCatalog catalog, params string[] args) => Parse(catalog, ParseSettings.Default, args);
 }
 
-/// <summary>Creates already-cancelled tokens for deterministic cancellation tests.</summary>
-public static class CommandTestCancellation
-{
-    /// <summary>Gets a token that is already cancelled.</summary>
-    public static CancellationToken CancelledToken { get; } = new(canceled: true);
-}
-
 /// <summary>Reads the stable command response envelope in tests.</summary>
 public static class CommandTestEnvelope
 {

@@ -154,12 +154,4 @@ public sealed class SpectreCommandConsole : ICommandConsole, ICommandTerminal
         public override void Write(char value) => Write(value.ToString());
         public override void Write(char[] buffer, int index, int count) => Write(new string(buffer, index, count));
     }
-
-    /// <summary>Asks for a line only when interaction is explicitly available; otherwise returns the supplied fallback.</summary>
-    public async ValueTask<string?> PromptAsync(string prompt, string? fallback = null, CancellationToken cancellationToken = default)
-    {
-        if (!IsInteractive) return fallback;
-        await WriteAsync(new Text(prompt + " ", new Style(foreground: Color.Cyan)), true, cancellationToken).ConfigureAwait(false);
-        return await ReadLineAsync(cancellationToken).ConfigureAwait(false) ?? fallback;
-    }
 }
