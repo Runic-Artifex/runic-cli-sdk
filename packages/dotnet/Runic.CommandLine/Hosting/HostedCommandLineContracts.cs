@@ -48,8 +48,7 @@ public sealed class HostedCommandLineLaunchInput
         IReadOnlyList<string> arguments,
         string? outputEnvironmentValue = null,
         EmptyInputFallback emptyInputFallback = EmptyInputFallback.Invalid,
-        CommandOutputMode defaultOutputMode = CommandOutputMode.Human,
-        string transportOutputOptionName = "--output")
+        CommandOutputMode defaultOutputMode = CommandOutputMode.Human)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         if (!Enum.IsDefined(emptyInputFallback))
@@ -61,9 +60,6 @@ public sealed class HostedCommandLineLaunchInput
         {
             throw new ArgumentOutOfRangeException(nameof(defaultOutputMode));
         }
-        _ = new ParseSettings(
-            defaultOutputMode: defaultOutputMode,
-            transportOutputOptionName: transportOutputOptionName);
 
         var snapshot = new string[arguments.Count];
         for (int index = 0; index < arguments.Count; index++)
@@ -77,7 +73,6 @@ public sealed class HostedCommandLineLaunchInput
         OutputEnvironmentValue = outputEnvironmentValue;
         EmptyInputFallback = emptyInputFallback;
         DefaultOutputMode = defaultOutputMode;
-        TransportOutputOptionName = transportOutputOptionName;
     }
 
     private IReadOnlyDictionary<string, string?> _environmentVariables = new ReadOnlyDictionary<string, string?>(new Dictionary<string, string?>());
@@ -106,9 +101,6 @@ public sealed class HostedCommandLineLaunchInput
 
     /// <summary>Gets the output mode used when no higher-precedence source is supplied.</summary>
     public CommandOutputMode DefaultOutputMode { get; }
-
-    /// <summary>Gets the framework-owned option used to select output transport.</summary>
-    public string TransportOutputOptionName { get; }
 }
 
 /// <summary>Contains a frozen parser-neutral decision for a hosted launch.</summary>

@@ -49,10 +49,10 @@ public sealed class CommandPresentation
     private static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException or AccessViolationException or AppDomainUnloadedException or BadImageFormatException;
 
-    internal async ValueTask<int> WriteCompletionAsync(CommandCatalog catalog, string? shell, string outputOptionName, ICommandConsole console, CultureInfo culture, CancellationToken cancellationToken)
+    internal async ValueTask<int> WriteCompletionAsync(CommandCatalog catalog, string? shell, ICommandConsole console, CultureInfo culture, CancellationToken cancellationToken)
     {
         string script;
-        try { script = CommandCompletion.Generate(catalog, CompletionExecutableName ?? Name, shell ?? "", outputOptionName); }
+        try { script = CommandCompletion.Generate(catalog, CompletionExecutableName ?? Name, shell ?? ""); }
         catch (ArgumentException)
         {
             string message = new CommandTextContext(culture, TextResolver).Resolve(CommandTextKeys.CompletionInvalidShell, "Choose a completion shell: bash, zsh, fish or powershell.");
@@ -64,14 +64,14 @@ public sealed class CommandPresentation
         return 0;
     }
 
-    internal async ValueTask<int> WriteAsync(CommandCatalog catalog, ParseOutcome parsed, string outputOptionName,
+    internal async ValueTask<int> WriteAsync(CommandCatalog catalog, ParseOutcome parsed,
         ICommandConsole console, CultureInfo culture, string requestId, CancellationToken cancellationToken)
     {
         var textContext = new CommandTextContext(culture, TextResolver);
         CommandOutputMode mode = FrameworkOutputMode(parsed.OutputClassification);
         if (parsed.Kind == ParseOutcomeKind.Help && mode == CommandOutputMode.Human && HelpPresenter is not null && FormatHelp is null)
         {
-            await HelpPresenter.WriteAsync(catalog, Name, parsed.HelpRequest!.Path, outputOptionName, textContext, console, cancellationToken).ConfigureAwait(false);
+            await HelpPresenter.WriteAsync(catalog, Name, parsed.HelpRequest!.Path, textContext, console, cancellationToken).ConfigureAwait(false);
             return 0;
         }
         CommandResponse<string> response;
@@ -85,7 +85,7 @@ public sealed class CommandPresentation
         else
         {
             string text = parsed.Kind == ParseOutcomeKind.Version ? Version :
-                FormatHelp?.Invoke(parsed.HelpRequest!.Path) ?? CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, textContext, outputOptionName,
+                FormatHelp?.Invoke(parsed.HelpRequest!.Path) ?? CommandHelpFormatter.Format(catalog, Name, parsed.HelpRequest!.Path, textContext,
                     HelpWidth(console, mode));
             response = CommandResponse.Succeeded(requestId, parsed.Kind == ParseOutcomeKind.Version ? "version" : "help", CommandResultCodecs.String.PayloadType, text);
         }

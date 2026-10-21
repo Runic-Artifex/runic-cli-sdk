@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 
@@ -7,8 +8,22 @@ namespace Runic.CommandLine.Testing;
 /// <summary>Creates deterministic parsing inputs without mutating process environment.</summary>
 public static class CommandTestEnvironment
 {
-    /// <summary>Creates parsing settings with the supplied captured output value.</summary>
-    public static ParseSettings ParseSettings(string? output = null) => new(output);
+    /// <summary>
+    /// Captures parse settings as <see cref="CommandApp"/> captures them from the process environment, but from the
+    /// supplied variables only: <c>RUNIC_COMMANDLINE_OUTPUT</c> selects the output mode, and
+    /// <c>RUNIC_COMMANDLINE_NO_INPUT</c> and option environment fallbacks read the same variables.
+    /// </summary>
+    /// <param name="variables">The environment variables, or none; the process environment is never read.</param>
+    /// <returns>Settings for <see cref="CommandTestInvocation.Parse(CommandCatalog, ParseSettings, string[])"/> or <see cref="CommandApp.ParseSettings"/>.</returns>
+    public static ParseSettings Capture(IReadOnlyDictionary<string, string?>? variables = null)
+    {
+        var snapshot = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (variables is not null) foreach (KeyValuePair<string, string?> entry in variables) snapshot.Add(entry.Key, entry.Value);
+        return new ParseSettings(snapshot.GetValueOrDefault(CommandOutputClassifier.EnvironmentVariableName))
+        {
+            GetEnvironmentVariable = name => snapshot.GetValueOrDefault(name),
+        };
+    }
 }
 
 /// <summary>Creates deterministic parsed invocations for command tests.</summary>

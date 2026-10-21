@@ -82,6 +82,9 @@ public sealed class CommandExecutionRequest
     // Set by CommandApp.Run; see CommandExecutionContext.ContinueOnCallingThread.
     internal CommandContinuation? Continuation { get; init; }
 
+    // Set by CommandApp when it handles termination signals; see CommandExecutionContext.ProtectShutdown.
+    internal ShutdownProtection? ShutdownProtection { get; init; }
+
     internal ICommandConsole HandlerConsole => Invocation.OutputClassification.Mode == CommandOutputMode.Json
         ? new MachineHandlerConsole(Console) : Console;
 

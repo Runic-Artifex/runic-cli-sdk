@@ -12,7 +12,7 @@ var tester = new CommandAppTester(console => new CommandApp(catalog)
 {
     Console = console,
     ParseSettings = ParseSettings.Default,
-    HandleCancelKeyPress = false,
+    HandleTerminationSignals = false,
 });
 var result = await tester.RunAsync(["greet", "Ada", "--output=json"]);
 using var frame = CommandTestEnvelope.Parse(result.StandardOutput);

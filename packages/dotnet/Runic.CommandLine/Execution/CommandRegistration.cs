@@ -102,6 +102,7 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                     PromptsDisabled = request.PromptsDisabled,
                     InvocationCancellation = cancellationToken,
                     Continuation = request.Continuation,
+                    ShutdownProtection = request.ShutdownProtection,
                 };
                 Observe(observer, new CommandExecutionEvent(
                     CommandExecutionEventKind.Started,

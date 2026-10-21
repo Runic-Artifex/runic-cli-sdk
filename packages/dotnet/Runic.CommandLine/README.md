@@ -215,7 +215,7 @@ invocation's token, so a handler that honors it stops gracefully and returns the
 `Cancelled` exit code; service managers that send SIGTERM get the same graceful
 stop. A second signal while the invocation still runs exits the process at once
 with 128 plus the signal number (130 for Ctrl+C, 143 for SIGTERM, 131 for
-SIGQUIT). Set `HandleCancelKeyPress = false` when an embedding host already owns
+SIGQUIT). Set `HandleTerminationSignals = false` when an embedding host already owns
 process signals; the runtime's default signal handling then applies.
 
 The exit codes follow the Unix 128-plus-signal convention; Windows uses the same
@@ -381,7 +381,7 @@ and write plain lines only with JSON output or without such a terminal.
 4 (`RCLI4000`); so do Escape and the end of input (Ctrl+D) at a line prompt. The
 prompt leaves a "Cancelled" summary line and shows the cursor again. The cursor
 also comes back when a second Ctrl+C exits the process at once, and with
-`HandleCancelKeyPress = false`, where SIGINT, SIGTERM and SIGQUIT keep their
+`HandleTerminationSignals = false`, where SIGINT, SIGTERM and SIGQUIT keep their
 default action. The .NET runtime restores the terminal's input mode when the
 process exits normally or on such a signal. After SIGKILL or a crash of the
 runtime nothing can run: if the cursor stays hidden, `tput cnorm` or `reset`
@@ -796,7 +796,7 @@ internal static class DashboardCommands
 only when the invocation succeeded and was not cancelled, after its output was
 written and its scope disposed, so capture values rather than scoped services.
 Help, version and usage errors never reach the command. The invocation runs
-without the caller's `SynchronizationContext`, and `HandleCancelKeyPress` signal
+without the caller's `SynchronizationContext`, and `HandleTerminationSignals` signal
 handling ends before the continuation starts; the host handles its own shutdown.
 An exception from the continuation propagates from `Run`.
 

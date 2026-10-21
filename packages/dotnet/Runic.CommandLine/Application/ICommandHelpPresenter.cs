@@ -7,10 +7,12 @@ namespace Runic.CommandLine;
 public interface ICommandHelpPresenter
 {
     /// <summary>Writes help to an invocation-local console.</summary>
-    ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName, ICommandConsole console, CancellationToken cancellationToken);
-
-    /// <summary>Writes help with explicit culture and text resolution. Existing presenters retain their original behavior.</summary>
-    ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName,
-        CommandTextContext textContext, ICommandConsole console, CancellationToken cancellationToken) =>
-        WriteAsync(catalog, applicationName, path, outputOptionName, console, cancellationToken);
+    /// <param name="catalog">The command catalog; <see cref="CommandCatalog.OutputSelector"/> names the output selector.</param>
+    /// <param name="applicationName">The name shown in the usage line.</param>
+    /// <param name="path">The root or a resolved command path.</param>
+    /// <param name="textContext">The invocation's culture and text resolution.</param>
+    /// <param name="console">The invocation-local console.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path,
+        CommandTextContext textContext, ICommandConsole console, CancellationToken cancellationToken);
 }

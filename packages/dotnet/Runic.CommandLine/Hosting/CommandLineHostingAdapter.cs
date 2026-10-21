@@ -74,12 +74,11 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
             input.Arguments.ToArray(),
             new ParseSettings(
                 input.OutputEnvironmentValue,
-                input.DefaultOutputMode,
-                input.TransportOutputOptionName)
+                input.DefaultOutputMode)
             {
                 GetEnvironmentVariable = name => input.EnvironmentVariables.TryGetValue(name, out string? value) ? value : null,
             });
-        CommandPath? matchedPath = PortableCommandSyntaxAdapter.MatchExplicitPath(_catalog, input.Arguments, input.TransportOutputOptionName);
+        CommandPath? matchedPath = PortableCommandSyntaxAdapter.MatchExplicitPath(_catalog, input.Arguments);
 
         HostedCommandLineDecision decision = outcome.Kind switch
         {
@@ -167,12 +166,12 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
         decision.ValidateOwner(_decisionOwner);
         if (decision.Kind == HostedCommandLineDecisionKind.Completion)
-            return Presentation.GuardAsync(() => Presentation.WriteCompletionAsync(_catalog, CommandCompletion.IsRequest(_catalog, decision.Arguments, out string? shell) ? shell : null, decision.LaunchInput.TransportOutputOptionName, console, culture, cancellationToken), cancellationToken);
+            return Presentation.GuardAsync(() => Presentation.WriteCompletionAsync(_catalog, CommandCompletion.IsRequest(_catalog, decision.Arguments, out string? shell) ? shell : null, console, culture, cancellationToken), cancellationToken);
         if (decision.Kind is not (HostedCommandLineDecisionKind.Help or HostedCommandLineDecisionKind.Version or HostedCommandLineDecisionKind.Invalid) || decision.ParseOutcome is null)
             throw new InvalidOperationException("Presentation requires a framework decision created by this adapter.");
         if (_app?.PresentFrameworkRequest is { } present)
             return Presentation.GuardAsync(() => present(decision.ParseOutcome, console, cancellationToken), cancellationToken);
-        return Presentation.GuardAsync(() => Presentation.WriteAsync(_catalog, decision.ParseOutcome, decision.LaunchInput.TransportOutputOptionName,
+        return Presentation.GuardAsync(() => Presentation.WriteAsync(_catalog, decision.ParseOutcome,
             console, culture, correlationId, cancellationToken), cancellationToken);
     }
 

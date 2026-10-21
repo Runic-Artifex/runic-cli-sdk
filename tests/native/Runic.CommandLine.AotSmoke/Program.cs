@@ -19,11 +19,12 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         if (ProcessSmoke.IsChild(args)) return await ProcessSmoke.RunChildAsync(args).ConfigureAwait(false);
-        CommandCatalog catalog = GeneratedCommandCatalog.Create();
+        // The selector is declared on the catalog; --output stays a hidden alias.
+        CommandCatalog catalog = GeneratedCommandCatalog.Create(builder => builder.OutputSelector("--runic-output", "--output"));
         ParseOutcome parse = PortableCommandSyntaxAdapter.Instance.Parse(
             catalog,
             ["--amount", "2.5", "--tag", "one", "two", "--tag", "three", "--runic-output=json", "world", "--", "--app-flag", "-3"],
-            new ParseSettings(transportOutputOptionName: "--runic-output"));
+            ParseSettings.Default);
         if (parse.Invocation is null) return 10;
 
         var console = new BufferCommandConsole();
@@ -40,12 +41,12 @@ internal static class Program
         if (prompts != 0) return prompts;
         await presenter.WithProgressAsync("Checking", static (_, _) => Task.CompletedTask).ConfigureAwait(false);
         var runnerOutput = new BufferCommandConsole();
-        if (await new CommandApp(catalog) { Console = runnerOutput, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--output=json"]).ConfigureAwait(false) != 0) return 40;
+        if (await new CommandApp(catalog) { Console = runnerOutput, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--output=json"]).ConfigureAwait(false) != 0) return 40;
         using (JsonDocument ping = JsonDocument.Parse(runnerOutput.StandardOutput))
             if (ping.RootElement.GetProperty("payload").GetString() != "pong") return 50;
         var payloadOutput = new BufferCommandConsole();
         if (await new CommandApp(GeneratedCommandCatalog.Create(builder => builder.JsonOutputAlias("--json", JsonOutputShape.Payload)))
-            { Console = payloadOutput, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--json"]).ConfigureAwait(false) != 0 ||
+            { Console = payloadOutput, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default }.RunAsync(["ping", "--json"]).ConfigureAwait(false) != 0 ||
             payloadOutput.StandardOutput != "\"pong\"\n") return 51;
         if (!RunsContinuationOnCallingThread(catalog)) return 52;
         var hosted = new CommandLineHostingAdapter(catalog, new CommandExecutor(EmptyScopeFactory.Instance))
@@ -79,7 +80,7 @@ internal static class Program
         var thread = new Thread(() =>
         {
             callingThread = Environment.CurrentManagedThreadId;
-            exitCode = new CommandApp(catalog) { Console = new BufferCommandConsole(), HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.Run(["handoff"]);
+            exitCode = new CommandApp(catalog) { Console = new BufferCommandConsole(), HandleTerminationSignals = false, ParseSettings = ParseSettings.Default }.Run(["handoff"]);
         });
         thread.Start();
         return thread.Join(TimeSpan.FromSeconds(30)) && exitCode == 7 && s_continuationThread == callingThread;

@@ -31,31 +31,26 @@ public sealed class ParseSettings
     /// The captured value of <see cref="CommandOutputClassifier.EnvironmentVariableName"/>.
     /// </param>
     /// <param name="defaultOutputMode">The output mode used when no higher-precedence source is present.</param>
-    /// <param name="transportOutputOptionName">
-    /// The framework-owned long option used to select human or JSON output.
-    /// </param>
+    /// <remarks>
+    /// The output selector's spelling is grammar, so the catalog declares it
+    /// (<see cref="CommandCatalogBuilder.OutputSelector(string, IEnumerable{string})"/>). Settings carry only
+    /// captured values. Set <see cref="GetEnvironmentVariable"/> as well, or <c>RUNIC_COMMANDLINE_NO_INPUT</c> and
+    /// option environment fallbacks are not read.
+    /// </remarks>
     public ParseSettings(
         string? outputEnvironmentValue = null,
-        CommandOutputMode defaultOutputMode = CommandOutputMode.Human,
-        string transportOutputOptionName = "--output")
+        CommandOutputMode defaultOutputMode = CommandOutputMode.Human)
     {
         if (!Enum.IsDefined(defaultOutputMode))
         {
             throw new ArgumentOutOfRangeException(nameof(defaultOutputMode));
         }
-        if (!IsLongOptionSpelling(transportOutputOptionName) || IsReservedTransportOption(transportOutputOptionName))
-        {
-            throw new ArgumentException(
-                "The transport output option must be a non-reserved long option with a valid identifier.",
-                nameof(transportOutputOptionName));
-        }
 
         OutputEnvironmentValue = outputEnvironmentValue;
         DefaultOutputMode = defaultOutputMode;
-        TransportOutputOptionName = transportOutputOptionName;
     }
 
-    /// <summary>Gets or sets captured parameter environment values. Explicit options take precedence.</summary>
+    /// <summary>Gets captured parameter environment values. Explicit options take precedence.</summary>
     public Func<string, string?>? GetEnvironmentVariable { get; init; }
 
     /// <summary>Gets the captured output environment value, including an invalid value.</summary>
@@ -64,10 +59,7 @@ public sealed class ParseSettings
     /// <summary>Gets the output mode used when no explicit or environment value is present.</summary>
     public CommandOutputMode DefaultOutputMode { get; }
 
-    /// <summary>Gets the framework-owned option used to select output transport.</summary>
-    public string TransportOutputOptionName { get; }
-
-    internal static bool IsLongOptionSpelling(string? value)
+    internal static bool IsLongOptionSpelling([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? value)
     {
         if (value is null || value.Length < 3 || !value.StartsWith("--", StringComparison.Ordinal) ||
             value[2] is < 'a' or > 'z')
@@ -86,9 +78,6 @@ public sealed class ParseSettings
 
         return true;
     }
-
-    private static bool IsReservedTransportOption(string value) =>
-        value is "--help" or "--version";
 }
 
 /// <summary>Represents one immutable option or argument binding.</summary>
