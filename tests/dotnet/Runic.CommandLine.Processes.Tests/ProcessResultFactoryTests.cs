@@ -186,10 +186,26 @@ internal sealed class ProcessResultFactoryTests
 
         public List<ProcessRequest> Requests { get; } = [];
 
-        public ValueTask<ProcessResult> RunAsync(ProcessRequest request, CancellationToken cancellationToken = default)
+        public async ValueTask<ProcessResult> RunAsync(
+            ProcessRequest request, IProcessOutputHandler? outputHandler = null, CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
-            return ValueTask.FromResult(results.Dequeue());
+            ProcessResult result = results.Dequeue();
+            if (outputHandler is not null)
+            {
+                await PassAsync(ProcessOutputChannel.StandardOutput, result.StandardOutput.Text).ConfigureAwait(false);
+                await PassAsync(ProcessOutputChannel.StandardError, result.StandardError.Text).ConfigureAwait(false);
+            }
+
+            return result;
+
+            async ValueTask PassAsync(ProcessOutputChannel channel, string text)
+            {
+                foreach (string line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    await outputHandler.OnLineAsync(new ProcessOutputLine(channel, line), cancellationToken).ConfigureAwait(false);
+                }
+            }
         }
     }
 

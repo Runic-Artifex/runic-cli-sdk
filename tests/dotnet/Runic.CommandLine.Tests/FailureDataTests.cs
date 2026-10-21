@@ -18,7 +18,7 @@ internal sealed class FailureDataTests
             new Dictionary<string, string> { ["path"] = ExactPath }));
         using JsonDocument json = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1));
         JsonElement root = json.RootElement;
-        AssertEx.Equal(CliProtocol.Identity, root.GetProperty("protocol").GetString());
+        AssertEx.Equal(CommandProtocol.Identity, root.GetProperty("protocol").GetString());
         AssertEx.Equal(false, root.GetProperty("success").GetBoolean());
         AssertEx.Equal(10, root.GetProperty("exitCode").GetInt32());
         AssertEx.Equal(JsonValueKind.Null, root.GetProperty("payloadType").ValueKind);
@@ -194,9 +194,9 @@ internal sealed class FailureDataTests
     {
         CommandFailureData data = Create(new RecoveryReport(ExactPath, "branch", false));
         var fault = new CommandFault("RCLI3000", "The clone failed.");
-        AssertEx.Throws<ArgumentOutOfRangeException>(() => CommandOutcome.FailureWithData<TestResult>(CommandExitCategory.Success, fault, data));
-        AssertEx.Throws<ArgumentOutOfRangeException>(() => CommandOutcome.FailureWithData<TestResult>((CommandExitCategory)99, fault, data));
-        AssertEx.Throws<ArgumentException>(() => CommandResponse.FailedWithData<TestResult>("req", "clone", 0, fault, data));
+        AssertEx.Throws<ArgumentOutOfRangeException>(() => CommandOutcome.Failure<TestResult>(CommandExitCategory.Success, fault, failureData: data));
+        AssertEx.Throws<ArgumentOutOfRangeException>(() => CommandOutcome.Failure<TestResult>((CommandExitCategory)99, fault, failureData: data));
+        AssertEx.Throws<ArgumentException>(() => CommandResponse.Failure<TestResult>("req", "clone", 0, fault, failureData: data));
         return ValueTask.CompletedTask;
     }
 
@@ -224,15 +224,15 @@ internal sealed class FailureDataTests
 
     [Command("typed-recovery")]
     [CommandResult("tests.result/1", typeof(TestJsonContext))]
-    internal static CommandOutcome<TestResult> TypedRecovery() => CommandOutcome.FailureWithData<TestResult>(
+    internal static CommandOutcome<TestResult> TypedRecovery() => CommandOutcome.Failure<TestResult>(
         CommandExitCategory.Cancelled, new CommandFault("RCLI3000", "The clone failed."),
-        Create(new RecoveryReport(ExactPath, "feature/tmp/修复", true)), humanOutput: "Inspect the retained directory.\n");
+        humanOutput: "Inspect the retained directory.\n", failureData: Create(new RecoveryReport(ExactPath, "feature/tmp/修复", true)));
 
     private static CommandFailureData Create(RecoveryReport report) =>
         CommandFailureData.Create(Identity, report, RecoveryJsonContext.Default.RecoveryReport);
     private static CommandResponse<TestResult> Read(byte[] frame) => CommandJsonEnvelopeReader.Read(frame, TestCodec.Identity, TestJsonContext.Default.TestResult);
     private static byte[] Frame(CommandFailureData data, CommandFault? fault = null) => CommandJsonEnvelopeWriter.Serialize(
-        CommandResponse.FailedWithData<TestResult>("req", "clone", 10, fault ?? new CommandFault("RCLI3000", "The clone failed."), data), TestJsonContext.Default.TestResult);
+        CommandResponse.Failure<TestResult>("req", "clone", 10, fault ?? new CommandFault("RCLI3000", "The clone failed."), failureData: data), TestJsonContext.Default.TestResult);
     private static byte[] ExtensionFrame(string data) => Encoding.UTF8.GetBytes(
         "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req\",\"command\":\"clone\",\"success\":false,\"exitCode\":10,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI3000\",\"message\":\"The clone failed.\",\"details\":{},\"retryable\":false,\"data\":" + data + "},\"diagnostics\":[]}\n");
     private static void AssertKind(byte[] frame, string kind) => AssertEx.Equal(kind, AssertEx.Throws<CommandProtocolException>(() => Read(frame)).Kind);

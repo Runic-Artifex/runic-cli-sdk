@@ -131,7 +131,7 @@ internal sealed class CompletionOptionTests
         var colliding = new CommandCatalogBuilder().CompletionOption("--completions");
         CatalogTests.ValidCommand(colliding, "report").Subcommand<TestOptions, TestHandler, TestResult>("list", list =>
             list.BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory()).Produces(new TestCodec())
-                .Option("shell", "--shell", CommandArity.ExactlyOne, CommandOptionRepeatPolicy.Error, false, null, "--completions"));
+                .Option("shell", "--shell", CommandArity.ExactlyOne, aliases: ["--completions"]));
         CommandCatalogIssue issue = AssertEx.Throws<CommandCatalogValidationException>(colliding.Build).Issues.Single();
         AssertEx.Equal("RCLI0025", issue.Code);
         AssertEx.Equal("report list", issue.Location);

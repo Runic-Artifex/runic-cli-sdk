@@ -37,7 +37,7 @@ internal static class Program
 
         if (parse.Kind == ParseOutcomeKind.Version)
         {
-            await Console.Out.WriteLineAsync(CliProtocol.Identity).ConfigureAwait(false);
+            await Console.Out.WriteLineAsync(CommandProtocol.Identity).ConfigureAwait(false);
             return CommandExitCodes.Success;
         }
 
@@ -184,7 +184,7 @@ internal sealed class ProbeHandler : ICommandHandler<ProbeOptions, ProbeResult>
 
         ProcessResult child = await processRunner.RunAsync(
             SelfProbe.CreateRequest(),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         if (child.State != ProcessState.Exited || child.ExitCode != 0)
         {
             return CommandOutcome.Failure<ProbeResult>(

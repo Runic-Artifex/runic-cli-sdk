@@ -44,7 +44,7 @@ internal sealed class DispatcherTests
 
         CommandExecutionResult result = await executor.ExecuteAsync(request, new CapturingSink());
 
-        AssertEx.True(result.IsSuccess);
+        AssertEx.True(result.Succeeded);
         AssertEx.Equal("typed", seenOptions!.Value);
         AssertEx.Equal("status", seenContext!.Path.ToString());
         AssertEx.Equal("correlation-typed", seenContext.CorrelationId);
@@ -108,7 +108,7 @@ internal sealed class DispatcherTests
         (CommandExecutor executor, CommandExecutionRequest request) = CreateExecution(
             new TestBinder(), factory, scopes, console, "graceful-stop");
         CommandExecutionResult result = await executor.ExecuteAsync(request, new CommandOutputDispatcher(), cancellation.Token);
-        AssertEx.True(result.IsSuccess);
+        AssertEx.True(result.Succeeded);
         AssertEx.Equal(1, scopes.Scopes.Single().DisposeCount);
     }
 
@@ -300,7 +300,7 @@ internal sealed class DispatcherTests
                 CultureInfo.InvariantCulture,
                 $"concurrent-{index}");
             CommandExecutionResult result = await executor.ExecuteAsync(request, new CapturingSink());
-            AssertEx.True(result.IsSuccess);
+            AssertEx.True(result.Succeeded);
         }).ToArray();
         await Task.WhenAll(executions);
 

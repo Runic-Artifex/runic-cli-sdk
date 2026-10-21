@@ -163,7 +163,7 @@ internal sealed class CorpusContractTests
         }
 
         Assert.Equal(CorpusFormatVersion, RequireInt32(root, "formatVersion", "corpus"));
-        Assert.Equal(CliProtocol.Identity, RequireNonEmptyString(root, "protocol", "corpus"));
+        Assert.Equal(CommandProtocol.Identity, RequireNonEmptyString(root, "protocol", "corpus"));
         return RequireArray(root, "cases", "corpus");
     }
 

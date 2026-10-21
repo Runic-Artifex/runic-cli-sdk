@@ -55,7 +55,7 @@ internal sealed class OutputTests
             CommandDiagnosticSeverity.Error,
             2);
         byte[] frame = CommandJsonEnvelopeWriter.Serialize(
-            CommandResponse.Failed<TestResult>("req-2", "status", 10, fault, [diagnostic]),
+            CommandResponse.Failure<TestResult>("req-2", "status", 10, fault, [diagnostic]),
             TestJsonContext.Default.TestResult);
         string json = Encoding.UTF8.GetString(frame);
 
@@ -85,7 +85,7 @@ internal sealed class OutputTests
                 ["alpha"] = "middle",
             });
         byte[] frame = CommandJsonEnvelopeWriter.Serialize(
-            CommandResponse.Failed<TestResult>("req-3", "status", 10, fault),
+            CommandResponse.Failure<TestResult>("req-3", "status", 10, fault),
             TestJsonContext.Default.TestResult);
         using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1));
         AssertEx.SequenceEqual(
@@ -103,7 +103,7 @@ internal sealed class OutputTests
             frame,
             TestCodec.Identity,
             TestJsonContext.Default.TestResult);
-        AssertEx.True(response.Success);
+        AssertEx.True(response.Succeeded);
         AssertEx.Equal(new TestResult(42, "ok"), response.Payload);
 
         CommandProtocolException exception = AssertEx.Throws<CommandProtocolException>(() =>
@@ -155,7 +155,7 @@ internal sealed class OutputTests
     {
         byte[] original = SuccessFrame();
         string json = Encoding.UTF8.GetString(original.AsSpan(0, original.Length - 2));
-        byte[] duplicate = Encoding.UTF8.GetBytes($"{json},\"protocol\":\"{CliProtocol.Identity}\"}}\n");
+        byte[] duplicate = Encoding.UTF8.GetBytes($"{json},\"protocol\":\"{CommandProtocol.Identity}\"}}\n");
         AssertProtocolKind(duplicate, "duplicate-property");
 
         CommandProtocolException oversized = AssertEx.Throws<CommandProtocolException>(() =>
@@ -195,7 +195,7 @@ internal sealed class OutputTests
     [Test, DisplayName("output/writer-rejects-payload-over-one-mebibyte")]
     public ValueTask WriterRejectsOversizedPayload()
     {
-        var response = CommandResponse.Succeeded(
+        var response = CommandResponse.Success(
             "req-large",
             "status",
             TestCodec.Identity,
@@ -221,7 +221,7 @@ internal sealed class OutputTests
             CommandOutputMode.Json,
             console,
             CultureInfo.InvariantCulture,
-            CommandResponse.Succeeded(
+            CommandResponse.Success(
                 "req-json", "status", TestCodec.Identity, new TestResult(42, "ok")),
             new TestCodec());
         AssertEx.True(console.StandardOutput.StartsWith('{'));
@@ -237,7 +237,7 @@ internal sealed class OutputTests
             CommandOutputMode.Human,
             console,
             CultureInfo.InvariantCulture,
-            CommandResponse.Failed<TestResult>(
+            CommandResponse.Failure<TestResult>(
                 "req-human",
                 "status",
                 10,
@@ -258,7 +258,7 @@ internal sealed class OutputTests
             CommandOutputMode.Human,
             console,
             CultureInfo.InvariantCulture,
-            CommandResponse.Succeeded(
+            CommandResponse.Success(
                 "req-human-warning", "status", TestCodec.Identity, new TestResult(7, "ok"), [diagnostic]),
             new TestCodec());
 
@@ -278,7 +278,7 @@ internal sealed class OutputTests
             CommandOutputMode.Human,
             console,
             CultureInfo.InvariantCulture,
-            CommandResponse.Failed<TestResult>("req-human-fault", "status", 10, fault, [diagnostic]),
+            CommandResponse.Failure<TestResult>("req-human-fault", "status", 10, fault, [diagnostic]),
             new TestCodec());
 
         AssertEx.Equal("RCLI3000: Expected failure.\n", console.StandardError);
@@ -299,7 +299,7 @@ internal sealed class OutputTests
                 },
                 retryable: true);
             CommandResponse<TestResult> response =
-                CommandResponse.Failed<TestResult>("req-keep", "pack", 10, fault);
+                CommandResponse.Failure<TestResult>("req-keep", "pack", 10, fault);
             AssertEx.Equal(10, response.ExitCode);
             AssertEx.Equal(code, response.Fault!.Code);
 
@@ -324,7 +324,7 @@ internal sealed class OutputTests
 
         foreach (string message in new[] { "System.IO.IOException: denied", @"C:\Users\ada\atlas.png", @"\\server\share", "/tmp/runic/x" })
         {
-            CommandFault sanitized = CommandResponse.Failed<TestResult>(
+            CommandFault sanitized = CommandResponse.Failure<TestResult>(
                 "req-keep", "pack", 10, new CommandFault("RAS1001", message)).Fault!;
             AssertEx.Equal("RAS1001", sanitized.Code);
             AssertEx.Equal("The command failed; details were redacted.", sanitized.Message);
@@ -343,7 +343,7 @@ internal sealed class OutputTests
                 "A safe message.",
                 new Dictionary<string, string> { ["reason"] = "kept-only-with-a-valid-code" });
             CommandResponse<TestResult> response =
-                CommandResponse.Failed<TestResult>("req-invalid", "pack", 10, fault);
+                CommandResponse.Failure<TestResult>("req-invalid", "pack", 10, fault);
             AssertEx.Equal(10, response.ExitCode);
             AssertEx.Equal("RCLI5000", response.Fault!.Code);
             AssertEx.Equal("The command failed unexpectedly.", response.Fault.Message);
@@ -366,7 +366,7 @@ internal sealed class OutputTests
             CommandOutputMode.Human,
             console,
             CultureInfo.InvariantCulture,
-            CommandResponse.Failed<TestResult>(
+            CommandResponse.Failure<TestResult>(
                 "req-human-unsafe",
                 "pack",
                 10,
@@ -391,7 +391,7 @@ internal sealed class OutputTests
                 ["reason"] = "missing-file",
             });
         byte[] frame = CommandJsonEnvelopeWriter.Serialize(
-            CommandResponse.Failed<TestResult>("req-keys", "pack", 10, fault),
+            CommandResponse.Failure<TestResult>("req-keys", "pack", 10, fault),
             TestJsonContext.Default.TestResult);
         string json = Encoding.UTF8.GetString(frame);
         AssertEx.True(!json.Contains("Exception", StringComparison.Ordinal), "An unsafe detail key was written.");
@@ -410,7 +410,7 @@ internal sealed class OutputTests
     [Test, DisplayName("output/control-only-fault-message-is-redacted")]
     public ValueTask ControlOnlyMessageIsRedacted()
     {
-        CommandFault sanitized = CommandResponse.Failed<TestResult>(
+        CommandFault sanitized = CommandResponse.Failure<TestResult>(
             "req-control", "pack", 10, new CommandFault("RAS1001", "\u001b\u0007\u0000")).Fault!;
         AssertEx.Equal("RAS1001", sanitized.Code);
         AssertEx.Equal("The command failed; details were redacted.", sanitized.Message);
@@ -429,14 +429,14 @@ internal sealed class OutputTests
             CommandOutputMode.Human,
             console,
             CultureInfo.InvariantCulture,
-            CommandResponse.Failed<TestResult>("req-human-redacted", "pack", 10, fault, [diagnostic]),
+            CommandResponse.Failure<TestResult>("req-human-redacted", "pack", 10, fault, [diagnostic]),
             new TestCodec());
 
         AssertEx.Equal("RCLI8001: The diagnostic content was redacted.\n", console.StandardError);
     }
 
     private static byte[] SuccessFrame() => CommandJsonEnvelopeWriter.Serialize(
-        CommandResponse.Succeeded(
+        CommandResponse.Success(
             "req-1",
             "status",
             TestCodec.Identity,

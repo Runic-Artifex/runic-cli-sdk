@@ -10,7 +10,7 @@ internal sealed class ContractTests
     [Test, DisplayName("protocol identity is stable")]
     public void ProtocolIdentityIsStable()
     {
-        Assert.Equal("runic.commandline/1", CliProtocol.Identity);
+        Assert.Equal("runic.commandline/1", CommandProtocol.Identity);
     }
 
     [Test, DisplayName("exit category names are stable")]
@@ -46,7 +46,7 @@ internal sealed class ContractTests
     {
         CommandOutcome<string> outcome = CommandOutcome.Success("payload");
 
-        Assert.True(outcome.IsSuccess);
+        Assert.True(outcome.Succeeded);
         Assert.Equal(CommandExitCategory.Success, outcome.ExitCategory);
         Assert.Equal("payload", outcome.Value);
         Assert.Null(outcome.Fault);
@@ -57,7 +57,7 @@ internal sealed class ContractTests
     {
         CommandOutcome<string?> outcome = CommandOutcome.Success<string?>(null);
 
-        Assert.True(outcome.IsSuccess);
+        Assert.True(outcome.Succeeded);
         Assert.Equal(CommandExitCategory.Success, outcome.ExitCategory);
         Assert.Null(outcome.Value);
         Assert.Null(outcome.Fault);
@@ -174,7 +174,7 @@ internal sealed class ContractTests
         {
             CommandOutcome<string> outcome = CommandOutcome.Failure<string>(category, fault);
 
-            Assert.False(outcome.IsSuccess);
+            Assert.False(outcome.Succeeded);
             Assert.Equal(category, outcome.ExitCategory);
             Assert.Null(outcome.Value);
             Assert.Same(fault, outcome.Fault!);
