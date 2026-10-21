@@ -84,7 +84,7 @@
       "runic.commandline.processes": {
         "type": "Project",
         "dependencies": {
-          "Runic.CommandLine": "[0.6.0-preview.4, )"
+          "Runic.CommandLine": "[0.8.0, )"
         }
       }
     }

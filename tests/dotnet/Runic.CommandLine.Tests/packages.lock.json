@@ -110,20 +110,20 @@
       "runic.commandline.processes": {
         "type": "Project",
         "dependencies": {
-          "Runic.CommandLine": "[0.7.0-preview.3, )"
+          "Runic.CommandLine": "[0.8.0, )"
         }
       },
       "runic.commandline.spectre": {
         "type": "Project",
         "dependencies": {
-          "Runic.CommandLine": "[0.7.0-preview.3, )",
+          "Runic.CommandLine": "[0.8.0, )",
           "Spectre.Console": "[0.57.2, 0.58.0)"
         }
       },
       "runic.commandline.testing": {
         "type": "Project",
         "dependencies": {
-          "Runic.CommandLine": "[0.7.0-preview.3, )"
+          "Runic.CommandLine": "[0.8.0, )"
         }
       },
       "Microsoft.CodeAnalysis.Analyzers": {
