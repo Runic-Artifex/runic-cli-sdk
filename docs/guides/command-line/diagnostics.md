@@ -8,7 +8,7 @@ tag of the package you use, so the page always matches your version.
 
 | Codes | Reported by | Where it appears |
 |---|---|---|
-| `RCLI0002`–`RCLI0025` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
+| `RCLI0002`–`RCLI0026` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
 | `RCLI1001`–`RCLI1016` | Parser | Usage diagnostics (exit code 2) |
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
@@ -220,10 +220,10 @@ text resources or correct its spelling. With `RUNIC_COMMANDLINE_DEBUG=1`,
 ### RCLI0024
 
 JSON output alias conflict. The alias declared with
-`CommandCatalogBuilder.JsonOutputAlias`, such as `--json`, is `--output` (the
-default output selector, which would make the flag mean something else under a
-host whose transport option has another name), is also the name or an alias of
-a command option, or catalogs combined with
+`CommandCatalogBuilder.JsonOutputAlias`, such as `--json`, is spelled like the
+catalog's output selector (`--format` unless `CommandCatalogBuilder.OutputSelector`
+declares another) or one of the selector's hidden aliases, is also the name or
+an alias of a command option, or catalogs combined with
 `CommandCatalog.Combine` declare different aliases or the same alias with
 different output shapes (`JsonOutputShape`). The alias is recognized
 before any command option, so remove the option, or keep it and do not declare
@@ -233,10 +233,22 @@ the alias.
 
 Completion option conflict. The option declared with
 `CommandCatalogBuilder.CompletionOption`, such as `--completions`, is also the
-name or an alias of a command option, is `--output` or the JSON output alias,
-or catalogs combined with `CommandCatalog.Combine` declare different completion
-options. The option is recognized before the command line is parsed, so rename
-one of them.
+name or an alias of a command option, is spelled like the output selector, one
+of its hidden aliases or the JSON output alias, or catalogs combined with
+`CommandCatalog.Combine` declare different completion options. The option is
+recognized before the command line is parsed, so rename one of them.
+
+### RCLI0026
+
+Output selector conflict. A command option's name or alias is spelled like the
+catalog's output selector or one of its hidden aliases, or catalogs combined
+with `CommandCatalog.Combine` declare different output selectors (a different
+name or different hidden aliases). The selector is `--format` unless
+`CommandCatalogBuilder.OutputSelector` declares another, so an option named
+`--format` conflicts by default. The selector is recognized before any command
+option, so rename the option, or declare another selector, for example
+`OutputSelector("--output")`. A catalog that declares no selector takes the
+selector of the catalogs it is combined with.
 
 ## Parsing
 
@@ -284,16 +296,18 @@ instead of `-ab`.
 
 ### RCLI1010
 
-`invalid-output-mode`: the output selector (`--output`, or the host's
-transport option) or `RUNIC_COMMANDLINE_OUTPUT` names a value other than
-`human` or `json`, compared case-insensitively. The value itself is never
-echoed.
+`invalid-output-mode`: the output selector (`--format`, or the one the catalog
+declares with `CommandCatalogBuilder.OutputSelector`), one of its hidden aliases
+or `RUNIC_COMMANDLINE_OUTPUT` names a value other than `human` or `json`,
+compared case-insensitively. The diagnostic names the selector, also when a
+hidden alias was given. The value itself is never echoed.
 
 ### RCLI1011
 
-`transport-output-option-collision`: a hosted application's transport output
-option, such as `--runic-output`, is also an option of the matched command.
-Rename one of them.
+`transport-output-option-collision`: the output selector is also an option of
+the matched command. Catalog validation already rejects such a catalog with
+`RCLI0026`, so the parser reports this only for a catalog that bypassed it.
+Rename the option or declare another selector.
 
 ### RCLI1012
 
@@ -317,12 +331,12 @@ lists the choices unless the option is sensitive or the list is too long.
 
 ### RCLI1016
 
-`conflicting-output-selector`: the output selector (`--output`, or the host's
-transport option) and the application's JSON output alias, such as `--json`,
-were both given. Each selects the output format, so give one of them. The
-diagnostic names both spellings and points at the later one. The same alias
-given twice is `RCLI1007`, and the alias with a value, as in `--json=true`, is
-`RCLI1004`.
+`conflicting-output-selector`: two different spellings that select the output
+format were both given: the output selector (`--format`, or the one the
+catalog declares), one of its hidden aliases, or the application's JSON output
+alias, such as `--json`. Give one of them. The diagnostic names both spellings
+and points at the later one. The same spelling given twice is `RCLI1007`, and
+the JSON alias with a value, as in `--json=true`, is `RCLI1004`.
 
 ## Binding and validation
 
@@ -356,7 +370,7 @@ environment variable, and names that variable.
 
 The command was cancelled, for example by Ctrl+C, before it completed. Ctrl+C,
 Escape or the end of input while a `CommandPrompts` prompt waits also cancel the
-command this way. The exit category is `Cancelled`, exit code 4.
+command this way. The exit category is `Cancelled`, exit code 130.
 
 ### RCLI4001
 
@@ -375,7 +389,7 @@ category is `Usage`, exit code 2.
 The command failed unexpectedly: it threw an exception, or its fault had a code
 that is not a valid identifier. The exception is not written to the output. Set
 `RUNIC_COMMANDLINE_DEBUG=1` to write it to standard error, or log it with
-`CommandApp.ExceptionObserver`. The exit category is `HostFailure`, exit code 70.
+`CommandApp.ExceptionObserver`. The exit category is `HostFailure`, exit code 3.
 
 ## Processes
 

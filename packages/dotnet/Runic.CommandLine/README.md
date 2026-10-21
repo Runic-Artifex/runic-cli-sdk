@@ -50,7 +50,7 @@ internal static class Commands
 ```
 
 `hello`, `hello Ada`, and `hello greet Ada` execute the default command.
-`hello help greet` and `hello greet --help` show catalog help. `hello --output json
+`hello help greet` and `hello greet --help` show catalog help. `hello --format json
 greet Ada` emits one versioned response. An application without a default command
 shows help for an empty invocation; the lower-level parser retains its existing
 empty-input classification for hosted UI launch decisions.
@@ -64,6 +64,32 @@ Hand-built catalogs call `builder.RootCommand("greet")`.
 
 See the runnable [command-line example](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/README.md).
 
+### Choose the output selector
+
+`--format human|json` selects human or JSON output, before or after the command
+and never after `--`; `RUNIC_COMMANDLINE_OUTPUT` applies when it is absent. The
+catalog owns the spelling, because it is part of the application's grammar, so
+help, completion, the hosting adapter and every runner use the same one. Declare
+another spelling, and optionally hidden aliases that keep former spellings
+working, on the catalog builder:
+
+```csharp
+// Keep the spelling of 0.7 and earlier.
+CommandCatalog legacy = GeneratedCommandCatalog.Create(builder => builder.OutputSelector("--output"));
+// Adopt --format and keep accepting --output without showing it.
+CommandCatalog adopted = GeneratedCommandCatalog.Create(builder => builder.OutputSelector("--format", "--output"));
+```
+
+A hidden alias parses exactly like the selector (`--output json`,
+`--output=json`, before the command), but help, completions and "did you mean"
+suggestions show only the selector, and diagnostics about the value name the
+selector. Giving the selector and an alias is a usage error (`RCLI1016`), as is
+giving one spelling twice (`RCLI1007`). A command option spelled like the selector
+or an alias fails catalog validation with `RCLI0026`, including an option named
+`--format` when the catalog declares no selector: rename the option, or declare
+another selector. `CommandCatalog.Combine` requires the combined catalogs to
+declare the same selector; a catalog that declares none takes the declared one.
+
 ### Keep an existing `--json` flag
 
 An application that already has a `--json` flag can keep its users' command
@@ -73,12 +99,13 @@ lines by declaring the flag as an alias of the output selector:
 CommandCatalog catalog = GeneratedCommandCatalog.Create(builder => builder.JsonOutputAlias("--json"));
 ```
 
-`hello greet Ada --json` is then `hello greet Ada --output json`. The flag takes
+`hello greet Ada --json` is then `hello greet Ada --format json`. The flag takes
 no value, is recognized wherever the selector is (also before the command, never
-after `--`), maps to a host's transport option such as `--runic-output`, and is
-listed in help and completions. Giving both `--json` and `--output` is a usage
-error (`RCLI1016`), and a command option spelled `--json` fails catalog
-validation (`RCLI0024`).
+after `--`), stands for the catalog's selector whatever its spelling, and is
+listed in help and completions. Giving both `--json` and `--format` is a usage
+error (`RCLI1016`), and a command option spelled `--json`, or an alias spelled
+like the selector or one of its hidden aliases, fails catalog validation
+(`RCLI0024`).
 
 When the existing flag's consumers read the bare document rather than an
 envelope, declare it with the payload shape:
@@ -98,7 +125,7 @@ exactly in place of the `CODE: message` fault line, so a legacy contract keeps i
 own error text; without `humanOutput` the fault line is written. The exit code is the one the
 envelope would report. Help, version and usage errors on a command line that
 gives the flag are human text, so `hello --bogus --json` writes its `RCLI1001`
-line to standard error. `--output json` and `RUNIC_COMMANDLINE_OUTPUT=json` keep
+line to standard error. `--format json` and `RUNIC_COMMANDLINE_OUTPUT=json` keep
 writing the `runic.commandline/1` envelope, and `CommandExecutionContext.OutputShape`
 tells a handler or a custom outcome sink which shape was selected. Failure data
 keeps its 65,536-byte bound, because the same outcome can also be written as an
@@ -212,11 +239,33 @@ contracts during migration.
 
 Ctrl+C (SIGINT), SIGTERM and SIGQUIT (Ctrl+Break on Windows) cancel the
 invocation's token, so a handler that honors it stops gracefully and returns the
-`Cancelled` exit code; service managers that send SIGTERM get the same graceful
-stop. A second signal while the invocation still runs exits the process at once
-with 128 plus the signal number (130 for Ctrl+C, 143 for SIGTERM, 131 for
-SIGQUIT). Set `HandleTerminationSignals = false` when an embedding host already owns
-process signals; the runtime's default signal handling then applies.
+`Cancelled` exit code, 130, as a shell reports an interrupted command; service
+managers that send SIGTERM get the same graceful stop. A repeated signal while the
+invocation still runs exits the process at once with 128 plus the signal number
+(130 for Ctrl+C, 143 for SIGTERM, 131 for SIGQUIT). Set
+`HandleTerminationSignals = false` when an embedding host already owns process
+signals; the runtime's default signal handling then applies.
+
+Cleanup that must finish, such as stopping a child process tree or removing what
+the command created, holds a shutdown protection scope. While one is alive, a
+repeated signal does not exit the process; the invocation stays cancelled, and
+after the last scope is disposed the next signal exits again:
+
+```csharp
+catch (OperationCanceledException)
+{
+    using (context.ProtectShutdown())
+    {
+        await RemoveCreatedResourcesAsync(CancellationToken.None);
+    }
+
+    throw;
+}
+```
+
+`CommandExecutionContext.ProtectShutdown()` has no effect when `CommandApp` does
+not handle the signals: with `HandleTerminationSignals = false`, under the
+hosting adapter or with a directly used `CommandExecutor`.
 
 The exit codes follow the Unix 128-plus-signal convention; Windows uses the same
 values. On Windows, Ctrl+C and Ctrl+Break map to SIGINT and SIGQUIT, and SIGTERM
@@ -282,7 +331,8 @@ checks the framing only: one unpadded JSON value ending in exactly one LF. It
 returns a `JsonDocument` and does not validate the envelope's members, its
 success and failure rules, limits or payload type; for that, read the frame with
 `CommandJsonEnvelopeReader.Read<T>(frame, expectedPayloadType, typeInfo)`. Supply
-explicit ParseSettings to keep environment-dependent tests deterministic.
+explicit ParseSettings, for example `CommandTestEnvironment.Capture(variables)`, to
+keep environment-dependent tests deterministic.
 
 ## Interactive prompts
 
@@ -354,7 +404,7 @@ standard error, and the runner's backpressure applies.
 | Situation | Prompt with a default | Prompt without a default |
 | --- | --- | --- |
 | Interactive console | Asks; Enter alone accepts the default | Asks |
-| JSON output (`--output json`, `RUNIC_COMMANDLINE_OUTPUT=json` or a declared `--json` alias) | Returns the default | Exit code 2, `RCLI4001` `prompt-json-output` |
+| JSON output (`--format json`, `RUNIC_COMMANDLINE_OUTPUT=json` or a declared `--json` alias) | Returns the default | Exit code 2, `RCLI4001` `prompt-json-output` |
 | Console not interactive (standard input or standard error redirected) | Returns the default | Exit code 2, `RCLI4001` `prompt-requires-terminal` |
 | `RUNIC_COMMANDLINE_NO_INPUT` is `1`, `true` or `yes`, or `interactive: false` | Returns the default | Exit code 2, `RCLI4001` `prompt-disabled` |
 
@@ -378,7 +428,7 @@ take no input: they still animate or are styled on a terminal that can redraw,
 and write plain lines only with JSON output or without such a terminal.
 
 **Cancelling.** Ctrl+C while a prompt waits cancels the command with exit code
-4 (`RCLI4000`); so do Escape and the end of input (Ctrl+D) at a line prompt. The
+130 (`RCLI4000`); so do Escape and the end of input (Ctrl+D) at a line prompt. The
 prompt leaves a "Cancelled" summary line and shows the cursor again. The cursor
 also comes back when a second Ctrl+C exits the process at once, and with
 `HandleTerminationSignals = false`, where SIGINT, SIGTERM and SIGQUIT keep their
@@ -465,17 +515,20 @@ CommandAppTestResult result = await tester.RunAsync(["init"]);
 | Code | Category | Typical cause |
 | --- | --- | --- |
 | 0 | `Success` | The command succeeded, or help, version or a completion script was written. |
+| 1 | `CommandFailure` | The command reported an expected failure. |
+| 1 | `Unavailable` | A required resource or service was unavailable, including "not found". |
 | 2 | `Usage` | Unknown command or option, missing, malformed or out-of-range input (`RCLI1xxx`, `RCLI2xxx`), or a prompt that cannot ask (`RCLI4001`). |
-| 3 | `Validation` | A handler rejected well-formed input, for example a business rule. |
-| 4 | `Cancelled` | Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation, or the user cancelled a prompt. |
-| 5 | `Unavailable` | A required resource or service was unavailable, including "not found". |
-| 10 | `CommandFailure` | The command reported another expected failure. |
-| 70 | `HostFailure` | An unexpected exception or infrastructure failure (`RCLI5000`). |
-| 130, 131, 143 | none | A second termination signal while the invocation still runs (128 plus the signal number). |
+| 2 | `Validation` | A handler rejected well-formed input, for example a business rule. |
+| 3 | `HostFailure` | An unexpected exception or infrastructure failure (`RCLI5000`). |
+| 130 | `Cancelled` | Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation, or the user cancelled a prompt. |
+| 130, 131, 143 | none | A repeated termination signal while the invocation still runs (128 plus the signal number). |
 
+These are the codes every Runic tool reports: 1 for failures and 2 for usage, as
+the dotnet CLI does, and 130 for an interrupted command, as a shell does. The
+categories stay distinct in `CommandExitCategory`, the JSON fault and observers.
 A handler selects a failure category with `CommandOutcome.Failure<T>(category,
-fault)`. A custom `IExitCodePolicy` may remap the failure codes, but zero always
-means success.
+fault)`. A custom `IExitCodePolicy` may give categories distinct codes, for
+example the former 3, 4, 5, 10 and 70, but zero always means success.
 
 Set `HelpUri` on a `CommandFault` or `CommandDiagnostic` to link its code to
 your documentation, for example `new CommandFault("RAS1001", "The archive could
@@ -623,10 +676,11 @@ their own default filesystem fallback. The generated scripts require no Python
 runtime. Install scripts explicitly in your shell's
 completion setup (Zsh requires `compinit`); Runic never modifies shell profiles.
 
-`CommandCompletion.Query(catalog, words, outputOptionName)` provides the same
-context query for integrations. Exclude the executable from `words`; the final
-word is the current prefix, or an empty string after trailing whitespace. Existing
-`Generate` overloads remain available.
+`CommandCompletion.Query(catalog, words)` provides the same context query for
+integrations. Exclude the executable from `words`; the final word is the current
+prefix, or an empty string after trailing whitespace.
+`CommandCompletion.Generate(catalog, executable, shell)` writes a script directly.
+Both complete the catalog's output selector, never its hidden aliases.
 See the [complete examples](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/examples/command-line/README.md).
 
 Converters and validators must be closed, accessible class or struct types
@@ -851,10 +905,9 @@ Argument/decision ownership errors in `PresentAsync` remain API usage exceptions
 
 A catalog-owned root command or alias named `completion` takes precedence over the
 built-in script command, and a declared `CompletionOption` replaces it. This works for manual and generated catalogs. Built-in
-scripts use the configured transport selector (for example `--runic-output`).
-With a custom selector, they retain `--output` only if it is an actual catalog
-option. Direct callers can use
-`CommandCompletion.Generate(catalog, executable, shell, outputOptionName)`.
+scripts complete the catalog's output selector (for example `--runic-output`
+after `OutputSelector("--runic-output")`); the hosting adapter and `CommandApp`
+read it from the same catalog, so they agree.
 
 When a global option reuses a command-local definition, its name, arity and alias
 set must match. Alias ordering is irrelevant; mismatches fail catalog validation
@@ -873,10 +926,11 @@ errors identify the parameter and expected type without echoing its value. `help
 <command-path>`, prefix output selection, and empty default-command invocations
 are now accepted. The version-1 machine envelope has not changed.
 
-For applications with their own `--output` option, keep
-`new ParseSettings(transportOutputOptionName: "--runic-output")`. Set its
-`GetEnvironmentVariable` callback if that application also declares parameter
-environment fallbacks. `ParseSettings` itself never reads the process environment.
+For applications with their own `--format` option, declare another selector on
+the catalog, for example `builder.OutputSelector("--runic-output")`. Set the
+`GetEnvironmentVariable` callback of explicit `ParseSettings` if the application
+also declares parameter environment fallbacks. `ParseSettings` itself never reads
+the process environment.
 
 ## Lower-level registration
 
@@ -917,8 +971,8 @@ console.
 
 Set `RUNIC_COMMANDLINE_OUTPUT=json` to write a single UTF-8 JSON response frame
 to stdout; the default is human output. The portable adapter also recognizes an
-explicit `--output human` or `--output json` value, which takes precedence over
-the captured environment value.
+explicit `--format human` or `--format json` value (or the catalog's declared
+selector), which takes precedence over the captured environment value.
 
 ## When to use it
 

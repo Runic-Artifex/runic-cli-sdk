@@ -23,7 +23,7 @@ no scope, console, binder, handler factory, DTO or JSON context.
 
 ```sh
 dotnet run --project examples/command-line/hello-world -- Ada --count 2
-dotnet run --project examples/command-line/hello-world -- Ada --count 2 --output=json
+dotnet run --project examples/command-line/hello-world -- Ada --count 2 --format=json
 dotnet run --project examples/command-line/hello-world -- --help
 ```
 
@@ -57,7 +57,7 @@ human output is independently registered in the factory.
 ```sh
 dotnet run --project examples/command-line -- transform --source input.txt --dry-run
 dotnet run --project examples/command-line -- transform --source input.txt --destination output.txt
-dotnet run --project examples/command-line -- transform --source input.txt --destination output.txt --overwrite --output=json
+dotnet run --project examples/command-line -- transform --source input.txt --destination output.txt --overwrite --format=json
 dotnet run --project examples/command-line -- completion bash
 ```
 
@@ -78,7 +78,7 @@ The standalone entry point supplies the same service so both modes work.
 
 ```sh
 dotnet run --project examples/command-line -- work
-dotnet run --project examples/command-line -- --output=json work
+dotnet run --project examples/command-line -- --format=json work
 dotnet run --project examples/command-line -- --hosted
 dotnet run --project examples/command-line -- --hosted application info
 dotnet run --project examples/command-line -- --hosted help transform

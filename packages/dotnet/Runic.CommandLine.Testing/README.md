@@ -14,12 +14,35 @@ var tester = new CommandAppTester(console => new CommandApp(catalog)
     ParseSettings = ParseSettings.Default,
     HandleTerminationSignals = false,
 });
-var result = await tester.RunAsync(["greet", "Ada", "--output=json"]);
+var result = await tester.RunAsync(["greet", "Ada", "--format=json"]);
 using var frame = CommandTestEnvelope.Parse(result.StandardOutput);
 ```
 
 For prompt tests, construct `TestCommandConsole` with explicit capability flags
 and call `QueueInput`. Each tester run gets fresh output buffers.
+
+## Capture an environment
+
+`CommandTestEnvironment.Capture` builds the `ParseSettings` that `CommandApp`
+captures from the process environment, from a dictionary instead: its
+`RUNIC_COMMANDLINE_OUTPUT` entry selects the output mode, and
+`RUNIC_COMMANDLINE_NO_INPUT` and option environment fallbacks read the same
+entries. The process environment is never read, and later changes to the
+dictionary do not affect the settings.
+
+```csharp
+ParseSettings settings = CommandTestEnvironment.Capture(new Dictionary<string, string?>
+{
+    ["RUNIC_COMMANDLINE_OUTPUT"] = "json",
+    ["RUNIC_COMMANDLINE_NO_INPUT"] = "1",
+});
+var tester = new CommandAppTester(console => new CommandApp(catalog)
+{
+    Console = console, ParseSettings = settings, HandleTerminationSignals = false,
+});
+```
+
+`Capture()` without variables is an empty environment.
 
 ## Test a continuation
 
@@ -56,7 +79,7 @@ var tester = new CommandAppTester(console => new CommandApp(catalog) { Console =
 };
 ```
 
-A queued `null` is the end of input, which cancels the command (exit code 4).
+A queued `null` is the end of input, which cancels the command (exit code 130).
 The default noninteractive console never asks: prompts return their defaults or
 fail with `RCLI4001`. To drive the redrawn terminal prompts, set
 `SupportsAnsi = true` (with `SupportsUnicode` and `Width` as needed) and queue

@@ -14,7 +14,7 @@ dotnet build examples/command-line/localized/LocalizedCli.csproj -c Release
 RCLI_EXAMPLE_CULTURE=en dotnet run --project examples/command-line/localized -c Release --no-build -- greet Ada
 RCLI_EXAMPLE_CULTURE=de dotnet run --project examples/command-line/localized -c Release --no-build -- greet Ada
 RCLI_EXAMPLE_CULTURE=de dotnet run --project examples/command-line/localized -c Release --no-build -- greet --help
-RCLI_EXAMPLE_CULTURE=de dotnet run --project examples/command-line/localized -c Release --no-build -- greet --unknown --output=json
+RCLI_EXAMPLE_CULTURE=de dotnet run --project examples/command-line/localized -c Release --no-build -- greet --unknown --format=json
 python3 examples/command-line/localized/verify.py --configuration Release
 ```
 
