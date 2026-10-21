@@ -2,9 +2,10 @@
 
 Start with the [package-only quick-start](../../README.md#package-only-quick-start):
 install the core package, write one command method, then run human or JSON output.
-The current `0.7.0-preview.3` candidate is distinct from the published
-`0.7.0-preview.2`; these sources are checked against the candidate, not assumed
-to work against earlier package APIs. Use matching versions of `Runic.CommandLine`
+The candidate on `main`, the version in
+[`eng/Versions.props`](../../eng/Versions.props) (next release `0.8.0`), is
+distinct from the latest published `0.7.0-preview.2`; these sources are checked
+against the candidate, not assumed to work against earlier package APIs. Use matching versions of `Runic.CommandLine`
 and optional `Runic.CommandLine.Spectre`.
 The [package-consumer check](../../tests/fixtures/command-line/package-consumer/Runic.CommandLine.PackageConsumer/README.md)
 compiles these tutorial sources against packed NuGet artifacts outside the checkout.
@@ -44,9 +45,14 @@ dotnet run --project examples/command-line -- help config show
 
 [`TransformCommands.cs`](TransformCommands.cs) accepts an existing `FileInfo`,
 a destination path, a dry-run flag and an explicit overwrite flag. It validates
-option relationships and demonstrates an application usage fault. File creation
-uses `CreateNew` unless overwrite was explicitly requested. The result record has
-an AOT-safe JSON context; human output is independently registered in the factory.
+option relationships and demonstrates an application usage fault for a missing
+destination; a destination it cannot create is a command failure, not a usage
+error. File creation uses `CreateNew` unless overwrite was explicitly requested.
+The `CancellationToken` is the last parameter, after the defaulted options. The
+result record has an AOT-safe JSON context with
+`[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]`,
+so the payload reads `{"output":…,"characters":…}` like the envelope around it;
+human output is independently registered in the factory.
 
 ```sh
 dotnet run --project examples/command-line -- transform --source input.txt --dry-run

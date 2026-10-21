@@ -9,13 +9,19 @@ failure.
 ## Install
 
 ```bash
-dotnet add package Runic.CommandLine.Processes --prerelease
+dotnet add package Runic.CommandLine.Processes
 ```
 
-The package targets `net10.0` and brings `Runic.CommandLine` transitively. It is
-a preview package. Use it for trusted application-controlled
-automation, not as a browser-facing execution endpoint or operating-system
-sandbox.
+The package targets `net10.0` and brings `Runic.CommandLine` transitively. Until
+1.0 its version is `0.y.z`: a new minor may contain breaking changes, a patch
+only fixes or adds, and only the latest minor gets fixes. Use it for trusted
+application-controlled automation, not as a browser-facing execution endpoint or
+operating-system sandbox.
+
+The runner runs a child to completion; it does not supervise long-running
+children. It does not forward signals to a child that keeps running, restart
+it, or stop a process tree gracefully on request; an application that hosts a
+development server or another long-lived child manages that process itself.
 
 ## Run an allowlisted tool
 
