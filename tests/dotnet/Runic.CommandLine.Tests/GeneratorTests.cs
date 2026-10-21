@@ -318,6 +318,20 @@ internal sealed class GeneratorTests
         return ValueTask.CompletedTask;
     }
 
+    // A compiler refuses a generator built against a newer Microsoft.CodeAnalysis than its own (CS9057). The lowest
+    // supported .NET 10 SDK feature band, 10.0.1xx, ships Roslyn 5.0.0; Directory.Packages.props pins that version.
+    [Test, DisplayName("generator/references-the-lowest-supported-compiler")]
+    public ValueTask ReferencesLowestSupportedCompiler()
+    {
+        AssemblyName[] references = typeof(CommandLineGenerator).Assembly.GetReferencedAssemblies()
+            .Where(static reference => reference.Name is "Microsoft.CodeAnalysis" or "Microsoft.CodeAnalysis.CSharp")
+            .ToArray();
+        AssertEx.Equal(2, references.Length, string.Join(", ", references.Select(static reference => reference.FullName)));
+        foreach (AssemblyName reference in references)
+            AssertEx.Equal(new Version(5, 0, 0, 0), reference.Version, reference.FullName);
+        return ValueTask.CompletedTask;
+    }
+
     internal static CSharpCompilation CreateCompilation(string source)
     {
         string[] platform = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator);
