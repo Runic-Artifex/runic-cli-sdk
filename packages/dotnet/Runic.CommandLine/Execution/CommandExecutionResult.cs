@@ -20,5 +20,5 @@ public sealed class CommandExecutionResult
     public CommandFault? Fault { get; }
 
     /// <summary>Gets whether execution succeeded.</summary>
-    public bool IsSuccess => ExitCategory == CommandExitCategory.Success;
+    public bool Succeeded => ExitCategory == CommandExitCategory.Success;
 }

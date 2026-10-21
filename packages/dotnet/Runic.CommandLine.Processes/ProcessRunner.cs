@@ -47,13 +47,7 @@ public sealed class ProcessRunner : IProcessRunner
     }
 
 
-    /// <inheritdoc />
-    public ValueTask<ProcessResult> RunAsync(
-        ProcessRequest request,
-        CancellationToken cancellationToken = default) =>
-        RunAsync(request, null, cancellationToken);
-
-    /// <summary>Runs one bounded request and passes its output to a handler while it runs.</summary>
+    /// <summary>Runs one bounded request, passing its output to a handler while it runs when one is given.</summary>
     /// <param name="request">The immutable process request.</param>
     /// <param name="outputHandler">Receives the output while the child runs; null runs the request without one.</param>
     /// <param name="cancellationToken">Caller cancellation.</param>
@@ -64,10 +58,9 @@ public sealed class ProcessRunner : IProcessRunner
     /// <see cref="ProcessFaultCodes.OutputHandlerFailed"/>. After the result is returned, the handler is not called
     /// again; a call that ignores its cancellation token may still be running.
     /// </remarks>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "The required output handler parameter keeps calls unambiguous; the earlier overload is unchanged.")]
     public async ValueTask<ProcessResult> RunAsync(
         ProcessRequest request,
-        IProcessOutputHandler? outputHandler,
+        IProcessOutputHandler? outputHandler = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

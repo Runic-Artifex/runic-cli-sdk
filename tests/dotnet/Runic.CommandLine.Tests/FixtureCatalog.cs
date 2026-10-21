@@ -78,9 +78,7 @@ internal static class FixtureCatalog
                 option.LongName,
                 ReadArity(option.Arity),
                 option.Repeat == "append" ? CommandOptionRepeatPolicy.Append : CommandOptionRepeatPolicy.Error,
-                false,
-                null,
-                option.Aliases);
+                aliases: option.Aliases);
         }
 
         foreach (CorpusArgument argument in definition.Arguments)

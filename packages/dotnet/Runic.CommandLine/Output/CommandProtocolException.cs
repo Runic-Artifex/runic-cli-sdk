@@ -23,5 +23,6 @@ public sealed class CommandProtocolException : Exception
     }
 
     /// <summary>Gets the stable error kind.</summary>
+    /// <remarks>Open: a later minor release may add kinds.</remarks>
     public string Kind { get; }
 }

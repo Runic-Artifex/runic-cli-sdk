@@ -23,7 +23,7 @@ internal sealed class HelpLinkTests
 
     private static byte[] FailureFrame(CommandFault fault, params CommandDiagnostic[] diagnostics) =>
         CommandJsonEnvelopeWriter.Serialize(
-            CommandResponse.Failed<TestResult>("req-help", "pack", 10, fault, diagnostics),
+            CommandResponse.Failure<TestResult>("req-help", "pack", 10, fault, diagnostics),
             TestJsonContext.Default.TestResult);
 
     [Test, DisplayName("help-links/only-absolute-https-links-are-accepted")]
@@ -128,7 +128,7 @@ internal sealed class HelpLinkTests
     {
         var console = new MemoryCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture,
-            CommandResponse.Failed<TestResult>("req-help", "pack", 10, Fault(), [Diagnostic()]), new TestCodec());
+            CommandResponse.Failure<TestResult>("req-help", "pack", 10, Fault(), [Diagnostic()]), new TestCodec());
         AssertEx.Equal(
             "RCLI8002: The archive index is missing.\nHelp for RCLI8002: https://docs.example.com/errors#ras1002\n" +
             "RAS1001: The archive could not be read.\nHelp for RAS1001: https://docs.example.com/errors#ras1001\n",
@@ -136,7 +136,7 @@ internal sealed class HelpLinkTests
 
         var success = new MemoryCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, success, CultureInfo.InvariantCulture,
-            CommandResponse.Succeeded("req-help", "pack", TestCodec.Identity, new TestResult(7, "ok"), [Diagnostic()]), new TestCodec());
+            CommandResponse.Success("req-help", "pack", TestCodec.Identity, new TestResult(7, "ok"), [Diagnostic()]), new TestCodec());
         AssertEx.Equal("7:ok\n", success.StandardOutput);
         AssertEx.Equal("RCLI8002: The archive index is missing.\nHelp for RCLI8002: https://docs.example.com/errors#ras1002\n", success.StandardError);
     }
@@ -150,13 +150,13 @@ internal sealed class HelpLinkTests
         var diagnostic = new CommandDiagnostic("RCLI8001", "archive-unreadable", "The archive could not be read.",
             CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Error) { HelpUri = FaultLink };
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture,
-            CommandResponse.Failed<TestResult>("req-help", "pack", 10, fault, [diagnostic]), new TestCodec());
+            CommandResponse.Failure<TestResult>("req-help", "pack", 10, fault, [diagnostic]), new TestCodec());
         AssertEx.Equal("RCLI8001: The archive could not be read.\nHelp for RCLI8001: https://docs.example.com/errors#ras1001\n", console.StandardError);
 
         // Without a link on the diagnostic, the fault's link still follows it.
         var unlinked = new MemoryCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, unlinked, CultureInfo.InvariantCulture,
-            CommandResponse.Failed<TestResult>("req-help", "pack", 10, fault, [diagnostic with { HelpUri = null }]), new TestCodec());
+            CommandResponse.Failure<TestResult>("req-help", "pack", 10, fault, [diagnostic with { HelpUri = null }]), new TestCodec());
         AssertEx.Equal("RCLI8001: The archive could not be read.\nHelp for RCLI8001: https://docs.example.com/errors#ras1001\n", unlinked.StandardError);
     }
 
@@ -170,7 +170,7 @@ internal sealed class HelpLinkTests
 
         var console = new MemoryCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture,
-            CommandResponse.Failed<TestResult>("req-help", "pack", 10, Fault()), new TestCodec(), context);
+            CommandResponse.Failure<TestResult>("req-help", "pack", 10, Fault()), new TestCodec(), context);
         AssertEx.Equal("RAS1001: Übersetzt.\nHelp for RAS1001: https://docs.example.com/errors#ras1001\n", console.StandardError);
     }
 

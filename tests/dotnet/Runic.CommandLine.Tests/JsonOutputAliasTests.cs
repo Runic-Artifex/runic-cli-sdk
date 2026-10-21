@@ -91,7 +91,7 @@ internal sealed class JsonOutputAliasTests
         var colliding = new CommandCatalogBuilder().JsonOutputAlias("--json");
         CatalogTests.ValidCommand(colliding, "report").Subcommand<TestOptions, TestHandler, TestResult>("list", list =>
             list.BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory()).Produces(new TestCodec())
-                .Option("json", "--as-json", CommandArity.Zero, CommandOptionRepeatPolicy.Error, false, null, "--json"));
+                .Option("json", "--as-json", CommandArity.Zero, aliases: ["--json"]));
         CommandCatalogValidationException collision = AssertEx.Throws<CommandCatalogValidationException>(colliding.Build);
         CommandCatalogIssue issue = collision.Issues.Single();
         AssertEx.Equal("RCLI0024", issue.Code);

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 namespace Runic.CommandLine.Processes;
 
 /// <summary>Identifies one of a child's two output pipes.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum ProcessOutputChannel
 {
     /// <summary>Standard output.</summary>

@@ -24,11 +24,6 @@ internal sealed partial class ProcessOutputTests
 
     private static readonly string[] SplitLines = ["one", "two", "münze", "last"];
 
-    private static readonly string[] ReplayedEvents =
-    [
-        "chunk:StandardOutput", "StandardOutput:a", "StandardOutput:b", "chunk:StandardError", "StandardError:e",
-    ];
-
     [Test, DisplayName("output/interleaved-lines-arrive-in-write-order")]
     public async Task InterleavedLinesArriveInWriteOrderAsync()
     {
@@ -157,14 +152,6 @@ internal sealed partial class ProcessOutputTests
             ["StandardError=3", "StandardOutput+65536", "StandardOutput+65536", "StandardOutput=18928"],
             handler.Parts.OrderBy(part => part, StringComparer.Ordinal).ToArray());
         TestAssert.Equal(new string('O', 150000), handler.Text(ProcessOutputChannel.StandardOutput));
-
-        // The replay of runners that cannot stream marks the parts in the same way.
-        var replayed = new PartRecordingHandler();
-        await ((IProcessRunner)new CapturedRunner(result)).RunAsync(new ProcessRequest("tool"), replayed)
-            .ConfigureAwait(false);
-        TestAssert.SequenceEqual(
-            handler.Parts.OrderBy(part => part, StringComparer.Ordinal).ToArray(),
-            replayed.Parts.OrderBy(part => part, StringComparer.Ordinal).ToArray());
     }
 
     [Test, DisplayName("output/a-stream-handler-writes-one-channel-and-forwards-all-output")]
@@ -195,7 +182,7 @@ internal sealed partial class ProcessOutputTests
         TestAssert.Equal("out-0\nout-1\nout-2\n", lines.ChunkText(ProcessOutputChannel.StandardOutput));
         TestAssert.Equal("err-0\nerr-1\nerr-2\n", lines.ChunkText(ProcessOutputChannel.StandardError));
 
-        // Both channels can share one stream through a second handler, from a runner that cannot stream as well.
+        // Both channels can share one stream through a second handler, also behind a test double's runner.
         using var shared = new MemoryStream();
         var both = new ProcessOutputStreamHandler(ProcessOutputChannel.StandardError, shared,
             new ProcessOutputStreamHandler(ProcessOutputChannel.StandardOutput, shared));
@@ -339,17 +326,6 @@ internal sealed partial class ProcessOutputTests
             output);
     }
 
-    [Test, DisplayName("output/runners-that-cannot-stream-replay-the-capture")]
-    public async Task DefaultImplementationReplaysCaptureAsync()
-    {
-        IProcessRunner runner = new CapturedRunner();
-        var handler = new RecordingHandler();
-        ProcessResult result = await runner.RunAsync(new ProcessRequest("tool"), handler).ConfigureAwait(false);
-
-        TestAssert.Equal(ProcessState.Exited, result.State);
-        TestAssert.SequenceEqual(ReplayedEvents, handler.Events);
-    }
-
     [Test, DisplayName("termination/cancellation-ends-reparented-descendants")]
     public async Task CancellationEndsReparentedDescendantsAsync()
     {
@@ -487,7 +463,7 @@ internal sealed partial class ProcessOutputTests
 
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
-        ProcessResult cancellation = await runner.RunAsync(Request(Unattended, "sleep", "1"), cancelled.Token)
+        ProcessResult cancellation = await runner.RunAsync(Request(Unattended, "sleep", "1"), cancellationToken: cancelled.Token)
             .ConfigureAwait(false);
         OperationCanceledException canceledException =
             TestAssert.Throws<OperationCanceledException>(() => cancellation.EnsureCompleted(cancelled.Token));
@@ -800,10 +776,23 @@ internal sealed partial class ProcessOutputTests
         }
     }
 
-    private sealed class CapturedRunner(ProcessResult? result = null) : IProcessRunner
+    /// <summary>A test double that passes its fixed capture to the handler as one chunk per channel.</summary>
+    private sealed class CapturedRunner : IProcessRunner
     {
-        public ValueTask<ProcessResult> RunAsync(ProcessRequest request, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(result ?? ProcessResult.Exited(0, new ProcessOutput("a\nb"), new ProcessOutput("e\n")));
+        public async ValueTask<ProcessResult> RunAsync(
+            ProcessRequest request, IProcessOutputHandler? outputHandler = null, CancellationToken cancellationToken = default)
+        {
+            ProcessResult result = ProcessResult.Exited(0, new ProcessOutput("a\nb"), new ProcessOutput("e\n"));
+            if (outputHandler is not null)
+            {
+                await outputHandler.OnChunkAsync(new ProcessOutputChunk(ProcessOutputChannel.StandardOutput,
+                    Encoding.UTF8.GetBytes(result.StandardOutput.Text)), cancellationToken).ConfigureAwait(false);
+                await outputHandler.OnChunkAsync(new ProcessOutputChunk(ProcessOutputChannel.StandardError,
+                    Encoding.UTF8.GetBytes(result.StandardError.Text)), cancellationToken).ConfigureAwait(false);
+            }
+
+            return result;
+        }
     }
 
     private sealed class PartRecordingHandler : IProcessOutputHandler

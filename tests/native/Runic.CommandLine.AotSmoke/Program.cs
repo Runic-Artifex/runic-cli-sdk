@@ -31,7 +31,7 @@ internal static class Program
         CommandExecutionResult execution = await new CommandExecutor(EmptyScopeFactory.Instance).ExecuteAsync(
             new CommandExecutionRequest(parse.Invocation, console, CultureInfo.InvariantCulture, "aot-smoke-1"),
             new CommandOutputDispatcher()).ConfigureAwait(false);
-        if (!execution.IsSuccess || execution.ExitCode != CommandExitCodes.Success || !ValidateEnvelope(console.StandardOutput)) return 20;
+        if (!execution.Succeeded || execution.ExitCode != CommandExitCodes.Success || !ValidateEnvelope(console.StandardOutput)) return 20;
 
         var human = new BufferCommandConsole();
         var presenter = new Runic.CommandLine.Spectre.SpectreCommandConsole(human, width: 40, color: false);
@@ -58,7 +58,7 @@ internal static class Program
             CultureInfo.InvariantCulture, "hosted-help").ConfigureAwait(false) != 0 || !hostedHelp.StandardOutput.Contains("ping", StringComparison.Ordinal)) return 60;
         var hostedOutput = new BufferCommandConsole();
         if (!(await hosted.ExecuteAsync(new(hosted.Classify(new(["ping", "--output=json"])), hostedOutput,
-            CultureInfo.InvariantCulture, "hosted-ping", new CommandOutputDispatcher())).ConfigureAwait(false)).IsSuccess) return 70;
+            CultureInfo.InvariantCulture, "hosted-ping", new CommandOutputDispatcher())).ConfigureAwait(false)).Succeeded) return 70;
         using (JsonDocument ping = JsonDocument.Parse(hostedOutput.StandardOutput))
             if (ping.RootElement.GetProperty("payload").GetString() != "pong") return 80;
         int processes = await ProcessSmoke.RunAsync().ConfigureAwait(false);
@@ -121,7 +121,7 @@ internal static class Program
     private static bool ValidateEnvelope(string json)
     {
         using JsonDocument document = JsonDocument.Parse(json);
-        return document.RootElement.GetProperty("protocol").GetString() == CliProtocol.Identity &&
+        return document.RootElement.GetProperty("protocol").GetString() == CommandProtocol.Identity &&
             document.RootElement.GetProperty("payloadType").GetString() == "runic.commandline.smoke/1" &&
             document.RootElement.GetProperty("payload").GetProperty("message").GetString() == "world:2:2.5:3:--app-flag|-3";
     }

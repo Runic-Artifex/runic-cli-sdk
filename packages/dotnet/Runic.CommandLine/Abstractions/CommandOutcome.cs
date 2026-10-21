@@ -30,7 +30,7 @@ public sealed class CommandOutcome<T>
         string? humanOutput,
         CommandFailureData? failureData = null)
     {
-        IsSuccess = isSuccess;
+        Succeeded = isSuccess;
         ExitCategory = exitCategory;
         Value = value;
         Fault = fault;
@@ -40,7 +40,7 @@ public sealed class CommandOutcome<T>
     }
 
     /// <summary>Gets a value indicating whether the command succeeded.</summary>
-    public bool IsSuccess { get; }
+    public bool Succeeded { get; }
 
     /// <summary>Gets the semantic category used to select a process exit code.</summary>
     public CommandExitCategory ExitCategory { get; }
@@ -180,45 +180,16 @@ public static class CommandOutcome
     /// <summary>Creates a failed outcome with a safe fault.</summary>
     /// <param name="category">A failure category.</param>
     /// <param name="fault">The stable, consumer-safe fault.</param>
-    /// <returns>A failed outcome.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="category"/> is <see cref="CommandExitCategory.Success"/>
-    /// or is not a defined category.
-    /// </exception>
-    /// <exception cref="ArgumentNullException"><paramref name="fault"/> is null.</exception>
-    public static CommandOutcome<T> Failure<T>(
-        CommandExitCategory category,
-        CommandFault fault) => Failure<T>(category, fault, null, null);
-
-    /// <summary>Creates a failed outcome with a safe fault and diagnostics.</summary>
-    /// <param name="category">A failure category.</param>
-    /// <param name="fault">The stable, consumer-safe fault.</param>
-    /// <param name="diagnostics">
-    /// Optional binding or execution diagnostics to present with the fault.
-    /// </param>
-    /// <returns>A failed outcome.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="category"/> is <see cref="CommandExitCategory.Success"/>
-    /// or is not a defined category.
-    /// </exception>
-    /// <exception cref="ArgumentNullException"><paramref name="fault"/> is null.</exception>
-    public static CommandOutcome<T> Failure<T>(
-        CommandExitCategory category,
-        CommandFault fault,
-        IReadOnlyList<CommandDiagnostic>? diagnostics) => Failure<T>(category, fault, diagnostics, null);
-
-    /// <summary>
-    /// Creates a failed outcome with a safe fault, diagnostics, and human-only
-    /// standard-output text.
-    /// </summary>
-    /// <param name="category">A failure category.</param>
-    /// <param name="fault">The stable, consumer-safe fault.</param>
     /// <param name="diagnostics">
     /// Optional binding or execution diagnostics to present with the fault.
     /// </param>
     /// <param name="humanOutput">
     /// Optional application-owned text for human standard output only. It is
     /// never serialized into machine output.
+    /// </param>
+    /// <param name="failureData">
+    /// Optional, separately declared domain data, preserved exactly in the machine fault extension. Human
+    /// presentation uses the fault and <paramref name="humanOutput"/>.
     /// </param>
     /// <returns>A failed outcome.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -230,31 +201,15 @@ public static class CommandOutcome
     public static CommandOutcome<T> Failure<T>(
         CommandExitCategory category,
         CommandFault fault,
-        IReadOnlyList<CommandDiagnostic>? diagnostics,
-        string? humanOutput)
+        IReadOnlyList<CommandDiagnostic>? diagnostics = null,
+        string? humanOutput = null,
+        CommandFailureData? failureData = null)
     {
         ArgumentNullException.ThrowIfNull(fault);
         if (category == CommandExitCategory.Success || !Enum.IsDefined(category))
         {
             throw new ArgumentOutOfRangeException(nameof(category));
         }
-
-        return new CommandOutcome<T>(false, category, default, fault, diagnostics, humanOutput);
-    }
-
-    /// <summary>Creates a failed outcome with a safe fault and separately declared domain data.</summary>
-    /// <remarks>Data is preserved exactly in the optional machine fault extension. Human presentation uses the fault and optional human output.</remarks>
-    public static CommandOutcome<T> FailureWithData<T>(
-        CommandExitCategory category,
-        CommandFault fault,
-        CommandFailureData failureData,
-        IReadOnlyList<CommandDiagnostic>? diagnostics = null,
-        string? humanOutput = null)
-    {
-        ArgumentNullException.ThrowIfNull(fault);
-        ArgumentNullException.ThrowIfNull(failureData);
-        if (category == CommandExitCategory.Success || !Enum.IsDefined(category))
-            throw new ArgumentOutOfRangeException(nameof(category));
 
         return new CommandOutcome<T>(false, category, default, fault, diagnostics, humanOutput, failureData);
     }

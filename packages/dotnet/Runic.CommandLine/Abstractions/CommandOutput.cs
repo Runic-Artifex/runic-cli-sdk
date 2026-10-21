@@ -3,6 +3,7 @@ using System;
 namespace Runic.CommandLine;
 
 /// <summary>Identifies the requested command result presentation.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum CommandOutputMode
 {
     /// <summary>Localized presentation intended for a person.</summary>
@@ -13,6 +14,7 @@ public enum CommandOutputMode
 }
 
 /// <summary>Identifies the winning source of an output-mode classification.</summary>
+/// <remarks>Open: a later minor release may add values, so code that switches over them must handle an unknown value.</remarks>
 public enum CommandOutputModeSource
 {
     /// <summary>The caller-provided default was used.</summary>
@@ -26,6 +28,7 @@ public enum CommandOutputModeSource
 }
 
 /// <summary>Identifies what JSON output contains. See <see cref="CommandCatalogBuilder.JsonOutputAlias(string, JsonOutputShape)"/>.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum JsonOutputShape
 {
     /// <summary>One <c>runic.commandline/1</c> response envelope, as the output selector writes it.</summary>

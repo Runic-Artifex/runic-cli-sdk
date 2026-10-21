@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 namespace Runic.CommandLine;
 
 /// <summary>Identifies the command pipeline phase that produced a diagnostic.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum CommandDiagnosticPhase
 {
     /// <summary>The token sequence could not be parsed.</summary>
@@ -18,16 +19,17 @@ public enum CommandDiagnosticPhase
 }
 
 /// <summary>Identifies the presentation severity of a command diagnostic.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum CommandDiagnosticSeverity
 {
-    /// <summary>The invocation cannot continue.</summary>
-    Error = 0,
+    /// <summary>The diagnostic is informational.</summary>
+    Information = 0,
 
     /// <summary>The invocation may continue with a caution.</summary>
     Warning = 1,
 
-    /// <summary>The diagnostic is informational.</summary>
-    Information = 2,
+    /// <summary>The invocation cannot continue.</summary>
+    Error = 2,
 }
 
 /// <summary>Describes a stable, consumer-safe command diagnostic.</summary>
@@ -108,6 +110,7 @@ public sealed record CommandDiagnostic
     public string Code { get; }
 
     /// <summary>Gets the stable symbolic diagnostic kind.</summary>
+    /// <remarks>Open: a later minor release may add kinds; handle an unknown kind like a generic diagnostic.</remarks>
     public string Kind { get; }
 
     /// <summary>Gets the safe presentation message.</summary>

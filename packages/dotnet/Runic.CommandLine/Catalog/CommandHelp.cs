@@ -56,6 +56,7 @@ public sealed class CommandHelp
 }
 
 /// <summary>Describes filesystem completion and validation without selecting a UI toolkit.</summary>
+/// <remarks>Closed: these values are complete, and adding one is a breaking change, so a switch over them may treat any other value as invalid.</remarks>
 public enum CommandPathKind
 {
     /// <summary>No filesystem semantics.</summary>

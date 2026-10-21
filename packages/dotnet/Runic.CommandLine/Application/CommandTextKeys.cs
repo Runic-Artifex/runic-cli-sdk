@@ -30,7 +30,8 @@ public sealed class CommandTextKey
 /// <remarks>
 /// Keys are stable identities: they appear as diagnostic <c>messageKey</c> values in JSON output and never change with the
 /// culture. A resolver returns null for a key it does not translate, and the built-in English text is shown instead.
-/// Applications add their own keys through <c>DescriptionKey</c> metadata and custom diagnostics.
+/// Applications add their own keys through <c>DescriptionKey</c> metadata and custom diagnostics. Open: a later minor
+/// release may add keys; a resolver that does not know one returns null.
 /// </remarks>
 public static class CommandTextKeys
 {

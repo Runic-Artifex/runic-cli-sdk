@@ -65,7 +65,7 @@ internal static class Program
             };
             ProcessResult result = await runner.RunAsync(new ProcessRequest(
                 executable, new[] { "--tool", tool }, environment: environment, options: options),
-                cancellation.Token).ConfigureAwait(false);
+                cancellationToken: cancellation.Token).ConfigureAwait(false);
             if (result.State != ProcessState.Exited || result.ExitCode != 0 ||
                 result.StandardOutput.IsTruncated || result.StandardOutput.DrainTimedOut)
             {

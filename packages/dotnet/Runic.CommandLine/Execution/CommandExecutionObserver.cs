@@ -3,6 +3,7 @@ using System;
 namespace Runic.CommandLine;
 
 /// <summary>Identifies safe execution lifecycle events.</summary>
+/// <remarks>Open: a later minor release may add values, so code that switches over them must handle an unknown value.</remarks>
 public enum CommandExecutionEventKind
 {
     /// <summary>A valid invocation scope was created.</summary>

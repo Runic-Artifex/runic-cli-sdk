@@ -121,7 +121,7 @@ internal static class Program
         var console = new BufferCommandConsole();
         HostedCommandLineExecutionResult execution = await adapter.ExecuteAsync(
             new HostedCommandLineExecutionInput(decision, console, CultureInfo.InvariantCulture, "package-consumer-1", new CommandOutputDispatcher())).ConfigureAwait(false);
-        if (!execution.IsSuccess) return 20;
+        if (!execution.Succeeded) return 20;
         using JsonDocument json = JsonDocument.Parse(console.StandardOutput);
         if (json.RootElement.GetProperty("payload").GetProperty("message").GetString() != "Hello, world! application 3 --app-flag|-3|literal") return 30;
         if (json.RootElement.GetProperty("diagnostics").GetArrayLength() != 1 ||
@@ -135,7 +135,7 @@ internal static class Program
         var humanConsole = new BufferCommandConsole();
         HostedCommandLineExecutionResult humanExecution = await adapter.ExecuteAsync(
             new HostedCommandLineExecutionInput(humanDecision, humanConsole, CultureInfo.InvariantCulture, "package-consumer-2", new CommandOutputDispatcher())).ConfigureAwait(false);
-        if (!humanExecution.IsSuccess || humanConsole.StandardOutput.Length == 0 ||
+        if (!humanExecution.Succeeded || humanConsole.StandardOutput.Length == 0 ||
             humanConsole.StandardError != "RCLI3001: The generated result format is deprecated.\n") return 33;
 
         HostedCommandLineDecision failureHumanDecision = adapter.Classify(
@@ -182,7 +182,7 @@ internal static class Program
         if (recoveryExit != CommandExitCodes.Cancelled || recoveryConsole.StandardError.Length != 0) return 100;
         CommandResponse<ConsumerRecovery> recoveryResponse = CommandJsonEnvelopeReader.Read(
             Encoding.UTF8.GetBytes(recoveryConsole.StandardOutput), "runic.consumer-recovery/1", RecoveryJsonContext.Default.ConsumerRecovery);
-        if (recoveryResponse.Success || recoveryResponse.ExitCode != CommandExitCodes.Cancelled ||
+        if (recoveryResponse.Succeeded || recoveryResponse.ExitCode != CommandExitCodes.Cancelled ||
             recoveryResponse.PayloadType is not null || recoveryResponse.Payload is not null ||
             recoveryResponse.Fault?.Code != "RCLI3000" ||
             recoveryResponse.FailureData is not { } recoveryData ||
@@ -200,7 +200,7 @@ internal static class Program
 
         // A help link survives JSON and human output, while the URL in the message is still redacted.
         var helpLink = new Uri("https://docs.example.com/errors#rcli8001");
-        CommandResponse<string> linked = CommandResponse.Failed<string>("req-linked", "linked", 10,
+        CommandResponse<string> linked = CommandResponse.Failure<string>("req-linked", "linked", 10,
             new CommandFault("RCLI8001", "See https://intranet.example.com/x.") { HelpUri = helpLink });
         var linkedJson = new BufferCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Json, linkedJson, CultureInfo.InvariantCulture, linked, CommandResultCodecs.String).ConfigureAwait(false);
@@ -222,9 +222,9 @@ internal static class Program
     [CommandResult("runic.consumer-recovery/1", typeof(RecoveryJsonContext))]
     internal static CommandOutcome<ConsumerRecovery> Recover([Option("--success")] bool success) => success
         ? CommandOutcome.Success(RecoveryReport)
-        : CommandOutcome.FailureWithData<ConsumerRecovery>(CommandExitCategory.Cancelled,
+        : CommandOutcome.Failure<ConsumerRecovery>(CommandExitCategory.Cancelled,
             new CommandFault("RCLI3000", "The operation was cancelled."),
-            CommandFailureData.Create("runic.consumer-recovery/1", RecoveryReport, RecoveryJsonContext.Default.ConsumerRecovery));
+            failureData: CommandFailureData.Create("runic.consumer-recovery/1", RecoveryReport, RecoveryJsonContext.Default.ConsumerRecovery));
 
     [Command("ping")]
     internal static string Ping() => "pong";
@@ -257,7 +257,7 @@ internal static class Program
         string fileName = OperatingSystem.IsWindows() ? Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe" : "/bin/sh";
         string[] arguments = OperatingSystem.IsWindows() ? ["/d", "/c", "exit", "0"] : ["-c", "exit 0"];
         ProcessResult child = await new ProcessRunner(new LocalExecutablePolicy()).RunAsync(
-            new ProcessRequest(fileName, arguments, options: new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10))), cancellationToken).ConfigureAwait(false);
+            new ProcessRequest(fileName, arguments, options: new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(10))), cancellationToken: cancellationToken).ConfigureAwait(false);
         if (child.State != ProcessState.Exited || child.ExitCode != 0) throw new InvalidOperationException("The bounded process command failed.");
         return CommandOutcome.Success(
             new ConsumerResult($"Hello, {name}! {output} {documents.Count} {string.Join('|', appArgs)}"),

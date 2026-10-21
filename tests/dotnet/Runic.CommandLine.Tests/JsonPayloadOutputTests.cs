@@ -76,12 +76,12 @@ internal sealed class JsonPayloadOutputTests
 
     [Command("payload-failure")]
     internal static CommandOutcome<string> PayloadFailure([Option("--human-text")] bool humanText = false) =>
-        CommandOutcome.FailureWithData<string>(
+        CommandOutcome.Failure<string>(
             CommandExitCategory.CommandFailure,
             new CommandFault("TEST0001", "The operation failed."),
-            CommandFailureData.Create("tests.payload-failure/1", LeftItems, RecoveryJsonContext.Default.StringArray),
             [new CommandDiagnostic("RCLI3999", "skipped", "Some items were skipped.", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Warning)],
-            humanText ? "Error: the operation failed.\n" : null);
+            humanText ? "Error: the operation failed.\n" : null,
+            CommandFailureData.Create("tests.payload-failure/1", LeftItems, RecoveryJsonContext.Default.StringArray));
 
     [Test, DisplayName("output-alias-payload/framework-output-stays-human")]
     public async ValueTask FrameworkOutputStaysHuman()

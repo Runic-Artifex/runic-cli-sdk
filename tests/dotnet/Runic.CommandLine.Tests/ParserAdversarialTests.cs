@@ -214,7 +214,7 @@ internal sealed class ParserAdversarialTests
 
         ParseOutcome nestedCommand = PortableCommandSyntaxAdapter.Instance.Parse(
             outputProbeCatalog,
-            ["root", "nested", "--unknown=secret", "--runic-output=JSON"],
+            ["group", "nested", "--unknown=secret", "--runic-output=JSON"],
             settings);
         AssertErrorOutput(nestedCommand, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
 
@@ -234,8 +234,8 @@ internal sealed class ParserAdversarialTests
         AssertSpecialOutput(catalog, ["status", "--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "status");
         AssertSpecialOutput(outputProbeCatalog, ["application-argument", "--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "fallback");
         AssertSpecialOutput(outputProbeCatalog, ["application-argument", "--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "fallback");
-        AssertSpecialOutput(outputProbeCatalog, ["root", "nested", "--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "root nested");
-        AssertSpecialOutput(outputProbeCatalog, ["root", "nested", "--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "root nested");
+        AssertSpecialOutput(outputProbeCatalog, ["group", "nested", "--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "group nested");
+        AssertSpecialOutput(outputProbeCatalog, ["group", "nested", "--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "group nested");
         AssertSpecialOutput(catalog, ["--help", "--", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "", CommandOutputMode.Human);
         ParseOutcome rootHelpExtra = PortableCommandSyntaxAdapter.Instance.Parse(
             catalog,
@@ -252,13 +252,13 @@ internal sealed class ParserAdversarialTests
             settings);
         AssertErrorOutput(rootHelpTerminator, CommandOutputMode.Human, CommandOutputModeSource.Default);
         AssertEx.Equal("RCLI1013", rootHelpTerminator.Diagnostics.Single().Code);
-        AssertEx.Equal(ParseOutcomeKind.Error, PortableCommandSyntaxAdapter.Instance.Parse(outputProbeCatalog, ["root", "help"], settings).Kind);
+        AssertEx.Equal(ParseOutcomeKind.Error, PortableCommandSyntaxAdapter.Instance.Parse(outputProbeCatalog, ["group", "help"], settings).Kind);
         AssertEx.Equal(ParseOutcomeKind.Error, PortableCommandSyntaxAdapter.Instance.Parse(outputProbeCatalog, ["application-argument", "help"], settings).Kind);
-        AssertEx.Equal(ParseOutcomeKind.Error, PortableCommandSyntaxAdapter.Instance.Parse(outputProbeCatalog, ["root", "nested", "help"], settings).Kind);
+        AssertEx.Equal(ParseOutcomeKind.Error, PortableCommandSyntaxAdapter.Instance.Parse(outputProbeCatalog, ["group", "nested", "help"], settings).Kind);
 
         CommandCatalog boundaryCatalog = CreateTransportBoundaryCatalog("--runic-output");
-        AssertTransportBoundary(boundaryCatalog, ["root", "--runic-output", "/x"], settings);
-        AssertTransportBoundary(boundaryCatalog, ["root", "nested", "--runic-output", "/x"], settings);
+        AssertTransportBoundary(boundaryCatalog, ["group", "--runic-output", "/x"], settings);
+        AssertTransportBoundary(boundaryCatalog, ["group", "nested", "--runic-output", "/x"], settings);
         AssertTransportBoundary(boundaryCatalog, ["application-argument", "--runic-output", "/x"], settings);
 
         ParseOutcome duplicate = PortableCommandSyntaxAdapter.Instance.Parse(
@@ -305,7 +305,7 @@ internal sealed class ParserAdversarialTests
     private static CommandCatalog CreateOutputProbeCatalog(string outputSelector)
     {
         var builder = new CommandCatalogBuilder().OutputSelector(outputSelector);
-        builder.Command<TestOptions, TestHandler, TestResult>("root", command => command
+        builder.Command<TestOptions, TestHandler, TestResult>("group", command => command
             .BindWith(new TestBinder())
             .CreateHandlerWith(new TestHandlerFactory())
             .Produces(new TestCodec())
@@ -361,7 +361,7 @@ internal sealed class ParserAdversarialTests
     private static CommandCatalog CreateTransportBoundaryCatalog(string outputSelector)
     {
         var builder = new CommandCatalogBuilder().OutputSelector(outputSelector);
-        builder.Command<TestOptions, TestHandler, TestResult>("root", command => command
+        builder.Command<TestOptions, TestHandler, TestResult>("group", command => command
             .Option("value", "--value", CommandArity.ExactlyOne, CommandOptionRepeatPolicy.Error, isRequired: false, aliases: ["/x"])
             .BindWith(new TestBinder())
             .CreateHandlerWith(new TestHandlerFactory())

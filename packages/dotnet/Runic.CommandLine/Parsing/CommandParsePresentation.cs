@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 namespace Runic.CommandLine;
 
 /// <summary>Maps parser-owned errors to application-owned presentation and exit behavior.</summary>
-public static class CommandParsePresentation
+internal static class CommandParsePresentation
 {
     /// <summary>Gets an application-selected exit code for a non-invocation parse outcome.</summary>
     public static int GetExitCode(ParseOutcome outcome, Func<CommandDiagnostic, int> mapDiagnostic)

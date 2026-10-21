@@ -22,8 +22,7 @@ reads.
 Use `new SpectreCommandConsole(context.Console).WithProgressAsync(...)` inside a
 handler. Progress receives percentages from 0 to 100; interactive terminals use
 Spectre's live display on stderr. Noninteractive runs emit one status line and do
-not animate. Forward the cancellation token into the operation. `PromptAsync`
-returns its fallback when the invocation cannot interact.
+not animate. Forward the cancellation token into the operation.
 
 For select, multi-select, confirm and text prompts, a spinner or a task log, use
 `CommandPrompts` from `Runic.CommandLine`. When the invocation cannot interact, a

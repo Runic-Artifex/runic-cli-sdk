@@ -41,7 +41,7 @@ internal sealed class ProtocolCorpusTests
     {
         ProtocolManifest manifest = Read("manifest.json", CorpusJsonContext.Default.ProtocolManifest);
         AssertEx.Equal(1, manifest.FormatVersion);
-        AssertEx.Equal(CliProtocol.Identity, manifest.Protocol);
+        AssertEx.Equal(CommandProtocol.Identity, manifest.Protocol);
         AssertEx.Equal(CommandOutputClassifier.EnvironmentVariableName, manifest.OutputEnvironmentVariable);
         AssertEx.Equal("Runic.CommandLine", manifest.ImplementationNamespace);
         AssertEx.Equal("utf-8", manifest.Encoding);
@@ -101,7 +101,7 @@ internal sealed class ProtocolCorpusTests
                 frame,
                 expectedPayloadType,
                 CorpusJsonContext.Default.ProtocolPayload);
-            AssertEx.Equal(test.Document.GetProperty("success").GetBoolean(), response.Success, test.Id);
+            AssertEx.Equal(test.Document.GetProperty("success").GetBoolean(), response.Succeeded, test.Id);
             AssertEx.Equal(test.Document.GetProperty("exitCode").GetInt32(), response.ExitCode, test.Id);
             AssertEx.Equal(test.Document.GetProperty("requestId").GetString(), response.RequestId, test.Id);
             AssertEx.Equal(test.Document.GetProperty("command").GetString(), response.Command, test.Id);
@@ -128,7 +128,7 @@ internal sealed class ProtocolCorpusTests
         byte[] actual = name switch
         {
             "success" => CommandJsonEnvelopeWriter.Serialize(
-                CommandResponse.Succeeded(
+                CommandResponse.Success(
                     "req-export-0001",
                     "export",
                     "sample.export-result/1",
@@ -155,9 +155,9 @@ internal sealed class ProtocolCorpusTests
                     ["/home/ada/assets"] = "dropped",
                 }),
             "declared-failure" => CommandJsonEnvelopeWriter.Serialize(
-                CommandResponse.FailedWithData<ExportPayload>("req-clone-0006", "clone", CommandExitCodes.Cancelled,
+                CommandResponse.Failure<ExportPayload>("req-clone-0006", "clone", CommandExitCodes.Cancelled,
                     new CommandFault("RCLI4000", "The clone was cancelled."),
-                    CommandFailureData.Create("sample.clone-recovery/1", new RecoveryReport("/tmp/Project copy", "feature/tmp/fix", true),
+                    failureData: CommandFailureData.Create("sample.clone-recovery/1", new RecoveryReport("/tmp/Project copy", "feature/tmp/fix", true),
                         RecoveryJsonContext.Default.RecoveryReport)), CorpusJsonContext.Default.ExportPayload),
             _ => throw new InvalidOperationException($"Unknown protocol example '{name}'."),
         };
@@ -167,7 +167,7 @@ internal sealed class ProtocolCorpusTests
             expected,
             name == "success" ? "sample.export-result/1" : "sample.unused/1",
             CorpusJsonContext.Default.ExportPayload);
-        AssertEx.Equal(name == "success", roundTrip.Success);
+        AssertEx.Equal(name == "success", roundTrip.Succeeded);
         return ValueTask.CompletedTask;
     }
 
@@ -202,7 +202,7 @@ internal sealed class ProtocolCorpusTests
         bool retryable = false,
         IReadOnlyList<CommandDiagnostic>? diagnostics = null) =>
         CommandJsonEnvelopeWriter.Serialize(
-            CommandResponse.Failed<ExportPayload>(
+            CommandResponse.Failure<ExportPayload>(
                 requestId,
                 command,
                 exitCode,

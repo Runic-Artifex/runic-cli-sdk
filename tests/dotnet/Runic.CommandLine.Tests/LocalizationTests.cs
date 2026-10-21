@@ -91,7 +91,7 @@ internal sealed class LocalizationTests
     [Test, DisplayName("localization/hosted-presentation-captures-caller-culture")]
     public async ValueTask Hosted()
     {
-        var adapter = new CommandLineHostingAdapter(Catalog(), new CommandExecutor(new TestExecutionScopeFactory(new TestServiceProvider())))
+        var adapter = new CommandLineHostingAdapter(Catalog(), new CommandExecutor(CommandScopes.FromServices(new TestServiceProvider())))
         { Presentation = new CommandPresentation { Name = "hosted", TextResolver = new GermanResolver() } };
         HostedCommandLineDecision decision = adapter.Classify(new HostedCommandLineLaunchInput(["localized", "--help"]));
         var console = new TestCommandConsole();
@@ -109,7 +109,7 @@ internal sealed class LocalizationTests
     {
         var console = new TestCommandConsole();
         var diagnostic = new CommandDiagnostic("RCLI2100", "note", "Safe", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Information);
-        CommandResponse<string> response = CommandResponse.Succeeded("safe-request", "localized", "runic.text/1", "payload", [diagnostic]);
+        CommandResponse<string> response = CommandResponse.Success("safe-request", "localized", "runic.text/1", "payload", [diagnostic]);
         var context = new CommandTextContext(CultureInfo.InvariantCulture, new UnsafeResolver());
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Json, console, context.Culture, response, CommandResultCodecs.String, context);
         AssertEx.True(!console.StandardOutput.Contains("private-secret", StringComparison.Ordinal));
@@ -130,7 +130,7 @@ internal sealed class LocalizationTests
             Culture = CultureInfo.GetCultureInfo("de-DE"), TextResolver = new GermanResolver() };
         AssertEx.Equal(2, await app.RunAsync(["completion", "unknown"]));
         AssertEx.Equal("Shell auswählen: bash, zsh, fish oder powershell.\n", console.StandardError);
-        var adapter = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TestExecutionScopeFactory(new TestServiceProvider())))
+        var adapter = new CommandLineHostingAdapter(catalog, new CommandExecutor(CommandScopes.FromServices(new TestServiceProvider())))
         { Presentation = new CommandPresentation { TextResolver = new GermanResolver() } };
         var decision = adapter.Classify(new HostedCommandLineLaunchInput(["completion", "unknown"]));
         console = new();

@@ -10,7 +10,36 @@ internal sealed class ContractTests
     [Test, DisplayName("protocol identity is stable")]
     public void ProtocolIdentityIsStable()
     {
-        Assert.Equal("runic.commandline/1", CliProtocol.Identity);
+        Assert.Equal("runic.commandline/1", CommandProtocol.Identity);
+        Assert.True(typeof(CommandProtocol).IsAbstract && typeof(CommandProtocol).IsSealed);
+        Assert.Equal("Runic.CommandLine", typeof(CommandProtocol).Namespace);
+        Assert.Null(typeof(CommandProtocol).Assembly.GetType("Runic.CommandLine.CliProtocol"));
+    }
+
+    [Test, DisplayName("diagnostic severity starts at information")]
+    public void DiagnosticSeverityStartsAtInformation()
+    {
+        Assert.Equal(CommandDiagnosticSeverity.Information, default(CommandDiagnosticSeverity));
+        Assert.Equal(0, (int)CommandDiagnosticSeverity.Information);
+        Assert.Equal(1, (int)CommandDiagnosticSeverity.Warning);
+        Assert.Equal(2, (int)CommandDiagnosticSeverity.Error);
+        Assert.SequenceEqual(
+            [nameof(CommandDiagnosticSeverity.Information), nameof(CommandDiagnosticSeverity.Warning), nameof(CommandDiagnosticSeverity.Error)],
+            Enum.GetNames<CommandDiagnosticSeverity>());
+    }
+
+    [Test, DisplayName("generated-code support types live in the Generated namespace")]
+    public void GeneratedCodeSupportTypes()
+    {
+        foreach (Type type in new[] { typeof(Runic.CommandLine.Generated.GeneratedCommandBinding), typeof(Runic.CommandLine.Generated.GeneratedCommandBindingException) })
+        {
+            Assert.Equal("Runic.CommandLine.Generated", type.Namespace);
+            Assert.True(type.IsPublic);
+            var browsable = (System.ComponentModel.EditorBrowsableAttribute?)Attribute.GetCustomAttribute(
+                type, typeof(System.ComponentModel.EditorBrowsableAttribute), inherit: false);
+            Assert.Equal(System.ComponentModel.EditorBrowsableState.Never, browsable?.State);
+            Assert.Null(type.Assembly.GetType("Runic.CommandLine." + type.Name));
+        }
     }
 
     [Test, DisplayName("exit category names are stable")]
@@ -46,7 +75,7 @@ internal sealed class ContractTests
     {
         CommandOutcome<string> outcome = CommandOutcome.Success("payload");
 
-        Assert.True(outcome.IsSuccess);
+        Assert.True(outcome.Succeeded);
         Assert.Equal(CommandExitCategory.Success, outcome.ExitCategory);
         Assert.Equal("payload", outcome.Value);
         Assert.Null(outcome.Fault);
@@ -57,7 +86,7 @@ internal sealed class ContractTests
     {
         CommandOutcome<string?> outcome = CommandOutcome.Success<string?>(null);
 
-        Assert.True(outcome.IsSuccess);
+        Assert.True(outcome.Succeeded);
         Assert.Equal(CommandExitCategory.Success, outcome.ExitCategory);
         Assert.Null(outcome.Value);
         Assert.Null(outcome.Fault);
@@ -174,7 +203,7 @@ internal sealed class ContractTests
         {
             CommandOutcome<string> outcome = CommandOutcome.Failure<string>(category, fault);
 
-            Assert.False(outcome.IsSuccess);
+            Assert.False(outcome.Succeeded);
             Assert.Equal(category, outcome.ExitCategory);
             Assert.Null(outcome.Value);
             Assert.Same(fault, outcome.Fault!);

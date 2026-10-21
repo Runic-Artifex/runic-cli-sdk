@@ -422,6 +422,15 @@ public sealed class CommandBuilder<TOptions, THandler, TResult>
     }
 
     /// <summary>Adds a parser-neutral option.</summary>
+    /// <param name="id">The stable option identifier.</param>
+    /// <param name="name">The long option spelling, such as <c>--name</c>.</param>
+    /// <param name="arity">How many values the option takes.</param>
+    /// <param name="repeatPolicy">What happens when the option is given more than once.</param>
+    /// <param name="isSensitive">Whether values are redacted from help, completion, diagnostics and suggestions.</param>
+    /// <param name="descriptionKey">An optional localization key for the description.</param>
+    /// <param name="isRequired">Whether the option must be given (or supplied by its environment variable).</param>
+    /// <param name="aliases">Further spellings, such as <c>-n</c>.</param>
+    /// <returns>This builder.</returns>
     public CommandBuilder<TOptions, THandler, TResult> Option(
         string id,
         string name,
@@ -429,39 +438,7 @@ public sealed class CommandBuilder<TOptions, THandler, TResult>
         CommandOptionRepeatPolicy repeatPolicy = CommandOptionRepeatPolicy.Error,
         bool isSensitive = false,
         string? descriptionKey = null,
-        params string[] aliases)
-    {
-        _node.AddOption(id, name, arity, repeatPolicy, isSensitive, descriptionKey, isRequired: false, aliases: aliases);
-        return this;
-    }
-
-    /// <summary>Adds a parser-neutral required option.</summary>
-    public CommandBuilder<TOptions, THandler, TResult> Option(
-        string id,
-        string name,
-        CommandArity arity,
-        CommandOptionRepeatPolicy repeatPolicy,
-        bool? isRequired,
-        params string[] aliases)
-    {
-        if (isRequired is null)
-        {
-            throw new ArgumentNullException(nameof(isRequired));
-        }
-
-        _node.AddOption(id, name, arity, repeatPolicy, isSensitive: false, descriptionKey: null, isRequired: isRequired.Value, aliases: aliases);
-        return this;
-    }
-
-    /// <summary>Adds a parser-neutral required option with sensitivity and description metadata.</summary>
-    public CommandBuilder<TOptions, THandler, TResult> Option(
-        string id,
-        string name,
-        CommandArity arity,
-        CommandOptionRepeatPolicy repeatPolicy,
-        bool isSensitive,
-        string? descriptionKey,
-        bool isRequired,
+        bool isRequired = false,
         params string[] aliases)
     {
         _node.AddOption(id, name, arity, repeatPolicy, isSensitive, descriptionKey, isRequired, aliases);
@@ -906,7 +883,7 @@ internal abstract class CommandBuilderNode
 
     private static void ValidateCommandName(string name, string path, List<CommandCatalogIssue> issues)
     {
-        if (!IsIdentifier(name) || name is "help" or "version" or "output")
+        if (!IsIdentifier(name) || name is "help" or "version" or "output" or "root")
         {
             issues.Add(new CommandCatalogIssue("RCLI0002", path, $"Command name or alias '{name}' is invalid or reserved."));
         }

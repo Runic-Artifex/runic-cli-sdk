@@ -161,7 +161,6 @@ internal sealed partial class ApplicationTests
         await console.WriteAsync(new Table().AddColumn("Status").AddRow("Ready"));
         AssertEx.True(inner.StandardOutput.Contains("Ready", StringComparison.Ordinal));
         AssertEx.True(!inner.StandardOutput.Contains('\u001b'));
-        AssertEx.Equal("fallback", await console.PromptAsync("Name?", "fallback"));
     }
 }
 

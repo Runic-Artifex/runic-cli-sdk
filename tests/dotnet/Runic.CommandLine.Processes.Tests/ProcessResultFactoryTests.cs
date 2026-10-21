@@ -29,12 +29,45 @@ internal sealed class ProcessResultFactoryTests
         await TestAssert.ThrowsAsync<OperationCanceledException>(() => ReadToolOutputAsync(runner)).ConfigureAwait(false);
         TestAssert.Equal(5, runner.Requests.Count);
         TestAssert.Equal("tool", runner.Requests[0].FileName);
+    }
 
-        // The default streaming overload replays the fake's capture to a handler.
+    // IProcessRunner has one RunAsync member with an optional handler and no default implementation since 0.8.
+    [Test, DisplayName("fakes/a-runner-implementing-only-run-async-streams-to-the-handler")]
+    public async Task RunnerWithOneMemberStreamsAsync()
+    {
         var lines = new List<string>();
-        await ((IProcessRunner)new FakeRunner(ProcessResult.Exited(3, new ProcessOutput("a\nb\n"), new ProcessOutput("e"))))
+        var streaming = new FakeRunner(ProcessResult.Exited(3, new ProcessOutput("a\nb\n"), new ProcessOutput("e")));
+        ProcessResult streamed = await ((IProcessRunner)streaming)
             .RunAsync(new ProcessRequest("tool"), new LineList(lines)).ConfigureAwait(false);
         TestAssert.SequenceEqual(["StandardOutput:a", "StandardOutput:b", "StandardError:e"], lines);
+        TestAssert.Equal(3, streamed.ExitCode);
+        TestAssert.Equal(1, streaming.Requests.Count);
+
+        // Without a handler the same member only returns the result.
+        IProcessRunner quiet = new FakeRunner(ProcessResult.Exited(0, new ProcessOutput("x\n")));
+        TestAssert.Equal("x\n", (await quiet.RunAsync(new ProcessRequest("tool")).ConfigureAwait(false)).StandardOutput.Text);
+        using var cancelled = new CancellationTokenSource();
+        IProcessRunner named = new FakeRunner(ProcessResult.Exited(0));
+        TestAssert.Equal(ProcessState.Exited,
+            (await named.RunAsync(new ProcessRequest("tool"), cancellationToken: cancelled.Token).ConfigureAwait(false)).State);
+    }
+
+    // ProcessStartFailureCategory starts at Other = 0 since 0.8; the fault keeps the category names.
+    [Test, DisplayName("fakes/start-failure-category-starts-at-other-and-keeps-its-names")]
+    public void StartFailureCategoryStartsAtOther()
+    {
+        TestAssert.Equal(ProcessStartFailureCategory.Other, default(ProcessStartFailureCategory));
+        TestAssert.SequenceEqual(
+            ["Other", "NotFound", "AccessDenied", "InvalidRequest", "Unsupported"],
+            Enum.GetNames<ProcessStartFailureCategory>());
+        foreach (ProcessStartFailureCategory category in Enum.GetValues<ProcessStartFailureCategory>())
+        {
+            ProcessException exception = TestAssert.Throws<ProcessException>(() => ProcessResult.StartFailed(category).EnsureCompleted());
+            TestAssert.Equal(ProcessFaultCodes.StartFailed, exception.Fault.Code);
+            TestAssert.Equal(category.ToString(), exception.Fault.Details["category"]);
+        }
+
+        TestAssert.Equal("Other", TestAssert.Throws<ProcessException>(() => ProcessResult.StartFailed(default).EnsureCompleted()).Fault.Details["category"]);
     }
 
     [Test, DisplayName("fakes/factories-enforce-the-terminal-state-invariants")]
@@ -186,10 +219,26 @@ internal sealed class ProcessResultFactoryTests
 
         public List<ProcessRequest> Requests { get; } = [];
 
-        public ValueTask<ProcessResult> RunAsync(ProcessRequest request, CancellationToken cancellationToken = default)
+        public async ValueTask<ProcessResult> RunAsync(
+            ProcessRequest request, IProcessOutputHandler? outputHandler = null, CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
-            return ValueTask.FromResult(results.Dequeue());
+            ProcessResult result = results.Dequeue();
+            if (outputHandler is not null)
+            {
+                await PassAsync(ProcessOutputChannel.StandardOutput, result.StandardOutput.Text).ConfigureAwait(false);
+                await PassAsync(ProcessOutputChannel.StandardError, result.StandardError.Text).ConfigureAwait(false);
+            }
+
+            return result;
+
+            async ValueTask PassAsync(ProcessOutputChannel channel, string text)
+            {
+                foreach (string line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    await outputHandler.OnLineAsync(new ProcessOutputLine(channel, line), cancellationToken).ConfigureAwait(false);
+                }
+            }
         }
     }
 

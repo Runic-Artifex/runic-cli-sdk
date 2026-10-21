@@ -99,7 +99,7 @@ internal sealed partial class HostingAdapterTests
         var result = await adapter.ExecuteAsync(new(adapter.Classify(new(["run", "--format=json"])), console,
             CultureInfo.InvariantCulture, "fault", new CommandOutputDispatcher()) { ExceptionObserver = exception => observed = exception });
         AssertTrue(ReferenceEquals(failure, observed));
-        AssertTrue(!result.IsSuccess);
+        AssertTrue(!result.Succeeded);
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertTrue(!console.StandardOutput.Contains("private-host-secret", StringComparison.Ordinal));
     }
@@ -307,7 +307,7 @@ internal sealed partial class HostingAdapterTests
         HostedCommandLineExecutionResult result = await bridge.ExecuteAsync(
             new(decision, new SilentConsole(), CultureInfo.InvariantCulture, "bridge-success", sink));
 
-        AssertTrue(result.IsSuccess);
+        AssertTrue(result.Succeeded);
         AssertEqual(CommandExitCodes.Success, result.ExitCode);
         AssertEqual(CommandExitCategory.Success, result.ExitCategory);
         AssertEqual(1, scopes.Created);

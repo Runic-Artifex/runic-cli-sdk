@@ -297,7 +297,7 @@ internal sealed class ProcessRunnerTests
 
             var elapsed = Stopwatch.StartNew();
             ProcessResult result = await CreateRunner().RunAsync(
-                CreateChildRequest(options, "sleep", "30000"), cancellation.Token).ConfigureAwait(false);
+                CreateChildRequest(options, "sleep", "30000"), cancellationToken: cancellation.Token).ConfigureAwait(false);
             AssertTerminated(result, cancel ? ProcessState.Cancelled : ProcessState.TimedOut);
             TestAssert.Equal(0L, result.StandardOutput.ObservedByteCount);
             TestAssert.Equal(0L, result.StandardError.ObservedByteCount);
@@ -471,7 +471,7 @@ internal sealed class ProcessRunnerTests
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
 
         ProcessResult result = await CreateRunner()
-            .RunAsync(CreateChildRequest("sleep", "5000"), cancellation.Token)
+            .RunAsync(CreateChildRequest("sleep", "5000"), cancellationToken: cancellation.Token)
             .ConfigureAwait(false);
 
         AssertTerminated(result, ProcessState.Cancelled);
@@ -486,7 +486,7 @@ internal sealed class ProcessRunnerTests
         cancellation.Cancel();
 
         ProcessResult result = await CreateRunner(observer)
-            .RunAsync(CreateChildRequest("sleep", "1"), cancellation.Token)
+            .RunAsync(CreateChildRequest("sleep", "1"), cancellationToken: cancellation.Token)
             .ConfigureAwait(false);
 
         AssertTerminated(result, ProcessState.Cancelled);
@@ -502,7 +502,7 @@ internal sealed class ProcessRunnerTests
         var runner = new ProcessRunner(policy, observer);
 
         Task<ProcessResult> execution = Task.Run(async () =>
-            await runner.RunAsync(CreateChildRequest("sleep", "5"), cancellation.Token).ConfigureAwait(false));
+            await runner.RunAsync(CreateChildRequest("sleep", "5"), cancellationToken: cancellation.Token).ConfigureAwait(false));
         TestAssert.True(policy.WaitUntilEntered(TimeSpan.FromSeconds(10)), "Policy evaluation did not begin.");
         cancellation.Cancel();
         policy.Release();
@@ -520,7 +520,7 @@ internal sealed class ProcessRunnerTests
             var observer = new RecordingObserver();
             using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(80));
             ProcessResult result = await CreateRunner(observer)
-                .RunAsync(CreateChildRequest("sleep", "80", "7"), cancellation.Token)
+                .RunAsync(CreateChildRequest("sleep", "80", "7"), cancellationToken: cancellation.Token)
                 .ConfigureAwait(false);
 
             TestAssert.True(
@@ -557,7 +557,7 @@ internal sealed class ProcessRunnerTests
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
         ProcessResult result = await CreateRunner()
-            .RunAsync(CreateChildRequest(options, "sleep", "5000"), cancellation.Token)
+            .RunAsync(CreateChildRequest(options, "sleep", "5000"), cancellationToken: cancellation.Token)
             .ConfigureAwait(false);
 
         AssertTerminated(result, ProcessState.Cancelled);
@@ -570,7 +570,7 @@ internal sealed class ProcessRunnerTests
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 
         ProcessResult result = await CreateRunner()
-            .RunAsync(CreateChildRequest(options, "sleep", "5000"), cancellation.Token)
+            .RunAsync(CreateChildRequest(options, "sleep", "5000"), cancellationToken: cancellation.Token)
             .ConfigureAwait(false);
 
         AssertTerminated(result, ProcessState.TimedOut);
@@ -1079,7 +1079,7 @@ internal sealed class ProcessRunnerTests
 
         public TimeSpan CompletedDuration { get; private set; }
 
-        public void OnStarted(DateTimeOffset startedAt)
+        public void OnStarted(ProcessIdentity process, DateTimeOffset startedAt)
         {
             StartedCount++;
             StartedAt = startedAt;
@@ -1100,7 +1100,7 @@ internal sealed class ProcessRunnerTests
 
         public int CompletedCount { get; private set; }
 
-        public void OnStarted(DateTimeOffset startedAt)
+        public void OnStarted(ProcessIdentity process, DateTimeOffset startedAt)
         {
             StartedCount++;
             throw new InvalidOperationException("observer start failure");

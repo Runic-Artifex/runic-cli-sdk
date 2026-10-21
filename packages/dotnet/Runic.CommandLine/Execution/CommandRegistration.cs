@@ -118,7 +118,7 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                 }
 
                 // Generated binders already checked bounds before [ValidateWith]; this covers hand-written binders.
-                if (binding.IsSuccess && CommandInputValidation.ValidateRanges<TOptions>(request.Invocation) is { } rangeFault)
+                if (binding.Succeeded && CommandInputValidation.ValidateRanges<TOptions>(request.Invocation) is { } rangeFault)
                 {
                     binding = rangeFault;
                 }
@@ -129,7 +129,7 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                     context.CorrelationId,
                     binding.ExitCategory));
 
-                if (!binding.IsSuccess)
+                if (!binding.Succeeded)
                 {
                     outcome = new CommandOutcome<TResult>(false,
                         binding.ExitCategory,

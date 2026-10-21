@@ -49,6 +49,15 @@ internal static class Commands
 }
 ```
 
+`GeneratedCommandCatalog` is `internal` and marked `[GeneratedCode]`: each
+assembly with `[Command]` methods gets its own. To build the catalog from another
+assembly, such as a test project or the executable of a library of commands,
+expose a public method in the assembly that declares the commands, for example
+`public static CommandCatalog Create() => GeneratedCommandCatalog.Create();`. The
+generated code calls `GeneratedCommandBinding` in `Runic.CommandLine.Generated`;
+that type is a support API for the generator of the same major version, hidden
+from IntelliSense, and not for hand-written calls.
+
 `hello`, `hello Ada`, and `hello greet Ada` execute the default command.
 `hello help greet` and `hello greet --help` show catalog help. `hello --format json
 greet Ada` emits one versioned response. An application without a default command
@@ -546,11 +555,11 @@ target identity, declare a bounded domain DTO separately from presentation text:
 ```csharp
 var recovery = CommandFailureData.Create(
     "sample.clone-recovery/1", report, RecoveryJsonContext.Default.CloneRecovery);
-return CommandOutcome.FailureWithData<CloneResult>(
+return CommandOutcome.Failure<CloneResult>(
     CommandExitCategory.Cancelled,
     new CommandFault("CLONE_CANCELLED", "The clone was cancelled. Inspect the retained directory."),
-    recovery,
-    humanOutput: "Inspect the retained directory before retrying.\n");
+    humanOutput: "Inspect the retained directory before retrying.\n",
+    failureData: recovery);
 ```
 
 `RecoveryJsonContext` is the application's source-generated `JsonSerializerContext`
@@ -804,8 +813,8 @@ Help and errors respect human/JSON output selection; completion intentionally
 writes the raw script, the same context-aware script `CommandApp` produces. Existing hosts
 may keep their own presenters and use the decision's public diagnostics instead.
 `PresentAsync` accepts framework decisions created by that same adapter and
-rejects UI and invocation decisions. It is available on the concrete adapter;
-the existing `IHostedCommandLineAdapter` classify/execute contract is unchanged.
+rejects UI and invocation decisions. Hosts use the concrete
+`CommandLineHostingAdapter`; decisions come only from its `Classify`.
 
 `ExecuteAsync` owns only the invocation scope returned by your scope factory.
 Use `[FromServices]` for handler dependencies. Pass your host's cancellation token

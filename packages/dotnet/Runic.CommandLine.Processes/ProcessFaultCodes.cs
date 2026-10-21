@@ -1,6 +1,7 @@
 namespace Runic.CommandLine.Processes;
 
 /// <summary>Defines stable process fault identities in the reserved CLI range.</summary>
+/// <remarks>Open: a later minor release may add codes, so handle an unknown code like any other fault.</remarks>
 public static class ProcessFaultCodes
 {
     /// <summary>The executable policy rejected an executable identity.</summary>

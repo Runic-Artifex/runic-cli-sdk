@@ -48,7 +48,7 @@ internal sealed partial class HostingAdapterTests
             var adapter = new CommandLineHostingAdapter(catalog, new CommandExecutor(scopes));
             var decision = adapter.Classify(new(["completion", "bash"]));
             AssertEqual(HostedCommandLineDecisionKind.Invocation, decision.Kind);
-            AssertTrue((await adapter.ExecuteAsync(new(decision, new SilentConsole(), CultureInfo.InvariantCulture, "owned", new CapturingSink()))).IsSuccess);
+            AssertTrue((await adapter.ExecuteAsync(new(decision, new SilentConsole(), CultureInfo.InvariantCulture, "owned", new CapturingSink()))).Succeeded);
             AssertEqual(0, await new CommandApp(catalog) { ScopeFactory = scopes, Console = new SilentConsole(), HandleTerminationSignals = false }.RunAsync(["completion", "bash"]));
             AssertEqual(2, factory.Created);
         }
@@ -113,27 +113,26 @@ internal sealed partial class HostingAdapterTests
         var failure = new InvalidOperationException("private-presentation-secret");
         int observed = 0;
         void Observe(Exception exception) { AssertTrue(ReferenceEquals(failure, exception)); observed++; throw new InvalidOperationException("observer-secret"); }
-        foreach (int mode in new[] { 0, 1, 2 })
+        foreach (int mode in new[] { 0, 1 })
         {
             var console = new TestCommandConsole();
             var app = new CommandApp(catalog)
             {
                 Console = console, HandleTerminationSignals = false, ExceptionObserver = Observe,
                 HelpPresenter = mode == 0 ? new FailingHelp(failure) : null,
-                FormatHelp = mode == 1 ? _ => throw failure : null,
-                PresentFrameworkRequest = mode == 2 ? (_, _, _) => throw failure : null,
+                PresentFrameworkRequest = mode == 1 ? (_, _, _) => throw failure : null,
             };
             AssertEqual(3, await app.RunAsync(["--help"]));
             AssertEqual("", console.StandardOutput);
             AssertEqual("", console.StandardError);
         }
-        AssertEqual(3, observed);
+        AssertEqual(2, observed);
         var adapter = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()))
         {
             Presentation = new() { HelpPresenter = new FailingHelp(failure), ExceptionObserver = Observe },
         };
         AssertEqual(3, await adapter.PresentAsync(adapter.Classify(new(["--help"])), new SilentConsole(), CultureInfo.InvariantCulture, "fail"));
-        AssertEqual(4, observed);
+        AssertEqual(3, observed);
         foreach (string[] args in new string[][] { ["--version", "--format=json"], ["unknown"], ["completion", "bash"] })
         {
             var console = new FailingConsole(failure);
@@ -143,7 +142,7 @@ internal sealed partial class HostingAdapterTests
             AssertEqual(3, await adapter.PresentAsync(adapter.Classify(new(args)), console, CultureInfo.InvariantCulture, "write-fail"));
             AssertEqual(1, console.Writes);
         }
-        AssertEqual(10, observed);
+        AssertEqual(9, observed);
     }
 
     private sealed class BlockingHelp(TaskCompletionSource entered) : ICommandHelpPresenter

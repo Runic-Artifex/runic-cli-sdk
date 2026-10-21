@@ -68,13 +68,13 @@ public static class CommandJsonEnvelopeWriter
         JsonTypeInfo<T> payloadTypeInfo)
     {
         writer.WriteStartObject();
-        writer.WriteString("protocol", CliProtocol.Identity);
+        writer.WriteString("protocol", CommandProtocol.Identity);
         writer.WriteString("requestId", response.RequestId);
         writer.WriteString("command", response.Command);
-        writer.WriteBoolean("success", response.Success);
+        writer.WriteBoolean("success", response.Succeeded);
         writer.WriteNumber("exitCode", response.ExitCode);
 
-        if (response.Success)
+        if (response.Succeeded)
         {
             writer.WriteString("payloadType", response.PayloadType);
             writer.WritePropertyName("payload");
@@ -212,7 +212,7 @@ public static class CommandJsonEnvelopeWriter
     private static void EnsurePayloadIdentity<T>(CommandResponse<T> response, string registeredPayloadType)
     {
         CommandResponseValidation.ValidatePayloadType(registeredPayloadType, nameof(registeredPayloadType));
-        if (response.Success && !string.Equals(response.PayloadType, registeredPayloadType, StringComparison.Ordinal))
+        if (response.Succeeded && !string.Equals(response.PayloadType, registeredPayloadType, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("The response payload identity does not match its registered codec.");
         }

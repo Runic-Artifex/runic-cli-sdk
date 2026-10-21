@@ -129,7 +129,7 @@ internal sealed class CatalogTests
     [Test, DisplayName("catalog/reserved-command-names-rejected")]
     public ValueTask ReservedCommandNames()
     {
-        foreach (string name in new[] { "help", "version", "output" })
+        foreach (string name in new[] { "help", "version", "output", "root" })
         {
             var builder = new CommandCatalogBuilder();
             ValidCommand(builder, name);
@@ -138,6 +138,63 @@ internal sealed class CatalogTests
             AssertEx.True(exception.Issues.Any(static issue => issue.Code == "RCLI0002"), name);
         }
 
+        return ValueTask.CompletedTask;
+    }
+
+    // "root" is the envelope's command value for root-level responses, so no command, subcommand or alias may use it.
+    [Test, DisplayName("catalog/root-is-reserved-for-subcommands-and-aliases")]
+    public ValueTask RootIsReserved()
+    {
+        var nested = new CommandCatalogBuilder();
+        ValidCommand(nested, "tools").Subcommand<TestOptions, TestHandler, TestResult>("root", root => root
+            .BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory()).Produces(new TestCodec()));
+        CommandCatalogIssue subcommand = AssertEx.Throws<CommandCatalogValidationException>(nested.Build).Issues.Single();
+        AssertEx.Equal("RCLI0002", subcommand.Code);
+        AssertEx.True(subcommand.Message.Contains("'root'", StringComparison.Ordinal), subcommand.Message);
+
+        var aliased = new CommandCatalogBuilder();
+        ValidCommand(aliased, "status").Alias("root");
+        CommandCatalogIssue alias = AssertEx.Throws<CommandCatalogValidationException>(aliased.Build).Issues.Single();
+        AssertEx.Equal("RCLI0002", alias.Code);
+
+        // Only the exact segment is reserved.
+        var similar = new CommandCatalogBuilder();
+        ValidCommand(similar, "roots");
+        ValidCommand(similar, "root-cause");
+        AssertEx.Equal(2, similar.Build().Commands.Count);
+        return ValueTask.CompletedTask;
+    }
+
+    // The positional bool? isRequired overload is gone; isRequired is passed by name and may follow the other options.
+    [Test, DisplayName("catalog/option-is-required-by-name")]
+    public ValueTask OptionIsRequiredByName()
+    {
+        var builder = new CommandCatalogBuilder();
+        ValidCommand(builder, "deploy")
+            .Option("target", "--target", CommandArity.ExactlyOne, isRequired: true, aliases: ["-t"])
+            .Option("token", "--token", CommandArity.ExactlyOne, CommandOptionRepeatPolicy.Error, isSensitive: true,
+                descriptionKey: "deploy.token", isRequired: true)
+            .Option("tag", "--tag", CommandArity.ExactlyOne, CommandOptionRepeatPolicy.Append, aliases: ["-g"]);
+        CommandCatalog catalog = builder.Build();
+        CommandDescriptor deploy = catalog.Commands.Single();
+        CommandOptionDescriptor target = deploy.Options.Single(static option => option.Id == "target");
+        AssertEx.True(target.IsRequired);
+        AssertEx.True(!target.IsSensitive);
+        AssertEx.SequenceEqual(["-t"], target.Aliases);
+        CommandOptionDescriptor token = deploy.Options.Single(static option => option.Id == "token");
+        AssertEx.True(token.IsRequired);
+        AssertEx.True(token.IsSensitive);
+        AssertEx.Equal("deploy.token", token.DescriptionKey);
+        CommandOptionDescriptor tag = deploy.Options.Single(static option => option.Id == "tag");
+        AssertEx.True(!tag.IsRequired);
+        AssertEx.SequenceEqual(["-g"], tag.Aliases);
+
+        ParseOutcome missing = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["deploy", "-t", "prod"], ParseSettings.Default);
+        AssertEx.Equal(ParseOutcomeKind.Error, missing.Kind);
+        AssertEx.Equal("RCLI1012", missing.Diagnostics.Single().Code);
+        ParseOutcome complete = PortableCommandSyntaxAdapter.Instance.Parse(
+            catalog, ["deploy", "-t", "prod", "--token", "secret"], ParseSettings.Default);
+        AssertEx.Equal(ParseOutcomeKind.Invocation, complete.Kind);
         return ValueTask.CompletedTask;
     }
 

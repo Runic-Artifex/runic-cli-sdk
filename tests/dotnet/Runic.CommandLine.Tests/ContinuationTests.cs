@@ -126,7 +126,7 @@ internal sealed class ContinuationTests
 
         var probe = new ContinuationProbe { ExitCode = 42 };
         Hosting.HostedCommandLineExecutionResult result = await Execute(probe, accepts: true, "continue");
-        AssertEx.True(result.IsSuccess && probe.CouldContinue && probe.Registered && probe.ContinuationThread is null);
+        AssertEx.True(result.Succeeded && probe.CouldContinue && probe.Registered && probe.ContinuationThread is null);
         AssertEx.Equal(42, result.Continuation!());
         AssertEx.Equal(Environment.CurrentManagedThreadId, probe.ContinuationThread);
         AssertEx.Equal("started\n", probe.OutputAtContinuation);
@@ -134,7 +134,7 @@ internal sealed class ContinuationTests
         // Without the opt-in the command cannot hand one back, as before.
         probe = new ContinuationProbe { ExitCode = 42 };
         result = await Execute(probe, accepts: false, "continue");
-        AssertEx.True(result.IsSuccess && !probe.CouldContinue && !probe.Registered && result.Continuation is null);
+        AssertEx.True(result.Succeeded && !probe.CouldContinue && !probe.Registered && result.Continuation is null);
 
         // As under CommandApp.Run, failure and cancellation discard it.
         foreach (string[] args in DiscardingArguments)

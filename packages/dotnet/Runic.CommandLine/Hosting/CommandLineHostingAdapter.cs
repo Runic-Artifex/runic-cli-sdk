@@ -11,7 +11,7 @@ namespace Runic.CommandLine.Hosting;
 /// First-party bridge that delegates syntax analysis and command scope ownership
 /// to the existing CommandLine parser and executor.
 /// </summary>
-public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
+public sealed class CommandLineHostingAdapter
 {
     private readonly object _decisionOwner = new();
     private readonly CommandCatalog _catalog;
@@ -51,7 +51,7 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
     /// <summary>Gets framework presentation shared with the standalone runner.</summary>
     public CommandPresentation Presentation { get; init; } = new();
 
-    /// <inheritdoc />
+    /// <summary>Classifies captured inputs without executing a handler or creating a scope.</summary>
     public HostedCommandLineDecision Classify(HostedCommandLineLaunchInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -175,7 +175,7 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
             console, culture, correlationId, cancellationToken), cancellationToken);
     }
 
-    /// <inheritdoc />
+    /// <summary>Delegates a valid invocation to the command-line execution engine.</summary>
     public async ValueTask<HostedCommandLineExecutionResult> ExecuteAsync(
         HostedCommandLineExecutionInput input,
         CancellationToken cancellationToken = default)
@@ -202,7 +202,7 @@ public sealed class CommandLineHostingAdapter : IHostedCommandLineAdapter
             cancellationToken).ConfigureAwait(false);
         // As under CommandApp.Run, only a successful invocation that nobody asked to stop hands its continuation back.
         Func<int>? next = continuation?.Take();
-        return new HostedCommandLineExecutionResult(result, result.IsSuccess && !cancellationToken.IsCancellationRequested ? next : null);
+        return new HostedCommandLineExecutionResult(result, result.Succeeded && !cancellationToken.IsCancellationRequested ? next : null);
     }
 
     /// <summary>

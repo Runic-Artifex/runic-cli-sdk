@@ -10,7 +10,7 @@ public sealed class ProcessExecutionOptions
     public const int DefaultOutputLimitBytes = 1024 * 1024;
 
     /// <summary>The hard retained-byte ceiling for either output channel.</summary>
-    public const int MaximumOutputLimitBytes = 16 * 1024 * 1024;
+    public static int MaximumOutputLimitBytes { get; } = 16 * 1024 * 1024;
 
     /// <summary>The default grace period for exit and pipe drain after termination.</summary>
     public static readonly TimeSpan DefaultDrainGracePeriod = TimeSpan.FromSeconds(5);

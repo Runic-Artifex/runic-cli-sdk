@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 namespace Runic.CommandLine;
 
 /// <summary>Identifies the parser-owned shape of a command-line parse result.</summary>
+/// <remarks>Open: a later minor release may add values, so code that switches over them must handle an unknown value.</remarks>
 public enum ParseOutcomeKind
 {
     /// <summary>A command and all of its values were parsed successfully.</summary>
