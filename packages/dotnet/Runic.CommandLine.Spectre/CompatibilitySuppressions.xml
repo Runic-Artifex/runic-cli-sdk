@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Runic.CommandLine.Spectre.SpectreHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog,System.String,Runic.CommandLine.CommandPath,System.String,Runic.CommandLine.CommandTextContext,Runic.CommandLine.ICommandConsole,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Runic.CommandLine.Spectre.dll</Left>
+    <Right>lib/net10.0/Runic.CommandLine.Spectre.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Runic.CommandLine.Spectre.SpectreHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog,System.String,Runic.CommandLine.CommandPath,System.String,Runic.CommandLine.ICommandConsole,System.Threading.CancellationToken)</Target>
+    <Left>lib/net10.0/Runic.CommandLine.Spectre.dll</Left>
+    <Right>lib/net10.0/Runic.CommandLine.Spectre.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+</Suppressions>
