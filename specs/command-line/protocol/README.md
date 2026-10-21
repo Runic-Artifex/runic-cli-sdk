@@ -81,6 +81,21 @@ escaped source characters.
   the application range `RCLI8000` through `RCLI8999`, which the library never
   emits (see [Diagnostic object](#diagnostic-object)).
 
+### Reserved command values
+
+Responses that do not come from a command use reserved `command` values:
+
+- `root` for a parse or usage error at the root, before any command was
+  resolved, for example an unknown command or an invalid output selector value.
+  An error after a command was resolved names that command's path.
+- `help` for a help response and `version` for a version response from the
+  framework, whatever path the help describes.
+
+No application command, subcommand or alias may be named `root`, `help` or
+`version` (catalog validation `RCLI0002`, generator `RCLI9001`), so a client can
+tell these responses from command responses by `command` alone. `output` is
+reserved as well.
+
 The protocol deliberately defines no JSON Schema `$id` and assigns no domain
 name. Payload owners choose their own type identifier within their documented
 application boundary.

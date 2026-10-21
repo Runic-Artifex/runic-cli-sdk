@@ -80,8 +80,10 @@ mostly appear with hand-written catalogs.
 
 Invalid command name or alias. Each space-separated segment of a command name,
 and each alias, must start with a lowercase ASCII letter and contain only
-lowercase letters, digits and hyphens. `help`, `version` and `output` are
-reserved.
+lowercase letters, digits and hyphens. `help`, `version`, `output` and `root`
+are reserved: the JSON envelope's `command` value is `root` for root-level
+responses and `help` or `version` for framework responses (see the
+[protocol](../../../specs/command-line/protocol/README.md#reserved-command-values)).
 
 ### RCLI0003
 
@@ -470,8 +472,8 @@ Invalid generated command. A `[Command]` method must be an accessible
 (`public` or `internal`), non-generic, ordinary `static` method whose containing
 types are accessible and non-generic. Its name must be nonempty, and each
 space-separated segment must start with a lowercase ASCII letter and contain
-only lowercase letters, digits and hyphens; `help`, `version` and `output` are
-reserved. Result types are checked separately (`RCLI9028`).
+only lowercase letters, digits and hyphens; `help`, `version`, `output` and
+`root` are reserved, as for [`RCLI0002`](#rcli0002). Result types are checked separately (`RCLI9028`).
 
 ### RCLI9002
 

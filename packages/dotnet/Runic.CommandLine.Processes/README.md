@@ -42,7 +42,7 @@ var request = new ProcessRequest(
         standardOutputLimitBytes: 64 * 1024,
         standardErrorLimitBytes: 64 * 1024));
 
-ProcessResult result = await runner.RunAsync(request, cancellationToken);
+ProcessResult result = await runner.RunAsync(request, cancellationToken: cancellationToken);
 
 if (result.State == ProcessState.Exited && result.ExitCode == 0)
 {
@@ -132,10 +132,11 @@ if (result.State == ProcessState.Exited && result.ExitCode == 0) await log.Succe
 else await log.FailAsync($"nix build ended in {result.State}", cancellationToken: cancellationToken);
 ```
 
-`IProcessRunner.RunAsync(request, outputHandler, cancellationToken)` has a
-default implementation for runners that cannot stream, such as a test double:
-it runs the request and then passes the captured standard output and standard
-error to the handler, in that order.
+`IProcessRunner` has one member,
+`RunAsync(request, outputHandler = null, cancellationToken = default)`. Pass the
+token by name when you pass no handler. `ProcessRunner` streams the output to the
+handler while the child runs; a runner that cannot stream, such as a test double,
+implements the same member and passes its capture to the handler itself.
 
 ### Write a channel to a file
 
@@ -176,16 +177,25 @@ public constructor for a capture:
 ```csharp
 sealed class FakeRunner(ProcessResult result) : IProcessRunner
 {
-    public ValueTask<ProcessResult> RunAsync(ProcessRequest request, CancellationToken cancellationToken = default) =>
-        ValueTask.FromResult(result);
+    public async ValueTask<ProcessResult> RunAsync(
+        ProcessRequest request, IProcessOutputHandler? outputHandler = null, CancellationToken cancellationToken = default)
+    {
+        if (outputHandler is not null)
+        {
+            foreach (string line in result.StandardOutput.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                await outputHandler.OnLineAsync(new ProcessOutputLine(ProcessOutputChannel.StandardOutput, line), cancellationToken);
+        }
+
+        return result;
+    }
 }
 
 var runner = new FakeRunner(ProcessResult.Exited(0, new ProcessOutput("{\"ok\":true}\n")));
 var missing = new FakeRunner(ProcessResult.StartFailed(ProcessStartFailureCategory.NotFound));
 ```
 
-The factories produce what `ProcessRunner` produces, so `EnsureCompleted` and
-the default streaming overload behave the same:
+The factories produce what `ProcessRunner` produces, so `EnsureCompleted`
+behaves the same:
 
 - `Exited(exitCode, ...)` has an exit code and no fault.
 - `TimedOut(...)` and `Cancelled(...)` have neither.
@@ -245,8 +255,8 @@ writes a `Trace` warning, and `ProcessIdentity.ProcessGroupId` is null.
 
 `IProcessObserver.OnStarted(ProcessIdentity, DateTimeOffset)` receives the
 child's process ID and, on Unix, its process group ID, for logs or a list of
-running tools. An observer that implements only `OnStarted(DateTimeOffset)`
-keeps working.
+running tools. It is the only start notification; the former
+`OnStarted(DateTimeOffset)` is gone.
 
 ## Desktop applications and services
 
@@ -263,7 +273,7 @@ var request = new ProcessRequest(
         StandardInput = ProcessStandardInput.Closed,
         DetachFromTerminal = true,
     });
-ProcessResult result = (await runner.RunAsync(request, cancellationToken)).EnsureCompleted(cancellationToken);
+ProcessResult result = (await runner.RunAsync(request, cancellationToken: cancellationToken)).EnsureCompleted(cancellationToken);
 ```
 
 `ProcessExecutionOptions.NonInteractive` is the default options with closed
@@ -291,7 +301,7 @@ var request = new ProcessRequest(
     new[] { "transform" },
     environment: new Dictionary<string, string?> { ["LANG"] = "C.UTF-8" },
     options: options);
-ProcessResult result = await runner.RunAsync(request, cancellationToken);
+ProcessResult result = await runner.RunAsync(request, cancellationToken: cancellationToken);
 ```
 
 Use `ProcessStandardInput.Closed` for immediate EOF and
