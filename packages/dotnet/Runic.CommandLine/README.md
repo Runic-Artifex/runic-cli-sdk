@@ -162,6 +162,9 @@ envelope; a success payload is not bound by the protocol's frame limit.
   internal sealed partial class ReportJsonContext : JsonSerializerContext;
   ```
 
+  The default human output prints the same names, so its rows read
+  `status: Ready`; register a presenter with `builder.Present` for other labels.
+
 CancellationToken, CommandExecutionContext and ICommandConsole parameters are
 injected automatically; other services use `[FromServices]`. Declare the token
 last as `CancellationToken cancellationToken = default` so it can follow

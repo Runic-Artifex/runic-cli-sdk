@@ -180,6 +180,11 @@ same policy. For Command Line:
   1.0.0. Previews of a coming version from 1.0 are `x.y.0-rc.N`, and 1.0.0 itself
   follows `1.0.0-rc.N`. The generator stays embedded in `Runic.CommandLine`. Command Line has no
   experimental APIs or preview packages.
+- The path to 1.0 is: 0.8.0 carries every breaking change of the 1.0 API
+  review; 0.9.0 only adds (the NativeAOT RIDs below, opt-in `@file` response
+  files, a per-command outcome presenter and a strict
+  `CommandTestEnvelope.Read<T>`); then `1.0.0-rc.N` takes fixes only, and 1.0.0
+  follows the last release candidate.
 - Command Line depends on no other Runic SDK and ships first in the 1.0 release
   train, before Runic Translations and Runic SDK. After 1.0 it releases minors
   and patches independently; Runic Translations and the Runic SDK tools reference
@@ -205,9 +210,8 @@ same policy. For Command Line:
   terminal code is platform-specific, so NativeAOT applications are supported on
   the RIDs that CI publishes and runs: today `linux-x64`, `win-x64` and
   `osx-arm64`. `linux-arm64`, `win-arm64`, `linux-musl-x64` and
-  `linux-musl-arm64` are planned for the next additive Command Line release after
-  0.8.0 (a minor that only adds), because the Runic SDK tools that bundle Command
-  Line already run on them.
+  `linux-musl-arm64` are planned for 0.9.0, because the Runic SDK tools that
+  bundle Command Line already run on them.
 - Bug and security fixes ship in a patch of the latest minor only. `[Obsolete]`
   APIs stay for at least one minor release and are removed only in a major.
 
