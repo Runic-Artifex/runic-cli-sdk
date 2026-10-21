@@ -56,8 +56,8 @@ internal sealed partial class CompletionHelpTests
             foreach (bool json in new[] { false, true })
             {
                 var console = new TestCommandConsole();
-                var app = new CommandApp(catalog) { Name = "fixture", Console = console, HandleCancelKeyPress = false };
-                AssertEx.Equal(0, await app.RunAsync(json ? [.. args, "--output=json"] : args));
+                var app = new CommandApp(catalog) { Name = "fixture", Console = console, HandleTerminationSignals = false };
+                AssertEx.Equal(0, await app.RunAsync(json ? [.. args, "--format=json"] : args));
                 string help;
                 if (json)
                 {

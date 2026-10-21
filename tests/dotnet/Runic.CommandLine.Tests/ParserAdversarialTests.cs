@@ -24,7 +24,7 @@ internal sealed class ParserAdversarialTests
 
     private static ValueTask MissingValue(params string[] tail)
     {
-        string[] args = ["export", "--format", .. tail];
+        string[] args = ["export", "--encoding", .. tail];
         ParseOutcome outcome = PortableCommandSyntaxAdapter.Instance.Parse(Catalog, args, ParseSettings.Default);
         AssertEx.Equal(ParseOutcomeKind.Error, outcome.Kind);
         AssertEx.Equal(1, outcome.Diagnostics.Count);
@@ -38,7 +38,7 @@ internal sealed class ParserAdversarialTests
     {
         ParseOutcome outcome = PortableCommandSyntaxAdapter.Instance.Parse(
             Catalog,
-            ["status", "--output", boundary],
+            ["status", "--format", boundary],
             ParseSettings.Default);
         AssertEx.Equal(ParseOutcomeKind.Error, outcome.Kind);
         AssertEx.Equal(1, outcome.Diagnostics.Count);
@@ -59,7 +59,7 @@ internal sealed class ParserAdversarialTests
             .Produces(new TestCodec()));
         ParseOutcome outcome = PortableCommandSyntaxAdapter.Instance.Parse(
             builder.Build(),
-            ["pack", "--documents", "a", "b", "--documents", "c", "--output=json"],
+            ["pack", "--documents", "a", "b", "--documents", "c", "--format=json"],
             ParseSettings.Default);
         AssertEx.Equal(ParseOutcomeKind.Invocation, outcome.Kind);
         AssertEx.SequenceEqual(["a", "b", "c"], outcome.Invocation!.Options.Single().Values);
@@ -101,7 +101,8 @@ internal sealed class ParserAdversarialTests
     {
         foreach (string spelling in new[] { "--help", "--version" })
         {
-            AssertEx.Throws<ArgumentException>(() => new ParseSettings(transportOutputOptionName: spelling));
+            AssertEx.Throws<ArgumentException>(() => new CommandCatalogBuilder().OutputSelector(spelling));
+            AssertEx.Throws<ArgumentException>(() => new CommandCatalogBuilder().OutputSelector("--format", spelling));
         }
 
         return ValueTask.CompletedTask;
@@ -168,42 +169,43 @@ internal sealed class ParserAdversarialTests
     [Test, DisplayName("parser/parse-errors-preserve-transport-output-classification")]
     public ValueTask ParseErrorsPreserveTransportOutputClassification()
     {
-        ParseSettings settings = new(transportOutputOptionName: "--runic-output");
+        ParseSettings settings = ParseSettings.Default;
+        CommandCatalog catalog = FixtureCatalog.Create(static builder => builder.OutputSelector("--runic-output"));
         ParseOutcome knownErrorAfterTransport = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["status", "--runic-output=JSON", "--unknown=secret"],
             settings);
         AssertErrorOutput(knownErrorAfterTransport, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
         AssertEx.SequenceEqual(["--unknown"], knownErrorAfterTransport.Diagnostics.Single().Arguments);
 
         ParseOutcome knownErrorBeforeTransport = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["status", "--unknown=secret", "--runic-output=JSON"],
             settings);
         AssertErrorOutput(knownErrorBeforeTransport, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
         AssertEx.SequenceEqual(["--unknown"], knownErrorBeforeTransport.Diagnostics.Single().Arguments);
 
         ParseOutcome unknownCommandAfterTransport = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["missing", "--runic-output=JSON"],
             settings);
         AssertErrorOutput(unknownCommandAfterTransport, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
 
         ParseOutcome unknownCommandBeforeTransport = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["--runic-output=JSON", "missing"],
             settings);
         AssertErrorOutput(unknownCommandBeforeTransport, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
         AssertEx.SequenceEqual(["--runic-output"], unknownCommandBeforeTransport.Diagnostics.Single().Arguments);
 
         ParseOutcome transportOnly = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["--runic-output=JSON"],
             settings);
         AssertErrorOutput(transportOnly, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
         AssertEx.SequenceEqual(["--runic-output"], transportOnly.Diagnostics.Single().Arguments);
 
-        CommandCatalog outputProbeCatalog = CreateOutputProbeCatalog();
+        CommandCatalog outputProbeCatalog = CreateOutputProbeCatalog("--runic-output");
         ParseOutcome defaultCommand = PortableCommandSyntaxAdapter.Instance.Parse(
             outputProbeCatalog,
             ["application-argument", "--runic-output=json"],
@@ -217,26 +219,26 @@ internal sealed class ParserAdversarialTests
         AssertErrorOutput(nestedCommand, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
 
         ParseOutcome afterSentinel = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["status", "--unknown=secret", "--", "--runic-output=JSON"],
             settings);
         AssertErrorOutput(afterSentinel, CommandOutputMode.Human, CommandOutputModeSource.Default);
 
-        AssertSpecialOutput(Catalog, ["--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "");
-        AssertSpecialOutput(Catalog, ["--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "");
-        AssertSpecialOutput(Catalog, ["help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "");
-        AssertSpecialOutput(Catalog, ["--runic-output=JSON", "help"], settings, ParseOutcomeKind.Help, "");
-        AssertSpecialOutput(Catalog, ["--version", "--runic-output=JSON"], settings, ParseOutcomeKind.Version, "");
-        AssertSpecialOutput(Catalog, ["--runic-output=JSON", "--version"], settings, ParseOutcomeKind.Version, "");
-        AssertSpecialOutput(Catalog, ["status", "--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "status");
-        AssertSpecialOutput(Catalog, ["status", "--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "status");
+        AssertSpecialOutput(catalog, ["--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "");
+        AssertSpecialOutput(catalog, ["--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "");
+        AssertSpecialOutput(catalog, ["help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "");
+        AssertSpecialOutput(catalog, ["--runic-output=JSON", "help"], settings, ParseOutcomeKind.Help, "");
+        AssertSpecialOutput(catalog, ["--version", "--runic-output=JSON"], settings, ParseOutcomeKind.Version, "");
+        AssertSpecialOutput(catalog, ["--runic-output=JSON", "--version"], settings, ParseOutcomeKind.Version, "");
+        AssertSpecialOutput(catalog, ["status", "--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "status");
+        AssertSpecialOutput(catalog, ["status", "--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "status");
         AssertSpecialOutput(outputProbeCatalog, ["application-argument", "--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "fallback");
         AssertSpecialOutput(outputProbeCatalog, ["application-argument", "--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "fallback");
         AssertSpecialOutput(outputProbeCatalog, ["root", "nested", "--help", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "root nested");
         AssertSpecialOutput(outputProbeCatalog, ["root", "nested", "--runic-output=JSON", "--help"], settings, ParseOutcomeKind.Help, "root nested");
-        AssertSpecialOutput(Catalog, ["--help", "--", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "", CommandOutputMode.Human);
+        AssertSpecialOutput(catalog, ["--help", "--", "--runic-output=JSON"], settings, ParseOutcomeKind.Help, "", CommandOutputMode.Human);
         ParseOutcome rootHelpExtra = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["help", "--unknown=secret", "--runic-output=JSON"],
             settings);
         AssertErrorOutput(rootHelpExtra, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
@@ -245,7 +247,7 @@ internal sealed class ParserAdversarialTests
         AssertNoSecret(rootHelpExtra);
 
         ParseOutcome rootHelpTerminator = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["help", "--", "--runic-output=JSON"],
             settings);
         AssertErrorOutput(rootHelpTerminator, CommandOutputMode.Human, CommandOutputModeSource.Default);
@@ -254,34 +256,34 @@ internal sealed class ParserAdversarialTests
         AssertEx.Equal(ParseOutcomeKind.Error, PortableCommandSyntaxAdapter.Instance.Parse(outputProbeCatalog, ["application-argument", "help"], settings).Kind);
         AssertEx.Equal(ParseOutcomeKind.Error, PortableCommandSyntaxAdapter.Instance.Parse(outputProbeCatalog, ["root", "nested", "help"], settings).Kind);
 
-        CommandCatalog boundaryCatalog = CreateTransportBoundaryCatalog();
+        CommandCatalog boundaryCatalog = CreateTransportBoundaryCatalog("--runic-output");
         AssertTransportBoundary(boundaryCatalog, ["root", "--runic-output", "/x"], settings);
         AssertTransportBoundary(boundaryCatalog, ["root", "nested", "--runic-output", "/x"], settings);
         AssertTransportBoundary(boundaryCatalog, ["application-argument", "--runic-output", "/x"], settings);
 
         ParseOutcome duplicate = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["status", "--runic-output", "jSoN", "--runic-output", "human"],
             settings);
         AssertErrorOutput(duplicate, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
         AssertEx.Equal("duplicate-option", duplicate.Diagnostics.Single().Kind);
 
         ParseOutcome missing = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["status", "--runic-output", "--unknown=secret"],
             settings);
         AssertErrorOutput(missing, CommandOutputMode.Human, CommandOutputModeSource.Default);
         AssertEx.SequenceEqual(["--runic-output"], missing.Diagnostics.Single().Arguments);
 
         ParseOutcome malformed = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["status", "--runic-output=xml"],
             settings);
         AssertErrorOutput(malformed, CommandOutputMode.Human, CommandOutputModeSource.Default);
         AssertEx.Equal("invalid-output-mode", malformed.Diagnostics.Single().Kind);
 
         ParseOutcome hostileRoot = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["--runic-output=TOPSECRET"],
             settings);
         AssertErrorOutput(hostileRoot, CommandOutputMode.Human, CommandOutputModeSource.Default);
@@ -290,7 +292,7 @@ internal sealed class ParserAdversarialTests
         AssertNoSecret(hostileRoot);
 
         ParseOutcome hostileAfterSyntaxError = PortableCommandSyntaxAdapter.Instance.Parse(
-            Catalog,
+            catalog,
             ["status", "--unknown=secret", "--runic-output=TOPSECRET"],
             settings);
         AssertErrorOutput(hostileAfterSyntaxError, CommandOutputMode.Human, CommandOutputModeSource.Default);
@@ -300,9 +302,9 @@ internal sealed class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
-    private static CommandCatalog CreateOutputProbeCatalog()
+    private static CommandCatalog CreateOutputProbeCatalog(string outputSelector)
     {
-        var builder = new CommandCatalogBuilder();
+        var builder = new CommandCatalogBuilder().OutputSelector(outputSelector);
         builder.Command<TestOptions, TestHandler, TestResult>("root", command => command
             .BindWith(new TestBinder())
             .CreateHandlerWith(new TestHandlerFactory())
@@ -356,9 +358,9 @@ internal sealed class ParserAdversarialTests
         AssertEx.SequenceEqual(["--runic-output"], outcome.Diagnostics.Single().Arguments);
     }
 
-    private static CommandCatalog CreateTransportBoundaryCatalog()
+    private static CommandCatalog CreateTransportBoundaryCatalog(string outputSelector)
     {
-        var builder = new CommandCatalogBuilder();
+        var builder = new CommandCatalogBuilder().OutputSelector(outputSelector);
         builder.Command<TestOptions, TestHandler, TestResult>("root", command => command
             .Option("value", "--value", CommandArity.ExactlyOne, CommandOptionRepeatPolicy.Error, isRequired: false, aliases: ["/x"])
             .BindWith(new TestBinder())

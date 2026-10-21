@@ -28,7 +28,7 @@ internal sealed class PromptTerminalTests
         });
         CommandCatalog catalog = new CommandCatalogBuilder().Command<TestOptions, TestHandler, TestResult>("ask", command => command
             .BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory(_ => handler)).Produces(new TestCodec())).Build();
-        return await new CommandApp(catalog) { Name = "prompts", ParseSettings = ParseSettings.Default, HandleCancelKeyPress = handleSignals }
+        return await new CommandApp(catalog) { Name = "prompts", ParseSettings = ParseSettings.Default, HandleTerminationSignals = handleSignals }
             .RunAsync(["ask"]).ConfigureAwait(false);
     }
 
@@ -45,7 +45,7 @@ internal sealed class PromptTerminalTests
         AssertEx.True(output.Contains("\u001b[?25l", StringComparison.Ordinal) && output.Contains("\u001b[?25h", StringComparison.Ordinal), output);
     }
 
-    [Test, DisplayName("prompts/pty-ctrl-c-cancels-with-exit-code-4-and-restores-the-cursor")]
+    [Test, DisplayName("prompts/pty-ctrl-c-cancels-with-exit-code-130-and-restores-the-cursor")]
     public async ValueTask CtrlCCancels()
     {
         await using TerminalChild? child = await TerminalChild.StartAsync();
@@ -114,9 +114,11 @@ internal sealed class PromptTerminalTests
         if (child is null) return;
         await child.WaitForOutputAsync("Arrow keys");
         await child.SendAsync("\u0003");
-        int exitCode = await child.WaitForExitAsync();
-        AssertEx.True(exitCode != 0 && exitCode != CommandExitCodes.Cancelled, $"exit code {exitCode}");
+        // SIGINT ends the process (128 + 2, the same number as a cancelled invocation), so the
+        // invocation was not cancelled when no cancellation fault was written.
+        AssertEx.Equal(130, await child.WaitForExitAsync());
         string output = child.Output;
+        AssertEx.True(!output.Contains("RCLI4000", StringComparison.Ordinal), output);
         int hidden = output.LastIndexOf("\u001b[?25l", StringComparison.Ordinal);
         AssertEx.True(hidden >= 0 && output.IndexOf("\u001b[?25h", hidden, StringComparison.Ordinal) > hidden, output);
     }

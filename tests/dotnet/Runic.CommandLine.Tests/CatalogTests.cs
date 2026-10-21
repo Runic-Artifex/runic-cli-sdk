@@ -158,22 +158,34 @@ internal sealed class CatalogTests
     [Test, DisplayName("catalog/application-output-and-configured-transport-coexist")]
     public ValueTask ConfiguredTransportOutput()
     {
-        var builder = new CommandCatalogBuilder();
+        var builder = new CommandCatalogBuilder().OutputSelector("--runic-output");
         ValidCommand(builder, "status").Option("output", "--output", CommandArity.ExactlyOne);
         CommandCatalog catalog = builder.Build();
 
         ParseOutcome success = PortableCommandSyntaxAdapter.Instance.Parse(
             catalog,
             ["status", "--output", "application", "--runic-output=json"],
-            new ParseSettings(transportOutputOptionName: "--runic-output"));
+            ParseSettings.Default);
         AssertEx.Equal(ParseOutcomeKind.Invocation, success.Kind);
         AssertEx.Equal(CommandOutputMode.Json, success.Invocation!.OutputClassification.Mode);
         AssertEx.Equal("application", success.Invocation.Options.Single().Values.Single());
 
-        ParseOutcome collision = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["status"], ParseSettings.Default);
-        AssertEx.Equal(ParseOutcomeKind.Error, collision.Kind);
-        AssertEx.Equal("RCLI1011", collision.Diagnostics.Single().Code);
-        AssertEx.Equal("transport-output-option-collision", collision.Diagnostics.Single().Kind);
+        // Under the default selector, --output is an ordinary application option.
+        var plain = new CommandCatalogBuilder();
+        ValidCommand(plain, "status").Option("output", "--output", CommandArity.ExactlyOne);
+        ParseOutcome defaultSelector = PortableCommandSyntaxAdapter.Instance.Parse(
+            plain.Build(),
+            ["status", "--output", "application", "--format=json"],
+            ParseSettings.Default);
+        AssertEx.Equal(ParseOutcomeKind.Invocation, defaultSelector.Kind);
+        AssertEx.Equal(CommandOutputMode.Json, defaultSelector.Invocation!.OutputClassification.Mode);
+        AssertEx.Equal("application", defaultSelector.Invocation.Options.Single().Values.Single());
+
+        // An option spelled like the selector is rejected when the catalog is built, before any parse could report RCLI1011.
+        var colliding = new CommandCatalogBuilder();
+        ValidCommand(colliding, "status").Option("format", "--format", CommandArity.ExactlyOne);
+        CommandCatalogValidationException collision = AssertEx.Throws<CommandCatalogValidationException>(colliding.Build);
+        AssertEx.Equal("RCLI0026", collision.Issues.Single().Code);
         return ValueTask.CompletedTask;
     }
 

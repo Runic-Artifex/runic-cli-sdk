@@ -11,7 +11,7 @@ internal sealed class LocalizationTests
     private static CommandCatalog Catalog() => GeneratedCommandCatalog.Create();
     private static CommandApp App(TestCommandConsole console, ICommandHelpPresenter? presenter = null) => new(Catalog())
     {
-        Name = "sample", Console = console, HandleCancelKeyPress = false, Culture = CultureInfo.GetCultureInfo("de-DE"),
+        Name = "sample", Console = console, HandleTerminationSignals = false, Culture = CultureInfo.GetCultureInfo("de-DE"),
         TextResolver = new GermanResolver(), HelpPresenter = presenter, ParseSettings = ParseSettings.Default,
     };
     [Test, DisplayName("localization/default-fallbacks-and-culture-snapshot")]
@@ -43,7 +43,7 @@ internal sealed class LocalizationTests
             AssertEx.True(console.StandardOutput.Contains("Anzahl", StringComparison.Ordinal));
             AssertEx.True(console.StandardOutput.Contains("Literal name", StringComparison.Ordinal));
             console = new();
-            AssertEx.Equal(0, await App(console, presenter).RunAsync(["localized", "--help", "--output=json"]));
+            AssertEx.Equal(0, await App(console, presenter).RunAsync(["localized", "--help", "--format=json"]));
             using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
             AssertEx.Equal("runic.text/1", frame.RootElement.GetProperty("payloadType").GetString());
             AssertEx.Equal("help", frame.RootElement.GetProperty("command").GetString());
@@ -56,7 +56,7 @@ internal sealed class LocalizationTests
         ParseOutcome original = PortableCommandSyntaxAdapter.Instance.Parse(Catalog(), ["localized", "--unknown"], ParseSettings.Default);
         CommandDiagnostic diagnostic = original.Diagnostics[0];
         var console = new TestCommandConsole();
-        AssertEx.Equal(2, await App(console).RunAsync(["localized", "--unknown", "--output=json"]));
+        AssertEx.Equal(2, await App(console).RunAsync(["localized", "--unknown", "--format=json"]));
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         var localized = frame.RootElement.GetProperty("diagnostics")[0];
         AssertEx.Equal(diagnostic.Code, localized.GetProperty("code").GetString());
@@ -75,14 +75,14 @@ internal sealed class LocalizationTests
     public async ValueTask Execution()
     {
         var console = new TestCommandConsole();
-        AssertEx.Equal(2, await App(console).RunAsync(["localized", "--count", "invalid", "--output=json"]));
+        AssertEx.Equal(2, await App(console).RunAsync(["localized", "--count", "invalid", "--format=json"]));
         using (var frame = CommandTestEnvelope.Parse(console.StandardOutput))
         {
             AssertEx.Equal("RCLI2005", frame.RootElement.GetProperty("fault").GetProperty("code").GetString());
             AssertEx.Equal("Ungültiger Wert.", frame.RootElement.GetProperty("fault").GetProperty("message").GetString());
         }
         console = new();
-        AssertEx.Equal(0, await App(console).RunAsync(["localized", "--count", "2", "--output=json"]));
+        AssertEx.Equal(0, await App(console).RunAsync(["localized", "--count", "2", "--format=json"]));
         using var result = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertEx.Equal("runic.text/1", result.RootElement.GetProperty("payloadType").GetString());
         AssertEx.Equal("Hinweis", result.RootElement.GetProperty("diagnostics")[0].GetProperty("message").GetString());
@@ -97,7 +97,7 @@ internal sealed class LocalizationTests
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await adapter.PresentAsync(decision, console, CultureInfo.GetCultureInfo("de-DE"), "localized-request"));
         AssertEx.True(console.StandardOutput.StartsWith("Aufruf: hosted localized", StringComparison.Ordinal));
-        decision = adapter.Classify(new HostedCommandLineLaunchInput(["localized", "--unknown", "--output=json"]));
+        decision = adapter.Classify(new HostedCommandLineLaunchInput(["localized", "--unknown", "--format=json"]));
         console = new();
         AssertEx.Equal(2, await adapter.PresentAsync(decision, console, CultureInfo.GetCultureInfo("de-DE"), "localized-request"));
         using var result = CommandTestEnvelope.Parse(console.StandardOutput);
@@ -126,7 +126,7 @@ internal sealed class LocalizationTests
         // The main test catalog owns "completion"; use a standalone framework-only catalog here.
         var catalog = new CommandCatalogBuilder().Build();
         var console = new TestCommandConsole();
-        var app = new CommandApp(catalog) { Console = console, HandleCancelKeyPress = false,
+        var app = new CommandApp(catalog) { Console = console, HandleTerminationSignals = false,
             Culture = CultureInfo.GetCultureInfo("de-DE"), TextResolver = new GermanResolver() };
         AssertEx.Equal(2, await app.RunAsync(["completion", "unknown"]));
         AssertEx.Equal("Shell auswählen: bash, zsh, fish oder powershell.\n", console.StandardError);
@@ -136,18 +136,6 @@ internal sealed class LocalizationTests
         console = new();
         AssertEx.Equal(2, await adapter.PresentAsync(decision, console, CultureInfo.GetCultureInfo("de-DE"), "completion-request"));
         AssertEx.Equal("Shell auswählen: bash, zsh, fish oder powershell.\n", console.StandardError);
-    }
-    [Test, DisplayName("localization/legacy-help-presenter-remains-compatible")]
-    public async ValueTask LegacyPresenter()
-    {
-        var console = new TestCommandConsole();
-        AssertEx.Equal(0, await App(console, new LegacyHelpPresenter()).RunAsync(["localized", "--help"]));
-        AssertEx.Equal("Legacy help", console.StandardOutput);
-    }
-    private sealed class LegacyHelpPresenter : ICommandHelpPresenter
-    {
-        public ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName,
-            ICommandConsole console, CancellationToken cancellationToken) => console.WriteOutAsync("Legacy help".AsMemory(), cancellationToken);
     }
     // Every key the framework requests while presenting help, parse, binding and execution failures is a listed
     // framework key (or an application DescriptionKey/diagnostic) and receives at most the listed arguments.
@@ -165,7 +153,7 @@ internal sealed class LocalizationTests
             ["config", "shwo"], ["values", "--coutn=1"], ["values", "--unknown"], ["values", "--count"], ["values", "--count", "x"],
             ["values", "--mode", "slow"], ["inspect-path", "--source", "missing-file", "--target", "missing-directory"],
             ["inspect-path", "--source", file, "--target", directory, "--count", "9"], ["relations", "--apply"], ["relations", "--apply", "--confirm", "--dry-run"],
-            ["greet", "a", "b"], ["fail"], ["env"], ["--output", "yaml"], ["values", "--count", "1", "--count", "2"],
+            ["greet", "a", "b"], ["fail"], ["env"], ["--format", "yaml"], ["values", "--count", "1", "--count", "2"],
         ];
         foreach (string[] invocation in invocations)
             foreach (string mode in new[] { "human", "json" })
@@ -173,12 +161,12 @@ internal sealed class LocalizationTests
                 var console = new TestCommandConsole();
                 await new CommandApp(GeneratedCommandCatalog.Create())
                 {
-                    Name = "sample", Console = console, HandleCancelKeyPress = false, TextResolver = resolver,
+                    Name = "sample", Console = console, HandleTerminationSignals = false, TextResolver = resolver,
                     ParseSettings = ParseSettings.Default,
-                }.RunAsync([.. invocation, "--output=" + mode]);
+                }.RunAsync([.. invocation, "--format=" + mode]);
             }
         Directory.Delete(directory, recursive: true);
-        await new CommandApp(new CommandCatalogBuilder().Build()) { Console = new TestCommandConsole(), HandleCancelKeyPress = false, TextResolver = resolver }
+        await new CommandApp(new CommandCatalogBuilder().Build()) { Console = new TestCommandConsole(), HandleTerminationSignals = false, TextResolver = resolver }
             .RunAsync(["completion", "unknown"]);
         foreach ((string key, int count) in resolver.Requests)
         {

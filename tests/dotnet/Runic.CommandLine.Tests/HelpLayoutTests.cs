@@ -6,11 +6,12 @@ namespace Runic.CommandLine.Tests;
 internal sealed class HelpLayoutTests
 {
     private static readonly HashSet<string> UnbreakableTerms =
-        ["--format, -f <format>", "--destination-directory-for-archives <DIR>", "--output <human|json>", "completion <shell>"];
+        ["--format, -f <format>", "--destination-directory-for-archives <DIR>", "--output <human|json>", "--format <human|json>", "completion <shell>"];
 
+    // The command's own --format option needs another output selector.
     private static CommandCatalog Catalog()
     {
-        var builder = new CommandCatalogBuilder();
+        var builder = new CommandCatalogBuilder().OutputSelector("--output");
         CatalogTests.ValidCommand(builder, "export")
             .WithHelp(new CommandHelp("Export the selected records to a file in one of the supported formats, replacing any previous export."))
             .Option("name", "--name", CommandArity.ExactlyOne)
@@ -38,7 +39,7 @@ internal sealed class HelpLayoutTests
     [Test, DisplayName("help/long-lines-wrap-under-the-description-column")]
     public ValueTask LongLinesWrap()
     {
-        string help = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, "--output", 60);
+        string help = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, 60);
         const string expected = """
             Usage: fixture export <source> [options]
 
@@ -75,7 +76,7 @@ internal sealed class HelpLayoutTests
         foreach (int width in Enumerable.Range(CommandHelpFormatter.MinimumWidth, 21).Append(CommandHelpFormatter.DefaultWidth).Append(120))
             foreach (CommandPath path in new[] { CommandPath.Root, new CommandPath(["export"]) })
             {
-                string help = CommandHelpFormatter.Format(catalog, "fixture", path, CommandTextContext.English, "--output", width);
+                string help = CommandHelpFormatter.Format(catalog, "fixture", path, CommandTextContext.English, width);
                 foreach (string line in help.Split('\n'))
                 {
                     // Only a single word or an option term wider than the line may overflow; neither is split.
@@ -85,7 +86,7 @@ internal sealed class HelpLayoutTests
                     AssertEx.True(line.Length == 0 || line[^1] != ' ', $"trailing space at width {width}: '{line}'");
                 }
             }
-        AssertEx.Throws<ArgumentOutOfRangeException>(() => CommandHelpFormatter.Format(catalog, "fixture", CommandPath.Root, CommandTextContext.English, "--output", CommandHelpFormatter.MinimumWidth - 1));
+        AssertEx.Throws<ArgumentOutOfRangeException>(() => CommandHelpFormatter.Format(catalog, "fixture", CommandPath.Root, CommandTextContext.English, CommandHelpFormatter.MinimumWidth - 1));
         return ValueTask.CompletedTask;
     }
 
@@ -94,8 +95,8 @@ internal sealed class HelpLayoutTests
     {
         var inner = new TestCommandConsole();
         var console = new SpectreCommandConsole(inner, width: 60, color: false);
-        await new SpectreHelpPresenter().WriteAsync(Catalog(), "fixture", new CommandPath(["export"]), "--output", console, CancellationToken.None);
-        string expected = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, "--output", 60);
+        await new SpectreHelpPresenter().WriteAsync(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, console, CancellationToken.None);
+        string expected = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, 60);
         // Spectre may still style headings when it detects a CI terminal; compare the visible text.
         string visible = System.Text.RegularExpressions.Regex.Replace(inner.StandardOutput, "\u001b\\[[0-9;]*m", "");
         AssertEx.Equal(expected, visible.Replace("\r\n", "\n", StringComparison.Ordinal));
@@ -108,7 +109,7 @@ internal sealed class HelpLayoutTests
             .WithHelp(new CommandHelp("Convert records.") { LongDescription = longDescription })
             .Option("mode", "--mode", CommandArity.ExactlyOne)
             .ParameterHelp("mode", new CommandHelp(optionDescription, defaultValue: "fast"));
-        return CommandHelpFormatter.Format(builder.Build(), "fixture", new CommandPath(["convert"]), CommandTextContext.English, "--output", width);
+        return CommandHelpFormatter.Format(builder.Build(), "fixture", new CommandPath(["convert"]), CommandTextContext.English, width);
     }
 
     [Test, DisplayName("help/long-description-keeps-preformatted-lines")]
@@ -147,7 +148,7 @@ internal sealed class HelpLayoutTests
               --mode <mode>  Mode. [default: fast]
               -h, --help     Show help
               --version      Show version
-              --output <human|json>
+              --format <human|json>
                              Select output format
 
             """;
@@ -174,7 +175,7 @@ internal sealed class HelpLayoutTests
                              [default: fast]
               -h, --help     Show help
               --version      Show version
-              --output <human|json>
+              --format <human|json>
                              Select output format
 
             """;
@@ -203,7 +204,7 @@ internal sealed class HelpLayoutTests
                           [default: fast]
               -h, --help  Show help
               --version   Show version
-              --output <human|json>
+              --format <human|json>
                           Select output
                           format
 
@@ -224,7 +225,7 @@ internal sealed class HelpLayoutTests
             CatalogTests.ValidCommand(builder, "run")
                 .Option("wide", "--" + new string('w', cap - 2), CommandArity.Zero)
                 .ParameterHelp("wide", new CommandHelp(defaultValue: value));
-            string help = CommandHelpFormatter.Format(builder.Build(), "fixture", new CommandPath(["run"]), CommandTextContext.English, "--output", width);
+            string help = CommandHelpFormatter.Format(builder.Build(), "fixture", new CommandPath(["run"]), CommandTextContext.English, width);
             foreach (string line in help.Split('\n'))
             {
                 // Only one word wider than the space after the column may overflow; a kept note never does.
@@ -267,8 +268,8 @@ internal sealed class HelpLayoutTests
         // A terminal-looking console with an explicit width: the presenter must not subtract the terminal margin.
         var inner = new TestCommandConsole { IsOutputRedirected = false };
         var console = new SpectreCommandConsole(inner, width: 60, color: false);
-        await new SpectreHelpPresenter().WriteAsync(Catalog(), "fixture", new CommandPath(["export"]), "--output", console, CancellationToken.None);
-        string expected = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, "--output", 60);
+        await new SpectreHelpPresenter().WriteAsync(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, console, CancellationToken.None);
+        string expected = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, 60);
         string visible = System.Text.RegularExpressions.Regex.Replace(inner.StandardOutput, "\u001b\\[[0-9;]*m", "");
         AssertEx.Equal(expected, visible.Replace("\r\n", "\n", StringComparison.Ordinal));
     }

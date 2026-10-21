@@ -5,9 +5,11 @@ using Runic.CommandLine;
 
 // Compiled against the published package before fault.data existed. It must
 // ignore the additive extension while enforcing ordinary /1 failure invariants.
+// The frame carries the candidate's cancellation exit code, 130; the baseline's
+// CommandExitCodes.Cancelled constant is still the former 4.
 CommandResponse<string> response = CommandJsonEnvelopeReader.Read(
     File.ReadAllBytes(args[0]), "runic.consumer-recovery/1", BaselineJsonContext.Default.String);
-if (response.Success || response.ExitCode != CommandExitCodes.Cancelled ||
+if (response.Success || response.ExitCode != 130 ||
     response.PayloadType is not null || response.Payload is not null ||
     response.Fault?.Code != "RCLI3000" || response.Fault.Message != "The operation was cancelled.") return 1;
 Console.WriteLine("Published 0.6.0-preview.2 /1 reader accepted the additive failure data.");

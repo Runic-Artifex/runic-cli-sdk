@@ -33,7 +33,7 @@ internal sealed partial class PromptTests
             .BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory(_ => handler)).Produces(new TestCodec())).Build();
         return new CommandApp(catalog)
         {
-            Name = "prompts", Console = console, ParseSettings = settings ?? ParseSettings.Default, HandleCancelKeyPress = false,
+            Name = "prompts", Console = console, ParseSettings = settings ?? ParseSettings.Default, HandleTerminationSignals = false,
             TextResolver = resolver, Culture = CultureInfo.InvariantCulture,
         };
     }
@@ -167,7 +167,7 @@ internal sealed partial class PromptTests
     [Test, DisplayName("prompts/json-output-never-prompts")]
     public async ValueTask JsonOutputNeverPrompts()
     {
-        foreach (string[] args in new[] { new[] { "ask", "--output=json" }, ["ask", "--json"] })
+        foreach (string[] args in new[] { new[] { "ask", "--format=json" }, ["ask", "--json"] })
         {
             // Even an interactive terminal with queued answers is not asked.
             TestCommandConsole console = Terminal();
@@ -328,7 +328,7 @@ internal sealed partial class PromptTests
         AssertEx.True(frames[1].Split('\n').All(line => line.Length <= 19), frames[1]);
     }
 
-    [Test, DisplayName("prompts/escape-and-end-of-input-cancel-with-exit-code-4")]
+    [Test, DisplayName("prompts/escape-and-end-of-input-cancel-with-exit-code-130")]
     public async ValueTask EscapeAndEndOfInputCancel()
     {
         TestCommandConsole console = Terminal();
@@ -373,7 +373,7 @@ internal sealed partial class PromptTests
     [Test, DisplayName("prompts/task-log-writes-plain-lines-without-a-terminal")]
     public async ValueTask PlainTaskLog()
     {
-        foreach (string[] args in new[] { new[] { "ask" }, ["ask", "--output=json"] })
+        foreach (string[] args in new[] { new[] { "ask" }, ["ask", "--format=json"] })
         {
             var console = new TestCommandConsole();
             AssertEx.Equal(0, await App(console, async (prompts, token) =>
@@ -473,7 +473,7 @@ internal sealed partial class PromptTests
             (new TestCommandConsole(), new[] { "ask" }),
             (Interactive(), ["ask"]),
             (new TestCommandConsole { IsInteractive = true, SupportsAnsi = false }, ["ask"]),
-            (Terminal(), ["ask", "--output=json"]),
+            (Terminal(), ["ask", "--format=json"]),
             (Terminal(), ["ask", "--json"]),
         })
         {

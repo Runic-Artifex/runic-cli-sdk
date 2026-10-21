@@ -16,7 +16,7 @@ internal sealed class DeveloperExperienceTests
 {
     private static CommandApp App(ICommandConsole console, ICommandExecutionScopeFactory? scopes = null) => new(GeneratedCommandCatalog.Create())
     {
-        Name = "sample", Version = "9.8.7", Console = console, HandleCancelKeyPress = false,
+        Name = "sample", Version = "9.8.7", Console = console, HandleTerminationSignals = false,
         ParseSettings = ParseSettings.Default, ScopeFactory = scopes,
     };
 
@@ -94,7 +94,7 @@ internal sealed class DeveloperExperienceTests
         AssertEx.Equal("config show", invalid.MatchedPath?.ToString());
         AssertEx.True(invalid.MatchesKnownCommand && invalid.IsCommandLineRequest, "A known command with bad arguments belongs to the command line.");
 
-        AssertEx.Equal("config show", Classify("--output", "json", "config", "show").MatchedPath?.ToString());
+        AssertEx.Equal("config show", Classify("--format", "json", "config", "show").MatchedPath?.ToString());
         HostedCommandLineDecision group = Classify("config");
         AssertEx.True(group.Kind == HostedCommandLineDecisionKind.Help && group.MatchedPath?.ToString() == "config" && group.IsCommandLineRequest);
 
@@ -118,7 +118,7 @@ internal sealed class DeveloperExperienceTests
         CatalogTests.ValidCommand(builder, "list");
         CatalogTests.ValidCommand(builder, "export");
         var console = new TestCommandConsole();
-        var adapter = new CommandLineHostingAdapter(new CommandApp(builder.Build()) { Console = console, HandleCancelKeyPress = false });
+        var adapter = new CommandLineHostingAdapter(new CommandApp(builder.Build()) { Console = console, HandleTerminationSignals = false });
         HostedCommandLineDecision Classify(params string[] args) =>
             adapter.Classify(new HostedCommandLineLaunchInput(args, emptyInputFallback: EmptyInputFallback.UserInterface));
 
@@ -198,7 +198,7 @@ internal sealed class DeveloperExperienceTests
     public async ValueTask JsonEscaping()
     {
         var console = new TestCommandConsole();
-        AssertEx.Equal(0, await App(console).RunAsync(["dx-text", "--output", "json"]));
+        AssertEx.Equal(0, await App(console).RunAsync(["dx-text", "--format", "json"]));
         string frame = console.StandardOutput;
         AssertEx.True(frame.Contains("Ungültige Eingabe – 日本語 ✓", StringComparison.Ordinal), frame);
         foreach (string escaped in new[] { "\\u003Cb\\u003E", "\\u0026", "\\u0027", "\\u0022", "\\u202E", "\\u200B", "\\u2028", "\\u001B" })
@@ -218,7 +218,7 @@ internal sealed class DeveloperExperienceTests
         console = new TestCommandConsole();
         var app = new CommandApp(GeneratedCommandCatalog.Create(builder => builder.Group("config", new CommandHelp("Overridden."))))
         {
-            Name = "sample", Console = console, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default,
+            Name = "sample", Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default,
         };
         AssertEx.Equal(0, await app.RunAsync(["--help"]));
         AssertEx.True(console.StandardOutput.Contains("Overridden.", StringComparison.Ordinal), console.StandardOutput);

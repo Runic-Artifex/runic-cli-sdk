@@ -182,7 +182,7 @@ $nugetConfiguration | Set-Content -LiteralPath (Join-Path $consumerDirectory 'Nu
     if ($LASTEXITCODE -ne 0 -or ($human -join "`n") -ne "Hello, Ada!`nHello, Ada!") {
         throw 'Package-only quick-start human output did not match.'
     }
-    $json = & dotnet run --project $helloProject -c $Configuration --no-build -- Ada --count 2 --output=json
+    $json = & dotnet run --project $helloProject -c $Configuration --no-build -- Ada --count 2 --format=json
     if ($LASTEXITCODE -ne 0) { throw 'Package-only quick-start JSON execution failed.' }
     $envelope = ($json -join "`n") | ConvertFrom-Json
     if ($envelope.protocol -ne 'runic.commandline/1' -or -not $envelope.success -or

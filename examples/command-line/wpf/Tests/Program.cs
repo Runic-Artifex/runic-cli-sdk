@@ -27,7 +27,7 @@ try
 }
 finally { File.Delete(path); }
 
-var machine = await app.RunAsync(["items", "list", "--output=json"]);
+var machine = await app.RunAsync(["items", "list", "--format=json"]);
 using var frame = CommandTestEnvelope.Parse(machine.StandardOutput);
 if (machine.ExitCode != 0 || !frame.RootElement.GetProperty("success").GetBoolean()) return 8;
 

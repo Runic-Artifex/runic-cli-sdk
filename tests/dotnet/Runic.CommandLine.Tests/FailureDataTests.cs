@@ -206,8 +206,8 @@ internal sealed class FailureDataTests
         var console = new MemoryCommandConsole();
         int code = await new CommandApp(Runic.CommandLine.Generated.GeneratedCommandCatalog.Create())
         {
-            Console = console, HandleCancelKeyPress = false, TextResolver = new FailureTextResolver(),
-        }.RunAsync(["typed-recovery", "--output=json"]);
+            Console = console, HandleTerminationSignals = false, TextResolver = new FailureTextResolver(),
+        }.RunAsync(["typed-recovery", "--format=json"]);
         AssertEx.Equal(CommandExitCodes.Cancelled, code);
         CommandResponse<TestResult> response = Read(Encoding.UTF8.GetBytes(console.StandardOutput));
         AssertEx.Equal("The operation stopped.", response.Fault!.Message);
@@ -217,7 +217,7 @@ internal sealed class FailureDataTests
 
         var human = new MemoryCommandConsole();
         await new CommandApp(Runic.CommandLine.Generated.GeneratedCommandCatalog.Create())
-        { Console = human, HandleCancelKeyPress = false }.RunAsync(["typed-recovery"]);
+        { Console = human, HandleTerminationSignals = false }.RunAsync(["typed-recovery"]);
         AssertEx.Equal("Inspect the retained directory.\n", human.StandardOutput);
         AssertEx.True(!human.StandardError.Contains(ExactPath, StringComparison.Ordinal));
     }

@@ -9,7 +9,7 @@ internal sealed partial class ApplicationTests
 {
     private static CommandApp App(ICommandConsole console, Action<Exception>? observer = null, ParseSettings? settings = null) => new(GeneratedCommandCatalog.Create())
     {
-        Name = "sample", Version = "1.2.3", Console = console, HandleCancelKeyPress = false,
+        Name = "sample", Version = "1.2.3", Console = console, HandleTerminationSignals = false,
         ParseSettings = settings ?? ParseSettings.Default, ExceptionObserver = observer,
     };
 
@@ -28,7 +28,7 @@ internal sealed partial class ApplicationTests
         AssertEx.Equal(0, await App(console).RunAsync([]));
         AssertEx.Equal("Hello world\n", console.StandardOutput);
         console = new();
-        AssertEx.Equal(0, await App(console).RunAsync(["--output", "json", "greet", "Ada"]));
+        AssertEx.Equal(0, await App(console).RunAsync(["--format", "json", "greet", "Ada"]));
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertEx.Equal("Hello Ada", frame.RootElement.GetProperty("payload").GetString());
     }
@@ -58,7 +58,7 @@ internal sealed partial class ApplicationTests
     {
         var console = new TestCommandConsole { IsInteractive = true, IsInputRedirected = false };
         console.QueueInput("must not consume");
-        AssertEx.Equal(0, await App(console).RunAsync(["noisy", "--output=json"]));
+        AssertEx.Equal(0, await App(console).RunAsync(["noisy", "--format=json"]));
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertEx.True(frame.RootElement.GetProperty("success").GetBoolean());
         AssertEx.Equal("Working\n", console.StandardError);
@@ -69,7 +69,7 @@ internal sealed partial class ApplicationTests
     {
         var console = new TestCommandConsole();
         Exception? captured = null;
-        AssertEx.Equal(70, await App(console, exception => captured = exception).RunAsync(["fail", "--output=json"]));
+        AssertEx.Equal(3, await App(console, exception => captured = exception).RunAsync(["fail", "--format=json"]));
         AssertEx.True(captured is InvalidOperationException);
         AssertEx.True(!console.StandardOutput.Contains("internal-secret", StringComparison.Ordinal));
     }
@@ -80,11 +80,11 @@ internal sealed partial class ApplicationTests
         Exception? captured = null;
         var app = new CommandApp(GeneratedCommandCatalog.Create())
         {
-            Console = console, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false,
+            Console = console, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false,
             CreateScopeFactory = _ => throw new InvalidOperationException("scope-secret"),
             ExceptionObserver = exception => captured = exception,
         };
-        AssertEx.Equal(70, await app.RunAsync(["greet", "--output=json"]));
+        AssertEx.Equal(3, await app.RunAsync(["greet", "--format=json"]));
         AssertEx.True(captured is InvalidOperationException);
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertEx.True(!console.StandardOutput.Contains("scope-secret", StringComparison.Ordinal));

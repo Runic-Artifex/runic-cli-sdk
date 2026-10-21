@@ -99,7 +99,7 @@ internal sealed class AuthoringMetadataTests
             AssertEx.Equal("arguments.value", catalog.Commands.Single(c => c.Name == "probe").Arguments.Single().DescriptionKey);
             AssertEx.Equal("options.offset", catalog.Commands.Single(c => c.Name == "probe").Options[0].DescriptionKey);
             var console = new TestCommandConsole();
-            var app = new CommandApp(catalog) { Console = console, HandleCancelKeyPress = false };
+            var app = new CommandApp(catalog) { Console = console, HandleTerminationSignals = false };
             AssertEx.Equal(0, await app.RunAsync(["probe", "2", "--offset", "3"]));
             AssertEx.Equal("2:4\n", console.StandardOutput);
             AssertEx.Equal(0, await app.RunAsync(["nullable"]));

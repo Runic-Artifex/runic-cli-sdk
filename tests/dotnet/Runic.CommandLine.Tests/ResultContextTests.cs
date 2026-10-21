@@ -11,8 +11,8 @@ internal sealed class ResultContextTests
     public async ValueTask JsonOptions()
     {
         var console = new TestCommandConsole();
-        var app = new CommandApp(GeneratedCommandCatalog.Create()) { Console = console, HandleCancelKeyPress = false };
-        AssertEx.Equal(0, await app.RunAsync(["result-context", "--output=json"]));
+        var app = new CommandApp(GeneratedCommandCatalog.Create()) { Console = console, HandleTerminationSignals = false };
+        AssertEx.Equal(0, await app.RunAsync(["result-context", "--format=json"]));
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         JsonElement payload = frame.RootElement.GetProperty("payload");
         JsonElement expected = JsonSerializer.SerializeToElement(ResultContextCommands.Result(), ResultOptionsContext.Default.ContextResult);
@@ -26,7 +26,7 @@ internal sealed class ResultContextTests
     public async ValueTask HumanOptions()
     {
         var console = new TestCommandConsole();
-        var app = new CommandApp(GeneratedCommandCatalog.Create()) { Console = console, HandleCancelKeyPress = false };
+        var app = new CommandApp(GeneratedCommandCatalog.Create()) { Console = console, HandleTerminationSignals = false };
         AssertEx.Equal(0, await app.RunAsync(["result-context"]));
         AssertEx.Equal("displayName: Ready\n", console.StandardOutput);
     }

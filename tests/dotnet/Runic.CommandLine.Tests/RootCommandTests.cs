@@ -39,8 +39,8 @@ internal sealed class RootCommandTests
 
             // JSON output keeps the name as the command's identity.
             var console = new TestCommandConsole();
-            AssertEx.Equal(0, await new CommandApp(catalog) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false }
-                .RunAsync(["home", "--output", "json"]));
+            AssertEx.Equal(0, await new CommandApp(catalog) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false }
+                .RunAsync(["home", "--format", "json"]));
             using var envelope = CommandTestEnvelope.Parse(console.StandardOutput);
             AssertEx.Equal("run", envelope.RootElement.GetProperty("command").GetString());
         });

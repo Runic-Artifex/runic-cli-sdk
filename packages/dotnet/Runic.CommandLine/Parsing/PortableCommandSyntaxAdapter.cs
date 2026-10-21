@@ -1242,7 +1242,6 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
     private sealed record IndexedToken(string Value, int Index);
 
-    // The output selector, such as --output or a host's --runic-output, and the catalog's JSON alias, such as --json.
     // The selector, its hidden aliases (which parse exactly like it) and the JSON output alias flag.
     private readonly record struct TransportOutput(string Name, IReadOnlyList<string> HiddenAliases, string? JsonAlias)
     {

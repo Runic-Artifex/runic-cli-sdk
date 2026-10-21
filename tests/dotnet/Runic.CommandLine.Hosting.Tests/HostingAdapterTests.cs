@@ -24,7 +24,7 @@ internal sealed partial class HostingAdapterTests
         {
             Presentation = new() { Name = "hosted", Version = "1.2.3", HelpPresenter = new SpectreHelpPresenter() },
         };
-        foreach (string[] args in new string[][] { ["help", "run"], ["--version"], ["completion", "bash"], ["completion", "invalid"], ["unknown"], ["--help", "--output=json"], ["unknown", "--output=json"] })
+        foreach (string[] args in new string[][] { ["help", "run"], ["--version"], ["completion", "bash"], ["completion", "invalid"], ["unknown"], ["--help", "--format=json"], ["unknown", "--format=json"] })
         {
             var hosted = new TestCommandConsole();
             var standalone = new TestCommandConsole();
@@ -33,11 +33,11 @@ internal sealed partial class HostingAdapterTests
             int expected = await new CommandApp(catalog)
             {
                 Name = "hosted", Version = "1.2.3", HelpPresenter = new SpectreHelpPresenter(),
-                Console = new SpectreCommandConsole(standalone), HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default,
+                Console = new SpectreCommandConsole(standalone), HandleTerminationSignals = false, ParseSettings = ParseSettings.Default,
             }.RunAsync(args);
             AssertEqual(expected, exit);
             AssertEqual(standalone.StandardError, hosted.StandardError);
-            if (Array.Exists(args, arg => arg == "--output=json"))
+            if (Array.Exists(args, arg => arg == "--format=json"))
             {
                 using var frame = CommandTestEnvelope.Parse(hosted.StandardOutput);
                 using var expectedFrame = CommandTestEnvelope.Parse(standalone.StandardOutput);
@@ -96,7 +96,7 @@ internal sealed partial class HostingAdapterTests
         var adapter = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()));
         var console = new TestCommandConsole();
         Exception? observed = null;
-        var result = await adapter.ExecuteAsync(new(adapter.Classify(new(["run", "--output=json"])), console,
+        var result = await adapter.ExecuteAsync(new(adapter.Classify(new(["run", "--format=json"])), console,
             CultureInfo.InvariantCulture, "fault", new CommandOutputDispatcher()) { ExceptionObserver = exception => observed = exception });
         AssertTrue(ReferenceEquals(failure, observed));
         AssertTrue(!result.IsSuccess);
@@ -132,7 +132,7 @@ internal sealed partial class HostingAdapterTests
         var bridge = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()));
 
         HostedCommandLineDecision explicitOutput = bridge.Classify(
-            new(["run", "--output", "human"], outputEnvironmentValue: "json"));
+            new(["run", "--format", "human"], outputEnvironmentValue: "json"));
         AssertEqual(CommandOutputMode.Human, explicitOutput.OutputClassification!.Value.Mode);
         AssertEqual(CommandOutputModeSource.ExplicitArgument, explicitOutput.OutputClassification.Value.Source);
 
@@ -151,12 +151,11 @@ internal sealed partial class HostingAdapterTests
     [Test, DisplayName("classification/error-preserves-transport-output")]
     public ValueTask ErrorPreservesTransportOutput()
     {
-        CommandCatalog catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory());
+        CommandCatalog catalog = CreateCatalog(new DelegateBinder(), new TrackingHandlerFactory(), "--runic-output");
         var bridge = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()));
 
         HostedCommandLineDecision decision = bridge.Classify(new(
-            ["run", "--runic-output=JSON", "--unknown=secret"],
-            transportOutputOptionName: "--runic-output"));
+            ["run", "--runic-output=JSON", "--unknown=secret"]));
 
         AssertEqual(HostedCommandLineDecisionKind.Invalid, decision.Kind);
         AssertEqual(CommandOutputMode.Json, decision.OutputClassification!.Value.Mode);
@@ -164,15 +163,13 @@ internal sealed partial class HostingAdapterTests
         AssertEqual("--unknown", decision.Diagnostics[0].Arguments[0]);
 
         HostedCommandLineDecision knownErrorBeforeTransport = bridge.Classify(new(
-            ["run", "--unknown=secret", "--runic-output=JSON"],
-            transportOutputOptionName: "--runic-output"));
+            ["run", "--unknown=secret", "--runic-output=JSON"]));
         AssertEqual(HostedCommandLineDecisionKind.Invalid, knownErrorBeforeTransport.Kind);
         AssertEqual(CommandOutputMode.Json, knownErrorBeforeTransport.OutputClassification!.Value.Mode);
         AssertEqual("--unknown", knownErrorBeforeTransport.Diagnostics[0].Arguments[0]);
 
         HostedCommandLineDecision hostileRoot = bridge.Classify(new(
-            ["--runic-output=TOPSECRET"],
-            transportOutputOptionName: "--runic-output"));
+            ["--runic-output=TOPSECRET"]));
         AssertEqual(HostedCommandLineDecisionKind.Invalid, hostileRoot.Kind);
         AssertEqual(CommandOutputMode.Human, hostileRoot.OutputClassification!.Value.Mode);
         AssertEqual("RCLI1010", hostileRoot.Diagnostics[0].Code);
@@ -188,14 +185,13 @@ internal sealed partial class HostingAdapterTests
             new[] { "--runic-output=JSON", "help" },
         })
         {
-            HostedCommandLineDecision help = bridge.Classify(new(args, transportOutputOptionName: "--runic-output"));
+            HostedCommandLineDecision help = bridge.Classify(new(args));
             AssertEqual(HostedCommandLineDecisionKind.Help, help.Kind);
             AssertEqual(CommandOutputMode.Json, help.OutputClassification!.Value.Mode);
         }
 
         HostedCommandLineDecision rootHelpExtra = bridge.Classify(new(
-            ["help", "--unknown=secret", "--runic-output=JSON"],
-            transportOutputOptionName: "--runic-output"));
+            ["help", "--unknown=secret", "--runic-output=JSON"]));
         AssertEqual(HostedCommandLineDecisionKind.Invalid, rootHelpExtra.Kind);
         AssertEqual(CommandOutputMode.Json, rootHelpExtra.OutputClassification!.Value.Mode);
         AssertEqual("RCLI1013", rootHelpExtra.Diagnostics[0].Code);
@@ -208,7 +204,7 @@ internal sealed partial class HostingAdapterTests
             new[] { "--runic-output=JSON", "--version" },
         })
         {
-            HostedCommandLineDecision version = bridge.Classify(new(args, transportOutputOptionName: "--runic-output"));
+            HostedCommandLineDecision version = bridge.Classify(new(args));
             AssertEqual(HostedCommandLineDecisionKind.Version, version.Kind);
             AssertEqual(CommandOutputMode.Json, version.OutputClassification!.Value.Mode);
         }
@@ -219,26 +215,23 @@ internal sealed partial class HostingAdapterTests
             new[] { "run", "--runic-output=JSON", "--help" },
         })
         {
-            HostedCommandLineDecision help = bridge.Classify(new(args, transportOutputOptionName: "--runic-output"));
+            HostedCommandLineDecision help = bridge.Classify(new(args));
             AssertEqual(HostedCommandLineDecisionKind.Help, help.Kind);
             AssertEqual(CommandOutputMode.Json, help.OutputClassification!.Value.Mode);
         }
 
         HostedCommandLineDecision slashAliasBoundary = bridge.Classify(new(
-            ["run", "--runic-output", "/x"],
-            transportOutputOptionName: "--runic-output"));
+            ["run", "--runic-output", "/x"]));
         AssertEqual(HostedCommandLineDecisionKind.Invalid, slashAliasBoundary.Kind);
         AssertEqual("RCLI1003", slashAliasBoundary.Diagnostics[0].Code);
         AssertEqual("--runic-output", slashAliasBoundary.Diagnostics[0].Arguments[0]);
 
         HostedCommandLineDecision variadicSingleOccurrence = bridge.Classify(new(
-            ["run", "--documents", "a", "b"],
-            transportOutputOptionName: "--runic-output"));
+            ["run", "--documents", "a", "b"]));
         AssertEqual(HostedCommandLineDecisionKind.Invocation, variadicSingleOccurrence.Kind);
 
         HostedCommandLineDecision variadicRepeated = bridge.Classify(new(
-            ["run", "--documents", "a", "--documents", "b"],
-            transportOutputOptionName: "--runic-output"));
+            ["run", "--documents", "a", "--documents", "b"]));
         AssertEqual(HostedCommandLineDecisionKind.Invalid, variadicRepeated.Kind);
         AssertEqual("RCLI1007", variadicRepeated.Diagnostics[0].Code);
         AssertEqual("--documents", variadicRepeated.Diagnostics[0].Arguments[0]);
@@ -251,6 +244,7 @@ internal sealed partial class HostingAdapterTests
         var binder = new DelegateBinder();
         var handlers = new TrackingHandlerFactory();
         CommandCatalog catalog = new CommandCatalogBuilder()
+            .OutputSelector("--runic-output")
             .Command<Options, Handler, Result>("run", command => command
                 .Option("output", "--output", CommandArity.ExactlyOne)
                 .BindWith(binder)
@@ -260,8 +254,7 @@ internal sealed partial class HostingAdapterTests
         var bridge = new CommandLineHostingAdapter(catalog, new CommandExecutor(new TrackingScopeFactory()));
 
         HostedCommandLineDecision decision = bridge.Classify(new(
-            ["run", "--output", "application", "--runic-output", "json"],
-            transportOutputOptionName: "--runic-output"));
+            ["run", "--output", "application", "--runic-output", "json"]));
         AssertEqual(HostedCommandLineDecisionKind.Invocation, decision.Kind);
         AssertEqual(CommandOutputMode.Json, decision.OutputClassification!.Value.Mode);
         return ValueTask.CompletedTask;
@@ -272,12 +265,8 @@ internal sealed partial class HostingAdapterTests
     {
         foreach (string spelling in new[] { "--help", "--version" })
         {
-            AssertThrows<ArgumentException>(() =>
-            {
-                _ = new HostedCommandLineLaunchInput(
-                    ["run"],
-                    transportOutputOptionName: spelling);
-            });
+            AssertThrows<ArgumentException>(() => new CommandCatalogBuilder().OutputSelector(spelling));
+            AssertThrows<ArgumentException>(() => new CommandCatalogBuilder().OutputSelector("--format", spelling));
         }
 
         return ValueTask.CompletedTask;
@@ -415,7 +404,8 @@ internal sealed partial class HostingAdapterTests
 
     private static CommandCatalog CreateCatalog(
         DelegateBinder binder,
-        TrackingHandlerFactory handlerFactory) => new CommandCatalogBuilder()
+        TrackingHandlerFactory handlerFactory,
+        string? outputSelector = null) => (outputSelector is null ? new CommandCatalogBuilder() : new CommandCatalogBuilder().OutputSelector(outputSelector))
             .Command<Options, Handler, Result>("run", command => command
                 .Option("value", "--value", CommandArity.ExactlyOne, aliases: ["/x"])
                 .Option("documents", "--documents", CommandArity.OneOrMore, CommandOptionRepeatPolicy.Error)

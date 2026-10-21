@@ -34,11 +34,11 @@ internal sealed class ContractTests
     {
         AssertExitCode(CommandExitCategory.Success, CommandExitCodes.Success, 0);
         AssertExitCode(CommandExitCategory.Usage, CommandExitCodes.Usage, 2);
-        AssertExitCode(CommandExitCategory.Validation, CommandExitCodes.Validation, 3);
-        AssertExitCode(CommandExitCategory.Cancelled, CommandExitCodes.Cancelled, 4);
-        AssertExitCode(CommandExitCategory.Unavailable, CommandExitCodes.Unavailable, 5);
-        AssertExitCode(CommandExitCategory.CommandFailure, CommandExitCodes.CommandFailure, 10);
-        AssertExitCode(CommandExitCategory.HostFailure, CommandExitCodes.HostFailure, 70);
+        AssertExitCode(CommandExitCategory.Validation, CommandExitCodes.Validation, 2);
+        AssertExitCode(CommandExitCategory.Cancelled, CommandExitCodes.Cancelled, 130);
+        AssertExitCode(CommandExitCategory.Unavailable, CommandExitCodes.Unavailable, 1);
+        AssertExitCode(CommandExitCategory.CommandFailure, CommandExitCodes.CommandFailure, 1);
+        AssertExitCode(CommandExitCategory.HostFailure, CommandExitCodes.HostFailure, 3);
     }
 
     [Test, DisplayName("success outcome has no fault")]

@@ -42,7 +42,7 @@ internal sealed class CompletionOptionTests
         // Without the option, the built-in command still intercepts the same line.
         console = new TestCommandConsole();
         received = null;
-        AssertEx.Equal(0, await new CommandApp(Catalog(null, words => received = words)) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false }
+        AssertEx.Equal(0, await new CommandApp(Catalog(null, words => received = words)) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false }
             .RunAsync(["completion", "bash"]));
         AssertEx.True(received is null && console.StandardOutput.Contains("complete -F", StringComparison.Ordinal), console.StandardOutput);
     }
@@ -92,7 +92,7 @@ internal sealed class CompletionOptionTests
         AssertEx.SequenceEqual(Shells, CommandCompletion.Query(catalog, ["--completions", ""]).Candidates);
 
         var console = new TestCommandConsole();
-        CommandApp App() => new(catalog) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false };
+        CommandApp App() => new(catalog) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false };
         AssertEx.Equal(0, await App().RunAsync(["--completions", "zsh"]));
         AssertEx.True(console.StandardOutput.StartsWith("#compdef fixture", StringComparison.Ordinal), console.StandardOutput);
         console = new TestCommandConsole();
@@ -138,7 +138,9 @@ internal sealed class CompletionOptionTests
 
         foreach (Action<CommandCatalogBuilder> declare in new Action<CommandCatalogBuilder>[]
         {
-            builder => builder.CompletionOption("--output"),
+            builder => builder.CompletionOption("--format"),
+            builder => builder.OutputSelector("--runic-output").CompletionOption("--runic-output"),
+            builder => builder.OutputSelector("--format", "--output").CompletionOption("--output"),
             builder => builder.JsonOutputAlias("--json").CompletionOption("--json"),
         })
         {
@@ -182,5 +184,5 @@ internal sealed class CompletionOptionTests
     }
 
     private static CommandApp App(ICommandConsole console, Action<string[]>? received = null) =>
-        new(Catalog("--completions", received)) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false };
+        new(Catalog("--completions", received)) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false };
 }

@@ -91,7 +91,7 @@ internal sealed class JsonPayloadOutputTests
             new[] { "greet", "--bogus", "--json" },
             ["--json", "greet", "--bogus"],
             ["greet", "--json", "--json"],
-            ["greet", "--json", "--output", "json"],
+            ["greet", "--json", "--format", "json"],
             ["greet", "--json=yes"],
         })
         {
@@ -112,7 +112,7 @@ internal sealed class JsonPayloadOutputTests
 
         // The same framework request selected without the alias keeps the envelope.
         var envelope = new TestCommandConsole();
-        AssertEx.Equal(CommandExitCodes.Usage, await App(envelope).RunAsync(["greet", "--bogus", "--output", "json"]));
+        AssertEx.Equal(CommandExitCodes.Usage, await App(envelope).RunAsync(["greet", "--bogus", "--format", "json"]));
         using (CommandTestEnvelope.Parse(envelope.StandardOutput))
         {
         }
@@ -122,7 +122,7 @@ internal sealed class JsonPayloadOutputTests
     public async ValueTask SelectorAndEnvironmentKeepEnvelope()
     {
         var console = new TestCommandConsole();
-        AssertEx.Equal(0, await App(console).RunAsync(["report", "--output", "json"]));
+        AssertEx.Equal(0, await App(console).RunAsync(["report", "--format", "json"]));
         using (JsonDocument document = CommandTestEnvelope.Parse(console.StandardOutput))
         {
             AssertEx.Equal("Ready", document.RootElement.GetProperty("payload").GetProperty("status").GetString());
@@ -148,7 +148,7 @@ internal sealed class JsonPayloadOutputTests
         ParseOutcome alias = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["report", "--json"], ParseSettings.Default);
         AssertEx.Equal(CommandOutputMode.Json, alias.Invocation!.OutputClassification.Mode);
         AssertEx.Equal(JsonOutputShape.Payload, alias.Invocation.OutputClassification.Shape);
-        ParseOutcome selector = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["report", "--output=json"], ParseSettings.Default);
+        ParseOutcome selector = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["report", "--format=json"], ParseSettings.Default);
         AssertEx.Equal(JsonOutputShape.Envelope, selector.Invocation!.OutputClassification.Shape);
         ParseOutcome envelopeAlias = PortableCommandSyntaxAdapter.Instance.Parse(
             GeneratedCommandCatalog.Create(builder => builder.JsonOutputAlias("--json")), ["report", "--json"], ParseSettings.Default);
@@ -156,7 +156,7 @@ internal sealed class JsonPayloadOutputTests
 
         var sink = new ShapeSink();
         var console = new TestCommandConsole();
-        AssertEx.Equal(0, await new CommandApp(catalog) { Console = console, OutcomeSink = sink, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false }
+        AssertEx.Equal(0, await new CommandApp(catalog) { Console = console, OutcomeSink = sink, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false }
             .RunAsync(["report", "--json"]));
         AssertEx.Equal(JsonOutputShape.Payload, sink.Shape);
 
@@ -207,7 +207,7 @@ internal sealed class JsonPayloadOutputTests
             Console = console,
             Version = "1.2.3",
             ParseSettings = settings ?? ParseSettings.Default,
-            HandleCancelKeyPress = false,
+            HandleTerminationSignals = false,
         };
 
     private sealed class ShapeSink : ICommandOutcomeSink

@@ -18,12 +18,11 @@ internal static class Program
     private static async Task<int> Main(string[] launchArgs)
     {
         var adapter = new CommandLineHostingAdapter(
-            GeneratedCommandCatalog.Create(),
+            GeneratedCommandCatalog.Create(static builder => builder.OutputSelector("--runic-output")),
             new CommandExecutor(EmptyScopeFactory.Instance));
         HostedCommandLineDecision parseErrorDecision = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--runic-output=JSON", "--unknown=secret"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--runic-output=JSON", "--unknown=secret"]));
         if (parseErrorDecision.Kind != HostedCommandLineDecisionKind.Invalid ||
             parseErrorDecision.OutputClassification?.Mode != CommandOutputMode.Json ||
             parseErrorDecision.Diagnostics.Count != 1 ||
@@ -32,8 +31,7 @@ internal static class Program
 
         HostedCommandLineDecision parseErrorBeforeTransport = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--unknown=secret", "--runic-output=JSON"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--unknown=secret", "--runic-output=JSON"]));
         if (parseErrorBeforeTransport.Kind != HostedCommandLineDecisionKind.Invalid ||
             parseErrorBeforeTransport.OutputClassification?.Mode != CommandOutputMode.Json ||
             parseErrorBeforeTransport.Diagnostics.Count != 1 ||
@@ -42,8 +40,7 @@ internal static class Program
 
         HostedCommandLineDecision hostileTransport = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["--runic-output=TOPSECRET"],
-                transportOutputOptionName: "--runic-output"));
+                ["--runic-output=TOPSECRET"]));
         if (hostileTransport.Kind != HostedCommandLineDecisionKind.Invalid ||
             hostileTransport.Diagnostics.Count != 1 ||
             hostileTransport.Diagnostics[0].Code != "RCLI1010" ||
@@ -60,7 +57,7 @@ internal static class Program
         })
         {
             HostedCommandLineDecision help = adapter.Classify(
-                new HostedCommandLineLaunchInput(args, transportOutputOptionName: "--runic-output"));
+                new HostedCommandLineLaunchInput(args));
             if (help.Kind != HostedCommandLineDecisionKind.Help ||
                 help.OutputClassification?.Mode != CommandOutputMode.Json) return 93;
         }
@@ -72,22 +69,20 @@ internal static class Program
         })
         {
             HostedCommandLineDecision version = adapter.Classify(
-                new HostedCommandLineLaunchInput(args, transportOutputOptionName: "--runic-output"));
+                new HostedCommandLineLaunchInput(args));
             if (version.Kind != HostedCommandLineDecisionKind.Version ||
                 version.OutputClassification?.Mode != CommandOutputMode.Json) return 94;
         }
 
         HostedCommandLineDecision generatedHelp = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--help", "--runic-output=JSON"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--help", "--runic-output=JSON"]));
         if (generatedHelp.Kind != HostedCommandLineDecisionKind.Help ||
             generatedHelp.OutputClassification?.Mode != CommandOutputMode.Json) return 95;
 
         HostedCommandLineDecision rootHelpExtra = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["help", "--unknown=secret", "--runic-output=JSON"],
-                transportOutputOptionName: "--runic-output"));
+                ["help", "--unknown=secret", "--runic-output=JSON"]));
         if (rootHelpExtra.Kind != HostedCommandLineDecisionKind.Invalid ||
             rootHelpExtra.OutputClassification?.Mode != CommandOutputMode.Json ||
             rootHelpExtra.Diagnostics.Count != 1 ||
@@ -97,8 +92,7 @@ internal static class Program
 
         HostedCommandLineDecision slashAliasBoundary = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--runic-output", "/x"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--runic-output", "/x"]));
         if (slashAliasBoundary.Kind != HostedCommandLineDecisionKind.Invalid ||
             slashAliasBoundary.Diagnostics.Count != 1 ||
             slashAliasBoundary.Diagnostics[0].Code != "RCLI1003" ||
@@ -107,14 +101,12 @@ internal static class Program
 
         HostedCommandLineDecision singleOccurrence = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--documents", "one", "--output", "application", "--single-documents", "a", "b", "--", "world"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--documents", "one", "--output", "application", "--single-documents", "a", "b", "--", "world"]));
         if (singleOccurrence.Kind != HostedCommandLineDecisionKind.Invocation) return 98;
 
         HostedCommandLineDecision repeatedSingleOccurrence = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--documents", "one", "--output", "application", "--single-documents", "a", "--single-documents", "b", "--", "world"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--documents", "one", "--output", "application", "--single-documents", "a", "--single-documents", "b", "--", "world"]));
         if (repeatedSingleOccurrence.Kind != HostedCommandLineDecisionKind.Invalid ||
             repeatedSingleOccurrence.Diagnostics.Count != 1 ||
             repeatedSingleOccurrence.Diagnostics[0].Code != "RCLI1007" ||
@@ -123,8 +115,7 @@ internal static class Program
 
         HostedCommandLineDecision decision = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--documents", "one", "two", "--documents", "three", "--output", "application", "--runic-output=json", "world", "--", "--app-flag", "-3", "literal"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--documents", "one", "two", "--documents", "three", "--output", "application", "--runic-output=json", "world", "--", "--app-flag", "-3", "literal"]));
         if (decision.Kind != HostedCommandLineDecisionKind.Invocation) return 10;
 
         var console = new BufferCommandConsole();
@@ -138,8 +129,7 @@ internal static class Program
 
         HostedCommandLineDecision humanDecision = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--documents", "one", "two", "--documents", "three", "--output", "application", "--runic-output=human", "world", "--", "--app-flag", "-3", "literal"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--documents", "one", "two", "--documents", "three", "--output", "application", "--runic-output=human", "world", "--", "--app-flag", "-3", "literal"]));
         if (humanDecision.Kind != HostedCommandLineDecisionKind.Invocation) return 32;
 
         var humanConsole = new BufferCommandConsole();
@@ -150,8 +140,7 @@ internal static class Program
 
         HostedCommandLineDecision failureHumanDecision = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--documents", "one", "--output", "failure", "--runic-output=human", "world"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--documents", "one", "--output", "failure", "--runic-output=human", "world"]));
         if (failureHumanDecision.Kind != HostedCommandLineDecisionKind.Invocation) return 34;
 
         var failureHumanConsole = new BufferCommandConsole();
@@ -163,8 +152,7 @@ internal static class Program
 
         HostedCommandLineDecision failureJsonDecision = adapter.Classify(
             new HostedCommandLineLaunchInput(
-                ["smoke", "--documents", "one", "--output", "failure", "--runic-output=json", "world"],
-                transportOutputOptionName: "--runic-output"));
+                ["smoke", "--documents", "one", "--output", "failure", "--runic-output=json", "world"]));
         if (failureJsonDecision.Kind != HostedCommandLineDecisionKind.Invocation) return 36;
 
         var failureJsonConsole = new BufferCommandConsole();
@@ -182,15 +170,15 @@ internal static class Program
         {
             Console = new Runic.CommandLine.Spectre.SpectreCommandConsole(runnerConsole, color: false),
             HelpPresenter = new Runic.CommandLine.Spectre.SpectreHelpPresenter(),
-            HandleCancelKeyPress = false,
+            HandleTerminationSignals = false,
             ParseSettings = ParseSettings.Default,
-        }.RunAsync(["ping", "--output=json"]).ConfigureAwait(false);
+        }.RunAsync(["ping", "--format=json"]).ConfigureAwait(false);
         if (runnerExit != 0) return 95;
         using (JsonDocument ping = JsonDocument.Parse(runnerConsole.StandardOutput))
             if (ping.RootElement.GetProperty("payload").GetString() != "pong") return 96;
         var recoveryConsole = new BufferCommandConsole();
         int recoveryExit = await new CommandApp(GeneratedCommandCatalog.Create())
-        { Console = recoveryConsole, HandleCancelKeyPress = false }.RunAsync(["recover", "--output=json"]).ConfigureAwait(false);
+        { Console = recoveryConsole, HandleTerminationSignals = false }.RunAsync(["recover", "--format=json"]).ConfigureAwait(false);
         if (recoveryExit != CommandExitCodes.Cancelled || recoveryConsole.StandardError.Length != 0) return 100;
         CommandResponse<ConsumerRecovery> recoveryResponse = CommandJsonEnvelopeReader.Read(
             Encoding.UTF8.GetBytes(recoveryConsole.StandardOutput), "runic.consumer-recovery/1", RecoveryJsonContext.Default.ConsumerRecovery);
@@ -206,7 +194,7 @@ internal static class Program
 
         var configuredConsole = new BufferCommandConsole();
         int configuredExit = await new CommandApp(GeneratedCommandCatalog.Create())
-        { Console = configuredConsole, HandleCancelKeyPress = false }.RunAsync(["recover", "--success", "--output=json"]).ConfigureAwait(false);
+        { Console = configuredConsole, HandleTerminationSignals = false }.RunAsync(["recover", "--success", "--format=json"]).ConfigureAwait(false);
         using (JsonDocument configured = JsonDocument.Parse(configuredConsole.StandardOutput))
             if (configuredExit != 0 || configured.RootElement.GetProperty("payload").GetProperty("retainedDirectory").GetString() != RecoveryReport.RetainedDirectory) return 104;
 
