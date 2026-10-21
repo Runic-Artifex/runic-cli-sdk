@@ -99,6 +99,18 @@ class CandidatePackages(unittest.TestCase):
             with self.assertRaisesRegex(release.ReleaseError, 'differ from the candidate'):
                 release.verify(directory, manifest, SHA, '1.2.3-preview.1+build.4', '42')
 
+    def test_accepts_a_plain_version(self):
+        # Releases are plain 0.y.z until 1.0 (and x.y.z after it); a preview of the same version is another set.
+        with tempfile.TemporaryDirectory() as directory:
+            self.pack(directory, version='1.2.3')
+            manifest = release.prepare(directory, '1.2.3', SHA, '42')
+            self.assertEqual([p['file'] for p in manifest['packages']], [f'{name}.1.2.3.nupkg' for name in release.PACKAGES])
+            release.verify(directory, manifest, SHA, '1.2.3', '42')
+            with self.assertRaisesRegex(release.ReleaseError, 'version'):
+                release.verify(directory, manifest, SHA, '1.2.3-preview.1', '42')
+            with self.assertRaisesRegex(release.ReleaseError, 'exactly'):
+                release.prepare(directory, '1.2.3-preview.1', SHA, '42')
+
     def test_rejects_wrong_version_commit_repository_or_set(self):
         cases = [({'commit': 'b' * 40}, 'packed from'), ({'url': 'https://github.com/obsolete/repo'}, 'names repository'),
                  ({'declared': '1.2.3-preview.2'}, 'declares'), ({'names': release.PACKAGES[:3]}, 'exactly')]

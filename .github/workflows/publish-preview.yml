@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Exact SemVer preview version
+        description: Exact version (0.y.z until 1.0)
         required: true
         type: string
       dry-run:
