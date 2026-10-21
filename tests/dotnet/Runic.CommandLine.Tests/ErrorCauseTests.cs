@@ -99,6 +99,28 @@ internal sealed class ErrorCauseTests
         return ValueTask.CompletedTask;
     }
 
+    [Test, DisplayName("causes/generator-warns-about-the-default-output-selector-spelling")]
+    public ValueTask DefaultOutputSelectorSpelling()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Generate("""
+            internal static class Commands
+            {
+                [Command("named")] internal static string Named([Option("--format")] string format = "") => format;
+                [Command("aliased")] internal static string Aliased([Option("--layout", "--format")] string layout = "") => layout;
+                [Command("other")] internal static string Other([Option("--output", "-f")] string output = "", [Option("--formats")] string formats = "", [Option("--encoding", "--fmt")] string encoding = "") => output;
+            }
+            """);
+        Diagnostic[] warnings = diagnostics.Where(static diagnostic => diagnostic.Id == "RCLI9045").ToArray();
+        AssertEx.Equal(2, warnings.Length, string.Join("\n", diagnostics));
+        AssertEx.Equal(2, diagnostics.Length, string.Join("\n", diagnostics));
+        AssertEx.True(warnings.All(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning));
+        AssertEx.Equal("Option '--format' of command 'named' is spelled like the default output selector --format; rename the option, or declare another selector with CommandCatalogBuilder.OutputSelector(...) in GeneratedCommandCatalog.Create(configure), otherwise catalog validation reports RCLI0026 at run time",
+            Text(warnings.Single(static diagnostic => Text(diagnostic).Contains("command 'named'", StringComparison.Ordinal))));
+        AssertEx.True(warnings.Any(static diagnostic => Text(diagnostic).StartsWith("Option '--layout' of command 'aliased'", StringComparison.Ordinal)), string.Join("\n", diagnostics));
+        AssertEx.True(warnings.All(static diagnostic => diagnostic.Descriptor.HelpLinkUri.EndsWith("#rcli9045", StringComparison.Ordinal)));
+        return ValueTask.CompletedTask;
+    }
+
     // Issue #28: a Runic Translations text class injected with [FromServices] failed with a bare RCLI9003. Generators
     // run against the compilation before any generator output is added, so the command generator sees the text class
     // as an error type even when another generator in the same build declares it.

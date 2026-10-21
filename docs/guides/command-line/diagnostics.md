@@ -13,7 +13,7 @@ tag of the package you use, so the page always matches your version.
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
 | `RCLI6001`–`RCLI6011` | `Runic.CommandLine.Processes` | Process faults returned to the command |
-| `RCLI9001`–`RCLI9044` | Source generator | Compiler errors and warnings |
+| `RCLI9001`–`RCLI9045` | Source generator | Compiler errors and warnings |
 
 Parse and binding diagnostics are written for the people who run your
 application, so their output carries no link to this page. Their codes, kinds
@@ -706,3 +706,17 @@ lists of them, are not reported. Changing the policy renames the payload
 properties, which breaks consumers of an existing payload type: keep the names
 of a published payload with `#pragma warning disable RCLI9044` or `<NoWarn>`,
 and switch to camelCase with the next major of that payload type.
+
+### RCLI9045
+
+Option spelled like the default output selector. An `[Option]` of a generated
+command is named `--format` or has `--format` as an alias, the output selector
+of a catalog that declares no other. Rename the option, or declare another
+selector with `CommandCatalogBuilder.OutputSelector(...)` in
+`GeneratedCommandCatalog.Create(configure)`, for example
+`GeneratedCommandCatalog.Create(b => b.OutputSelector("--output"))`. Otherwise
+catalog validation reports [`RCLI0026`](#rcli0026) when the catalog is built at
+run time. The generator cannot see a selector declared at run time, so this is a
+warning; suppress it where the application declares another selector. Other
+spellings, including `--output`, are not reported, because they are selector
+spellings only when the application declares them.

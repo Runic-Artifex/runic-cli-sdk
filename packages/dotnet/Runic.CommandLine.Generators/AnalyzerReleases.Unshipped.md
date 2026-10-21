@@ -8,3 +8,4 @@
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 RCLI9044 | Runic.CommandLine | Warning | Command result JSON context does not use camelCase
+RCLI9045 | Runic.CommandLine | Warning | Option spelled like the default output selector

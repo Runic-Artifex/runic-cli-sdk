@@ -51,6 +51,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor ListConverter = new("RCLI9034", "Converter on a list parameter", "List parameter '{0}' cannot use ConvertWith; list binding converts each supported element type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9034");
     private static readonly DiagnosticDescriptor InvalidGroup = new("RCLI9043", "Invalid command group description", "[CommandGroup] path '{0}' {1}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9043");
     private static readonly DiagnosticDescriptor NonCamelCaseResultContext = new("RCLI9044", "Command result JSON context does not use camelCase", "Command '{0}' returns '{1}' through JSON context '{2}', which does not use camelCase: payload properties would be serialized PascalCase, while Runic payloads are camelCase; add [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)] to the context", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9044");
+    private static readonly DiagnosticDescriptor DefaultOutputSelectorOption = new("RCLI9045", "Option spelled like the default output selector", "Option '{0}' of command '{1}' is spelled like the default output selector --format; rename the option, or declare another selector with CommandCatalogBuilder.OutputSelector(...) in GeneratedCommandCatalog.Create(configure), otherwise catalog validation reports RCLI0026 at run time", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9045");
 
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -366,6 +367,9 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
                 Report(diagnostics, InvalidMetadata, parameter, methodName, "option alias", aliases.First(alias => !IsOptionSpelling(alias) || IsReservedOption(alias)));
                 return null;
             }
+            // The application may declare another selector at run time, so the default spelling is only a warning.
+            if (spelling == DefaultOutputSelector || aliases.Contains(DefaultOutputSelector))
+                ReportAttribute(diagnostics, DefaultOutputSelectorOption, option, spelling!, methodName);
             bool allowMultipleValues = GetAllowMultipleValues(option);
             bool allowMultipleOccurrences = GetAllowMultipleOccurrences(option);
             bool isRequired = GetRequired(option) || (!parameter.HasExplicitDefaultValue && !IsNullable(parameter) && !IsBoolean(parameter.Type) && !IsList(parameter.Type));
@@ -886,6 +890,9 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         }
         return true;
     }
+    // CommandCatalog's selector when the application declares none.
+    private const string DefaultOutputSelector = "--format";
+
     private static bool IsOptionSpelling(string value) =>
         value.StartsWith("--", StringComparison.Ordinal) ? IsIdentifier(value[2..]) :
         value.Length > 0 && value[0] == '/' ? IsIdentifier(value[1..]) :
