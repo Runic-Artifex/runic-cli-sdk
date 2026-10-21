@@ -46,7 +46,7 @@ internal static class PromptSmoke
         if (!lines.StandardError.Contains("Too short.", StringComparison.Ordinal)) return 34;
 
         var json = new ScriptedConsole(interactive: true, ansi: true);
-        if (await App(json).RunAsync(["ask", "--output=json"]).ConfigureAwait(false) != CommandExitCodes.Usage) return 35;
+        if (await App(json).RunAsync(["ask", "--format=json"]).ConfigureAwait(false) != CommandExitCodes.Usage) return 35;
         if (!json.StandardOutput.Contains("\"RCLI4001\"", StringComparison.Ordinal) || !json.StandardOutput.Contains("prompt-json-output", StringComparison.Ordinal)) return 36;
 
         var redirected = new ScriptedConsole(interactive: false, ansi: false);
@@ -56,7 +56,7 @@ internal static class PromptSmoke
     }
 
     private static CommandApp App(ICommandConsole console) =>
-        new(GeneratedCommandCatalog.Create()) { Console = console, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default };
+        new(GeneratedCommandCatalog.Create()) { Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default };
 
     private sealed class ScriptedConsole(bool interactive, bool ansi) : ICommandConsole, ICommandTerminal
     {

@@ -17,13 +17,17 @@ internal static class FixtureCatalog
 
     public static CommandCatalog Create() => Create(Binder, HandlerFactory, Codec);
 
+    public static CommandCatalog Create(Action<CommandCatalogBuilder> configure) => Create(Binder, HandlerFactory, Codec, configure);
+
     public static CommandCatalog Create(
         ICommandOptionsBinder<TestOptions> binder,
         ICommandHandlerFactory<TestHandler> handlerFactory,
-        ICommandResultCodec<TestResult> codec)
+        ICommandResultCodec<TestResult> codec,
+        Action<CommandCatalogBuilder>? configure = null)
     {
         GrammarCorpus corpus = ReadCorpus();
         var builder = new CommandCatalogBuilder();
+        configure?.Invoke(builder);
         if (corpus.Catalog.JsonOutputAlias is { } jsonOutputAlias)
         {
             builder.JsonOutputAlias(jsonOutputAlias);

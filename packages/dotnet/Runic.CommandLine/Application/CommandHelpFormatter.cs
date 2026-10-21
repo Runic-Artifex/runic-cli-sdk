@@ -19,28 +19,21 @@ public static class CommandHelpFormatter
     private const int MaximumTermColumn = 32;
 
     /// <summary>Formats help for a root or resolved command path.</summary>
-    public static string Format(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName = "--output")
-    {
-        return Format(catalog, applicationName, path, new CommandTextContext(CultureInfo.GetCultureInfo("en")), outputOptionName);
-    }
-
-    /// <summary>Formats help using invocation-local culture and text resolution.</summary>
     /// <param name="catalog">The command catalog.</param>
     /// <param name="applicationName">The name shown in the usage line.</param>
     /// <param name="path">The root or a resolved command path.</param>
-    /// <param name="context">Culture and text resolution for presentation text.</param>
-    /// <param name="outputOptionName">The spelling of the output-mode option.</param>
+    /// <param name="context">Culture and text resolution for presentation text; English without a resolver when null.</param>
     /// <param name="width">
     /// The maximum line width in terminal cells. Descriptions wrap at word boundaries (and between wide East Asian
     /// characters) and continue under their description column; a single word longer than the available space is
     /// not split. LongDescription lines that are indented or contain a run of three or more spaces are kept as written.
     /// </param>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters", Justification = "The required CommandTextContext parameter keeps calls unambiguous; the earlier overload is unchanged.")]
-    public static string Format(CommandCatalog catalog, string applicationName, CommandPath path, CommandTextContext context, string outputOptionName = "--output", int width = DefaultWidth)
+    public static string Format(CommandCatalog catalog, string applicationName, CommandPath path, CommandTextContext? context = null, int width = DefaultWidth)
     {
-        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(path);
+        context ??= new CommandTextContext(CultureInfo.GetCultureInfo("en"));
+        string outputOptionName = catalog.OutputSelector;
         ArgumentOutOfRangeException.ThrowIfLessThan(width, MinimumWidth);
         // Root help is the help of the application's unnamed root command, when it has one.
         CommandDescriptor? command = path.Count == 0 ? catalog.RootCommand : null;
@@ -96,7 +89,7 @@ public static class CommandHelpFormatter
         rows.Add(new("-h, --help", context.Resolve(CommandTextKeys.HelpShowHelp, "Show help")));
         rows.Add(new("--version", context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
         rows.Add(new(outputOptionName + " <human|json>", context.Resolve(CommandTextKeys.HelpOutputFormat, "Select output format")));
-        if (catalog.JsonOutputAlias is { } jsonAlias && !string.Equals(jsonAlias, outputOptionName, StringComparison.Ordinal))
+        if (catalog.JsonOutputAlias is { } jsonAlias)
             rows.Add(new(jsonAlias, catalog.JsonOutputAliasShape == JsonOutputShape.Payload
                 ? context.Resolve(CommandTextKeys.HelpJsonPayloadOutputAlias, "Write the result as JSON")
                 : context.Resolve(CommandTextKeys.HelpJsonOutputAlias, "Same as " + outputOptionName + " json", [outputOptionName])));

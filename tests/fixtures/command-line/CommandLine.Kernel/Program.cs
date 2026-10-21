@@ -99,11 +99,11 @@ internal static class Program
         .Build();
 
     private const string UsageText = """
-        Usage: CommandLine.Kernel probe [--label <text>] [--output human|json]
+        Usage: CommandLine.Kernel probe [--label <text>] [--format human|json]
                CommandLine.Kernel --help
                CommandLine.Kernel --version
 
-        RUNIC_COMMANDLINE_OUTPUT may select human or json when --output is absent.
+        RUNIC_COMMANDLINE_OUTPUT may select human or json when --format is absent.
         """;
 }
 

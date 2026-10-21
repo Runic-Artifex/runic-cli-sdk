@@ -83,10 +83,10 @@ internal sealed partial class ApplicationTests
             return console.WriteOutAsync(("Custom " + value.Status + "\n").AsMemory(), token);
         }));
         var console = new TestCommandConsole();
-        AssertEx.Equal(0, await new CommandApp(catalog) { Console = console, HandleCancelKeyPress = false }.RunAsync(["report"]));
+        AssertEx.Equal(0, await new CommandApp(catalog) { Console = console, HandleTerminationSignals = false }.RunAsync(["report"]));
         AssertEx.True(console.StandardOutput.StartsWith("Custom ", StringComparison.Ordinal));
         console = new();
-        AssertEx.Equal(0, await new CommandApp(catalog) { Console = console, HandleCancelKeyPress = false }.RunAsync(["report", "--output=json"]));
+        AssertEx.Equal(0, await new CommandApp(catalog) { Console = console, HandleTerminationSignals = false }.RunAsync(["report", "--format=json"]));
         using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertEx.Equal("sample.report/1", frame.RootElement.GetProperty("payloadType").GetString());
         AssertEx.Equal(1, calls);

@@ -17,7 +17,7 @@ internal sealed class ErrorCauseTests
     private static CommandApp App(TestCommandConsole console, Func<string, string?>? environment = null, ICommandTextResolver? resolver = null) =>
         new(GeneratedCommandCatalog.Create())
         {
-            Name = "sample", Console = console, HandleCancelKeyPress = false, TextResolver = resolver,
+            Name = "sample", Console = console, HandleTerminationSignals = false, TextResolver = resolver,
             ParseSettings = new ParseSettings { GetEnvironmentVariable = environment ?? (static _ => null) },
         };
 
@@ -96,6 +96,28 @@ internal sealed class ErrorCauseTests
             Text(Single(diagnostics, "RCLI9040")));
         AssertEx.True(diagnostics.All(static diagnostic => diagnostic.Location.GetLineSpan().StartLinePosition.Line > 2));
         AssertEx.Equal(6, diagnostics.Length, string.Join("\n", diagnostics));
+        return ValueTask.CompletedTask;
+    }
+
+    [Test, DisplayName("causes/generator-warns-about-the-default-output-selector-spelling")]
+    public ValueTask DefaultOutputSelectorSpelling()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Generate("""
+            internal static class Commands
+            {
+                [Command("named")] internal static string Named([Option("--format")] string format = "") => format;
+                [Command("aliased")] internal static string Aliased([Option("--layout", "--format")] string layout = "") => layout;
+                [Command("other")] internal static string Other([Option("--output", "-f")] string output = "", [Option("--formats")] string formats = "", [Option("--encoding", "--fmt")] string encoding = "") => output;
+            }
+            """);
+        Diagnostic[] warnings = diagnostics.Where(static diagnostic => diagnostic.Id == "RCLI9045").ToArray();
+        AssertEx.Equal(2, warnings.Length, string.Join("\n", diagnostics));
+        AssertEx.Equal(2, diagnostics.Length, string.Join("\n", diagnostics));
+        AssertEx.True(warnings.All(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning));
+        AssertEx.Equal("Option '--format' of command 'named' is spelled like the default output selector --format; rename the option, or declare another selector with CommandCatalogBuilder.OutputSelector(...) in GeneratedCommandCatalog.Create(configure), otherwise catalog validation reports RCLI0026 at run time",
+            Text(warnings.Single(static diagnostic => Text(diagnostic).Contains("command 'named'", StringComparison.Ordinal))));
+        AssertEx.True(warnings.Any(static diagnostic => Text(diagnostic).StartsWith("Option '--layout' of command 'aliased'", StringComparison.Ordinal)), string.Join("\n", diagnostics));
+        AssertEx.True(warnings.All(static diagnostic => diagnostic.Descriptor.HelpLinkUri.EndsWith("#rcli9045", StringComparison.Ordinal)));
         return ValueTask.CompletedTask;
     }
 
@@ -227,7 +249,7 @@ internal sealed class ErrorCauseTests
         AssertEx.Equal(string.Empty, console.StandardOutput);
         string human = console.StandardError;
         console = new();
-        AssertEx.Equal(exitCode, await App(console, environment).RunAsync([.. args, "--output=json"]));
+        AssertEx.Equal(exitCode, await App(console, environment).RunAsync([.. args, "--format=json"]));
         return (human, CommandTestEnvelope.Parse(console.StandardOutput));
     }
 
@@ -350,12 +372,12 @@ internal sealed class ErrorCauseTests
     [Test, DisplayName("causes/invalid-choices-list-non-sensitive-choices")]
     public async ValueTask Choices()
     {
-        (string human, JsonDocument json) = await Fail(2, ["cause-values", "--format", "yaml"]);
+        (string human, JsonDocument json) = await Fail(2, ["cause-values", "--encoding", "yaml"]);
         using (json)
         {
-            AssertEx.Equal("RCLI1015: --format must be one of: json, csv.\n", human);
-            AssertFault(json, "RCLI1015", "--format must be one of: json, csv.");
-            AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI1015", "invalid-choice", "--format must be one of: json, csv.", "parse", "--format", "json, csv");
+            AssertEx.Equal("RCLI1015: --encoding must be one of: json, csv.\n", human);
+            AssertFault(json, "RCLI1015", "--encoding must be one of: json, csv.");
+            AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI1015", "invalid-choice", "--encoding must be one of: json, csv.", "parse", "--encoding", "json, csv");
         }
         (human, json) = await Fail(2, ["cause-values", "--token", "nope"]);
         using (json)
@@ -372,12 +394,12 @@ internal sealed class ErrorCauseTests
     public async ValueTask OutputMode()
     {
         var console = new TestCommandConsole();
-        AssertEx.Equal(2, await App(console).RunAsync(["cause-values", "--output", "yaml"]));
-        AssertEx.Equal("RCLI1010: --output must be human or json.\n", console.StandardError);
-        ParseOutcome parsed = PortableCommandSyntaxAdapter.Instance.Parse(GeneratedCommandCatalog.Create(), ["cause-values", "--output=yaml"], ParseSettings.Default);
+        AssertEx.Equal(2, await App(console).RunAsync(["cause-values", "--format", "yaml"]));
+        AssertEx.Equal("RCLI1010: --format must be human or json.\n", console.StandardError);
+        ParseOutcome parsed = PortableCommandSyntaxAdapter.Instance.Parse(GeneratedCommandCatalog.Create(), ["cause-values", "--format=yaml"], ParseSettings.Default);
         AssertEx.Equal("invalid-output-mode", parsed.Diagnostics.Single().Kind);
         AssertEx.Equal("diagnostics.invalid-output-mode", parsed.Diagnostics.Single().MessageKey);
-        AssertEx.SequenceEqual(["--output"], parsed.Diagnostics.Single().Arguments);
+        AssertEx.SequenceEqual(["--format"], parsed.Diagnostics.Single().Arguments);
         parsed = PortableCommandSyntaxAdapter.Instance.Parse(GeneratedCommandCatalog.Create(), ["cause-values"], new ParseSettings("yaml"));
         AssertEx.Equal("RUNIC_COMMANDLINE_OUTPUT must be human or json.", parsed.Diagnostics.Single().Message);
         AssertEx.SequenceEqual(["RUNIC_COMMANDLINE_OUTPUT"], parsed.Diagnostics.Single().Arguments);
@@ -423,7 +445,7 @@ internal sealed class ErrorCauseTests
         AssertEx.SequenceEqual(["lst", "list"], diagnostic.Arguments);
         AssertEx.Equal(0, diagnostic.TokenIndex);
         var console = new TestCommandConsole();
-        AssertEx.Equal(2, await new CommandApp(catalog) { Console = console, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default }.RunAsync(["lst", "--output=json"]));
+        AssertEx.Equal(2, await new CommandApp(catalog) { Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default }.RunAsync(["lst", "--format=json"]));
         using (var frame = CommandTestEnvelope.Parse(console.StandardOutput))
         {
             AssertEx.Equal("RCLI1002", frame.RootElement.GetProperty("fault").GetProperty("code").GetString());
@@ -438,10 +460,10 @@ internal sealed class ErrorCauseTests
     public async ValueTask HandlerExceptions()
     {
         var console = new TestCommandConsole();
-        AssertEx.Equal(70, await App(console).RunAsync(["cause-throw"]));
+        AssertEx.Equal(3, await App(console).RunAsync(["cause-throw"]));
         AssertEx.Equal("RCLI5000: The command could not be completed. Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr.\n", console.StandardError);
         console = new();
-        AssertEx.Equal(70, await App(console).RunAsync(["cause-throw", "--output=json"]));
+        AssertEx.Equal(3, await App(console).RunAsync(["cause-throw", "--format=json"]));
         using (var frame = CommandTestEnvelope.Parse(console.StandardOutput))
         {
             AssertEx.Equal("RCLI5000", frame.RootElement.GetProperty("fault").GetProperty("code").GetString());
@@ -458,11 +480,11 @@ internal sealed class ErrorCauseTests
         })
         {
             console = new();
-            AssertEx.Equal(70, await App(console, environment).RunAsync(["cause-throw"]));
+            AssertEx.Equal(3, await App(console, environment).RunAsync(["cause-throw"]));
             AssertEx.True(console.StandardError.Contains("System.ArgumentException: handler-detail", StringComparison.Ordinal), console.StandardError);
             AssertEx.True(console.StandardError.EndsWith("\nRCLI5000: The command could not be completed.\n", StringComparison.Ordinal), console.StandardError);
             console = new();
-            AssertEx.Equal(70, await App(console, environment).RunAsync(["cause-throw", "--output=json"]));
+            AssertEx.Equal(3, await App(console, environment).RunAsync(["cause-throw", "--format=json"]));
             using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
             AssertEx.Equal("The command could not be completed.", frame.RootElement.GetProperty("fault").GetProperty("message").GetString());
             AssertEx.True(!console.StandardOutput.Contains("handler-detail", StringComparison.Ordinal));
@@ -474,9 +496,9 @@ internal sealed class ErrorCauseTests
         Exception? observed = null;
         var app = new CommandApp(GeneratedCommandCatalog.Create())
         {
-            Console = console, HandleCancelKeyPress = false, ParseSettings = ParseSettings.Default, ExceptionObserver = exception => observed = exception,
+            Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default, ExceptionObserver = exception => observed = exception,
         };
-        AssertEx.Equal(70, await app.RunAsync(["cause-throw"]));
+        AssertEx.Equal(3, await app.RunAsync(["cause-throw"]));
         AssertEx.Equal("RCLI5000: The command could not be completed.\n", console.StandardError);
         AssertEx.True(observed is ArgumentException);
     }
@@ -495,7 +517,7 @@ internal sealed class ErrorCauseTests
         var console = new TestCommandConsole();
         var app = new CommandApp(GeneratedCommandCatalog.Create())
         {
-            Console = console, HandleCancelKeyPress = false, TextResolver = resolver, Culture = CultureInfo.GetCultureInfo("de"),
+            Console = console, HandleTerminationSignals = false, TextResolver = resolver, Culture = CultureInfo.GetCultureInfo("de"),
             ParseSettings = new ParseSettings { GetEnvironmentVariable = static name => name == "RUNIC_COMMANDLINE_DEBUG" ? "1" : null },
         };
         AssertEx.Equal(0, await app.RunAsync(["cause-keys", "--help"]));
@@ -515,17 +537,17 @@ internal sealed class ErrorCauseTests
             [HintKey] = "Mit RUNIC_COMMANDLINE_DEBUG=1 erscheint die Ausnahme auf stderr.",
         });
         var console = new TestCommandConsole();
-        AssertEx.Equal(2, await App(console, resolver: resolver).RunAsync(["cause-values", "--limit", "99", "--output=json"]));
+        AssertEx.Equal(2, await App(console, resolver: resolver).RunAsync(["cause-values", "--limit", "99", "--format=json"]));
         using (var frame = CommandTestEnvelope.Parse(console.StandardOutput))
         {
             AssertEx.Equal("--limit erwartet eine Zahl von 1 bis 50.", frame.RootElement.GetProperty("fault").GetProperty("message").GetString());
             AssertEx.Equal("diagnostics.out-of-range", frame.RootElement.GetProperty("diagnostics")[0].GetProperty("messageKey").GetString());
         }
         console = new();
-        AssertEx.Equal(2, await App(console, resolver: resolver).RunAsync(["cause-values", "--format", "yaml"]));
-        AssertEx.Equal("RCLI1015: --format muss eines von json, csv sein.\n", console.StandardError);
+        AssertEx.Equal(2, await App(console, resolver: resolver).RunAsync(["cause-values", "--encoding", "yaml"]));
+        AssertEx.Equal("RCLI1015: --encoding muss eines von json, csv sein.\n", console.StandardError);
         console = new();
-        AssertEx.Equal(70, await App(console, resolver: resolver).RunAsync(["cause-throw"]));
+        AssertEx.Equal(3, await App(console, resolver: resolver).RunAsync(["cause-throw"]));
         AssertEx.Equal("RCLI5000: The command could not be completed. Mit RUNIC_COMMANDLINE_DEBUG=1 erscheint die Ausnahme auf stderr.\n", console.StandardError);
     }
 
@@ -548,7 +570,7 @@ internal static class SampleCauseCommands
         [Option("--ratio", Minimum = 0.5)] double ratio = 1,
         [Option("--id")] Guid? id = null,
         [Option("--priority")] CausePriority priority = CausePriority.Careful,
-        [Option("--format", Choices = ["json", "csv"])] string format = "json",
+        [Option("--encoding", Choices = ["json", "csv"])] string encoding = "json",
         [Option("--token", Choices = ["alpha", "beta"], Sensitive = true)] string? token = null) => "ok";
 
     [Command("cause-validated", Hidden = true)]

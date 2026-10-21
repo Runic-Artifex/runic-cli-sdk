@@ -61,7 +61,7 @@ internal sealed class ContinuationTests
         {
             Console = console,
             ParseSettings = ParseSettings.Default,
-            HandleCancelKeyPress = false,
+            HandleTerminationSignals = false,
             ScopeFactory = CommandScopes.FromServices(CommandServices.Empty.With(probe)),
         });
         CommandAppTestResult? result = null;
@@ -203,7 +203,7 @@ internal sealed class ContinuationTests
         {
             Console = probe.Console,
             ParseSettings = ParseSettings.Default,
-            HandleCancelKeyPress = false,
+            HandleTerminationSignals = false,
             ScopeFactory = CommandScopes.FromServices(CommandServices.Empty.With(probe)),
         };
 

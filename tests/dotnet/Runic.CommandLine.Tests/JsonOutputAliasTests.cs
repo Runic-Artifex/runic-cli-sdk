@@ -18,16 +18,16 @@ internal sealed class JsonOutputAliasTests
         }
 
         console = new TestCommandConsole();
-        AssertEx.Equal(2, await App(console).RunAsync(["greet", "--json", "--output", "human"]));
+        AssertEx.Equal(2, await App(console).RunAsync(["greet", "--json", "--format", "human"]));
         // The selection is frozen at the first selector, so the usage error is a JSON envelope.
         AssertEx.True(console.StandardOutput.Contains("RCLI1016", StringComparison.Ordinal) &&
-            console.StandardOutput.Contains("--output and --json both select the output format", StringComparison.Ordinal),
+            console.StandardOutput.Contains("--format and --json both select the output format", StringComparison.Ordinal),
             console.StandardOutput);
 
         console = new TestCommandConsole();
-        AssertEx.Equal(2, await App(console).RunAsync(["greet", "--output", "human", "--json"]));
+        AssertEx.Equal(2, await App(console).RunAsync(["greet", "--format", "human", "--json"]));
         AssertEx.True(
-            console.StandardError.Contains("--json and --output both select the output format", StringComparison.Ordinal),
+            console.StandardError.Contains("--json and --format both select the output format", StringComparison.Ordinal),
             console.StandardError);
     }
 
@@ -38,10 +38,11 @@ internal sealed class JsonOutputAliasTests
         AssertEx.Equal("--json", catalog.JsonOutputAlias);
 
         string help = CommandHelpFormatter.Format(catalog, "fixture", new CommandPath(["status"]));
-        AssertEx.True(help.Contains("--output <human|json>", StringComparison.Ordinal), help);
+        AssertEx.True(help.Contains("--format <human|json>", StringComparison.Ordinal), help);
         AssertEx.True(help.Contains("--json", StringComparison.Ordinal) &&
-            help.Contains("Same as --output json", StringComparison.Ordinal), help);
-        string hostedHelp = CommandHelpFormatter.Format(catalog, "fixture", CommandPath.Root, "--runic-output");
+            help.Contains("Same as --format json", StringComparison.Ordinal), help);
+        string hostedHelp = CommandHelpFormatter.Format(
+            FixtureCatalog.Create(static builder => builder.OutputSelector("--runic-output")), "fixture", CommandPath.Root);
         AssertEx.True(hostedHelp.Contains("Same as --runic-output json", StringComparison.Ordinal), hostedHelp);
 
         AssertEx.SequenceEqual(JsonCompletion, CommandCompletion.Query(catalog, ["status", "--js"]).Candidates);
@@ -61,8 +62,8 @@ internal sealed class JsonOutputAliasTests
     [Test, DisplayName("output-alias/maps-to-a-hosted-transport-option")]
     public ValueTask MapsToHostedTransport()
     {
-        CommandCatalog catalog = FixtureCatalog.Create();
-        var hosted = new ParseSettings(transportOutputOptionName: "--runic-output");
+        CommandCatalog catalog = FixtureCatalog.Create(static builder => builder.OutputSelector("--runic-output"));
+        ParseSettings hosted = ParseSettings.Default;
         ParseOutcome json = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["status", "--json"], hosted);
         AssertEx.Equal(CommandOutputMode.Json, json.Invocation!.OutputClassification.Mode);
 
@@ -73,10 +74,9 @@ internal sealed class JsonOutputAliasTests
         AssertEx.SequenceEqual(["--runic-output", "--json"], diagnostic.Arguments);
         AssertEx.Equal(CommandTextKeys.DiagnosticConflictingOutputSelector, CommandTextKeys.Diagnostic(diagnostic.Kind));
 
-        // A selector spelled like the alias is the selector, with its value.
-        ParseOutcome same = PortableCommandSyntaxAdapter.Instance.Parse(
-            catalog, ["status", "--json", "human"], new ParseSettings(transportOutputOptionName: "--json"));
-        AssertEx.Equal(CommandOutputMode.Human, same.Invocation!.OutputClassification.Mode);
+        // A selector spelled like the alias is rejected when the catalog is built.
+        AssertEx.Equal("RCLI0024", AssertEx.Throws<CommandCatalogValidationException>(
+            () => FixtureCatalog.Create(static builder => builder.OutputSelector("--json"))).Issues.Single().Code);
         return ValueTask.CompletedTask;
     }
 
@@ -97,9 +97,24 @@ internal sealed class JsonOutputAliasTests
         AssertEx.Equal("RCLI0024", issue.Code);
         AssertEx.Equal("report list", issue.Location);
 
-        var selector = new CommandCatalogBuilder().JsonOutputAlias("--output");
-        CatalogTests.ValidCommand(selector, "report");
-        AssertEx.Equal("RCLI0024", AssertEx.Throws<CommandCatalogValidationException>(selector.Build).Issues.Single().Code);
+        // The alias may not be spelled like the selector (the default --format, a declared one) or a hidden selector alias.
+        foreach ((string alias, string[] selectorSpellings) in new (string, string[])[]
+        {
+            ("--format", []), ("--runic-output", ["--runic-output"]), ("--output", ["--format", "--output"]),
+        })
+        {
+            var selector = new CommandCatalogBuilder().JsonOutputAlias(alias);
+            if (selectorSpellings.Length != 0) selector.OutputSelector(selectorSpellings[0], selectorSpellings[1..]);
+            CatalogTests.ValidCommand(selector, "report");
+            CommandCatalogIssue selectorIssue = AssertEx.Throws<CommandCatalogValidationException>(selector.Build).Issues.Single();
+            AssertEx.Equal("RCLI0024", selectorIssue.Code);
+            AssertEx.Equal("root", selectorIssue.Location);
+        }
+
+        // --output is an ordinary spelling for the alias under the default selector.
+        var legacy = new CommandCatalogBuilder().JsonOutputAlias("--output");
+        CatalogTests.ValidCommand(legacy, "report");
+        AssertEx.Equal("--output", legacy.Build().JsonOutputAlias);
 
         CommandCatalog first = Single("first", "--json");
         CommandCatalog combined = CommandCatalog.Combine(first, Single("second", null));
@@ -126,6 +141,6 @@ internal sealed class JsonOutputAliasTests
         {
             Console = console,
             ParseSettings = ParseSettings.Default,
-            HandleCancelKeyPress = false,
+            HandleTerminationSignals = false,
         };
 }

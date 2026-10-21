@@ -9,11 +9,7 @@ namespace Runic.CommandLine.Spectre;
 public sealed class SpectreHelpPresenter : ICommandHelpPresenter
 {
     /// <inheritdoc />
-    public async ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName, ICommandConsole console, CancellationToken cancellationToken)
-        => await WriteAsync(catalog, applicationName, path, outputOptionName, CommandTextContext.English, console, cancellationToken).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    public async ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path, string outputOptionName,
+    public async ValueTask WriteAsync(CommandCatalog catalog, string applicationName, CommandPath path,
         CommandTextContext textContext, ICommandConsole console, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(console);
@@ -22,7 +18,7 @@ public sealed class SpectreHelpPresenter : ICommandHelpPresenter
         // terminal width, stay one column short so a full line never triggers the legacy Windows console's automatic
         // wrap; an explicit width is used as given.
         int width = presenter.IsTerminalWidth ? Math.Max(CommandHelpFormatter.MinimumWidth, presenter.Width - 1) : presenter.Width;
-        string text = CommandHelpFormatter.Format(catalog, applicationName, path, textContext, outputOptionName, width);
+        string text = CommandHelpFormatter.Format(catalog, applicationName, path, textContext, width);
         // Keep the plain and styled forms textually equivalent, including under redirection.
         string[] lines = text.TrimEnd('\n').Split('\n');
         foreach (string line in lines)

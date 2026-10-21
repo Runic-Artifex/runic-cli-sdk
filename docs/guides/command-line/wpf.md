@@ -53,7 +53,7 @@ application with a container passes its provider to `CommandScopes.FromServices`
 or `CommandScopes.Create(provider.CreateAsyncScope, scope => scope.ServiceProvider)`
 for one `Microsoft.Extensions.DependencyInjection` scope per invocation. Handlers
 stay thin: parse, call the service, return a value. The
-framework renders human text or, with `--output=json`, a protocol envelope.
+framework renders human text or, with `--format=json`, a protocol envelope.
 
 The generator injects `CancellationToken` by type. Declare it last with
 `= default` so it can follow defaulted options, as CA1068 recommends.
@@ -67,7 +67,7 @@ return await ReportCommandApp.Create(ReportComposition.CreateReportService(), ne
 ```console
 reportcli items list --max-quantity 10
 reportcli report export report.csv --overwrite
-reportcli items list --output=json
+reportcli items list --format=json
 ```
 
 `ReportApp.Cli` targets plain `net10.0` and does not reference the WPF project or

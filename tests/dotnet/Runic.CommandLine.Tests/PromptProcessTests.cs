@@ -53,7 +53,7 @@ internal sealed partial class PromptProcessTests
         });
         CommandCatalog catalog = new CommandCatalogBuilder().Command<TestOptions, TestHandler, TestResult>("build", command => command
             .BindWith(new TestBinder()).CreateHandlerWith(new TestHandlerFactory(_ => handler)).Produces(new TestCodec())).Build();
-        return new CommandApp(catalog) { Console = console, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false };
+        return new CommandApp(catalog) { Console = console, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false };
     }
 
     [Test, DisplayName("prompts/process-output-reaches-a-plain-task-log")]

@@ -47,11 +47,12 @@ public sealed class CommandApp
     /// <summary>Gets or sets an execution lifecycle observer.</summary>
     public ICommandExecutionObserver? Observer { get; init; }
     /// <summary>
-    /// Gets or sets whether process termination requests cancel the invocation: Ctrl+C (SIGINT), SIGTERM and
-    /// SIGQUIT (Ctrl+Break on Windows). A second request while the invocation is still running exits the process
-    /// immediately with 128 plus the signal number, for example 130 after a second Ctrl+C.
+    /// Gets whether process termination requests cancel the invocation: Ctrl+C (SIGINT), SIGTERM and
+    /// SIGQUIT (Ctrl+Break on Windows). The default is true. A repeated request while the invocation is still
+    /// running exits the process immediately with 128 plus the signal number, for example 130 after a second
+    /// Ctrl+C, unless the command holds <see cref="CommandExecutionContext.ProtectShutdown"/>.
     /// </summary>
-    public bool HandleCancelKeyPress { get; init; } = true;
+    public bool HandleTerminationSignals { get; init; } = true;
     /// <summary>Gets or sets a renderer for human catalog help.</summary>
     public ICommandHelpPresenter? HelpPresenter { get; init; }
     /// <summary>Gets or sets an optional application-specific help formatter.</summary>
@@ -76,7 +77,7 @@ public sealed class CommandApp
     /// Call it from a synchronous <c>Main</c> (one without <see langword="await"/>) so the calling thread is the
     /// process's main thread, for example to start a UI host that must own the main thread. The invocation runs
     /// without the caller's <see cref="SynchronizationContext"/>, so a handler's awaits never wait for the blocked
-    /// thread. Process signal handling (<see cref="HandleCancelKeyPress"/>) ends before the continuation runs.
+    /// thread. Process signal handling (<see cref="HandleTerminationSignals"/>) ends before the continuation runs.
     /// </remarks>
     public int Run(string[] args, CancellationToken cancellationToken = default)
     {
@@ -101,7 +102,7 @@ public sealed class CommandApp
     {
         ArgumentNullException.ThrowIfNull(args);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        ProcessSignalCancellation? signals = HandleCancelKeyPress ? new ProcessSignalCancellation(cancellation) : null;
+        ProcessSignalCancellation? signals = HandleTerminationSignals ? new ProcessSignalCancellation(cancellation) : null;
         try
         {
             CultureInfo culture = CultureInfo.ReadOnly((CultureInfo)(Culture ?? CultureInfo.CurrentUICulture).Clone());
@@ -112,7 +113,7 @@ public sealed class CommandApp
             CommandPresentation presentation = CreatePresentation(exceptionObserver);
             if (CommandCompletion.IsRequest(_catalog, args, out string? shell))
             {
-                return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, shell, settings.TransportOutputOptionName, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
+                return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, shell, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
             }
             ParseOutcome parsed = PortableCommandSyntaxAdapter.Instance.Parse(_catalog, args.Length == 0 && _catalog.DefaultCommand is null ? ["--help"] : args, settings);
             string requestId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
@@ -126,6 +127,7 @@ public sealed class CommandApp
                         ExceptionObserver = exceptionObserver, TextResolver = TextResolver,
                         PromptsDisabled = CommandPrompts.IsDisabledBy(settings.GetEnvironmentVariable),
                         Continuation = continuation,
+                        ShutdownProtection = signals?.Protection,
                     },
                     debug is null ? sink : new CommandDebugOutput.FlushingSink(sink, debug), cancellation.Token).ConfigureAwait(false);
                 // Only a successful invocation that nobody asked to stop hands its continuation back.
@@ -138,7 +140,7 @@ public sealed class CommandApp
                 await WriteUnresolvedDescriptionKeysAsync(culture).ConfigureAwait(false);
             int exitCode = PresentFrameworkRequest is not null
                 ? await presentation.GuardAsync(() => PresentFrameworkRequest(parsed, Console, cancellation.Token), cancellation.Token).ConfigureAwait(false)
-                : await presentation.GuardAsync(() => presentation.WriteAsync(_catalog, parsed, settings.TransportOutputOptionName,
+                : await presentation.GuardAsync(() => presentation.WriteAsync(_catalog, parsed,
                     Console, culture, requestId, cancellation.Token), cancellation.Token).ConfigureAwait(false);
             if (debug is not null) await debug.FlushAsync(Console, CancellationToken.None).ConfigureAwait(false);
             return exitCode;
@@ -177,10 +179,11 @@ public sealed class CommandApp
         }
     }
 
-    /// <summary>Cancels on the first termination signal and forces exit on the next one.</summary>
+    /// <summary>Cancels on the first termination signal and forces exit on the next one, unless shutdown is protected.</summary>
     private sealed class ProcessSignalCancellation : IDisposable
     {
         private readonly CancellationTokenSource _cancellation;
+        internal ShutdownProtection Protection { get; } = new();
         private readonly List<PosixSignalRegistration> _registrations = new(3);
         private int _received;
 
@@ -205,7 +208,7 @@ public sealed class CommandApp
 
         private void Handle(PosixSignalContext context)
         {
-            if (Interlocked.Increment(ref _received) > 1) Environment.Exit(ForcedExitCode(context.Signal));
+            if (Interlocked.Increment(ref _received) > 1 && !Protection.IsActive) Environment.Exit(ForcedExitCode(context.Signal));
             context.Cancel = true;
             try { _ = _cancellation.CancelAsync(); }
             catch (ObjectDisposedException) { }

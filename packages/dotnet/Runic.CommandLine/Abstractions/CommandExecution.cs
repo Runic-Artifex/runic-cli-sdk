@@ -147,6 +147,29 @@ public sealed class CommandExecutionContext
     // Set by CommandApp.Run through the execution request.
     internal CommandContinuation? Continuation { get; init; }
 
+    /// <summary>
+    /// Keeps the process alive on a repeated termination signal while the returned scope is alive, so that cleanup
+    /// that must finish, such as stopping child process trees or removing created resources, is not cut short.
+    /// </summary>
+    /// <returns>A scope; dispose it when the cleanup has finished. Disposing it more than once has no effect.</returns>
+    /// <remarks>
+    /// <para>
+    /// With <see cref="CommandApp.HandleTerminationSignals"/>, the first Ctrl+C (SIGINT), SIGTERM or SIGQUIT cancels
+    /// the invocation and a repeated one exits the process at once with 128 plus the signal number. While at least
+    /// one scope of the invocation is alive, a repeated signal is ignored instead; the invocation stays cancelled.
+    /// After the last scope is disposed, the next signal exits again.
+    /// </para>
+    /// <para>
+    /// When the invocation's signals are not handled by <see cref="CommandApp"/> (its
+    /// <see cref="CommandApp.HandleTerminationSignals"/> is false, or the invocation runs under the hosting adapter
+    /// or a directly used <see cref="CommandExecutor"/>), the scope has no effect.
+    /// </para>
+    /// </remarks>
+    public IDisposable ProtectShutdown() => ShutdownProtection?.Enter() ?? ShutdownProtection.None;
+
+    // Set by CommandApp through the execution request when it handles termination signals.
+    internal ShutdownProtection? ShutdownProtection { get; init; }
+
     // Set by CommandApp and the hosting adapter from RUNIC_COMMANDLINE_NO_INPUT.
     internal bool PromptsDisabled { get; init; }
 

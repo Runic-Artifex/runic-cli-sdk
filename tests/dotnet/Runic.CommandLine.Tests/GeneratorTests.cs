@@ -143,8 +143,8 @@ internal sealed class GeneratorTests
                 Assembly assembly = loader.LoadFromStream(bytes);
                 var catalog = (CommandCatalog)assembly.GetType("Runic.CommandLine.Generated.GeneratedCommandCatalog")!.GetMethod("Create")!.Invoke(null, [null])!;
                 var console = new TestCommandConsole();
-                var app = new CommandApp(catalog) { Console = console, HandleCancelKeyPress = false };
-                AssertEx.Equal(0, await app.RunAsync(["custom", "--output=json"]));
+                var app = new CommandApp(catalog) { Console = console, HandleTerminationSignals = false };
+                AssertEx.Equal(0, await app.RunAsync(["custom", "--format=json"]));
                 using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
                 JsonElement payload = frame.RootElement.GetProperty("payload");
                 if (hasDefault) AssertEx.Equal("42", payload.GetString());
@@ -198,12 +198,12 @@ internal sealed class GeneratorTests
             async Task<(int ExitCode, string Human, string HumanError, string PayloadType, string Payload, string Alias, string AliasError)> RunAsync(string command)
             {
                 var human = new TestCommandConsole();
-                int exitCode = await new CommandApp(catalog) { Console = human, HandleCancelKeyPress = false }.RunAsync([command]);
+                int exitCode = await new CommandApp(catalog) { Console = human, HandleTerminationSignals = false }.RunAsync([command]);
                 var json = new TestCommandConsole();
-                AssertEx.Equal(0, await new CommandApp(catalog) { Console = json, HandleCancelKeyPress = false }.RunAsync([command, "--output=json"]));
+                AssertEx.Equal(0, await new CommandApp(catalog) { Console = json, HandleTerminationSignals = false }.RunAsync([command, "--format=json"]));
                 using JsonDocument envelope = CommandTestEnvelope.Parse(json.StandardOutput);
                 var alias = new TestCommandConsole();
-                AssertEx.Equal(0, await new CommandApp(catalog) { Console = alias, HandleCancelKeyPress = false }.RunAsync([command, "--json"]));
+                AssertEx.Equal(0, await new CommandApp(catalog) { Console = alias, HandleTerminationSignals = false }.RunAsync([command, "--json"]));
                 return (exitCode, human.StandardOutput, human.StandardError, envelope.RootElement.GetProperty("payloadType").GetString()!,
                     envelope.RootElement.GetProperty("payload").GetRawText(), alias.StandardOutput, alias.StandardError);
             }

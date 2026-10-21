@@ -135,18 +135,18 @@ internal sealed class ProtocolCorpusTests
                     new ExportPayload(42, "result.json")),
                 CorpusJsonContext.Default.ExportPayload),
             "command-fault" => Failure(
-                "req-export-0002", "export", 10, "RCLI3001",
+                "req-export-0002", "export", CommandExitCodes.CommandFailure, "RCLI3001",
                 "The export could not be completed.",
                 new Dictionary<string, string> { ["reason"] = "destination-unavailable" }, true),
             "validation" => ValidationExample(),
             "host-fault" => Failure(
-                "req-generated-0004", "status", 70, "RCLI5000",
+                "req-generated-0004", "status", CommandExitCodes.HostFailure, "RCLI5000",
                 "The command host could not complete the request."),
             "cancelled" => Failure(
-                "req-copy-0005", "copy", 4, "RCLI4000",
+                "req-copy-0005", "copy", CommandExitCodes.Cancelled, "RCLI4000",
                 "The command was cancelled.", retryable: true),
             "redacted-fault" => Failure(
-                "req-pack-0006", "pack", 10, "RCLI8001",
+                "req-pack-0006", "pack", CommandExitCodes.CommandFailure, "RCLI8001",
                 "Could not read /home/ada/assets/atlas.png.",
                 new Dictionary<string, string>
                 {
@@ -155,7 +155,7 @@ internal sealed class ProtocolCorpusTests
                     ["/home/ada/assets"] = "dropped",
                 }),
             "declared-failure" => CommandJsonEnvelopeWriter.Serialize(
-                CommandResponse.FailedWithData<ExportPayload>("req-clone-0006", "clone", 4,
+                CommandResponse.FailedWithData<ExportPayload>("req-clone-0006", "clone", CommandExitCodes.Cancelled,
                     new CommandFault("RCLI4000", "The clone was cancelled."),
                     CommandFailureData.Create("sample.clone-recovery/1", new RecoveryReport("/tmp/Project copy", "feature/tmp/fix", true),
                         RecoveryJsonContext.Default.RecoveryReport)), CorpusJsonContext.Default.ExportPayload),
@@ -186,7 +186,7 @@ internal sealed class ProtocolCorpusTests
         return Failure(
             "req-export-0003",
             "export",
-            3,
+            CommandExitCodes.Validation,
             "RCLI2001",
             "One or more values are invalid.",
             diagnostics: [diagnostic]);

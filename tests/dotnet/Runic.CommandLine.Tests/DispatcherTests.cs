@@ -238,7 +238,7 @@ internal sealed class DispatcherTests
                     CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Error)],
                 "dry-run report\n"))));
         CommandCatalog catalog = FixtureCatalog.Create(new TestBinder(), factory, new TestCodec());
-        ParsedInvocation invocation = FixtureCatalog.ParseInvocation(catalog, "status", "--output=json");
+        ParsedInvocation invocation = FixtureCatalog.ParseInvocation(catalog, "status", "--format=json");
         var console = new MemoryCommandConsole();
         var executor = new CommandExecutor(new TrackingScopeFactory());
 

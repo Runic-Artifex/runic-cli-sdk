@@ -26,12 +26,11 @@ public sealed class CommandCompletionResult
 public static class CommandCompletion
 {
     /// <summary>Queries tokenized arguments excluding the executable. The final token is the current prefix; append an empty token after whitespace.</summary>
-    public static CommandCompletionResult Query(CommandCatalog catalog, IReadOnlyList<string> words, string outputOptionName = "--output")
+    public static CommandCompletionResult Query(CommandCatalog catalog, IReadOnlyList<string> words)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(words);
-        _ = new ParseSettings(transportOutputOptionName: outputOptionName);
-        var model = new Model(catalog, outputOptionName);
+        var model = new Model(catalog);
         int node = 0, position = 0, consumed = 0;
         Value? pending = null;
         bool ended = false, positional = false;
@@ -87,18 +86,17 @@ public static class CommandCompletion
         return new CommandCompletionResult(candidates.Where(value => value.StartsWith(current, StringComparison.Ordinal)).Select(value => prefix + value), kind, prefix);
     }
 
-    /// <summary>Generates a bash, zsh, fish, or PowerShell completion script.</summary>
-    public static string Generate(CommandCatalog catalog, string executable, string shell) => Generate(catalog, executable, shell, "--output");
-
-    /// <summary>Generates completions using the application's configured output selector.</summary>
-    public static string Generate(CommandCatalog catalog, string executable, string shell, string outputOptionName)
+    /// <summary>
+    /// Generates a bash, zsh, fish, or PowerShell completion script. It completes the catalog's output selector,
+    /// not its hidden aliases.
+    /// </summary>
+    public static string Generate(CommandCatalog catalog, string executable, string shell)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentException.ThrowIfNullOrWhiteSpace(executable);
-        _ = new ParseSettings(transportOutputOptionName: outputOptionName);
         if (executable.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.')))
             throw new ArgumentException("Completion requires a single executable name containing letters, digits, dots, underscores or hyphens.", nameof(executable));
-        var model = new Model(catalog, outputOptionName);
+        var model = new Model(catalog);
         string function = "_runic_" + executable.Replace('-', '_').Replace('.', '_');
         return shell switch
         {
@@ -151,9 +149,10 @@ public static class CommandCompletion
     {
         internal List<Node> Nodes { get; } = [new()];
         internal int DefaultNode { get; private set; }
-        internal Model(CommandCatalog catalog, string output)
+        internal Model(CommandCatalog catalog)
         {
-            jsonAlias = string.Equals(catalog.JsonOutputAlias, output, StringComparison.Ordinal) ? null : catalog.JsonOutputAlias;
+            string output = catalog.OutputSelector;
+            jsonAlias = catalog.JsonOutputAlias;
             AddOptions(Nodes[0], GlobalOptions(catalog), output);
             AddChildren(0, catalog.Commands);
             if (DefaultNode != 0)

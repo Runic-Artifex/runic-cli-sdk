@@ -38,16 +38,16 @@ public enum CommandExitCategory
 /// <list type="table">
 /// <listheader><term>Exit code</term><description>Category and typical cause</description></listheader>
 /// <item><term>0</term><description><see cref="CommandExitCategory.Success"/>, including help, version and completion scripts.</description></item>
-/// <item><term>2</term><description><see cref="CommandExitCategory.Usage"/>: unknown command or option, missing, malformed or out-of-range input (<c>RCLI1xxx</c>, <c>RCLI2xxx</c>), or a prompt that cannot ask (<c>RCLI4001</c>).</description></item>
-/// <item><term>3</term><description><see cref="CommandExitCategory.Validation"/>: a handler rejected well-formed input, for example a business rule.</description></item>
-/// <item><term>4</term><description><see cref="CommandExitCategory.Cancelled"/>: Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation, or the user cancelled a prompt.</description></item>
-/// <item><term>5</term><description><see cref="CommandExitCategory.Unavailable"/>: a required resource or service was unavailable, including "not found".</description></item>
-/// <item><term>10</term><description><see cref="CommandExitCategory.CommandFailure"/>: the command reported another expected failure.</description></item>
-/// <item><term>70</term><description><see cref="CommandExitCategory.HostFailure"/>: an unexpected exception or infrastructure failure (<c>RCLI5000</c>).</description></item>
-/// <item><term>130, 131, 143</term><description>Not a category: a second termination signal while the invocation still runs (128 plus the signal number).</description></item>
+/// <item><term>1</term><description><see cref="CommandExitCategory.CommandFailure"/>: the command reported an expected failure; <see cref="CommandExitCategory.Unavailable"/>: a required resource or service was unavailable, including "not found".</description></item>
+/// <item><term>2</term><description><see cref="CommandExitCategory.Usage"/>: unknown command or option, missing, malformed or out-of-range input (<c>RCLI1xxx</c>, <c>RCLI2xxx</c>), or a prompt that cannot ask (<c>RCLI4001</c>); <see cref="CommandExitCategory.Validation"/>: a handler rejected well-formed input, for example a business rule.</description></item>
+/// <item><term>3</term><description><see cref="CommandExitCategory.HostFailure"/>: an unexpected exception or infrastructure failure (<c>RCLI5000</c>).</description></item>
+/// <item><term>130</term><description><see cref="CommandExitCategory.Cancelled"/>: Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation, or the user cancelled a prompt.</description></item>
+/// <item><term>130, 131, 143</term><description>Not a category: a repeated termination signal while the invocation still runs exits at once with 128 plus the signal number.</description></item>
 /// </list>
-/// Handlers select a category with <see cref="CommandOutcome"/>; an <see cref="IExitCodePolicy"/> may remap
-/// the failure codes, but zero always means success.
+/// These are the codes every Runic tool reports: the dotnet CLI's 1 for failures, 2 for usage, and the shell's 130
+/// for an interrupted command. The categories stay distinct in <see cref="CommandExitCategory"/>, the fault code
+/// and observers. Handlers select a category with <see cref="CommandOutcome"/>; an <see cref="IExitCodePolicy"/>
+/// may give categories distinct codes, but zero always means success.
 /// </remarks>
 public static class CommandExitCodes
 {
@@ -57,20 +57,20 @@ public static class CommandExitCodes
     /// <summary>The default usage or parse failure exit code.</summary>
     public const int Usage = 2;
 
-    /// <summary>The default validation failure exit code.</summary>
-    public const int Validation = 3;
+    /// <summary>The default validation failure exit code, the same as <see cref="Usage"/>.</summary>
+    public const int Validation = 2;
 
-    /// <summary>The default cancellation exit code.</summary>
-    public const int Cancelled = 4;
+    /// <summary>The default cancellation exit code, as a shell reports an interrupted command (128 plus SIGINT).</summary>
+    public const int Cancelled = 130;
 
-    /// <summary>The default unavailable-resource exit code.</summary>
-    public const int Unavailable = 5;
+    /// <summary>The default unavailable-resource exit code, the same as <see cref="CommandFailure"/>.</summary>
+    public const int Unavailable = 1;
 
     /// <summary>The default expected command failure exit code.</summary>
-    public const int CommandFailure = 10;
+    public const int CommandFailure = 1;
 
     /// <summary>The default unexpected host or software failure exit code.</summary>
-    public const int HostFailure = 70;
+    public const int HostFailure = 3;
 
     /// <summary>
     /// Gets the default numeric exit code for a semantic category.

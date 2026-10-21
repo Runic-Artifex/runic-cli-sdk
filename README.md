@@ -51,12 +51,15 @@ Run the same command in human and machine mode:
 
 ```sh
 dotnet run -- Ada --count 2
-dotnet run -- Ada --count 2 --output=json
+dotnet run -- Ada --count 2 --format=json
 dotnet run -- --help
 ```
 
 Human output is two `Hello, Ada!` lines. JSON output is one `runic.commandline/1`
 envelope with `success: true` and a string `payload` containing those lines.
+The published `0.7.0-preview.2` spells the output selector `--output`; the
+candidate spells it `--format` (see the
+[release notes](eng/release/notes/0.8.0.md)).
 The built-in string codec supplies both formats; no JSON context is needed here.
 
 For another published release, choose a version listed on

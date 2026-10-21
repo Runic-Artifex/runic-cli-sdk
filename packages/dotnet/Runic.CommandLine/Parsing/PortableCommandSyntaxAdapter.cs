@@ -40,7 +40,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
         string[] tokens = args.ToArray();
         ValidateTokens(tokens);
-        TransportOutput transport = TransportOutput.From(catalog, settings.TransportOutputOptionName);
+        TransportOutput transport = TransportOutput.From(catalog);
         ResolvedCommand? preScanResolved = null;
         if (tokens.Length > 0)
         {
@@ -147,7 +147,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 suggestion: CommandSuggestions.Commands(tokens[unknownIndex], catalog.Commands));
         }
 
-        if (resolved.Command.TryGetOption(settings.TransportOutputOptionName, out _))
+        if (resolved.Command.TryGetOption(transport.Name, out _))
         {
             return Error(
                 TransportOutputCollisionCode,
@@ -243,7 +243,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                             "missing-option-value",
                             tokens.Length,
                             resolved.Path,
-                            [settings.TransportOutputOptionName],
+                            [transport.Name],
                             CurrentOutputClassification());
                     }
 
@@ -254,7 +254,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                             "missing-option-value",
                             index,
                             resolved.Path,
-                            [settings.TransportOutputOptionName],
+                            [transport.Name],
                             CurrentOutputClassification());
                     }
 
@@ -273,7 +273,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                         "invalid-output-mode",
                         valueIndex,
                         resolved.Path,
-                        [settings.TransportOutputOptionName],
+                        [transport.Name],
                         CurrentOutputClassification());
                 }
 
@@ -697,10 +697,10 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
     // The command or group path the leading tokens name explicitly, after any leading transport or global
     // options. Unlike command resolution, an implicit default command does not count as a match.
-    internal static CommandPath? MatchExplicitPath(CommandCatalog catalog, IReadOnlyList<string> arguments, string transportOutputOptionName)
+    internal static CommandPath? MatchExplicitPath(CommandCatalog catalog, IReadOnlyList<string> arguments)
     {
         string[] tokens = [.. arguments];
-        int start = LeadingCommandIndex(catalog, tokens, TransportOutput.From(catalog, transportOutputOptionName));
+        int start = LeadingCommandIndex(catalog, tokens, TransportOutput.From(catalog));
         if (start >= tokens.Length || !catalog.TryGetCommand(tokens[start], out CommandDescriptor? command) || command is null) return null;
         var path = new List<string> { command.Name };
         for (int index = start + 1; index < tokens.Length && command.TryGetSubcommand(tokens[index], out CommandDescriptor? child) && child is not null; index++)
@@ -813,8 +813,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     private static bool TrySplitOutput(string token, TransportOutput transport, out string? inlineValue) =>
         TrySplitOutput(token, transport, out inlineValue, out _);
 
-    // Recognizes the selector ("--output value" or "--output=value") and the declared JSON alias ("--json"), which
-    // reads as "--output=json". "--json=value" is recognized too, so that it is reported as a flag with a value; its
+    // Recognizes the selector ("--format value" or "--format=value"), its hidden aliases, which parse exactly like it,
+    // and the declared JSON alias ("--json"), which reads as "--format=json". "--json=value" is recognized too, so that it is reported as a flag with a value; its
     // inline value is then that value. Either way an inline value means the occurrence spans one token.
     private static bool TrySplitOutput(string token, TransportOutput transport, out string? inlineValue, out string spelling)
     {
@@ -835,21 +835,36 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             }
         }
 
+        if (TrySplitSelector(token, transport.Name, out inlineValue))
+        {
+            spelling = transport.Name;
+            return true;
+        }
+
+        foreach (string hiddenAlias in transport.HiddenAliases)
+        {
+            if (TrySplitSelector(token, hiddenAlias, out inlineValue))
+            {
+                spelling = hiddenAlias;
+                return true;
+            }
+        }
+
         spelling = transport.Name;
-        if (string.Equals(token, transport.Name, StringComparison.Ordinal))
-        {
-            inlineValue = null;
-            return true;
-        }
-
-        string prefix = transport.Name + "=";
-        if (token.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            inlineValue = token[prefix.Length..];
-            return true;
-        }
-
         inlineValue = null;
+        return false;
+    }
+
+    private static bool TrySplitSelector(string token, string name, out string? inlineValue)
+    {
+        inlineValue = null;
+        if (string.Equals(token, name, StringComparison.Ordinal)) return true;
+        if (token.Length > name.Length && token[name.Length] == '=' && token.StartsWith(name, StringComparison.Ordinal))
+        {
+            inlineValue = token[(name.Length + 1)..];
+            return true;
+        }
+
         return false;
     }
 
@@ -1227,12 +1242,11 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
     private sealed record IndexedToken(string Value, int Index);
 
-    // The output selector, such as --output or a host's --runic-output, and the catalog's JSON alias, such as --json.
-    private readonly record struct TransportOutput(string Name, string? JsonAlias)
+    // The selector, its hidden aliases (which parse exactly like it) and the JSON output alias flag.
+    private readonly record struct TransportOutput(string Name, IReadOnlyList<string> HiddenAliases, string? JsonAlias)
     {
-        // An alias spelled like the selector itself is the selector.
-        internal static TransportOutput From(CommandCatalog catalog, string name) =>
-            new(name, string.Equals(catalog.JsonOutputAlias, name, StringComparison.Ordinal) ? null : catalog.JsonOutputAlias);
+        internal static TransportOutput From(CommandCatalog catalog) =>
+            new(catalog.OutputSelector, catalog.OutputSelectorAliases, catalog.JsonOutputAlias);
 
         internal bool IsAlias(string spelling) => string.Equals(spelling, JsonAlias, StringComparison.Ordinal);
     }

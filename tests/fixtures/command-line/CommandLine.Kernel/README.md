@@ -20,13 +20,13 @@ Run from the repository root:
 ```powershell
 dotnet restore ../../tests/fixtures/command-line/CommandLine.Kernel/CommandLine.Kernel.csproj
 dotnet run --project ../../tests/fixtures/command-line/CommandLine.Kernel/CommandLine.Kernel.csproj -- probe --label demo
-dotnet run --project ../../tests/fixtures/command-line/CommandLine.Kernel/CommandLine.Kernel.csproj -- probe --label demo --output=json
+dotnet run --project ../../tests/fixtures/command-line/CommandLine.Kernel/CommandLine.Kernel.csproj -- probe --label demo --format=json
 $env:RUNIC_COMMANDLINE_OUTPUT = 'json'
 dotnet run --project ../../tests/fixtures/command-line/CommandLine.Kernel/CommandLine.Kernel.csproj -- probe
 ```
 
 The machine protocol remains `runic.commandline/1`. Output selection remains
-`--output` first, then `RUNIC_COMMANDLINE_OUTPUT`, then the human default.
+`--format` first, then `RUNIC_COMMANDLINE_OUTPUT`, then the human default.
 
 No external parser package is adopted: the fixture uses the deterministic
 library-owned parser control while an external package pin remains unapproved.

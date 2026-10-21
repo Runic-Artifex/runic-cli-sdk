@@ -26,11 +26,11 @@ for culture, usage, description, greeting, error in [
 ]:
     help_text = run(culture, ["greet", "--help"]).stdout
     assert help_text.startswith(f"{usage}: localized greet <name>"), help_text
-    assert description in help_text and "--output <human|json>" in help_text, help_text
+    assert description in help_text and "--format <human|json>" in help_text, help_text
     assert "commands.greet" not in help_text, help_text
     assert run(culture, ["greet", "Ada"]).stdout == greeting + "\n"
-    for arguments, expected_code in [(["greet", "Ada", "--output=json"], 0),
-                                      (["greet", "--unknown", "--output=json"], 2)]:
+    for arguments, expected_code in [(["greet", "Ada", "--format=json"], 0),
+                                      (["greet", "--unknown", "--format=json"], 2)]:
         output = run(culture, arguments, expected_code)
         assert output.stderr == "", output.stderr
         assert output.stdout.count("\n") == 1, output.stdout

@@ -14,6 +14,7 @@ public sealed class CommandCatalogBuilder
     private string? _jsonOutputAlias;
     private JsonOutputShape _jsonOutputAliasShape;
     private string? _completionOption;
+    private OutputSelectorDeclaration? _outputSelector;
     private readonly List<Action<CommandBuilderNode>> _globalOptions = [];
 
     /// <summary>Adds an option to every command. It may also precede the command path.</summary>
@@ -62,9 +63,65 @@ public sealed class CommandCatalogBuilder
     }
 
     /// <summary>
+    /// Declares the long option that selects human or JSON output, replacing the default <c>--format</c>, and
+    /// optionally hidden aliases that keep former spellings working: <c>OutputSelector("--format", "--output")</c>
+    /// accepts <c>tool list --output json</c> as <c>tool list --format json</c>.
+    /// </summary>
+    /// <param name="name">A long option spelling such as <c>--format</c>.</param>
+    /// <param name="hiddenAliases">
+    /// Further long option spellings that parse exactly like the selector: with a value, separated or after
+    /// <c>=</c>, wherever the selector is recognized (before <c>--</c>, also before the command). Help, completion
+    /// and suggestions do not show them, and diagnostics about the value name the selector.
+    /// </param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentException">
+    /// A spelling is not a long option spelling (<c>--</c>, a lowercase letter, then lowercase letters, digits or
+    /// hyphens), is <c>--help</c> or <c>--version</c>, or is given twice.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// The selector and its aliases select the same thing, so giving two different spellings is a usage error
+    /// (<c>RCLI1016</c>), as is giving one spelling twice (<c>RCLI1007</c>). <c>RUNIC_COMMANDLINE_OUTPUT</c> is
+    /// unchanged.
+    /// </para>
+    /// <para>
+    /// <see cref="Build"/> reports <c>RCLI0026</c> for a command option spelled like the selector or one of its
+    /// aliases, including the default <c>--format</c> when no selector is declared. <see cref="CommandCatalog.Combine"/>
+    /// reports it when catalogs declare different selectors; a catalog that declares none takes the declared one.
+    /// </para>
+    /// </remarks>
+    public CommandCatalogBuilder OutputSelector(string name, params IEnumerable<string> hiddenAliases)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(hiddenAliases);
+        RequireFrameworkSpelling(name, nameof(name));
+        var aliases = new List<string>();
+        foreach (string alias in hiddenAliases)
+        {
+            RequireFrameworkSpelling(alias, nameof(hiddenAliases));
+            if (alias == name || aliases.Contains(alias))
+                throw new ArgumentException($"The output selector spelling '{alias}' is given more than once.", nameof(hiddenAliases));
+            aliases.Add(alias);
+        }
+
+        _outputSelector = new OutputSelectorDeclaration(name, aliases.AsReadOnly());
+        return this;
+    }
+
+    private static void RequireFrameworkSpelling(string? spelling, string parameterName)
+    {
+        if (!ParseSettings.IsLongOptionSpelling(spelling) || spelling is "--help" or "--version")
+        {
+            throw new ArgumentException(
+                "An output selector spelling must be a long option spelling other than --help and --version.",
+                parameterName);
+        }
+    }
+
+    /// <summary>
     /// Declares a flag that stands for the output selector with the value <c>json</c>, so that an application that
     /// already has a <c>--json</c> flag keeps its users' command lines: <c>tool list --json</c> is
-    /// <c>tool list --output json</c>. The flag takes no value, is recognized wherever the selector is (before
+    /// <c>tool list --format json</c>. The flag takes no value, is recognized wherever the selector is (before
     /// <c>--</c>, also before the command), and appears in help and completions. Giving both the flag and the
     /// selector is a usage error (<c>RCLI1016</c>), as is giving the flag twice (<c>RCLI1007</c>).
     /// </summary>
@@ -75,9 +132,8 @@ public sealed class CommandCatalogBuilder
     /// hyphens), or is <c>--help</c> or <c>--version</c>.
     /// </exception>
     /// <remarks>
-    /// <see cref="Build"/> reports <c>RCLI0024</c> for a command option spelled like the flag, and for
-    /// <c>--output</c>, the default selector. When a host's output selector has the same spelling, the flag is the
-    /// selector itself.
+    /// <see cref="Build"/> reports <c>RCLI0024</c> for a command option spelled like the flag, and for a flag
+    /// spelled like the output selector or one of its aliases.
     /// </remarks>
     public CommandCatalogBuilder JsonOutputAlias(string name) => JsonOutputAlias(name, JsonOutputShape.Envelope);
 
@@ -104,7 +160,7 @@ public sealed class CommandCatalogBuilder
     /// the flag, are presented as human text, so <c>tool --bogus --json</c> writes its error to standard error.
     /// </para>
     /// <para>
-    /// The output selector (<c>--output json</c>) and <c>RUNIC_COMMANDLINE_OUTPUT=json</c> still write the
+    /// The output selector (<c>--format json</c>) and <c>RUNIC_COMMANDLINE_OUTPUT=json</c> still write the
     /// envelope, so machine consumers that read the protocol are unaffected. A payload is not bounded by the
     /// protocol's frame limit; declared failure data keeps its own bound
     /// (<see cref="CommandFailureData.MaximumPayloadBytes"/>), because the same outcome can also be written as an
@@ -152,7 +208,7 @@ public sealed class CommandCatalogBuilder
     /// </para>
     /// <para>
     /// <see cref="Build"/> reports <c>RCLI0025</c> for a command option spelled like it, and for an option spelled
-    /// like the JSON output alias or <c>--output</c>, the default output selector.
+    /// like the JSON output alias, the output selector or one of its aliases.
     /// </para>
     /// </remarks>
     public CommandCatalogBuilder CompletionOption(string name)
@@ -274,27 +330,8 @@ public sealed class CommandCatalogBuilder
             descriptors.Add(command.Freeze());
         }
 
-        if (_jsonOutputAlias is not null)
-        {
-            // Spelled like the default selector, the flag would be the selector itself in CommandApp but an alias
-            // under a host whose transport option is, for example, --runic-output.
-            if (_jsonOutputAlias == "--output")
-            {
-                issues.Add(new CommandCatalogIssue(
-                    "RCLI0024",
-                    "root",
-                    "The JSON output alias cannot be '--output', the default output selector."));
-            }
-
-            CommandCatalog.ValidateJsonOutputAlias(_jsonOutputAlias, descriptors, "", issues);
-            if (issues.Count != 0) throw new CommandCatalogValidationException(CommandDescriptor.Freeze(issues));
-        }
-
-        if (_completionOption is not null)
-        {
-            CommandCatalog.ValidateCompletionOption(_completionOption, _jsonOutputAlias, descriptors, issues);
-            if (issues.Count != 0) throw new CommandCatalogValidationException(CommandDescriptor.Freeze(issues));
-        }
+        CommandCatalog.ValidateFrameworkOptions(_outputSelector, _jsonOutputAlias, _completionOption, descriptors, issues);
+        if (issues.Count != 0) throw new CommandCatalogValidationException(CommandDescriptor.Freeze(issues));
 
         CommandDescriptor? defaultCommand = null;
         if (_defaultCommandName is not null)
@@ -310,7 +347,7 @@ public sealed class CommandCatalogBuilder
                 throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", defaultCommand.Name, $"The root command '{_defaultCommandName}' has no spelling, so it cannot have aliases or subcommands.")]);
             }
         }
-        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot, _completionOption);
+        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot, _completionOption, _outputSelector);
     }
 
     private void AddGlobals(CommandBuilderNode node)

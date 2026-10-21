@@ -1,7 +1,7 @@
 # `runic.commandline/1` machine response protocol
 
 This directory is the language-neutral, offline contract for Runic.CommandLine
-command-line machine output. `--output json` or the captured
+command-line machine output. `--format json` (the output selector) or the captured
 `RUNIC_COMMANDLINE_OUTPUT=json` value selects this protocol, as does an
 application's JSON output alias such as `--json`. An alias that an application
 declares with the payload shape (`JsonOutputShape.Payload`) to keep an existing
@@ -51,10 +51,11 @@ output; consumers MUST NOT depend on property order.
 Success has `success: true`, `exitCode: 0`, a supported non-null
 `payloadType`, a payload value, and `fault: null`. Failure has
 `success: false`, a nonzero `exitCode`, `payloadType: null`, `payload: null`,
-and a fault. The default failure exit codes are 2 usage/parse, 3 validation,
-4 cancelled, 5 unavailable, 10 expected command failure, and 70 unexpected
-host/software failure. A host policy may select another nonzero signed 32-bit
-value without changing the semantic fault.
+and a fault. The default failure exit codes are 1 expected command failure and
+unavailable resource, 2 usage/parse and validation, 3 unexpected host/software
+failure, and 130 cancelled. A host policy may select another nonzero signed
+32-bit value, for example distinct codes per category, without changing the
+semantic fault.
 
 The `payload` key being JSON null is not evidence of failure. Clients use
 `success`, `payloadType`, and `fault` together and validate all invariants.

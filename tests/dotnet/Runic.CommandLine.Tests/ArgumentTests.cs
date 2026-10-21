@@ -131,7 +131,7 @@ internal sealed class ArgumentTests
     internal static async ValueTask<string> Run(CommandCatalog catalog, int exitCode, params string[] args)
     {
         var console = new TestCommandConsole();
-        var app = new CommandApp(catalog) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleCancelKeyPress = false };
+        var app = new CommandApp(catalog) { Name = "fixture", Console = console, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false };
         AssertEx.Equal(exitCode, await app.RunAsync(args), string.Join(' ', args) + ": " + console.StandardOutput + console.StandardError);
         return exitCode == 0 ? console.StandardOutput.TrimEnd('\n') : console.StandardError;
     }

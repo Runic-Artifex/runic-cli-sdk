@@ -256,7 +256,7 @@ internal sealed class CorpusContractTests
         }
 
         string value = alias.GetString() ?? throw new InvalidOperationException("catalog.jsonOutputAlias must be a string.");
-        Assert.True(value.StartsWith("--", StringComparison.Ordinal) && value != "--output");
+        Assert.True(value.StartsWith("--", StringComparison.Ordinal) && value != "--format");
         return value;
     }
 
@@ -283,7 +283,7 @@ internal sealed class CorpusContractTests
                 // The alias is a flag: a value makes the selection invalid.
                 return new ExplicitOutput(true, false, null);
             }
-            else if (token == "--output")
+            else if (token == "--format")
             {
                 if (index + 1 >= args.Length)
                 {
@@ -292,9 +292,9 @@ internal sealed class CorpusContractTests
 
                 value = args[++index];
             }
-            else if (token.StartsWith("--output=", StringComparison.Ordinal))
+            else if (token.StartsWith("--format=", StringComparison.Ordinal))
             {
-                value = token["--output=".Length..];
+                value = token["--format=".Length..];
             }
 
             if (value is null)

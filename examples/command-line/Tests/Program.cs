@@ -8,7 +8,7 @@ var error = await app.RunAsync(["greet", "Ada", "--count", "0"]);
 if (error.ExitCode != 2 || !error.StandardError.Contains("--count")) return 2;
 var help = await app.RunAsync(["help", "transform"]);
 if (help.ExitCode != 0 || !help.StandardOutput.Contains("--source")) return 3;
-var machine = await app.RunAsync(["application", "info", "--output=json"]);
+var machine = await app.RunAsync(["application", "info", "--format=json"]);
 using var frame = CommandTestEnvelope.Parse(machine.StandardOutput);
 if (machine.ExitCode != 0 || !frame.RootElement.GetProperty("success").GetBoolean()) return 4;
 Console.WriteLine("Four whole-application invocation checks passed.");
