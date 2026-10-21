@@ -214,5 +214,6 @@ internal sealed class CapturingSink : ICommandOutcomeSink
     }
 }
 
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(TestResult))]
 internal sealed partial class TestJsonContext : JsonSerializerContext;

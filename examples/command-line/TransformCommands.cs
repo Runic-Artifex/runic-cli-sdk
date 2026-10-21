@@ -32,5 +32,9 @@ internal static class TransformCommands
 }
 
 internal sealed record TransformResult(string Output, int Characters);
+
+// Runic payloads use camelCase property names, like the runic.commandline/1 envelope around them; without this
+// option System.Text.Json keeps the C# names ("Output") and the generator reports RCLI9044.
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(TransformResult))]
 internal sealed partial class TransformJsonContext : JsonSerializerContext;

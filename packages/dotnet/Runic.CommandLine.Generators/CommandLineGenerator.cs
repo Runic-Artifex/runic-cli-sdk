@@ -50,6 +50,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor MissingResultTypeMetadata = new("RCLI9042", "JSON context lacks the command result type", "Command '{0}' returns '{1}', but JSON context '{2}' has no [JsonSerializable(typeof({1}))]; add it to the context", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9042");
     private static readonly DiagnosticDescriptor ListConverter = new("RCLI9034", "Converter on a list parameter", "List parameter '{0}' cannot use ConvertWith; list binding converts each supported element type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9034");
     private static readonly DiagnosticDescriptor InvalidGroup = new("RCLI9043", "Invalid command group description", "[CommandGroup] path '{0}' {1}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9043");
+    private static readonly DiagnosticDescriptor NonCamelCaseResultContext = new("RCLI9044", "Command result JSON context does not use camelCase", "Command '{0}' returns '{1}' through JSON context '{2}', which does not use camelCase: payload properties would be serialized PascalCase, while Runic payloads are camelCase; add [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)] to the context", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9044");
 
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -686,6 +687,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         shape is ResultShape.Unit or ResultShape.UnitTask || Type(result) == UnitResultType;
 
     // Reports the specific cause (RCLI9028, RCLI9005, RCLI9041 or RCLI9042); string and unit results need no metadata.
+    // A valid context that keeps C# property names adds the RCLI9044 warning.
     private static bool TryGetResultMetadata(List<DiagnosticInfo> diagnostics, IMethodSymbol method, string name, ITypeSymbol result, ResultShape shape, out string? payloadType, out INamedTypeSymbol? jsonContext)
     {
         AttributeData? attribute = FindAttribute(method, "Runic.CommandLine.CommandResultAttribute");
@@ -715,8 +717,35 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             Report(diagnostics, MissingResultTypeMetadata, method, name, result.ToDisplayString(), jsonContext.ToDisplayString());
             return false;
         }
+        if (HasPayloadProperties(result, shape) && !UsesCamelCase(jsonContext))
+            ReportAttribute(diagnostics, NonCamelCaseResultContext, attribute, name, result.ToDisplayString(), jsonContext.ToDisplayString());
         return true;
     }
+
+    // RCLI9044 concerns property names, so a unit, scalar (primitive, enum or System value such as Guid) or a list of
+    // scalars, whose JSON has no properties, is not reported.
+    private static bool HasPayloadProperties(ITypeSymbol result, ResultShape shape)
+    {
+        if (IsUnitResult(result, shape)) return false;
+        ITypeSymbol scalar = Scalar(result);
+        return scalar.SpecialType == SpecialType.None && scalar.TypeKind != TypeKind.Enum && scalar.ContainingNamespace?.ToDisplayString() != "System";
+    }
+
+    // A context uses camelCase when [JsonSourceGenerationOptions] sets PropertyNamingPolicy to CamelCase, or selects
+    // JsonSerializerDefaults.Web without setting PropertyNamingPolicy. A context without the attribute keeps C# names.
+    private static bool UsesCamelCase(INamedTypeSymbol context)
+    {
+        AttributeData? options = FindAttribute(context, "System.Text.Json.Serialization.JsonSourceGenerationOptionsAttribute");
+        if (options is null) return false;
+        foreach (KeyValuePair<string, TypedConstant> argument in options.NamedArguments)
+        {
+            if (argument.Key == "PropertyNamingPolicy") return EnumMemberName(argument.Value) == "CamelCase";
+        }
+        return options.ConstructorArguments.Length == 1 && EnumMemberName(options.ConstructorArguments[0]) == "Web";
+    }
+
+    private static string? EnumMemberName(TypedConstant value) =>
+        value.Type?.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, value.Value))?.Name;
 
     // Mirrors catalog rule RCLI0015 so the mistake is a build error rather than a startup failure.
     private static bool ValidateArgumentOrder(List<DiagnosticInfo> diagnostics, List<ParameterModel> parameters, string commandName)

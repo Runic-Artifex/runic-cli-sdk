@@ -13,7 +13,7 @@ internal sealed class JsonPayloadOutputTests
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console).RunAsync(["report", "--json"]));
-        AssertEx.Equal("{\"Status\":\"Ready\",\"Count\":2}\n", console.StandardOutput);
+        AssertEx.Equal("{\"status\":\"Ready\",\"count\":2}\n", console.StandardOutput);
         AssertEx.Equal("", console.StandardError);
 
         console = new TestCommandConsole();
@@ -125,7 +125,7 @@ internal sealed class JsonPayloadOutputTests
         AssertEx.Equal(0, await App(console).RunAsync(["report", "--output", "json"]));
         using (JsonDocument document = CommandTestEnvelope.Parse(console.StandardOutput))
         {
-            AssertEx.Equal("Ready", document.RootElement.GetProperty("payload").GetProperty("Status").GetString());
+            AssertEx.Equal("Ready", document.RootElement.GetProperty("payload").GetProperty("status").GetString());
         }
 
         console = new TestCommandConsole();
@@ -137,7 +137,7 @@ internal sealed class JsonPayloadOutputTests
         // The alias is explicit, so it overrides the environment and writes the payload.
         console = new TestCommandConsole();
         AssertEx.Equal(0, await App(console, new ParseSettings("human")).RunAsync(["report", "--json"]));
-        AssertEx.Equal("{\"Status\":\"Ready\",\"Count\":2}\n", console.StandardOutput);
+        AssertEx.Equal("{\"status\":\"Ready\",\"count\":2}\n", console.StandardOutput);
     }
 
     [Test, DisplayName("output-alias-payload/shape-reaches-classification-context-and-hosting")]
@@ -163,7 +163,7 @@ internal sealed class JsonPayloadOutputTests
         var hosted = new CommandLineHostingAdapter(App(console = new TestCommandConsole()));
         HostedCommandLineDecision decision = hosted.Classify(new HostedCommandLineLaunchInput(["report", "--json"]));
         AssertEx.Equal(0, await hosted.RunAsync(decision));
-        AssertEx.Equal("{\"Status\":\"Ready\",\"Count\":2}\n", console.StandardOutput);
+        AssertEx.Equal("{\"status\":\"Ready\",\"count\":2}\n", console.StandardOutput);
         decision = hosted.Classify(new HostedCommandLineLaunchInput(["report", "--bogus", "--json"]));
         AssertEx.Equal(CommandExitCodes.Usage, await hosted.RunAsync(decision));
         AssertEx.True(console.StandardError.StartsWith("RCLI1001", StringComparison.Ordinal), console.StandardError);
