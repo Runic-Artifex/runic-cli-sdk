@@ -72,6 +72,28 @@ internal sealed class OutputTests
         return ValueTask.CompletedTask;
     }
 
+    // CommandDiagnosticSeverity starts at Information = 0 since 0.8; the envelope writes and reads the same names.
+    [Test, DisplayName("output/severity-wire-names-do-not-follow-the-enum-values")]
+    public ValueTask SeverityWireNames()
+    {
+        CommandDiagnosticSeverity[] severities =
+            [CommandDiagnosticSeverity.Error, CommandDiagnosticSeverity.Warning, CommandDiagnosticSeverity.Information, default];
+        CommandDiagnostic[] diagnostics = severities.Select(static severity => new CommandDiagnostic(
+            "RCLI2001", "invalid-value", "The value is invalid.", CommandDiagnosticPhase.Binding, severity)).ToArray();
+        byte[] frame = CommandJsonEnvelopeWriter.Serialize(
+            CommandResponse.Failure<TestResult>("req-3", "status", 1, new CommandFault("RCLI3000", "Failed."), diagnostics),
+            TestJsonContext.Default.TestResult);
+        using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1));
+        AssertEx.Equal(CommandProtocol.Identity, document.RootElement.GetProperty("protocol").GetString());
+        AssertEx.SequenceEqual(
+            ["error", "warning", "information", "information"],
+            document.RootElement.GetProperty("diagnostics").EnumerateArray()
+                .Select(static diagnostic => diagnostic.GetProperty("severity").GetString()!).ToArray());
+        CommandResponse<TestResult> read = CommandJsonEnvelopeReader.Read(frame, TestCodec.Identity, TestJsonContext.Default.TestResult);
+        AssertEx.SequenceEqual(severities, read.Diagnostics.Select(static diagnostic => diagnostic.Severity).ToArray());
+        return ValueTask.CompletedTask;
+    }
+
     [Test, DisplayName("output/fault-details-use-ordinal-order")]
     public ValueTask DetailOrdering()
     {

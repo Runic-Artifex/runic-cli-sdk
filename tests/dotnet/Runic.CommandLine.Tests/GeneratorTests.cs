@@ -54,6 +54,71 @@ internal sealed class GeneratorTests
         return ValueTask.CompletedTask;
     }
 
+    [Test, DisplayName("generator/catalog-is-internal-generated-code")]
+    public ValueTask CatalogIsInternalGeneratedCode()
+    {
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new CommandLineGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(CreateCompilation(Commands), out Compilation compiled, out var diagnostics);
+        AssertEx.Equal(0, diagnostics.Length, string.Join("\n", diagnostics));
+        string generated = string.Concat(driver.GetRunResult().Results.Single().GeneratedSources.Select(static item => item.SourceText.ToString()));
+        string version = typeof(CommandLineGenerator).Assembly.GetName().Version!.ToString();
+        AssertEx.True(generated.Contains(
+            "[global::System.CodeDom.Compiler.GeneratedCode(\"Runic.CommandLine.Generators\", \"" + version + "\")]\ninternal static class GeneratedCommandCatalog",
+            StringComparison.Ordinal) || generated.Contains(
+            "[global::System.CodeDom.Compiler.GeneratedCode(\"Runic.CommandLine.Generators\", \"" + version + "\")]\r\ninternal static class GeneratedCommandCatalog",
+            StringComparison.Ordinal), generated);
+        AssertEx.True(!generated.Contains("public static class GeneratedCommandCatalog", StringComparison.Ordinal), generated);
+        AssertEx.True(generated.Contains("global::Runic.CommandLine.Generated.GeneratedCommandBinding.", StringComparison.Ordinal), generated);
+
+        INamedTypeSymbol catalog = compiled.GetTypeByMetadataName("Runic.CommandLine.Generated.GeneratedCommandCatalog")!;
+        AssertEx.Equal(Accessibility.Internal, catalog.DeclaredAccessibility);
+        AttributeData attribute = catalog.GetAttributes().Single();
+        AssertEx.Equal("System.CodeDom.Compiler.GeneratedCodeAttribute", attribute.AttributeClass!.ToDisplayString());
+        AssertEx.Equal("Runic.CommandLine.Generators", (string?)attribute.ConstructorArguments[0].Value);
+        AssertEx.Equal(version, (string?)attribute.ConstructorArguments[1].Value);
+
+        using var bytes = new MemoryStream();
+        var emitted = compiled.Emit(bytes);
+        AssertEx.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        bytes.Position = 0;
+        var loader = new AssemblyLoadContext("internal-catalog", isCollectible: true);
+        try
+        {
+            Type type = loader.LoadFromStream(bytes).GetType("Runic.CommandLine.Generated.GeneratedCommandCatalog")!;
+            AssertEx.True(type.IsNotPublic, "The generated catalog is public.");
+            AssertEx.True(type.GetCustomAttributes(typeof(System.CodeDom.Compiler.GeneratedCodeAttribute), false).Length == 1);
+        }
+        finally { loader.Unload(); }
+        return ValueTask.CompletedTask;
+    }
+
+    [Test, DisplayName("generator/root-command-is-RCLI9001")]
+    public ValueTask RootCommandIsReserved()
+    {
+        foreach (string name in new[] { "root", "tools root" })
+        {
+            CSharpCompilation compilation = CreateCompilation($$"""
+                using Runic.CommandLine;
+
+                internal static class Commands
+                {
+                    [Command("{{name}}")]
+                    public static string Root() => "";
+
+                    [Command("roots")]
+                    public static string Roots() => "";
+                }
+                """);
+            ImmutableArray<Diagnostic> diagnostics = CSharpGeneratorDriver.Create(new CommandLineGenerator())
+                .RunGenerators(compilation).GetRunResult().Results.Single().Diagnostics;
+            AssertEx.SequenceEqual(["RCLI9001"], diagnostics.Select(static diagnostic => diagnostic.Id).ToArray(), string.Join("\n", diagnostics));
+            AssertEx.True(diagnostics[0].GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains(name, StringComparison.Ordinal),
+                diagnostics[0].GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
     [Test, DisplayName("generator/parameter-errors-use-distinct-diagnostics")]
     public ValueTask ParameterErrorsUseDistinctDiagnostics()
     {

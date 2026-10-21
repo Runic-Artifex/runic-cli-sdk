@@ -182,10 +182,38 @@ internal sealed class FailureDataTests
     [Test, DisplayName("failure-data/ordinary-failure-wire-remains-unchanged")]
     public ValueTask OrdinaryFailure()
     {
-        byte[] frame = CommandJsonEnvelopeWriter.Serialize(CommandResponse.Failed<TestResult>("req", "clone", 10,
+        byte[] frame = CommandJsonEnvelopeWriter.Serialize(CommandResponse.Failure<TestResult>("req", "clone", 10,
             new CommandFault("RCLI3000", "The clone failed.")), TestJsonContext.Default.TestResult);
         AssertEx.Equal("{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req\",\"command\":\"clone\",\"success\":false,\"exitCode\":10,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI3000\",\"message\":\"The clone failed.\",\"details\":{},\"retryable\":false},\"diagnostics\":[]}\n", Encoding.UTF8.GetString(frame));
         AssertEx.True(Read(frame).FailureData is null);
+        return ValueTask.CompletedTask;
+    }
+
+    // CommandOutcome.Failure and CommandResponse.Failure take the data as their last optional parameter since 0.8.
+    [Test, DisplayName("failure-data/one-failure-member-round-trips-data-and-diagnostics")]
+    public ValueTask OneFailureMemberRoundTrips()
+    {
+        var report = new RecoveryReport(ExactPath, "feature/tmp/修复", true);
+        var warning = new CommandDiagnostic("RCLI3999", "skipped", "Some items were skipped.", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Warning);
+        CommandOutcome<TestResult> outcome = CommandOutcome.Failure<TestResult>(
+            CommandExitCategory.Cancelled, new CommandFault("RCLI3000", "The clone failed."), [warning], "Inspect it.\n", Create(report));
+        AssertEx.True(!outcome.Succeeded);
+        AssertEx.Equal("Inspect it.\n", outcome.HumanOutput);
+        AssertEx.Equal(Identity, outcome.FailureData!.Type);
+        AssertEx.True(CommandOutcome.Failure<TestResult>(CommandExitCategory.Cancelled, new CommandFault("RCLI3000", "The clone failed.")).FailureData is null);
+
+        CommandResponse<TestResult> written = CommandResponse.FromOutcome("req", "clone", 130, TestCodec.Identity, outcome, outcome.Diagnostics);
+        CommandResponse<TestResult> read = Read(CommandJsonEnvelopeWriter.Serialize(written, TestJsonContext.Default.TestResult));
+        AssertEx.True(!read.Succeeded);
+        AssertEx.Equal(130, read.ExitCode);
+        AssertEx.Equal("RCLI3999", read.Diagnostics.Single().Code);
+        AssertEx.True(read.FailureData!.TryGet(Identity, RecoveryJsonContext.Default.RecoveryReport, out RecoveryReport? recovery));
+        AssertEx.Equal(report, recovery);
+
+        byte[] direct = CommandJsonEnvelopeWriter.Serialize(
+            CommandResponse.Failure<TestResult>("req", "clone", 130, new CommandFault("RCLI3000", "The clone failed."), [warning], Create(report)),
+            TestJsonContext.Default.TestResult);
+        AssertEx.SequenceEqual(CommandJsonEnvelopeWriter.Serialize(written, TestJsonContext.Default.TestResult), direct);
         return ValueTask.CompletedTask;
     }
 
