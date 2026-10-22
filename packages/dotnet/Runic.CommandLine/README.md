@@ -376,11 +376,14 @@ replaces the built-in `completion` command, so a default command can take
 error. A command option spelled like it fails catalog validation with `RCLI0025`.
 
 `Runic.CommandLine.Testing` supplies `CommandAppTester`, a configurable
-`TestCommandConsole` with queued input, and `CommandTestEnvelope.Parse`. `Parse`
-checks the framing only: one unpadded JSON value ending in exactly one LF. It
-returns a `JsonDocument` and does not validate the envelope's members, its
-success and failure rules, limits or payload type; for that, read the frame with
-`CommandJsonEnvelopeReader.Read<T>(frame, expectedPayloadType, typeInfo)`. Supply
+`TestCommandConsole` with queued input, and `CommandTestEnvelope`.
+`CommandTestEnvelope.Read<T>(json, typeInfo)` reads captured output as strictly
+as `CommandJsonEnvelopeReader.Read<T>` and also rejects members the protocol
+does not define, so a test notices an envelope change; it returns the
+`CommandResponse<T>` with the typed payload. `CommandTestEnvelope.Parse` checks
+the framing only: one unpadded JSON value ending in exactly one LF. It returns
+a `JsonDocument` for ad-hoc inspection and does not validate the envelope's
+members, its success and failure rules, limits or payload type. Supply
 explicit ParseSettings, for example `CommandTestEnvironment.Capture(variables)`, to
 keep environment-dependent tests deterministic.
 
