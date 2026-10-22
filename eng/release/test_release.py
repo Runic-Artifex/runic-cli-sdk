@@ -315,5 +315,17 @@ class PublishWorkflow(unittest.TestCase):
             self.assertEqual(uploaded, [str(Path(directory) / 'A.1.2.3.nupkg'), str(Path(directory) / 'B.1.2.3.nupkg'), str(asset)])
 
 
+class PublishConcurrency(unittest.TestCase):
+    def test_every_publishing_workflow_waits_in_one_fixed_group(self):
+        # One group for every version: a per-version group would let two versions publish and move tags at once.
+        publishing = []
+        for path in sorted((ROOT / '.github/workflows').glob('*.y*ml')):
+            text = path.read_text(encoding='utf-8')
+            if re.search(r'^\s+(contents|id-token|attestations|packages): write\s*$', text, re.M) or re.search(r'^\s+environment:', text, re.M):
+                publishing.append(path.name)
+                self.assertRegex(text, r'(?m)^concurrency:\n  group: publish-preview\n  cancel-in-progress: false\n', path.name)
+        self.assertIn('publish-preview.yml', publishing)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -53,6 +53,10 @@ unchanged and reports the missing files as a workflow warning instead of failing
 so the rest of the publication can finish. The attestations still cover those files.
 `eng/release/test_release.py` and `test_sbom.py` pin this contract and run in CI.
 
+Publications run one at a time. Every workflow that publishes waits in the one
+`publish-preview` concurrency group, whatever the version, and never cancels a
+publication in progress; `test_release.py` checks it.
+
 ## Verifying a release
 
 Every package and the SBOM of each release have a signed build-provenance
@@ -64,11 +68,20 @@ version=0.8.0
 gh release download "v$version" -R Runic-Artifex/runic-cli-sdk
 gh attestation verify "Runic.CommandLine.$version.nupkg" -R Runic-Artifex/runic-cli-sdk \
   --signer-workflow Runic-Artifex/runic-cli-sdk/.github/workflows/publish-preview.yml
-gh attestation verify "runic-cli-sdk-$version.cdx.json" -R Runic-Artifex/runic-cli-sdk
+gh attestation verify "runic-cli-sdk-$version.cdx.json" -R Runic-Artifex/runic-cli-sdk \
+  --signer-workflow Runic-Artifex/runic-cli-sdk/.github/workflows/publish-preview.yml
 # The SBOM attestation (CycloneDX); the release asset is the same document.
 gh attestation verify "Runic.CommandLine.$version.nupkg" -R Runic-Artifex/runic-cli-sdk \
-  --predicate-type https://cyclonedx.org/bom
+  --predicate-type https://cyclonedx.org/bom \
+  --signer-workflow Runic-Artifex/runic-cli-sdk/.github/workflows/publish-preview.yml
 ```
+
+Pass `--signer-workflow` for every file. The provenance names `publish-preview.yml`,
+the workflow that attested and published the bytes, not the job that built them.
+The packages are built by a successful `ci.yml` run for the same commit, where the
+locked build and test dependencies also run. The publish workflow accepts only that
+run's artifact, by id, and checks the files against the candidate's hashes and
+inventory before it attests them.
 
 NuGet.org adds its repository signature (`.signature.p7s`) to every package it
 accepts, so a `.nupkg` downloaded from NuGet.org has different bytes from the
