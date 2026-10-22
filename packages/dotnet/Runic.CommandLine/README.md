@@ -140,6 +140,47 @@ tells a handler or a custom outcome sink which shape was selected. Failure data
 keeps its 65,536-byte bound, because the same outcome can also be written as an
 envelope; a success payload is not bound by the protocol's frame limit.
 
+### Read arguments from response files
+
+An application whose command lines grow long can read arguments from response
+files, as the .NET CLI does. It is off unless the catalog declares it, because
+an argument may legitimately start with `@`:
+
+```csharp
+CommandCatalog catalog = GeneratedCommandCatalog.Create(builder => builder.ResponseFiles());
+```
+
+`hello @greet.rsp` then runs as if the arguments in `greet.rsp` had been given
+in its place, before parsing, so a file may hold the command, options, values
+and the output selector:
+
+```text
+# Comment lines start with #.
+greet
+"Ada Lovelace"
+--format json
+```
+
+A response file is UTF-8, with or without a byte order mark. Arguments are
+separated by white space, including line breaks, and quoted as on the Windows
+command line: `"two words"` is one argument, a backslash is literal unless it
+precedes a double quote (`C:\work\` and `\\server\share` stay as written), and
+`\"` is a literal quote. A line whose first non-blank character is `#` is a
+comment. `@other.rsp` inside a response file is relative to that file's
+directory, and files nest at most 16 levels deep; `@file` on the command line
+is relative to the current directory. `@@scope` is the literal argument
+`@scope`, and `@` alone is an ordinary argument. In PowerShell, quote the
+argument (`hello '@greet.rsp'`), because a bare `@name` is splatting there.
+
+A file that cannot be read (`RCLI1017`), is not valid UTF-8 (`RCLI1018`), has
+an unterminated quote (`RCLI1019`), is nested too deeply (`RCLI1020`) or names
+itself (`RCLI1021`) is a usage error, exit code 2, in the selected output
+format. Help lists `@<file>` with the options, and the generated completions
+complete a file name after `@`. `CommandLineHostingAdapter.Classify` expands
+the files too; `ICommandSyntaxAdapter.Parse` and `CommandTestInvocation.Parse`
+take arguments as given. Without the declaration, `@greet.rsp` is an ordinary
+argument.
+
 ## Method-first inputs and results
 
 - Scalars: strings, integers, long integers, decimals, doubles, GUIDs, enums and

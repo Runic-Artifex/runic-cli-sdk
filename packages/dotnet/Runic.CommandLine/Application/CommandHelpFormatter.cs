@@ -93,6 +93,8 @@ public static class CommandHelpFormatter
             rows.Add(new(jsonAlias, catalog.JsonOutputAliasShape == JsonOutputShape.Payload
                 ? context.Resolve(CommandTextKeys.HelpJsonPayloadOutputAlias, "Write the result as JSON")
                 : context.Resolve(CommandTextKeys.HelpJsonOutputAlias, "Same as " + outputOptionName + " json", [outputOptionName])));
+        if (catalog.ResponseFiles)
+            rows.Add(new("@<file>", context.Resolve(CommandTextKeys.HelpResponseFiles, "Read more arguments from a file")));
         if (path.Count == 0 && catalog.CompletionOption is { } completionOption)
             rows.Add(new(completionOption + " <shell>", context.Resolve(CommandTextKeys.HelpCompletion, "Generate bash, zsh, fish or PowerShell completions")));
         AppendSection(text, context.Resolve(CommandTextKeys.HelpOptions, "Options"), rows, width);

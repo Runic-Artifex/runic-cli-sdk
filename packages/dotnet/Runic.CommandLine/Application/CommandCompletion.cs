@@ -18,7 +18,10 @@ public sealed class CommandCompletionResult
     public IReadOnlyList<string> Candidates { get; }
     /// <summary>Gets the filesystem completion kind for the value being entered.</summary>
     public CommandPathKind PathKind { get; }
-    /// <summary>Gets the option prefix to retain when completing an inline value.</summary>
+    /// <summary>
+    /// Gets the prefix to retain when completing an inline value: the option and <c>=</c>, or <c>@</c> before a
+    /// response file name when the catalog reads response files.
+    /// </summary>
     public string ValuePrefix { get; }
 }
 
@@ -64,6 +67,8 @@ public static class CommandCompletion
             positional = true;
         }
         string current = words.Count == 0 ? "" : words[^1];
+        // A response file reference is a file name wherever it appears, because it is expanded before parsing.
+        if (catalog.ResponseFiles && IsResponseFileReference(current)) return new CommandCompletionResult([], CommandPathKind.File, "@");
         string prefix = "";
         if (!ended && current.Contains('='))
         {
@@ -88,7 +93,7 @@ public static class CommandCompletion
 
     /// <summary>
     /// Generates a bash, zsh, fish, or PowerShell completion script. It completes the catalog's output selector,
-    /// not its hidden aliases.
+    /// not its hidden aliases, and a file name after <c>@</c> when the catalog reads response files.
     /// </summary>
     public static string Generate(CommandCatalog catalog, string executable, string shell)
     {
@@ -107,6 +112,8 @@ public static class CommandCompletion
             _ => throw new ArgumentException("Choose bash, zsh, fish or powershell.", nameof(shell)),
         };
     }
+
+    private static bool IsResponseFileReference(string word) => word.StartsWith('@') && !word.StartsWith("@@", StringComparison.Ordinal);
 
     private static readonly string[] Shells = ["bash", "zsh", "fish", "powershell"];
 
@@ -149,10 +156,12 @@ public static class CommandCompletion
     {
         internal List<Node> Nodes { get; } = [new()];
         internal int DefaultNode { get; private set; }
+        internal bool ResponseFiles { get; }
         internal Model(CommandCatalog catalog)
         {
             string output = catalog.OutputSelector;
             jsonAlias = catalog.JsonOutputAlias;
+            ResponseFiles = catalog.ResponseFiles;
             AddOptions(Nodes[0], GlobalOptions(catalog), output);
             AddChildren(0, catalog.Commands);
             if (DefaultNode != 0)
@@ -279,6 +288,9 @@ public static class CommandCompletion
             text.Append("        ;;\n");
         }
         text.Append("    esac\n  fi\n}\n");
+        string responseFiles = model.ResponseFiles
+            ? "  if [[ \"$current\" == @* && \"$current\" != @@* ]]; then reply=(); query_kind=1; query_prefix=@; query_current=\"${current#@}\"; return 0; fi\n"
+            : "";
         text.Append(function).Append("_query() {\n");
         if (zsh) text.Append("  setopt localoptions ksharrays\n");
         text.Append("  local node=0 position=0 ended=0 positional=0 pending='' pending_node=0 consumed=0 word selector i current prefix='' found child maximum kind item\n  local -a values tokens\n  local -a input=(\"$@\")\n");
@@ -309,7 +321,7 @@ public static class CommandCompletion
             (( position+=1 )); positional=1
           done
           current="${input[${#input[@]}-1]}"
-          if (( !ended )) && [[ "$current" == *=* ]]; then
+        {{responseFiles}}  if (( !ended )) && [[ "$current" == *=* ]]; then
             selector="${current%%=*}"
             {{function}}_lookup o "$node" "$selector"
             if (( found )); then pending="$selector"; pending_node=$node; prefix="$selector="; current="${current#*=}"; fi
@@ -341,7 +353,7 @@ public static class CommandCompletion
         text.Append(function).Append("() {\n  local query_kind query_prefix query_current item\n  local -a reply\n");
         if (zsh)
         {
-            text.Append("  local -a input=(\"${(@)words[2,CURRENT]}\")\n  local quote=\"${compstate[quote]}\"\n  if [[ \"$quote\" == \"'\" || \"$quote\" == '\"' ]]; then input[-1]+=\"$quote\"; fi\n  ").Append(function).Append("_query \"${(@Q)input}\"\n  compadd -- \"${reply[@]}\"\n  if (( query_kind != 0 )); then\n    [[ -n \"$query_prefix\" ]] && compset -P '*='\n    if (( query_kind == 2 )); then _files -/; else _files; fi\n  fi\n}\ncompdef ").Append(function).Append(' ').Append(Quote(executable)).Append('\n');
+            text.Append("  local -a input=(\"${(@)words[2,CURRENT]}\")\n  local quote=\"${compstate[quote]}\"\n  if [[ \"$quote\" == \"'\" || \"$quote\" == '\"' ]]; then input[-1]+=\"$quote\"; fi\n  ").Append(function).Append("_query \"${(@Q)input}\"\n  compadd -- \"${reply[@]}\"\n  if (( query_kind != 0 )); then\n").Append(model.ResponseFiles ? "    if [[ \"$query_prefix\" == @ ]]; then compset -P '@'; elif [[ -n \"$query_prefix\" ]]; then compset -P '*='; fi\n" : "    [[ -n \"$query_prefix\" ]] && compset -P '*='\n").Append("    if (( query_kind == 2 )); then _files -/; else _files; fi\n  fi\n}\ncompdef ").Append(function).Append(' ').Append(Quote(executable)).Append('\n');
         }
         else
         {
@@ -409,6 +421,9 @@ public static class CommandCompletion
             text.Append("    case ").Append(FishQuote($"t:{id}:")).Append("\n      printf '%s\\n' ").AppendJoin(' ', model.Nodes[id].Children.Keys.Concat(model.Nodes[id].Options.Keys).Select(FishQuote)).Append('\n');
         }
         text.Append("  end\n  if test \"$argv[1]\" = a\n    switch $argv[2]\n");
+        string fishResponseFiles = model.ResponseFiles
+            ? "  if string match -q -- '@*' \"$current\"; and not string match -q -- '@@*' \"$current\"\n    for file in (__fish_complete_path (string sub -s 2 -- \"$current\"))\n      set -l path (string split -m 1 \\t -- \"$file\")[1]\n      printf '%s\\n' \"@$path\"\n    end\n    return\n  end\n"
+            : "";
         for (int id = 0; id < model.Nodes.Count; id++)
         {
             int argumentNode = id == 0 && model.DefaultNode != 0 ? model.DefaultNode : id;
@@ -436,7 +451,7 @@ public static class CommandCompletion
           set -l consumed 0
           set -l current $argv[-1]
           set -l prefix ''
-          set -l prior $argv
+        {{fishResponseFiles}}  set -l prior $argv
           set -e prior[-1]
           for word in $prior
             if test -n "$pending"
@@ -566,6 +581,13 @@ public static class CommandCompletion
                 .AppendJoin(", ", node.Options.Select(pair => PowerShellQuote(pair.Key) + ", " + PowerShellValue(pair.Value))).Append(")); Arguments = @(")
                 .AppendJoin(", ", node.Arguments.Select(PowerShellValue)).Append("); Trailing = ").Append(node.Trailing is { } trailing ? PowerShellValue(trailing) : "$null").Append(" }\n");
         }
+        // PowerShell reads a bare @name as splatting, so a response file name is completed in single quotes.
+        string powerShellResponseFiles = model.ResponseFiles
+            ? "  if ($current.StartsWith('@', [StringComparison]::Ordinal) -and !$current.StartsWith('@@', [StringComparison]::Ordinal)) { return @{ Candidates = @(); Kind = 1; Prefix = '@'; Current = $current.Substring(1) } }\n"
+            : "";
+        string powerShellFileText = model.ResponseFiles
+            ? "$(if ($result.Prefix -ceq '@') { $text = $_.CompletionText; if ($text.Length -ge 2 -and $text.StartsWith(\"'\") -and $text.EndsWith(\"'\")) { $text = $text.Substring(1, $text.Length - 2) } else { $text = $text.Replace(\"'\", \"''\") }; \"'@\" + $text + \"'\" } else { $result.Prefix + $_.CompletionText })"
+            : "($result.Prefix + $_.CompletionText)";
         text.Append(System.Globalization.CultureInfo.InvariantCulture, $$"""
           )
           $node = 0; $position = 0; $ended = $false; $positional = $false; $pending = $null; $consumed = 0
@@ -587,7 +609,7 @@ public static class CommandCompletion
             if ($node -eq 0) { $node = {{model.DefaultNode}} }; $position++; $positional = $true
           }
           $current = if ($Words.Count) { $Words[-1] } else { '' }; $prefix = ''
-          if (!$ended -and $current.Contains('=')) {
+        {{powerShellResponseFiles}}  if (!$ended -and $current.Contains('=')) {
             $pair = $current.Split('=', 2)
             if ($nodes[$node].Options.ContainsKey($pair[0])) { $pending = $nodes[$node].Options[$pair[0]]; $prefix = $pair[0] + '='; $current = $pair[1] }
           }
@@ -625,7 +647,7 @@ public static class CommandCompletion
             [System.Management.Automation.CompletionResult]::new($escaped, $candidate, 'ParameterValue', $candidate)
           }
           if ($result.Kind -ne 0) {
-            [System.Management.Automation.CompletionCompleters]::CompleteFilename($result.Current) | Where-Object { $result.Kind -ne 2 -or $_.ResultType -eq 'ProviderContainer' } | ForEach-Object { [System.Management.Automation.CompletionResult]::new(($result.Prefix + $_.CompletionText), $_.ListItemText, $_.ResultType, $_.ToolTip) }
+            [System.Management.Automation.CompletionCompleters]::CompleteFilename($result.Current) | Where-Object { $result.Kind -ne 2 -or $_.ResultType -eq 'ProviderContainer' } | ForEach-Object { [System.Management.Automation.CompletionResult]::new({{powerShellFileText}}, $_.ListItemText, $_.ResultType, $_.ToolTip) }
           }
         }
         """).Append('\n');

@@ -9,7 +9,7 @@ tag of the package you use, so the page always matches your version.
 | Codes | Reported by | Where it appears |
 |---|---|---|
 | `RCLI0002`–`RCLI0026` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
-| `RCLI1001`–`RCLI1016` | Parser | Usage diagnostics (exit code 2) |
+| `RCLI1001`–`RCLI1021` | Parser and response files | Usage diagnostics (exit code 2) |
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
 | `RCLI6001`–`RCLI6011` | `Runic.CommandLine.Processes` | Process faults returned to the command |
@@ -340,6 +340,48 @@ catalog declares), one of its hidden aliases, or the application's JSON output
 alias, such as `--json`. Give one of them. The diagnostic names both spellings
 and points at the later one. The same spelling given twice is `RCLI1007`, and
 the JSON alias with a value, as in `--json=true`, is `RCLI1004`.
+
+### RCLI1017
+
+`response-file-unreadable`: a response file could not be read. It does not
+exist, is a directory, cannot be opened, or its name is not a valid path. Only
+applications that declare `CommandCatalogBuilder.ResponseFiles()` read
+response files; see [response files](#response-files). The argument is the
+file name as written after `@`, or only its last segment when it names a home
+or temporary directory, which output would otherwise redact. The token index
+is the command-line argument that named the first response file, also when a
+nested file failed.
+
+### RCLI1018
+
+`response-file-invalid-utf8`: a response file is not valid UTF-8. Response
+files are read as strict UTF-8, with or without a byte order mark; save the
+file as UTF-8.
+
+### RCLI1019
+
+`response-file-unterminated-quote`: a response file ends inside a double
+quote. Close the quote, or write a literal quote as `\"`.
+
+### RCLI1020
+
+`response-file-too-deep`: response files name each other more than 16 levels
+deep. The argument is the reference that would open the seventeenth file.
+
+### RCLI1021
+
+`response-file-cycle`: a response file names itself, directly or through
+other response files. The argument is the reference that closes the cycle.
+Naming the same file twice, one after the other, is allowed.
+
+### Response files
+
+These codes appear only for an application whose catalog declares
+`CommandCatalogBuilder.ResponseFiles()`. Arguments are expanded before
+parsing, so a response file that fails is reported before any parse error,
+except an invalid output selection given on the command line itself. Parse
+diagnostics after a successful expansion count token indexes in the expanded
+arguments.
 
 ## Binding and validation
 

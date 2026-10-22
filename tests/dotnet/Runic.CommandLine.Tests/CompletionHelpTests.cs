@@ -236,7 +236,7 @@ internal sealed partial class CompletionHelpTests
         "fish" => $"source {Fish(path)}; complete -C {Fish("fixture " + string.Join(' ', words))}",
         _ => $". {Ps(path)}; (TabExpansion2 {Ps("fixture " + string.Join(' ', words))} {("fixture " + string.Join(' ', words)).Length}).CompletionMatches | ForEach-Object {{ $_.CompletionText }}",
     };
-    private static async ValueTask<string[]?> RunShell(string shell, string script, string directory)
+    internal static async ValueTask<string[]?> RunShell(string shell, string script, string directory)
     {
         // On Windows, bash.exe is the WSL launcher and zsh and fish are not native shells.
         if (OperatingSystem.IsWindows() && shell != "pwsh") { Console.WriteLine("SKIP POSIX completion shell on Windows: " + shell); return null; }
@@ -275,7 +275,7 @@ internal sealed partial class CompletionHelpTests
         Directory.CreateDirectory(directory);
         try { await action(directory); } finally { Directory.Delete(directory, recursive: true); }
     }
-    private static string Sh(string value) => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
-    private static string Fish(string value) => "'" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal) + "'";
-    private static string Ps(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
+    internal static string Sh(string value) => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+    internal static string Fish(string value) => "'" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal) + "'";
+    internal static string Ps(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 }

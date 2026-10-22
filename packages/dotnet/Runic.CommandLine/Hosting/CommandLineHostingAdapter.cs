@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Globalization;
 using System.Threading;
@@ -66,19 +67,23 @@ public sealed class CommandLineHostingAdapter
                 owner: _decisionOwner);
         }
 
-        if (CommandCompletion.IsRequest(_catalog, input.Arguments, out _))
-            return new HostedCommandLineDecision(HostedCommandLineDecisionKind.Completion, input, owner: _decisionOwner);
+        var settings = new ParseSettings(input.OutputEnvironmentValue, input.DefaultOutputMode)
+        {
+            GetEnvironmentVariable = name => input.EnvironmentVariables.TryGetValue(name, out string? value) ? value : null,
+        };
+        IReadOnlyList<string> arguments = input.Arguments;
+        ParseOutcome? responseFileError = null;
+        if (_catalog.ResponseFiles && CommandResponseFiles.AnyReference(arguments))
+        {
+            if (CommandResponseFiles.Expand(arguments, Environment.CurrentDirectory, out ResponseFileFailure? failure) is { } expanded) arguments = expanded;
+            else responseFileError = PortableCommandSyntaxAdapter.ResponseFileError(_catalog, [.. arguments], settings, failure!);
+        }
 
-        ParseOutcome outcome = _syntaxAdapter.Parse(
-            _catalog,
-            input.Arguments.ToArray(),
-            new ParseSettings(
-                input.OutputEnvironmentValue,
-                input.DefaultOutputMode)
-            {
-                GetEnvironmentVariable = name => input.EnvironmentVariables.TryGetValue(name, out string? value) ? value : null,
-            });
-        CommandPath? matchedPath = PortableCommandSyntaxAdapter.MatchExplicitPath(_catalog, input.Arguments);
+        if (responseFileError is null && CommandCompletion.IsRequest(_catalog, arguments, out _))
+            return new HostedCommandLineDecision(HostedCommandLineDecisionKind.Completion, input, owner: _decisionOwner) { CompletionArguments = arguments };
+
+        ParseOutcome outcome = responseFileError ?? _syntaxAdapter.Parse(_catalog, arguments.ToArray(), settings);
+        CommandPath? matchedPath = responseFileError is null ? PortableCommandSyntaxAdapter.MatchExplicitPath(_catalog, arguments) : null;
 
         HostedCommandLineDecision decision = outcome.Kind switch
         {
@@ -117,8 +122,8 @@ public sealed class CommandLineHostingAdapter
                     diagnostics: outcome.Diagnostics,
                     outputClassification: outcome.OutputClassification)
                 {
-                    ParseOutcome = outcome, MatchedPath = matchedPath,
-                    SuggestedCommand = matchedPath is null ? UnknownCommandSuggestion(outcome) : null,
+                    ParseOutcome = outcome, MatchedPath = matchedPath, ResponseFileFailed = responseFileError is not null,
+                    SuggestedCommand = matchedPath is null && responseFileError is null ? UnknownCommandSuggestion(outcome) : null,
                 },
             _ => throw new InvalidOperationException("The command syntax adapter returned an incomplete outcome."),
         };
@@ -166,7 +171,7 @@ public sealed class CommandLineHostingAdapter
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
         decision.ValidateOwner(_decisionOwner);
         if (decision.Kind == HostedCommandLineDecisionKind.Completion)
-            return Presentation.GuardAsync(() => Presentation.WriteCompletionAsync(_catalog, CommandCompletion.IsRequest(_catalog, decision.Arguments, out string? shell) ? shell : null, console, culture, cancellationToken), cancellationToken);
+            return Presentation.GuardAsync(() => Presentation.WriteCompletionAsync(_catalog, CommandCompletion.IsRequest(_catalog, decision.CompletionArguments ?? decision.Arguments, out string? shell) ? shell : null, console, culture, cancellationToken), cancellationToken);
         if (decision.Kind is not (HostedCommandLineDecisionKind.Help or HostedCommandLineDecisionKind.Version or HostedCommandLineDecisionKind.Invalid) || decision.ParseOutcome is null)
             throw new InvalidOperationException("Presentation requires a framework decision created by this adapter.");
         if (_app?.PresentFrameworkRequest is { } present)

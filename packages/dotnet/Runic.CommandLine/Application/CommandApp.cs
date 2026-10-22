@@ -109,11 +109,17 @@ public sealed class CommandApp
             CommandDebugOutput? debug = CommandDebugOutput.IsEnabled(settings.GetEnvironmentVariable ?? (static _ => null)) ? new CommandDebugOutput() : null;
             Action<Exception>? exceptionObserver = debug?.Observe(ExceptionObserver) ?? ExceptionObserver;
             CommandPresentation presentation = CreatePresentation(exceptionObserver);
-            if (CommandCompletion.IsRequest(_catalog, args, out string? shell))
+            ParseOutcome? responseFileError = null;
+            if (_catalog.ResponseFiles && CommandResponseFiles.AnyReference(args))
+            {
+                if (CommandResponseFiles.Expand(args, Environment.CurrentDirectory, out ResponseFileFailure? failure) is { } expanded) args = expanded;
+                else responseFileError = PortableCommandSyntaxAdapter.ResponseFileError(_catalog, args, settings, failure!);
+            }
+            if (responseFileError is null && CommandCompletion.IsRequest(_catalog, args, out string? shell))
             {
                 return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, shell, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
             }
-            ParseOutcome parsed = PortableCommandSyntaxAdapter.Instance.Parse(_catalog, args.Length == 0 && _catalog.DefaultCommand is null ? ["--help"] : args, settings);
+            ParseOutcome parsed = responseFileError ?? PortableCommandSyntaxAdapter.Instance.Parse(_catalog, args.Length == 0 && _catalog.DefaultCommand is null ? ["--help"] : args, settings);
             string requestId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
             if (parsed.Kind == ParseOutcomeKind.Invocation)
             {

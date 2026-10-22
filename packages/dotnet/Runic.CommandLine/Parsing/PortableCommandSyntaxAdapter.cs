@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 
 namespace Runic.CommandLine;
 
@@ -1150,6 +1151,25 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             : ParseOutcome.FromOutputError(diagnostic, classification);
     }
 
+    /// <summary>
+    /// The usage error for a response file that could not be used. Its output selection is the one the arguments as
+    /// given make, so <c>--format json</c> on the command line still selects JSON; an invalid output selection is
+    /// reported instead, as the parser reports it before any other error.
+    /// </summary>
+    internal static ParseOutcome ResponseFileError(CommandCatalog catalog, string[] args, ParseSettings settings, ResponseFileFailure failure)
+    {
+        ParseOutcome given = Instance.Parse(catalog, args, settings);
+        TransportOutput transport = TransportOutput.From(catalog);
+        ResolvedCommand? resolved = null;
+        if (args.Length > 0) _ = TryResolveCommand(catalog, args, out resolved, transport);
+        if (ScanTransportOutput(args, transport, resolved?.Command).Issue is not null || given.OutputClassification is { IsValid: false }) return given;
+        // Output redacts a diagnostic that names a home or temporary directory, so such a reference is named by its file.
+        string reference = failure.Reference;
+        if (CommandFaultSanitizer.ContainsTechnicalContent(reference) && Path.GetFileName(reference) is { Length: > 0 } name) reference = name;
+        return Error(failure.Code, failure.Kind, failure.TokenIndex, arguments: [SafeDiagnosticArgument(reference)],
+            outputClassification: given.OutputClassification);
+    }
+
     // Messages that name their subject inside the sentence rather than in a trailing "(name)".
     private static string? FormattedMessage(string kind, IReadOnlyList<string>? arguments) => (kind, arguments) switch
     {
@@ -1157,6 +1177,11 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         ("invalid-output-mode", { Count: > 0 }) => arguments[0] + " must be human or json.",
         ("conflicting-output-selector", { Count: > 1 }) => arguments[0] + " and " + arguments[1] + " both select the output format. Use one of them.",
         ("invalid-environment-value", { Count: > 1 }) => arguments[1] + " must be true/false, yes/no or 1/0 for " + arguments[0] + ".",
+        (CommandResponseFiles.UnreadableKind, { Count: > 0 }) => "The response file '" + arguments[0] + "' could not be read.",
+        (CommandResponseFiles.InvalidUtf8Kind, { Count: > 0 }) => "The response file '" + arguments[0] + "' is not valid UTF-8.",
+        (CommandResponseFiles.UnterminatedQuoteKind, { Count: > 0 }) => "The response file '" + arguments[0] + "' has an unterminated quote.",
+        (CommandResponseFiles.TooDeepKind, { Count: > 0 }) => "The response file '" + arguments[0] + "' is nested more than 16 levels deep.",
+        (CommandResponseFiles.CycleKind, { Count: > 0 }) => "The response file '" + arguments[0] + "' includes itself.",
         _ => null,
     };
 

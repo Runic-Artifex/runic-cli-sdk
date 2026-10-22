@@ -9,3 +9,11 @@ Runic.CommandLine.CommandOutcomePresentation<T>.Outcome.get -> Runic.CommandLine
 Runic.CommandLine.CommandOutcomePresentation<T>.WriteDefaultAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 Runic.CommandLine.CommandOutcomePresenter<T>
 virtual Runic.CommandLine.CommandOutcomePresenter<T>.Invoke(Runic.CommandLine.CommandOutcomePresentation<T>! presentation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.CommandCatalog.ResponseFiles.get -> bool
+Runic.CommandLine.CommandCatalogBuilder.ResponseFiles() -> Runic.CommandLine.CommandCatalogBuilder!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileCycle = "diagnostics.response-file-cycle" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileInvalidUtf8 = "diagnostics.response-file-invalid-utf8" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileTooDeep = "diagnostics.response-file-too-deep" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileUnreadable = "diagnostics.response-file-unreadable" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileUnterminatedQuote = "diagnostics.response-file-unterminated-quote" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpResponseFiles = "help.response-files" -> string!
