@@ -35,7 +35,11 @@ repositories:
 Every published NuGet package and GitHub release asset has a signed
 build-provenance attestation, and each release has a CycloneDX SBOM that is
 attached to the release and attested for its packages. Verify a file with
-`gh attestation verify <file> -R Runic-Artifex/runic-cli-sdk`. Packages
+`gh attestation verify <file> -R Runic-Artifex/runic-cli-sdk --signer-workflow Runic-Artifex/runic-cli-sdk/.github/workflows/publish-preview.yml`.
+The attestation shows that the publish workflow of this repository, which runs
+only on `main`, published those bytes. It does not build them: it takes the
+packages from a successful CI run of the same commit and checks them by hash
+before attesting them. Packages
 downloaded from NuGet.org carry NuGet.org's repository signature and therefore
 differ from the attested bytes; verify the copy attached to the GitHub release
 instead. See [verifying a release](eng/release/README.md#verifying-a-release).
