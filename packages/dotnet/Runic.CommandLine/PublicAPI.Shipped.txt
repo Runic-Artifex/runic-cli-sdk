@@ -865,3 +865,21 @@ static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseInt32(string! va
 static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseInt64(string! value, string! id) -> long
 static Runic.CommandLine.Generated.GeneratedCommandBinding.ParseValues<T>(System.Collections.Generic.IReadOnlyList<string!>! values, System.Func<string!, T>! convert) -> T[]!
 static Runic.CommandLine.Generated.GeneratedCommandBinding.Validate<T, TValidator>(T value, string! id) -> T
+Runic.CommandLine.CommandCatalogBuilder.PresentOutcome<T>(string! path, Runic.CommandLine.CommandOutcomePresenter<T>! presenter) -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.CommandOutcomePresentation<T>
+Runic.CommandLine.CommandOutcomePresentation<T>.Command.get -> Runic.CommandLine.CommandDescriptor!
+Runic.CommandLine.CommandOutcomePresentation<T>.Context.get -> Runic.CommandLine.CommandExecutionContext!
+Runic.CommandLine.CommandOutcomePresentation<T>.Diagnostics.get -> System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandDiagnostic!>!
+Runic.CommandLine.CommandOutcomePresentation<T>.ExitCode.get -> int
+Runic.CommandLine.CommandOutcomePresentation<T>.Outcome.get -> Runic.CommandLine.CommandOutcome<T>!
+Runic.CommandLine.CommandOutcomePresentation<T>.WriteDefaultAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.CommandOutcomePresenter<T>
+virtual Runic.CommandLine.CommandOutcomePresenter<T>.Invoke(Runic.CommandLine.CommandOutcomePresentation<T>! presentation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Runic.CommandLine.CommandCatalog.ResponseFiles.get -> bool
+Runic.CommandLine.CommandCatalogBuilder.ResponseFiles() -> Runic.CommandLine.CommandCatalogBuilder!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileCycle = "diagnostics.response-file-cycle" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileInvalidUtf8 = "diagnostics.response-file-invalid-utf8" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileTooDeep = "diagnostics.response-file-too-deep" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileUnreadable = "diagnostics.response-file-unreadable" -> string!
+const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileUnterminatedQuote = "diagnostics.response-file-unterminated-quote" -> string!
+const Runic.CommandLine.CommandTextKeys.HelpResponseFiles = "help.response-files" -> string!
