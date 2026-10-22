@@ -178,18 +178,23 @@ public sealed class HostedCommandLineDecision
 
     /// <summary>
     /// Gets whether the launch belongs to the command line: an invocation, a help, version or completion
-    /// request, or an invalid launch whose leading arguments name a known command. A host with a user
+    /// request, an invalid launch whose leading arguments name a known command, or a launch with a response file
+    /// that could not be used (see <see cref="CommandCatalogBuilder.ResponseFiles"/>). A host with a user
     /// interface typically opens it for every other launch, such as a document path or an unknown word.
     /// </summary>
     public bool IsCommandLineRequest => Kind switch
     {
         HostedCommandLineDecisionKind.Invocation or HostedCommandLineDecisionKind.Help or
             HostedCommandLineDecisionKind.Version or HostedCommandLineDecisionKind.Completion => true,
-        HostedCommandLineDecisionKind.Invalid => MatchesKnownCommand,
+        HostedCommandLineDecisionKind.Invalid => MatchesKnownCommand || ResponseFileFailed,
         _ => false,
     };
 
     internal HostedCommandLineLaunchInput LaunchInput { get; }
+    // A launch that names a response file the catalog reads belongs to the command line, also when the file fails.
+    internal bool ResponseFileFailed { get; init; }
+    // The expanded arguments of a completion request that came from a response file.
+    internal IReadOnlyList<string>? CompletionArguments { get; init; }
     internal ParseOutcome? ParseOutcome { get; init; }
 
     internal void ValidateOwner(object owner)

@@ -2,7 +2,7 @@
 
 ## Input model
 
-Input is an already-tokenized ordered array of strings, equivalent to `Main(string[] args)`. The grammar never re-parses quoting, expands variables or globs, invokes a shell, normalizes Unicode, removes empty tokens, or changes culture. Matching is ordinal and command names are case-sensitive.
+Input is an already-tokenized ordered array of strings, equivalent to `Main(string[] args)`. The grammar never re-parses quoting, expands variables or globs, invokes a shell, normalizes Unicode, removes empty tokens, or changes culture. An implementation may let an application opt in to response files, which replace an `@file` argument with the arguments read from that file before the grammar applies; the grammar and its corpus see only the expanded arguments, and token indexes count them. Without the opt-in, an argument starting with `@` is ordinary data. Matching is ordinal and command names are case-sensitive.
 
 Commands use invariant names matching `[a-z][a-z0-9-]*`. Command aliases are explicit and normalize to the canonical command path. Nested commands consume leading tokens. The fixture catalog has no root handler, so empty input is a missing-command error.
 
@@ -35,6 +35,8 @@ Diagnostic `tokenIndex` is zero-based. When input ends before a required token, 
 | `RCLI1008` | `unsupported-short-bundle` |
 | `RCLI1010` | `invalid-output-mode` |
 | `RCLI1016` | `conflicting-output-selector` |
+
+Response-file expansion, where an application opts in, reports `RCLI1017` `response-file-unreadable`, `RCLI1018` `response-file-invalid-utf8`, `RCLI1019` `response-file-unterminated-quote`, `RCLI1020` `response-file-too-deep` and `RCLI1021` `response-file-cycle`, with the index of the command-line argument that named the first file.
 
 Usage and parse diagnostics map to the stable usage exit category, whose default process exit code is 2. Diagnostics contain token positions and safe identifiers, not secret-bearing values.
 

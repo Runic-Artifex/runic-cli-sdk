@@ -15,6 +15,7 @@ public sealed class CommandCatalogBuilder
     private JsonOutputShape _jsonOutputAliasShape;
     private string? _completionOption;
     private OutputSelectorDeclaration? _outputSelector;
+    private bool _responseFiles;
     private readonly List<Action<CommandBuilderNode>> _globalOptions = [];
 
     /// <summary>Adds an option to every command. It may also precede the command path.</summary>
@@ -225,6 +226,38 @@ public sealed class CommandCatalogBuilder
         return this;
     }
 
+    /// <summary>
+    /// Reads arguments that start with <c>@</c> from response files: <c>tool @build.rsp</c> runs as if the arguments
+    /// in <c>build.rsp</c> had been given in its place. Off unless declared, because an argument may legitimately
+    /// start with <c>@</c>.
+    /// </summary>
+    /// <returns>This builder.</returns>
+    /// <remarks>
+    /// <para>
+    /// <see cref="CommandApp"/> and <see cref="Hosting.CommandLineHostingAdapter"/> expand the arguments before
+    /// parsing, so a response file may hold commands, options, values and the output selector. A response file is
+    /// UTF-8, with or without a byte order mark. Arguments are separated by white space, including line breaks, and
+    /// quoted as on the Windows command line: <c>"two words"</c> is one argument, a backslash is literal unless it
+    /// precedes a double quote, and <c>"</c> is a literal quote. A line whose first non-blank character is
+    /// <c>#</c> is a comment. An argument in a response file that starts with <c>@</c> names another response file,
+    /// relative to the directory of the file that names it; files nest at most 16 levels deep. A path on the
+    /// command line is relative to the current directory. <c>@@</c> stands for a literal leading <c>@</c>
+    /// (<c>@@scope</c> is the argument <c>@scope</c>), and <c>@</c> on its own is an ordinary argument.
+    /// </para>
+    /// <para>
+    /// A response file that cannot be read (<c>RCLI1017</c>), is not valid UTF-8 (<c>RCLI1018</c>), has an
+    /// unterminated quote (<c>RCLI1019</c>), is nested too deeply (<c>RCLI1020</c>) or includes itself
+    /// (<c>RCLI1021</c>) is a usage error (exit code 2) at the command-line argument that named it. Help lists
+    /// <c>@&lt;file&gt;</c> with the options, and the generated completions complete a file name after <c>@</c>.
+    /// <see cref="ICommandSyntaxAdapter.Parse"/> takes arguments as given and never reads response files.
+    /// </para>
+    /// </remarks>
+    public CommandCatalogBuilder ResponseFiles()
+    {
+        _responseFiles = true;
+        return this;
+    }
+
     /// <summary>Adds a typed root command.</summary>
     public CommandBuilder<TOptions, THandler, TResult> Command<TOptions, THandler, TResult>(string name)
         where THandler : notnull, ICommandHandler<TOptions, TResult>
@@ -369,7 +402,7 @@ public sealed class CommandCatalogBuilder
                 throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", defaultCommand.Name, $"The root command '{_defaultCommandName}' has no spelling, so it cannot have aliases or subcommands.")]);
             }
         }
-        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot, _completionOption, _outputSelector);
+        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot, _completionOption, _outputSelector, _responseFiles);
     }
 
     private void AddGlobals(CommandBuilderNode node)

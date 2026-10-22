@@ -19,9 +19,11 @@ public sealed class CommandCatalog
         JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope,
         bool defaultCommandIsRoot = false,
         string? completionOption = null,
-        OutputSelectorDeclaration? outputSelector = null)
+        OutputSelectorDeclaration? outputSelector = null,
+        bool responseFiles = false)
     {
         Commands = commands;
+        ResponseFiles = responseFiles;
         _outputSelector = outputSelector;
         CompletionOption = completionOption;
         DefaultCommand = defaultCommand;
@@ -88,6 +90,14 @@ public sealed class CommandCatalog
     /// </summary>
     public string? CompletionOption { get; }
 
+    /// <summary>
+    /// Gets whether an argument that starts with <c>@</c>, such as <c>tool @build.rsp</c>, names a response file
+    /// whose arguments replace it. The application declares it with <see cref="CommandCatalogBuilder.ResponseFiles"/>;
+    /// otherwise, the default, <c>@build.rsp</c> is an ordinary argument. A catalog combined with
+    /// <see cref="Combine"/> reads response files when one of its parts does.
+    /// </summary>
+    public bool ResponseFiles { get; }
+
     // The built-in completion command exists unless the application declared a completion option or owns the name.
     internal bool HasCompletionCommand => CompletionOption is null && !_commandsByName.ContainsKey("completion");
 
@@ -109,9 +119,11 @@ public sealed class CommandCatalog
         JsonOutputShape jsonOutputAliasShape = JsonOutputShape.Envelope;
         string? completionOption = null;
         OutputSelectorDeclaration? outputSelector = null;
+        bool responseFiles = false;
         foreach (CommandCatalog catalog in catalogs)
         {
             ArgumentNullException.ThrowIfNull(catalog);
+            responseFiles |= catalog.ResponseFiles;
             if (catalog.DeclaredOutputSelector is { } declaredSelector)
             {
                 if (outputSelector is not null && !outputSelector.Equals(declaredSelector))
@@ -184,7 +196,7 @@ public sealed class CommandCatalog
 
         if (issues.Count == 0) ValidateFrameworkOptions(outputSelector, jsonOutputAlias, completionOption, commands, issues);
         if (issues.Count != 0) throw new CommandCatalogValidationException(issues);
-        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape, defaultCommandIsRoot, completionOption, outputSelector);
+        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape, defaultCommandIsRoot, completionOption, outputSelector, responseFiles);
 
         void Register(string spelling, string owner)
         {

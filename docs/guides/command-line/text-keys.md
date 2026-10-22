@@ -52,6 +52,7 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `help.output-format` | | Select output format |
 | `help.json-output-alias` | `option` | Same as {option} json |
 | `help.json-payload-output-alias` | | Write the result as JSON |
+| `help.response-files` | | Read more arguments from a file |
 | `help.examples` | | Examples |
 | `help.required` | | required |
 | `help.default` | | default |
@@ -94,6 +95,11 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `diagnostics.transport-output-option-collision` | | The command line is invalid. |
 | `diagnostics.missing-required-option` | `option`, `command` | A required option was not supplied. ({option}) |
 | `diagnostics.unexpected-root-help-argument` | | Root help does not accept additional arguments. |
+| `diagnostics.response-file-unreadable` | `file` | The response file '{file}' could not be read. |
+| `diagnostics.response-file-invalid-utf8` | `file` | The response file '{file}' is not valid UTF-8. |
+| `diagnostics.response-file-unterminated-quote` | `file` | The response file '{file}' has an unterminated quote. |
+| `diagnostics.response-file-too-deep` | `file` | The response file '{file}' is nested more than 16 levels deep. |
+| `diagnostics.response-file-cycle` | `file` | The response file '{file}' includes itself. |
 | `diagnostics.invalid-environment-value` | `option`, `variable` | {variable} must be true/false, yes/no or 1/0 for {option}. |
 | `diagnostics.invalid-choice` | `parameter`, `choices` | {parameter} must be one of: {choices}. |
 | `diagnostics.invalid-choice-hidden` | `parameter` | {parameter} must be one of the choices shown in --help. |

@@ -61,6 +61,8 @@ public static class CommandTextKeys
     public const string HelpJsonOutputAlias = "help.json-output-alias";
     /// <summary>The description of a JSON output alias of payload shape (<c>Write the result as JSON</c>).</summary>
     public const string HelpJsonPayloadOutputAlias = "help.json-payload-output-alias";
+    /// <summary>The description of <c>@&lt;file&gt;</c> when the catalog reads response files (<c>Read more arguments from a file</c>).</summary>
+    public const string HelpResponseFiles = "help.response-files";
     /// <summary>The examples section heading (<c>Examples</c>).</summary>
     public const string HelpExamples = "help.examples";
     /// <summary>The note for a required option or argument (<c>required</c>).</summary>
@@ -153,6 +155,16 @@ public static class CommandTextKeys
     public const string DiagnosticMissingRequiredOption = "diagnostics.missing-required-option";
     /// <summary>Root help followed by other arguments; no arguments.</summary>
     public const string DiagnosticUnexpectedRootHelpArgument = "diagnostics.unexpected-root-help-argument";
+    /// <summary>A response file that cannot be read; argument: <c>file</c>, as written after <c>@</c>, or its file name when it names a home or temporary directory.</summary>
+    public const string DiagnosticResponseFileUnreadable = "diagnostics.response-file-unreadable";
+    /// <summary>A response file that is not valid UTF-8; argument: <c>file</c>.</summary>
+    public const string DiagnosticResponseFileInvalidUtf8 = "diagnostics.response-file-invalid-utf8";
+    /// <summary>A response file with an unterminated quote; argument: <c>file</c>.</summary>
+    public const string DiagnosticResponseFileUnterminatedQuote = "diagnostics.response-file-unterminated-quote";
+    /// <summary>A response file nested more than 16 levels deep; argument: <c>file</c>.</summary>
+    public const string DiagnosticResponseFileTooDeep = "diagnostics.response-file-too-deep";
+    /// <summary>A response file that includes itself; argument: <c>file</c>.</summary>
+    public const string DiagnosticResponseFileCycle = "diagnostics.response-file-cycle";
     /// <summary>A flag's environment fallback that is not a Boolean; arguments: <c>option</c>, <c>variable</c>.</summary>
     public const string DiagnosticInvalidEnvironmentValue = "diagnostics.invalid-environment-value";
     /// <summary>A value outside the declared choices; arguments: <c>parameter</c>, <c>choices</c>.</summary>
@@ -208,6 +220,7 @@ public static class CommandTextKeys
     [
         new(HelpUsage), new(HelpCommandPlaceholder), new(HelpOptionsPlaceholder), new(HelpDefaultCommand), new(HelpCompletion),
         new(HelpCommands), new(HelpArguments), new(HelpOptions), new(HelpShowHelp), new(HelpShowVersion), new(HelpOutputFormat), new(HelpJsonOutputAlias, "option"), new(HelpJsonPayloadOutputAlias),
+        new(HelpResponseFiles),
         new(HelpExamples), new(HelpRequired), new(HelpDefault), new(HelpChoices), new(HelpEnvironment), new(HelpExisting),
         new(HelpPathKindFile), new(HelpPathKindDirectory), new(HelpMinimum), new(HelpMaximum), new(HelpRequires), new(HelpConflicts),
         new(CompletionInvalidShell),
@@ -229,6 +242,11 @@ public static class CommandTextKeys
         new(DiagnosticTransportOutputOptionCollision),
         new(DiagnosticMissingRequiredOption, "option", "command"),
         new(DiagnosticUnexpectedRootHelpArgument),
+        new(DiagnosticResponseFileUnreadable, "file"),
+        new(DiagnosticResponseFileInvalidUtf8, "file"),
+        new(DiagnosticResponseFileUnterminatedQuote, "file"),
+        new(DiagnosticResponseFileTooDeep, "file"),
+        new(DiagnosticResponseFileCycle, "file"),
         new(DiagnosticInvalidEnvironmentValue, "option", "variable"),
         new(DiagnosticInvalidChoice, "parameter", "choices"),
         new(DiagnosticInvalidChoiceHidden, "parameter"),
