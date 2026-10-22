@@ -1,11 +1,9 @@
 ; Unshipped analyzer release
 ; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
 ; When a release ships, move these rows to AnalyzerReleases.Shipped.md under its header, the plain
-; version itself (## Release 0.8.0); see the note there.
+; version itself (## Release 0.9.0); see the note there.
 
 ### New Rules
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
-RCLI9044 | Runic.CommandLine | Warning | Command result JSON context does not use camelCase
-RCLI9045 | Runic.CommandLine | Warning | Option spelled like the default output selector

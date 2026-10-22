@@ -64,3 +64,12 @@ RCLI9040 | Runic.CommandLine | Error | Default command is not a root command
 RCLI9041 | Runic.CommandLine | Error | Invalid command result JSON context
 RCLI9042 | Runic.CommandLine | Error | JSON context lacks the command result type
 RCLI9043 | Runic.CommandLine | Error | Invalid command group description
+
+## Release 0.8.0
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|-------
+RCLI9044 | Runic.CommandLine | Warning | Command result JSON context does not use camelCase
+RCLI9045 | Runic.CommandLine | Warning | Option spelled like the default output selector

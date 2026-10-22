@@ -10,16 +10,16 @@ Use .NET 10. Create a console project and install the core package, which includ
 the source generator. This method-first example is maintained in
 [`hello-world/Program.cs`](examples/command-line/hello-world/Program.cs).
 
-Install the latest published release, `0.7.0-preview.2`, from NuGet. No source
+Install the latest published release, `0.8.0`, from NuGet. No source
 checkout or project references are needed.
 
 ```sh
 dotnet new console --framework net10.0 --name HelloCli
 cd HelloCli
-dotnet add package Runic.CommandLine --version 0.7.0-preview.2
+dotnet add package Runic.CommandLine --version 0.8.0
 ```
 
-From the next release, `0.8.0`, versions are plain `0.y.z` until 1.0 and install
+From 0.8.0, versions are plain `0.y.z` until 1.0 and install
 without `--prerelease`: a new minor may contain breaking changes, a patch only
 fixes or adds, and only the latest minor gets fixes.
 
@@ -57,9 +57,8 @@ dotnet run -- --help
 
 Human output is two `Hello, Ada!` lines. JSON output is one `runic.commandline/1`
 envelope with `success: true` and a string `payload` containing those lines.
-The published `0.7.0-preview.2` spells the output selector `--output`; the
-candidate spells it `--format` (see the
-[release notes](eng/release/notes/0.8.0.md)).
+Release `0.8.0` spells the output selector `--format`; the earlier `0.7.0-preview.2`
+spelled it `--output` (see the [release notes](eng/release/notes/0.8.0.md)).
 The built-in string codec supplies both formats; no JSON context is needed here.
 
 For another published release, choose a version listed on
@@ -119,8 +118,8 @@ vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 The four NuGet package identities release together, independently from the
 Runic SDK. See [the release guide](eng/release/README.md). The latest published
-release is `0.7.0-preview.2`; see its [upgrade notes](eng/release/notes/0.7.0-preview.2.md).
-The next release is `0.8.0`: until 1.0 releases use plain `0.y.z` versions, where
+release is `0.8.0`; see its [upgrade notes](eng/release/notes/0.8.0.md).
+The next release is `0.9.0`: until 1.0 releases use plain `0.y.z` versions, where
 a new minor may break and a patch only fixes or adds, and are still marked as
 prereleases on GitHub.
 The first standalone release was `0.6.0-preview.2`; consumers on earlier SDK
