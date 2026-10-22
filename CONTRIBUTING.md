@@ -57,7 +57,7 @@ These executables keep their own `Main`, because the program itself is what they
 execution loop of its own.
 
 - `tests/native/Runic.CommandLine.AotSmoke` is one parser-to-handler-to-JSON, Spectre and Hosting scenario that
-  `Invoke-AotSmoke.ps1` runs managed and then as a host-runtime NativeAOT publication on Linux, Windows and macOS in CI.
+  `Invoke-AotSmoke.ps1` runs managed and then as a host-runtime NativeAOT publication on every supported RID in CI.
   It proves that a trimmed, AOT-compiled application of the owned projects works; adding the test framework would put
   TUnit's own AOT closure into the program under test. Its numbered exit codes locate a failing step. Move it to a TUnit
   NativeAOT application when it grows independent cases.

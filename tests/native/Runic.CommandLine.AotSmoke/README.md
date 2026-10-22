@@ -12,4 +12,6 @@ object.
 Run `Invoke-AotSmoke.ps1` to perform restore, managed execution, host-runtime
 NativeAOT publication, and native execution.
 Use `-RuntimeIdentifier <rid>` for an explicit compatible host target. CI checks
-`linux-x64`, `win-x64` and `osx-arm64` on their corresponding operating systems.
+`linux-x64`, `linux-arm64`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`,
+`win-arm64` and `osx-arm64` on their corresponding operating systems and
+architectures, the musl RIDs in Alpine.

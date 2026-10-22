@@ -89,6 +89,10 @@ jobs:
           path: artifacts/test-results
           if-no-files-found: ignore
 
+  # Source and candidate package NativeAOT checks on every supported RID, each compiled and run
+  # on its own operating system and architecture. The musl legs run in Alpine: GitHub cannot run
+  # JavaScript actions in an Alpine container on arm64 runners, so the runner checks out and
+  # downloads the candidates, and eng/ci/native-musl.sh installs the toolchain in `docker run`.
   native-aot:
     needs: managed-and-pack
     strategy:
@@ -98,17 +102,33 @@ jobs:
         include:
           - os: ubuntu-24.04
             rid: linux-x64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+          - os: ubuntu-24.04
+            rid: linux-musl-x64
+            musl: true
+          - os: ubuntu-24.04-arm
+            rid: linux-musl-arm64
+            musl: true
           - os: windows-2025
             rid: win-x64
+            msvc: Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+          - os: windows-11-arm
+            rid: win-arm64
+            msvc: Microsoft.VisualStudio.Component.VC.Tools.ARM64
           - os: macos-15
             rid: osx-arm64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    env:
+      # Alpine 3.22, the oldest Alpine release that .NET 10 supports beyond November 2026.
+      ALPINE_IMAGE: docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        if: ${{ !matrix.musl }}
         with:
           global-json-file: global.json
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -116,7 +136,7 @@ jobs:
           name: command-line-packages
           path: artifacts/packages
       - name: Install Linux NativeAOT prerequisites
-        if: runner.os == 'Linux'
+        if: ${{ runner.os == 'Linux' && !matrix.musl }}
         run: eng/ci/apt-install.sh clang zlib1g-dev
       - name: Check macOS NativeAOT prerequisites
         if: runner.os == 'macOS'
@@ -124,17 +144,23 @@ jobs:
       - name: Check Windows NativeAOT prerequisites
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          MSVC_COMPONENT: ${{ matrix.msvc }}
         run: |
-          $installation = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if ($LASTEXITCODE -ne 0 -or -not $installation) { throw 'Visual C++ build tools are required.' }
+          $installation = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires $env:MSVC_COMPONENT -property installationPath
+          if ($LASTEXITCODE -ne 0 -or -not $installation) { throw "Visual C++ build tools ($env:MSVC_COMPONENT) are required." }
           Write-Host "Using Visual C++ build tools from $installation"
       - name: Source and candidate package NativeAOT smoke
+        if: ${{ !matrix.musl }}
         shell: pwsh
+        run: ./eng/ci/native-aot.ps1 -RuntimeIdentifier '${{ matrix.rid }}'
+      - name: Source and candidate package NativeAOT smoke in Alpine
+        if: ${{ matrix.musl }}
         run: |
-          ./tests/native/Runic.CommandLine.AotSmoke/Invoke-AotSmoke.ps1 -Configuration Release -RuntimeIdentifier '${{ matrix.rid }}'
-          [xml] $versions = Get-Content eng/Versions.props
-          $version = [string] $versions.Project.PropertyGroup.RunicCommandLineVersion
-          ./tests/fixtures/command-line/package-consumer/Runic.CommandLine.PackageConsumer/Invoke-PackageConsumer.ps1 -Configuration Release -RuntimeIdentifier '${{ matrix.rid }}' -PackageVersion $version -PackageDirectory artifacts/packages
+          docker run --rm --init -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -w "$GITHUB_WORKSPACE" \
+            "$ALPINE_IMAGE" sh eng/ci/native-musl.sh "$RID"
+        env:
+          RID: ${{ matrix.rid }}
 
   wpf-example:
     runs-on: windows-2025

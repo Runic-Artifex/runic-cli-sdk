@@ -148,10 +148,13 @@ removed when the run ends. The scripts default to the host runtime; pass a third
 argument to `verify-packages.sh` to select a compatible host RID.
 
 CI runs managed verification and packing once, then reuses those candidates for
-Linux x64, Windows x64 and macOS Arm64 source/consumer NativeAOT checks. The three
-native jobs run sequentially. Each target compiles on its own operating system.
-The pinned Nix shell supplies Clang and zlib on Linux; CI installs Linux prerequisites,
-uses the Windows runner's Visual C++ build tools and macOS's Xcode command-line tools.
+source/consumer NativeAOT checks on each supported RID: `linux-x64`, `linux-arm64`,
+`linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `win-arm64` and `osx-arm64`. The
+native jobs run sequentially. Each target compiles on its own operating system and
+architecture; the musl targets run in a digest-pinned Alpine container
+(`eng/ci/native-musl.sh`). The pinned Nix shell supplies Clang and zlib on Linux; CI
+installs Linux prerequisites, uses the Windows runners' Visual C++ build tools and
+macOS's Xcode command-line tools.
 For other local environments, follow Microsoft's
 [NativeAOT prerequisites](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/).
 
@@ -208,10 +211,10 @@ same policy. For Command Line:
   allowed only as the shared policy describes.
 - The core package is managed and runs wherever .NET 10 does. Process and
   terminal code is platform-specific, so NativeAOT applications are supported on
-  the RIDs that CI publishes and runs: today `linux-x64`, `win-x64` and
-  `osx-arm64`. `linux-arm64`, `win-arm64`, `linux-musl-x64` and
-  `linux-musl-arm64` are planned for 0.9.0, because the Runic SDK tools that
-  bundle Command Line already run on them.
+  the RIDs that CI publishes and runs: `linux-x64`, `linux-arm64`,
+  `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `win-arm64` and
+  `osx-arm64`. The Arm64 and musl RIDs are supported from 0.9.0, because the
+  Runic SDK tools that bundle Command Line run on them.
 - Generated-code support API: `GeneratedCommandBinding` and
   `GeneratedCommandBindingException` in `Runic.CommandLine.Generated` are public
   only so that generated code can call them. They are covered for code

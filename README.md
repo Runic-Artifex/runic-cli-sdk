@@ -96,7 +96,8 @@ defaults to the host runtime. `./eng/verify-candidate.sh` with the same argument
 packs and checks only the candidate packages. Packing builds the set in a staging
 directory and replaces the output directory only when every package succeeded, so a
 failed or interrupted pack keeps the previous set. CI packs once and runs source and candidate consumer
-NativeAOT checks on Linux x64, Windows x64 and macOS Arm64, one native job at a time.
+NativeAOT checks on Linux x64 and Arm64 (glibc and musl), Windows x64 and Arm64 and
+macOS Arm64, one native job at a time.
 
 Each package tracks its public API in `PublicAPI.Shipped.txt` (the last published
 release) and `PublicAPI.Unshipped.txt` (changes since then), checked by
