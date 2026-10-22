@@ -17,9 +17,12 @@ case "$rid" in
   linux-musl-x64 | linux-musl-arm64) ;;
   *) echo "native-musl.sh: unknown RID $rid" >&2; exit 2 ;;
 esac
-# PowerShell runs as a .NET tool; the tool package has no linux-musl-arm64 build, so
-# both legs use the same framework-dependent tool on the installed SDK.
+# PowerShell runs as a .NET tool on the installed SDK. The tool package has no
+# linux-musl-arm64 libpsl-native, so the .NET host loads its linux-arm64 (glibc) build,
+# which gcompat's ld-linux-aarch64.so.1 lets musl load.
 powershell_version=7.6.7
+glibc_compat=
+if [ "$rid" = linux-musl-arm64 ]; then glibc_compat=gcompat; fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 CI=true
 step() { echo "::endgroup::"; echo "::group::$*"; }
 retry() { n=0; until "$@"; do n=$((n + 1)); [ "$n" -lt 3 ] || return 1; sleep 10; done; }
@@ -29,7 +32,7 @@ grep PRETTY_NAME /etc/os-release
 uname -m
 retry apk add --no-cache \
   bash curl jq icu-libs krb5-libs libgcc libintl libstdc++ ncurses-terminfo-base tzdata zlib \
-  clang build-base zlib-dev
+  clang build-base zlib-dev $glibc_compat
 
 step "Install .NET"
 # The SDK pinned in global.json, verified against Microsoft's release metadata.
