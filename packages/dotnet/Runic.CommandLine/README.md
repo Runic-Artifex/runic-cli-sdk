@@ -674,6 +674,35 @@ The command's declared result payload identity and source-generated JSON metadat
 remain unchanged. The delegate only runs in human mode. Register against a
 canonical command path; a mismatched result type is a catalog validation error.
 
+To own a command's whole human output, failures included, register an outcome
+presenter instead of a custom `ICommandOutcomeSink`. It receives the outcome, the
+exit code, the binding and outcome diagnostics, the command and the invocation's
+`CommandExecutionContext`, and runs only in human mode, in place of the
+application's outcome sink; JSON output is unchanged. `WriteDefaultAsync` writes
+what the sink would have written, for example for successes:
+
+```csharp
+var catalog = GeneratedCommandCatalog.Create(builder =>
+    builder.PresentOutcome<PackResult>("pack", (presentation, token) =>
+    {
+        ICommandConsole console = presentation.Context.Console;
+        if (presentation.Outcome.Succeeded)
+            return presentation.WriteDefaultAsync(token);
+        CommandFault fault = presentation.Outcome.Fault!;
+        string source = fault.Details.GetValueOrDefault("sourceDirectory", "?");
+        return console.WriteErrorAsync(
+            $"{fault.Code}: The source directory '{source}' does not exist.\n".AsMemory(), token);
+    }));
+```
+
+A presenter writes the fault as given: the human output's sanitizing of
+technical fault messages, its localization and the `Help for CODE` line are part
+of the default output. The context passed to an outcome presenter or to an
+`ICommandOutcomeSink` carries the handler's state: its text resolver, whether
+`RUNIC_COMMANDLINE_NO_INPUT` disabled prompts (`new CommandPrompts(context).IsInteractive`),
+its continuation and its shutdown protection. Its scoped services have already
+been disposed.
+
 Completion scripts use catalog context to select commands and aliases, visible
 options and the choices for the current option or positional argument. Native
 Bash, Zsh, fish and PowerShell wrappers support separated and `--option=value`

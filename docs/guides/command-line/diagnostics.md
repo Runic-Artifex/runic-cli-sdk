@@ -194,8 +194,9 @@ the command's option ID if it is a different option.
 
 ### RCLI0020
 
-Presenter type mismatch. A human presenter registered for a command must render
-the command's result type.
+Presenter type mismatch. A human presenter (`Present<T>`) or outcome presenter
+(`PresentOutcome<T>`) registered for a command must take the command's result
+type.
 
 ### RCLI0021
 

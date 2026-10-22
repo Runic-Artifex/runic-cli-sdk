@@ -52,6 +52,9 @@ internal sealed class CommandDebugOutput
     // Writes pending exceptions before the outcome, so the trace precedes the RCLI5000 line.
     internal sealed class FlushingSink(ICommandOutcomeSink inner, CommandDebugOutput debug) : ICommandOutcomeSink
     {
+        // An outcome presenter writes in place of the sink, so the trace is flushed before it too.
+        internal ValueTask FlushAsync(ICommandConsole console) => debug.FlushAsync(console, CancellationToken.None);
+
         public async ValueTask WriteAsync<T>(CommandDescriptor command, CommandExecutionContext context, CommandOutcome<T> outcome, ICommandResultCodec<T> codec,
             int exitCode, IReadOnlyList<CommandDiagnostic> diagnostics, CancellationToken cancellationToken)
         {
