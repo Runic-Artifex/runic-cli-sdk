@@ -1,2 +1,1 @@
 #nullable enable
-static Runic.CommandLine.Testing.CommandTestEnvelope.Read<T>(string! json, string! expectedPayloadType, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>! typeInfo) -> Runic.CommandLine.CommandResponse<T>!
