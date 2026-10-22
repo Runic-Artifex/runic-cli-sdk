@@ -18,11 +18,22 @@ case "$rid" in
   *) echo "native-musl.sh: unknown RID $rid" >&2; exit 2 ;;
 esac
 # PowerShell runs as a .NET tool on the installed SDK. The tool package has no
-# linux-musl-arm64 libpsl-native, so the .NET host loads its linux-arm64 (glibc) build,
-# which gcompat's ld-linux-aarch64.so.1 lets musl load.
+# linux-musl-arm64 libpsl-native, so the .NET host loads its linux-arm64 (glibc) build.
+# musl resolves that library's libc.so.6 to itself, so on that leg PowerShell starts with
+# gcompat's libgcompat preloaded for the glibc-only symbols (__realpath_chk). PowerShell
+# removes LD_PRELOAD again before it starts anything, so the SDK and the NativeAOT
+# executables under test run on plain musl.
 powershell_version=7.6.7
 glibc_compat=
-if [ "$rid" = linux-musl-arm64 ]; then glibc_compat=gcompat; fi
+preload=
+if [ "$rid" = linux-musl-arm64 ]; then glibc_compat=gcompat; preload=/lib/libgcompat.so.0; fi
+pwsh_checks() {
+  if [ -n "$preload" ]; then
+    LD_PRELOAD=$preload pwsh -NoProfile -Command "Remove-Item Env:LD_PRELOAD; & ./eng/ci/native-aot.ps1 -RuntimeIdentifier '$rid'"
+  else
+    pwsh -NoProfile -File eng/ci/native-aot.ps1 -RuntimeIdentifier "$rid"
+  fi
+}
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 CI=true
 step() { echo "::endgroup::"; echo "::group::$*"; }
 retry() { n=0; until "$@"; do n=$((n + 1)); [ "$n" -lt 3 ] || return 1; sleep 10; done; }
@@ -55,9 +66,9 @@ step "Install PowerShell $powershell_version"
 # NuGet verifies the package signature on Linux.
 retry dotnet tool install PowerShell --version "$powershell_version" --tool-path /opt/powershell
 ln -sf /opt/powershell/pwsh /usr/local/bin/pwsh
-pwsh -Version
+LD_PRELOAD=$preload pwsh -Version
 
 step "NativeAOT checks for $rid"
-pwsh -NoProfile -File eng/ci/native-aot.ps1 -RuntimeIdentifier "$rid"
+pwsh_checks
 echo "::endgroup::"
 echo "NativeAOT checks passed on $rid."
