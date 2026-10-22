@@ -53,15 +53,18 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
     private readonly ICommandOptionsBinder<TOptions> _binder;
     private readonly ICommandHandlerFactory<THandler> _handlerFactory;
     private readonly ICommandResultCodec<TResult> _resultCodec;
+    private readonly CommandOutcomePresenter<TResult>? _outcomePresenter;
 
     internal CommandRegistration(
         ICommandOptionsBinder<TOptions> binder,
         ICommandHandlerFactory<THandler> handlerFactory,
-        ICommandResultCodec<TResult> resultCodec)
+        ICommandResultCodec<TResult> resultCodec,
+        CommandOutcomePresenter<TResult>? outcomePresenter = null)
     {
         _binder = binder;
         _handlerFactory = handlerFactory;
         _resultCodec = resultCodec;
+        _outcomePresenter = outcomePresenter;
     }
 
     internal override async ValueTask<CommandExecutionResult> ExecuteAsync(
@@ -227,6 +230,14 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
             outcome = HostFailure();
             diagnostics = NoDiagnostics;
         }
+        int exitCode = exitCodePolicy.GetExitCode(outcome.ExitCategory);
+        // A handler may intentionally complete successfully after a graceful stop.
+        // Do not replace its settled outcome by cancelling the final response.
+        CancellationToken presentationToken = cancellationToken.IsCancellationRequested || outcome.ExitCategory == CommandExitCategory.Cancelled
+            ? CancellationToken.None
+            : cancellationToken;
+        // The sink writes to the invocation console (not the handler's machine console under JSON output), and sees
+        // the handler's input, text, continuation and shutdown state.
         context = new CommandExecutionContext(
             context?.Services ?? EmptyServiceProvider.Instance,
             request.Console,
@@ -236,24 +247,37 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
             request.CorrelationId)
         {
             OutputShape = request.Invocation.OutputClassification.Shape,
+            TextResolver = request.TextResolver,
+            PromptsDisabled = request.PromptsDisabled,
+            InvocationCancellation = presentationToken,
+            Continuation = request.Continuation,
+            ShutdownProtection = request.ShutdownProtection,
         };
 
-        int exitCode = exitCodePolicy.GetExitCode(outcome.ExitCategory);
-        // A handler may intentionally complete successfully after a graceful stop.
-        // Do not replace its settled outcome by cancelling the final response.
-        CancellationToken presentationToken = cancellationToken.IsCancellationRequested || outcome.ExitCategory == CommandExitCategory.Cancelled
-            ? CancellationToken.None
-            : cancellationToken;
         try
         {
-            await outcomeSink.WriteAsync(
-                command,
-                context,
-                outcome,
-                _resultCodec,
-                exitCode,
-                diagnostics,
-                presentationToken).ConfigureAwait(false);
+            if (_outcomePresenter is not null && context.OutputMode == CommandOutputMode.Human)
+            {
+                if (outcomeSink is CommandDebugOutput.FlushingSink flushing)
+                {
+                    await flushing.FlushAsync(context.Console).ConfigureAwait(false);
+                }
+
+                await _outcomePresenter(
+                    new CommandOutcomePresentation<TResult>(command, context, outcome, exitCode, diagnostics, outcomeSink, _resultCodec),
+                    presentationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await outcomeSink.WriteAsync(
+                    command,
+                    context,
+                    outcome,
+                    _resultCodec,
+                    exitCode,
+                    diagnostics,
+                    presentationToken).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

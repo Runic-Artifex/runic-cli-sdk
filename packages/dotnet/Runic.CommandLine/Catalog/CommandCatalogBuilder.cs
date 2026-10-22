@@ -294,6 +294,29 @@ public sealed class CommandCatalogBuilder
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(presenter);
+        FindPresentedCommand(path).HumanPresenter = presenter;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers human output for the whole outcome of an existing generated or manual command, success or failure.
+    /// The presenter runs only in human mode, in place of the application's outcome sink; JSON output and the
+    /// command's result codec are unchanged.
+    /// </summary>
+    /// <typeparam name="T">The command's result type.</typeparam>
+    /// <param name="path">The canonical path of a registered command.</param>
+    /// <param name="presenter">Writes the outcome; <see cref="CommandOutcomePresentation{T}.WriteDefaultAsync"/> writes the default output.</param>
+    /// <exception cref="ArgumentException">The path does not name a registered command.</exception>
+    public CommandCatalogBuilder PresentOutcome<T>(string path, CommandOutcomePresenter<T> presenter)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(presenter);
+        FindPresentedCommand(path).OutcomePresenter = presenter;
+        return this;
+    }
+
+    private CommandBuilderNode FindPresentedCommand(string path)
+    {
         List<CommandBuilderNode> siblings = _commands;
         CommandBuilderNode? node = null;
         foreach (string segment in path.Split(' '))
@@ -303,8 +326,7 @@ public sealed class CommandCatalogBuilder
             siblings = node.Children;
         }
         if (node is CommandGroupBuilderNode) throw new ArgumentException("A help-only group has no result to present.", nameof(path));
-        node!.HumanPresenter = presenter;
-        return this;
+        return node!;
     }
 
     /// <summary>Validates and freezes all registered definitions.</summary>
@@ -556,6 +578,8 @@ internal sealed class TypedCommandBuilderNode<TOptions, THandler, TResult> : Com
     {
         if (HumanPresenter is not null && HumanPresenter is not CommandHumanPresenter<TResult>)
             issues.Add(new CommandCatalogIssue("RCLI0020", location, "The human presenter type must match the command result type."));
+        if (OutcomePresenter is not null && OutcomePresenter is not CommandOutcomePresenter<TResult>)
+            issues.Add(new CommandCatalogIssue("RCLI0020", location, "The outcome presenter type must match the command result type."));
         _frozenPayloadType = null;
         _frozenTypeInfo = null;
 
@@ -609,7 +633,8 @@ internal sealed class TypedCommandBuilderNode<TOptions, THandler, TResult> : Com
             new FrozenCommandResultCodec<TResult>(
                 HumanPresenter is CommandHumanPresenter<TResult> presenter ? new PresentedCommandResultCodec<TResult>(ResultCodec!, presenter) : ResultCodec!,
                 _frozenPayloadType!,
-                _frozenTypeInfo!));
+                _frozenTypeInfo!),
+            OutcomePresenter as CommandOutcomePresenter<TResult>);
 }
 
 internal abstract class CommandBuilderNode
@@ -626,6 +651,7 @@ internal abstract class CommandBuilderNode
     }
 
     internal object? HumanPresenter { get; set; }
+    internal object? OutcomePresenter { get; set; }
     internal string Name { get; }
 
     internal IReadOnlyList<string> Aliases => _aliases;
