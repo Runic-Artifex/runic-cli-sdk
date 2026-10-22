@@ -1,6 +1,5 @@
 #nullable enable
 const Runic.CommandLine.Processes.ProcessExecutionOptions.DefaultOutputLimitBytes = 1048576 -> int
-const Runic.CommandLine.Processes.ProcessExecutionOptions.MaximumOutputLimitBytes = 16777216 -> int
 const Runic.CommandLine.Processes.ProcessFaultCodes.BatchFileArgumentRejected = "RCLI6008" -> string!
 const Runic.CommandLine.Processes.ProcessFaultCodes.BatchFileRejected = "RCLI6007" -> string!
 const Runic.CommandLine.Processes.ProcessFaultCodes.ExecutableRejected = "RCLI6001" -> string!
@@ -16,9 +15,7 @@ Runic.CommandLine.Processes.IExecutablePolicy
 Runic.CommandLine.Processes.IExecutablePolicy.Evaluate(Runic.CommandLine.Processes.ProcessRequest! request) -> Runic.CommandLine.Processes.ExecutablePolicyDecision!
 Runic.CommandLine.Processes.IProcessObserver
 Runic.CommandLine.Processes.IProcessObserver.OnCompleted(Runic.CommandLine.Processes.ProcessState state, System.TimeSpan duration) -> void
-Runic.CommandLine.Processes.IProcessObserver.OnStarted(System.DateTimeOffset startedAt) -> void
 Runic.CommandLine.Processes.IProcessRunner
-Runic.CommandLine.Processes.IProcessRunner.RunAsync(Runic.CommandLine.Processes.ProcessRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>
 Runic.CommandLine.Processes.LocalExecutablePolicy
 Runic.CommandLine.Processes.LocalExecutablePolicy.Evaluate(Runic.CommandLine.Processes.ProcessRequest! request) -> Runic.CommandLine.Processes.ExecutablePolicyDecision!
 Runic.CommandLine.Processes.LocalExecutablePolicy.LocalExecutablePolicy(System.Collections.Generic.IEnumerable<string!>? executableRoots = null, System.Collections.Generic.IEnumerable<string!>? workingDirectoryRoots = null) -> void
@@ -56,13 +53,7 @@ Runic.CommandLine.Processes.ProcessResult.StartFailureCategory.get -> Runic.Comm
 Runic.CommandLine.Processes.ProcessResult.State.get -> Runic.CommandLine.Processes.ProcessState
 Runic.CommandLine.Processes.ProcessRunner
 Runic.CommandLine.Processes.ProcessRunner.ProcessRunner(Runic.CommandLine.Processes.IExecutablePolicy! executablePolicy, Runic.CommandLine.Processes.IProcessObserver? observer = null, System.TimeProvider? timeProvider = null) -> void
-Runic.CommandLine.Processes.ProcessRunner.RunAsync(Runic.CommandLine.Processes.ProcessRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>
 Runic.CommandLine.Processes.ProcessStartFailureCategory
-Runic.CommandLine.Processes.ProcessStartFailureCategory.AccessDenied = 1 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
-Runic.CommandLine.Processes.ProcessStartFailureCategory.InvalidRequest = 2 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
-Runic.CommandLine.Processes.ProcessStartFailureCategory.NotFound = 0 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
-Runic.CommandLine.Processes.ProcessStartFailureCategory.Other = 4 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
-Runic.CommandLine.Processes.ProcessStartFailureCategory.Unsupported = 3 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
 Runic.CommandLine.Processes.ProcessState
 Runic.CommandLine.Processes.ProcessState.Cancelled = 4 -> Runic.CommandLine.Processes.ProcessState
 Runic.CommandLine.Processes.ProcessState.ExecutionFailed = 5 -> Runic.CommandLine.Processes.ProcessState
@@ -75,7 +66,6 @@ static readonly Runic.CommandLine.Processes.ProcessExecutionOptions.MaximumDrain
 static Runic.CommandLine.Processes.ExecutablePolicyDecision.Allow() -> Runic.CommandLine.Processes.ExecutablePolicyDecision!
 static Runic.CommandLine.Processes.ExecutablePolicyDecision.Reject(string! code, string! message) -> Runic.CommandLine.Processes.ExecutablePolicyDecision!
 const Runic.CommandLine.Processes.ProcessStandardInput.DefaultInputLimitBytes = 1048576 -> int
-const Runic.CommandLine.Processes.ProcessStandardInput.MaximumInputLimitBytes = 16777216 -> int
 Runic.CommandLine.Processes.ProcessExecutionOptions.InheritEnvironment.get -> bool
 Runic.CommandLine.Processes.ProcessExecutionOptions.InheritEnvironment.init -> void
 Runic.CommandLine.Processes.ProcessExecutionOptions.StandardInput.get -> Runic.CommandLine.Processes.ProcessStandardInput!
@@ -97,7 +87,6 @@ Runic.CommandLine.Processes.IProcessObserver.OnStarted(Runic.CommandLine.Process
 Runic.CommandLine.Processes.IProcessOutputHandler
 Runic.CommandLine.Processes.IProcessOutputHandler.OnChunkAsync(Runic.CommandLine.Processes.ProcessOutputChunk chunk, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Runic.CommandLine.Processes.IProcessOutputHandler.OnLineAsync(Runic.CommandLine.Processes.ProcessOutputLine line, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Runic.CommandLine.Processes.IProcessRunner.RunAsync(Runic.CommandLine.Processes.ProcessRequest! request, Runic.CommandLine.Processes.IProcessOutputHandler? outputHandler, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>
 Runic.CommandLine.Processes.ProcessException
 Runic.CommandLine.Processes.ProcessException.Fault.get -> Runic.CommandLine.CommandFault!
 Runic.CommandLine.Processes.ProcessException.ProcessException(Runic.CommandLine.Processes.ProcessResult! result, Runic.CommandLine.CommandFault! fault) -> void
@@ -121,7 +110,6 @@ Runic.CommandLine.Processes.ProcessOutputLine.ProcessOutputLine(Runic.CommandLin
 Runic.CommandLine.Processes.ProcessOutputLine.ProcessOutputLine() -> void
 Runic.CommandLine.Processes.ProcessOutputLine.Text.get -> string!
 Runic.CommandLine.Processes.ProcessResult.EnsureCompleted(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Runic.CommandLine.Processes.ProcessResult!
-Runic.CommandLine.Processes.ProcessRunner.RunAsync(Runic.CommandLine.Processes.ProcessRequest! request, Runic.CommandLine.Processes.IProcessOutputHandler? outputHandler, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>
 static Runic.CommandLine.Processes.ProcessExecutionOptions.NonInteractive.get -> Runic.CommandLine.Processes.ProcessExecutionOptions!
 Runic.CommandLine.Processes.ProcessOutput.ProcessOutput(string! text, long? observedByteCount = null, bool isTruncated = false, bool drainTimedOut = false) -> void
 Runic.CommandLine.Processes.ProcessOutputLine.IsPartial.get -> bool
@@ -136,3 +124,12 @@ static Runic.CommandLine.Processes.ProcessResult.Exited(int exitCode, Runic.Comm
 static Runic.CommandLine.Processes.ProcessResult.Rejected(Runic.CommandLine.CommandFault? fault = null, System.DateTimeOffset startedAt = default(System.DateTimeOffset), System.TimeSpan duration = default(System.TimeSpan)) -> Runic.CommandLine.Processes.ProcessResult!
 static Runic.CommandLine.Processes.ProcessResult.StartFailed(Runic.CommandLine.Processes.ProcessStartFailureCategory category, System.DateTimeOffset startedAt = default(System.DateTimeOffset), System.TimeSpan duration = default(System.TimeSpan)) -> Runic.CommandLine.Processes.ProcessResult!
 static Runic.CommandLine.Processes.ProcessResult.TimedOut(Runic.CommandLine.Processes.ProcessOutput? standardOutput = null, Runic.CommandLine.Processes.ProcessOutput? standardError = null, System.DateTimeOffset startedAt = default(System.DateTimeOffset), System.TimeSpan duration = default(System.TimeSpan)) -> Runic.CommandLine.Processes.ProcessResult!
+Runic.CommandLine.Processes.IProcessRunner.RunAsync(Runic.CommandLine.Processes.ProcessRequest! request, Runic.CommandLine.Processes.IProcessOutputHandler? outputHandler = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>
+Runic.CommandLine.Processes.ProcessRunner.RunAsync(Runic.CommandLine.Processes.ProcessRequest! request, Runic.CommandLine.Processes.IProcessOutputHandler? outputHandler = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>
+Runic.CommandLine.Processes.ProcessStartFailureCategory.AccessDenied = 2 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
+Runic.CommandLine.Processes.ProcessStartFailureCategory.InvalidRequest = 3 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
+Runic.CommandLine.Processes.ProcessStartFailureCategory.NotFound = 1 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
+Runic.CommandLine.Processes.ProcessStartFailureCategory.Other = 0 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
+Runic.CommandLine.Processes.ProcessStartFailureCategory.Unsupported = 4 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
+static Runic.CommandLine.Processes.ProcessExecutionOptions.MaximumOutputLimitBytes.get -> int
+static Runic.CommandLine.Processes.ProcessStandardInput.MaximumInputLimitBytes.get -> int

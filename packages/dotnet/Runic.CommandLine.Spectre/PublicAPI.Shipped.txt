@@ -4,7 +4,6 @@ Runic.CommandLine.Spectre.SpectreCommandConsole.IsErrorRedirected.get -> bool
 Runic.CommandLine.Spectre.SpectreCommandConsole.IsInputRedirected.get -> bool
 Runic.CommandLine.Spectre.SpectreCommandConsole.IsInteractive.get -> bool
 Runic.CommandLine.Spectre.SpectreCommandConsole.IsOutputRedirected.get -> bool
-Runic.CommandLine.Spectre.SpectreCommandConsole.PromptAsync(string! prompt, string? fallback = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string?>
 Runic.CommandLine.Spectre.SpectreCommandConsole.ReadLineAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
 Runic.CommandLine.Spectre.SpectreCommandConsole.SpectreCommandConsole(Runic.CommandLine.ICommandConsole? inner = null, int? width = null, bool? color = null, bool? unicode = null) -> void
 Runic.CommandLine.Spectre.SpectreCommandConsole.WithProgressAsync(string! description, System.Func<System.IProgress<double>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! operation, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -14,8 +13,7 @@ Runic.CommandLine.Spectre.SpectreCommandConsole.WriteOutAsync(System.ReadOnlyMem
 Runic.CommandLine.Spectre.SpectreCommandConsole.WriteOutBytesAsync(System.ReadOnlyMemory<byte> value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Runic.CommandLine.Spectre.SpectreHelpPresenter
 Runic.CommandLine.Spectre.SpectreHelpPresenter.SpectreHelpPresenter() -> void
-Runic.CommandLine.Spectre.SpectreHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Runic.CommandLine.Spectre.SpectreHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, string! outputOptionName, Runic.CommandLine.CommandTextContext! textContext, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Runic.CommandLine.Spectre.SpectreCommandConsole.ReadKeyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.ConsoleKeyInfo>
 Runic.CommandLine.Spectre.SpectreCommandConsole.SupportsAnsi.get -> bool
 Runic.CommandLine.Spectre.SpectreCommandConsole.SupportsUnicode.get -> bool
+Runic.CommandLine.Spectre.SpectreHelpPresenter.WriteAsync(Runic.CommandLine.CommandCatalog! catalog, string! applicationName, Runic.CommandLine.CommandPath! path, Runic.CommandLine.CommandTextContext! textContext, Runic.CommandLine.ICommandConsole! console, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
