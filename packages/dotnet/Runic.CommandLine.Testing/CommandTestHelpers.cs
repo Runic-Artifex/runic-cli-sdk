@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 
 namespace Runic.CommandLine.Testing;
@@ -54,5 +56,65 @@ public static class CommandTestEnvelope
         foreach (char character in json) if (character == '\n') lineFeedCount++;
         if (json.Length < 2 || !json.EndsWith('\n') || lineFeedCount != 1 || char.IsWhiteSpace(json[0]) || char.IsWhiteSpace(json[^2])) throw new ArgumentException("A command JSON frame must be one unpadded JSON value with exactly one terminal LF.", nameof(json));
         return JsonDocument.Parse(json);
+    }
+
+    /// <summary>
+    /// Reads exactly one <c>runic.commandline/1</c> response frame strictly and deserializes its payload.
+    /// </summary>
+    /// <remarks>
+    /// The frame is validated by <see cref="CommandJsonEnvelopeReader.Read{T}"/>: framing, size and depth limits,
+    /// every required member and its JSON type, duplicate members, the success and failure invariants, and on
+    /// success a declared payload type equal to <paramref name="expectedPayloadType"/>. Unlike that reader, which
+    /// ignores unknown members as the protocol requires of clients, this method also rejects any member the protocol
+    /// does not define on the envelope, the fault, the fault's <c>data</c> and each diagnostic, with the error kind
+    /// <c>unknown-member</c>. The payload is deserialized with <paramref name="typeInfo"/> only, so its own unknown
+    /// members follow that metadata.
+    /// </remarks>
+    /// <param name="json">The captured standard output: one compact JSON object followed by exactly one LF.</param>
+    /// <param name="expectedPayloadType">The payload type identity a successful response must declare, such as <c>sample.report/1</c>.</param>
+    /// <param name="typeInfo">Source-generated metadata for the success payload.</param>
+    /// <returns>The validated response, with the typed payload on success and the fault on failure.</returns>
+    /// <exception cref="CommandProtocolException">The frame is not a valid, strict response envelope of the expected payload type.</exception>
+    public static CommandResponse<T> Read<T>(string json, string expectedPayloadType, JsonTypeInfo<T> typeInfo)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        ArgumentException.ThrowIfNullOrWhiteSpace(expectedPayloadType);
+        ArgumentNullException.ThrowIfNull(typeInfo);
+        byte[] frame;
+        try
+        {
+            frame = StrictUtf8.GetBytes(json);
+        }
+        catch (EncoderFallbackException exception)
+        {
+            throw new CommandProtocolException("invalid-utf8", "The command response text contains an unpaired surrogate and has no UTF-8 encoding.", exception);
+        }
+
+        CommandResponse<T> response = CommandJsonEnvelopeReader.Read(frame, expectedPayloadType, typeInfo);
+        using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1), new JsonDocumentOptions { MaxDepth = 32 });
+        JsonElement root = document.RootElement;
+        RejectUnknownMembers(root, EnvelopeMembers, "response");
+        if (root.GetProperty("fault") is { ValueKind: JsonValueKind.Object } fault)
+        {
+            RejectUnknownMembers(fault, FaultMembers, "fault");
+            if (fault.TryGetProperty("data", out JsonElement data)) RejectUnknownMembers(data, FailureDataMembers, "fault.data");
+        }
+
+        foreach (JsonElement diagnostic in root.GetProperty("diagnostics").EnumerateArray()) RejectUnknownMembers(diagnostic, DiagnosticMembers, "diagnostic");
+        return response;
+    }
+
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+    private static readonly string[] EnvelopeMembers = ["protocol", "requestId", "command", "success", "exitCode", "payloadType", "payload", "fault", "diagnostics"];
+    private static readonly string[] FaultMembers = ["code", "message", "details", "retryable", "helpUri", "data"];
+    private static readonly string[] FailureDataMembers = ["type", "payload"];
+    private static readonly string[] DiagnosticMembers = ["code", "kind", "commandPath", "messageKey", "message", "phase", "severity", "tokenIndex", "arguments", "helpUri"];
+
+    private static void RejectUnknownMembers(JsonElement element, string[] known, string owner)
+    {
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            if (Array.IndexOf(known, property.Name) < 0) throw new CommandProtocolException("unknown-member", $"The {owner} contains the member '{property.Name}', which runic.commandline/1 does not define.");
+        }
     }
 }

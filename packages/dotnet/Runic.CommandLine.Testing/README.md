@@ -2,8 +2,8 @@
 
 Use this package in tests for deterministic command invocation fixtures. It
 provides an in-memory console, a simple scope factory, parsed invocations,
-captured parse settings, an already-cancelled token, and JSON envelope parsing without reading or
-mutating process-global state.
+captured parse settings, an already-cancelled token, and strict JSON envelope
+reading without reading or mutating process-global state.
 
 ## Test the whole application
 
@@ -15,11 +15,43 @@ var tester = new CommandAppTester(console => new CommandApp(catalog)
     HandleTerminationSignals = false,
 });
 var result = await tester.RunAsync(["greet", "Ada", "--format=json"]);
-using var frame = CommandTestEnvelope.Parse(result.StandardOutput);
+CommandResponse<Greeting> response = CommandTestEnvelope.Read(result.StandardOutput, "hello.greeting/1", AppJsonContext.Default.Greeting);
 ```
 
 For prompt tests, construct `TestCommandConsole` with explicit capability flags
 and call `QueueInput`. Each tester run gets fresh output buffers.
+
+## Read the JSON envelope
+
+`CommandTestEnvelope.Read<T>(json, expectedPayloadType, typeInfo)` reads one
+captured `runic.commandline/1` response and returns its `CommandResponse<T>`:
+the typed `Payload` on success, or the `Fault`, `FailureData` and `Diagnostics`
+on failure. It applies every check of `CommandJsonEnvelopeReader.Read<T>`: one
+compact JSON object followed by exactly one LF, the size and depth limits, all
+nine envelope members with their JSON types, no duplicate members, the success
+and failure rules, and on success a declared `payloadType` equal to
+`expectedPayloadType` (the identity of the command's `[CommandResult]` or
+codec). A client of the protocol ignores members it does not know; a test
+should not, so `Read` also rejects any member the protocol does not define on
+the envelope, the fault, the fault's `data` or a diagnostic. Every failure is a
+`CommandProtocolException` whose `Kind` names it, for example
+`missing-required-field`, `invalid-envelope`, `unsupported-payload-type` (a
+success with another payload type), `payload-shape-mismatch` or
+`unknown-member`.
+
+The payload is read with the supplied source-generated metadata only, so it is
+safe under trimming and NativeAOT; its own unknown properties follow that
+metadata (set `UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow` on
+the context to reject them). A failure response has no payload type, so the
+expected one is checked only on success:
+
+```csharp
+CommandResponse<Greeting> response = CommandTestEnvelope.Read(result.StandardOutput, "hello.greeting/1", AppJsonContext.Default.Greeting);
+if (!response.Succeeded || response.Payload!.Name != "Ada") throw new Exception("Unexpected greeting.");
+```
+
+`CommandTestEnvelope.Parse` checks the framing only and returns a `JsonDocument`
+for ad-hoc inspection of any JSON value.
 
 ## Capture an environment
 
