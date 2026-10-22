@@ -377,10 +377,10 @@ error. A command option spelled like it fails catalog validation with `RCLI0025`
 
 `Runic.CommandLine.Testing` supplies `CommandAppTester`, a configurable
 `TestCommandConsole` with queued input, and `CommandTestEnvelope`.
-`CommandTestEnvelope.Read<T>(json, typeInfo)` reads captured output as strictly
-as `CommandJsonEnvelopeReader.Read<T>` and also rejects members the protocol
-does not define, so a test notices an envelope change; it returns the
-`CommandResponse<T>` with the typed payload. `CommandTestEnvelope.Parse` checks
+`CommandTestEnvelope.Read<T>(json, expectedPayloadType, typeInfo)` reads
+captured output as strictly as `CommandJsonEnvelopeReader.Read<T>` and also
+rejects members the protocol does not define, so a test notices an envelope
+change; it returns the `CommandResponse<T>` with the typed payload. `CommandTestEnvelope.Parse` checks
 the framing only: one unpadded JSON value ending in exactly one LF. It returns
 a `JsonDocument` for ad-hoc inspection and does not validate the envelope's
 members, its success and failure rules, limits or payload type. Supply

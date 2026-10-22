@@ -63,20 +63,22 @@ public static class CommandTestEnvelope
     /// </summary>
     /// <remarks>
     /// The frame is validated by <see cref="CommandJsonEnvelopeReader.Read{T}"/>: framing, size and depth limits,
-    /// every required member and its JSON type, duplicate members, and the success and failure invariants. Unlike
-    /// that reader, which ignores unknown members as the protocol requires of clients, this method also rejects any
-    /// member the protocol does not define on the envelope, the fault, the fault's <c>data</c> and each diagnostic,
-    /// with the error kind <c>unknown-member</c>. The payload type is the one the frame declares; compare
-    /// <see cref="CommandResponse{T}.PayloadType"/> with the expected identity. The payload is deserialized with
-    /// <paramref name="typeInfo"/> only, so its own unknown members follow that metadata.
+    /// every required member and its JSON type, duplicate members, the success and failure invariants, and on
+    /// success a declared payload type equal to <paramref name="expectedPayloadType"/>. Unlike that reader, which
+    /// ignores unknown members as the protocol requires of clients, this method also rejects any member the protocol
+    /// does not define on the envelope, the fault, the fault's <c>data</c> and each diagnostic, with the error kind
+    /// <c>unknown-member</c>. The payload is deserialized with <paramref name="typeInfo"/> only, so its own unknown
+    /// members follow that metadata.
     /// </remarks>
     /// <param name="json">The captured standard output: one compact JSON object followed by exactly one LF.</param>
+    /// <param name="expectedPayloadType">The payload type identity a successful response must declare, such as <c>sample.report/1</c>.</param>
     /// <param name="typeInfo">Source-generated metadata for the success payload.</param>
     /// <returns>The validated response, with the typed payload on success and the fault on failure.</returns>
-    /// <exception cref="CommandProtocolException">The frame is not a valid, strict response envelope.</exception>
-    public static CommandResponse<T> Read<T>(string json, JsonTypeInfo<T> typeInfo)
+    /// <exception cref="CommandProtocolException">The frame is not a valid, strict response envelope of the expected payload type.</exception>
+    public static CommandResponse<T> Read<T>(string json, string expectedPayloadType, JsonTypeInfo<T> typeInfo)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        ArgumentException.ThrowIfNullOrWhiteSpace(expectedPayloadType);
         ArgumentNullException.ThrowIfNull(typeInfo);
         byte[] frame;
         try
@@ -88,7 +90,7 @@ public static class CommandTestEnvelope
             throw new CommandProtocolException("invalid-utf8", "The command response text contains an unpaired surrogate and has no UTF-8 encoding.", exception);
         }
 
-        CommandResponse<T> response = CommandJsonEnvelopeReader.Read(frame, DeclaredPayloadType(frame), typeInfo);
+        CommandResponse<T> response = CommandJsonEnvelopeReader.Read(frame, expectedPayloadType, typeInfo);
         using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1), new JsonDocumentOptions { MaxDepth = 32 });
         JsonElement root = document.RootElement;
         RejectUnknownMembers(root, EnvelopeMembers, "response");
@@ -107,38 +109,6 @@ public static class CommandTestEnvelope
     private static readonly string[] FaultMembers = ["code", "message", "details", "retryable", "helpUri", "data"];
     private static readonly string[] FailureDataMembers = ["type", "payload"];
     private static readonly string[] DiagnosticMembers = ["code", "kind", "commandPath", "messageKey", "message", "phase", "severity", "tokenIndex", "arguments", "helpUri"];
-
-    // A well-formed identity is needed to call the core reader; it checks the declared value itself, so any frame
-    // without one is read against a placeholder and fails there with the core reader's error.
-    private static string DeclaredPayloadType(byte[] frame)
-    {
-        const string Placeholder = "runic.commandline.testing/1";
-        if (frame.Length < 2) return Placeholder;
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1), new JsonDocumentOptions { MaxDepth = 32 });
-            return document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("payloadType", out JsonElement value)
-                && value.ValueKind == JsonValueKind.String
-                && IsPayloadType(value.GetString()!)
-                ? value.GetString()!
-                : Placeholder;
-        }
-        catch (JsonException)
-        {
-            return Placeholder;
-        }
-    }
-
-    // [a-z][a-z0-9.-]*/[1-9][0-9]*, 3 to 128 ASCII bytes (specs/command-line/protocol/README.md).
-    private static bool IsPayloadType(string value)
-    {
-        int slash = value.IndexOf('/', StringComparison.Ordinal);
-        if (value.Length is < 3 or > 128 || slash < 1 || slash == value.Length - 1 || value[0] is < 'a' or > 'z' || value[slash + 1] == '0') return false;
-        for (int index = 1; index < slash; index++) if (value[index] is not (>= 'a' and <= 'z' or >= '0' and <= '9' or '.' or '-')) return false;
-        for (int index = slash + 1; index < value.Length; index++) if (value[index] is < '0' or > '9') return false;
-        return true;
-    }
 
     private static void RejectUnknownMembers(JsonElement element, string[] known, string owner)
     {

@@ -15,7 +15,7 @@ var tester = new CommandAppTester(console => new CommandApp(catalog)
     HandleTerminationSignals = false,
 });
 var result = await tester.RunAsync(["greet", "Ada", "--format=json"]);
-CommandResponse<Greeting> response = CommandTestEnvelope.Read(result.StandardOutput, AppJsonContext.Default.Greeting);
+CommandResponse<Greeting> response = CommandTestEnvelope.Read(result.StandardOutput, "hello.greeting/1", AppJsonContext.Default.Greeting);
 ```
 
 For prompt tests, construct `TestCommandConsole` with explicit capability flags
@@ -23,29 +23,31 @@ and call `QueueInput`. Each tester run gets fresh output buffers.
 
 ## Read the JSON envelope
 
-`CommandTestEnvelope.Read<T>(json, typeInfo)` reads one captured
-`runic.commandline/1` response and returns its `CommandResponse<T>`: the typed
-`Payload` on success, or the `Fault`, `FailureData` and `Diagnostics` on
-failure. It applies every check of `CommandJsonEnvelopeReader.Read<T>`: one
+`CommandTestEnvelope.Read<T>(json, expectedPayloadType, typeInfo)` reads one
+captured `runic.commandline/1` response and returns its `CommandResponse<T>`:
+the typed `Payload` on success, or the `Fault`, `FailureData` and `Diagnostics`
+on failure. It applies every check of `CommandJsonEnvelopeReader.Read<T>`: one
 compact JSON object followed by exactly one LF, the size and depth limits, all
-nine envelope members with their JSON types, no duplicate members, and the
-success and failure rules. A client of the protocol ignores members it does not
-know; a test should not, so `Read` also rejects any member the protocol does
-not define on the envelope, the fault, the fault's `data` or a diagnostic. Every
-failure is a `CommandProtocolException` whose `Kind` names it, for example
-`missing-required-field`, `invalid-envelope`, `payload-shape-mismatch` or
+nine envelope members with their JSON types, no duplicate members, the success
+and failure rules, and on success a declared `payloadType` equal to
+`expectedPayloadType` (the identity of the command's `[CommandResult]` or
+codec). A client of the protocol ignores members it does not know; a test
+should not, so `Read` also rejects any member the protocol does not define on
+the envelope, the fault, the fault's `data` or a diagnostic. Every failure is a
+`CommandProtocolException` whose `Kind` names it, for example
+`missing-required-field`, `invalid-envelope`, `unsupported-payload-type` (a
+success with another payload type), `payload-shape-mismatch` or
 `unknown-member`.
 
 The payload is read with the supplied source-generated metadata only, so it is
 safe under trimming and NativeAOT; its own unknown properties follow that
 metadata (set `UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow` on
-the context to reject them). `Read` accepts the payload type that the frame
-declares, so a payload of another type usually fails as
-`payload-shape-mismatch`; compare `PayloadType` when the test cares:
+the context to reject them). A failure response has no payload type, so the
+expected one is checked only on success:
 
 ```csharp
-CommandResponse<Greeting> response = CommandTestEnvelope.Read(result.StandardOutput, AppJsonContext.Default.Greeting);
-if (response.PayloadType != "hello.greeting/1" || response.Payload!.Name != "Ada") throw new Exception("Unexpected greeting.");
+CommandResponse<Greeting> response = CommandTestEnvelope.Read(result.StandardOutput, "hello.greeting/1", AppJsonContext.Default.Greeting);
+if (!response.Succeeded || response.Payload!.Name != "Ada") throw new Exception("Unexpected greeting.");
 ```
 
 `CommandTestEnvelope.Parse` checks the framing only and returns a `JsonDocument`

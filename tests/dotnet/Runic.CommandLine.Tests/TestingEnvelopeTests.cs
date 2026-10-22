@@ -22,7 +22,7 @@ internal sealed class TestingEnvelopeTests
     [Test, DisplayName("testing/envelope-read-returns-the-typed-success-payload")]
     public ValueTask ReadsSuccess()
     {
-        CommandResponse<TestResult> response = CommandTestEnvelope.Read(Success, TestJsonContext.Default.TestResult);
+        CommandResponse<TestResult> response = CommandTestEnvelope.Read(Success, TestCodec.Identity, TestJsonContext.Default.TestResult);
         AssertEx.True(response.Succeeded);
         AssertEx.Equal("tests.result/1", response.PayloadType);
         AssertEx.Equal(new TestResult(42, "ok"), response.Payload);
@@ -30,14 +30,14 @@ internal sealed class TestingEnvelopeTests
         string written = Encoding.UTF8.GetString(CommandJsonEnvelopeWriter.Serialize(
             CommandResponse.Success("req-1", "status", TestCodec.Identity, new TestResult(7, "seven")),
             TestJsonContext.Default.TestResult));
-        AssertEx.Equal(new TestResult(7, "seven"), CommandTestEnvelope.Read(written, TestJsonContext.Default.TestResult).Payload);
+        AssertEx.Equal(new TestResult(7, "seven"), CommandTestEnvelope.Read(written, TestCodec.Identity, TestJsonContext.Default.TestResult).Payload);
         return ValueTask.CompletedTask;
     }
 
     [Test, DisplayName("testing/envelope-read-accepts-every-defined-optional-member")]
     public ValueTask ReadsFailureWithOptionalMembers()
     {
-        CommandResponse<TestResult> response = CommandTestEnvelope.Read(Failure, TestJsonContext.Default.TestResult);
+        CommandResponse<TestResult> response = CommandTestEnvelope.Read(Failure, TestCodec.Identity, TestJsonContext.Default.TestResult);
         AssertEx.True(!response.Succeeded);
         AssertEx.Equal(10, response.ExitCode);
         AssertEx.Equal("RCLI3000", response.Fault!.Code);
@@ -61,7 +61,7 @@ internal sealed class TestingEnvelopeTests
             AssertEx.True(frame.Contains("\"extra\":1", StringComparison.Ordinal));
             _ = CommandJsonEnvelopeReader.Read(Encoding.UTF8.GetBytes(frame), TestCodec.Identity, TestJsonContext.Default.TestResult);
             CommandProtocolException exception = AssertEx.Throws<CommandProtocolException>(
-                () => CommandTestEnvelope.Read(frame, TestJsonContext.Default.TestResult));
+                () => CommandTestEnvelope.Read(frame, TestCodec.Identity, TestJsonContext.Default.TestResult));
             AssertEx.Equal("unknown-member", exception.Kind);
             AssertEx.True(exception.Message.Contains("'extra'", StringComparison.Ordinal), exception.Message);
         }
@@ -78,6 +78,7 @@ internal sealed class TestingEnvelopeTests
         AssertKind(Success.Replace("\"exitCode\":0", "\"exitCode\":\"0\"", StringComparison.Ordinal), "invalid-envelope");
         AssertKind(Success.Replace("\"success\":true", "\"success\":1", StringComparison.Ordinal), "invalid-envelope");
         AssertKind(Success.Replace("\"value\":42", "\"value\":\"42\"", StringComparison.Ordinal), "payload-shape-mismatch");
+        AssertKind(Success.Replace("\"payloadType\":\"tests.result/1\"", "\"payloadType\":\"tests.other/1\"", StringComparison.Ordinal), "unsupported-payload-type");
         AssertKind(Success.Replace("\"payloadType\":\"tests.result/1\"", "\"payloadType\":null", StringComparison.Ordinal), "missing-payload-type");
         AssertKind(Success.Replace("\"payloadType\":\"tests.result/1\"", "\"payloadType\":\"Tests/1\"", StringComparison.Ordinal), "invalid-payload-type");
         AssertKind(Success.Replace("\"payloadType\":\"tests.result/1\"", "\"payloadType\":7", StringComparison.Ordinal), "invalid-envelope");
@@ -87,8 +88,9 @@ internal sealed class TestingEnvelopeTests
         AssertKind("{\"protocol\":", "invalid-framing");
         AssertKind("{\"protocol\":\n", "malformed-json");
         AssertKind(Success.Replace("\"ok\"", "\"\ud800\"", StringComparison.Ordinal), "invalid-utf8");
-        AssertEx.Throws<ArgumentException>(() => CommandTestEnvelope.Read(" ", TestJsonContext.Default.TestResult));
-        AssertEx.Throws<ArgumentNullException>(() => CommandTestEnvelope.Read<TestResult>(Success, null!));
+        AssertEx.Throws<ArgumentException>(() => CommandTestEnvelope.Read(" ", TestCodec.Identity, TestJsonContext.Default.TestResult));
+        AssertEx.Throws<ArgumentNullException>(() => CommandTestEnvelope.Read<TestResult>(Success, TestCodec.Identity, null!));
+        AssertEx.Throws<ArgumentException>(() => CommandTestEnvelope.Read(Success, " ", TestJsonContext.Default.TestResult));
         return ValueTask.CompletedTask;
     }
 
@@ -100,12 +102,18 @@ internal sealed class TestingEnvelopeTests
             Console = console, ParseSettings = ParseSettings.Default, HandleTerminationSignals = false,
         });
         CommandAppTestResult result = await tester.RunAsync(["report", "--format=json"]);
-        CommandResponse<SampleReport> response = CommandTestEnvelope.Read(result.StandardOutput, SampleJsonContext.Default.SampleReport);
+        CommandResponse<SampleReport> response = CommandTestEnvelope.Read(result.StandardOutput, "sample.report/1", SampleJsonContext.Default.SampleReport);
         AssertEx.Equal("sample.report/1", response.PayloadType);
         AssertEx.Equal(new SampleReport("Ready", 2), response.Payload);
 
+        // The catalog's default command answers an unknown word with its own payload type.
+        result = await tester.RunAsync(["no-such-command", "--format=json"]);
+        CommandProtocolException mismatch = AssertEx.Throws<CommandProtocolException>(
+            () => CommandTestEnvelope.Read(result.StandardOutput, "sample.report/1", SampleJsonContext.Default.SampleReport));
+        AssertEx.Equal("unsupported-payload-type", mismatch.Kind);
+
         result = await tester.RunAsync(["report", "--no-such-option", "--format=json"]);
-        CommandResponse<SampleReport> failure = CommandTestEnvelope.Read(result.StandardOutput, SampleJsonContext.Default.SampleReport);
+        CommandResponse<SampleReport> failure = CommandTestEnvelope.Read(result.StandardOutput, "sample.report/1", SampleJsonContext.Default.SampleReport);
         AssertEx.Equal(result.ExitCode, failure.ExitCode);
         AssertEx.True(!failure.Succeeded && failure.Fault is not null && failure.Diagnostics.Count > 0);
     }
@@ -113,7 +121,7 @@ internal sealed class TestingEnvelopeTests
     private static void AssertKind(string frame, string kind)
     {
         CommandProtocolException exception = AssertEx.Throws<CommandProtocolException>(
-            () => CommandTestEnvelope.Read(frame, TestJsonContext.Default.TestResult));
+            () => CommandTestEnvelope.Read(frame, TestCodec.Identity, TestJsonContext.Default.TestResult));
         AssertEx.Equal(kind, exception.Kind);
     }
 }
