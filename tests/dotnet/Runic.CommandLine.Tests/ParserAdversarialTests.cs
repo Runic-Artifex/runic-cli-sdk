@@ -166,6 +166,27 @@ internal sealed class ParserAdversarialTests
         return ValueTask.CompletedTask;
     }
 
+    // SEC-40: an echoed token with a bidi override or a zero-width character is not echoed, like one with a control.
+    [Test, DisplayName("parser/echoed-tokens-exclude-bidi-and-invisible-format-characters")]
+    public ValueTask EchoedTokensExcludeFormatCharacters()
+    {
+        CommandCatalog catalog = CreateRequiredCatalog();
+        foreach (string hostile in new[] { "--x\u202Etxt.exe", "--a\u200Bb", "--i\u2066d", "--t\U000E0041" })
+        {
+            ParseOutcome unknownOption = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["check", hostile + "=value"], ParseSettings.Default);
+            AssertEx.SequenceEqual(["<invalid>"], unknownOption.Diagnostics.Single().Arguments);
+            AssertEx.True(!unknownOption.Diagnostics.Single().Message.Contains(hostile, StringComparison.Ordinal), unknownOption.Diagnostics.Single().Message);
+        }
+
+        ParseOutcome unknownCommand = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["mis\uFEFFsing"], ParseSettings.Default);
+        AssertEx.SequenceEqual(["<invalid>"], unknownCommand.Diagnostics.Single().Arguments);
+
+        // Other scripts are echoed as given.
+        ParseOutcome readable = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["check", "--größe"], ParseSettings.Default);
+        AssertEx.SequenceEqual(["--größe"], readable.Diagnostics.Single().Arguments);
+        return ValueTask.CompletedTask;
+    }
+
     [Test, DisplayName("parser/parse-errors-preserve-transport-output-classification")]
     public ValueTask ParseErrorsPreserveTransportOutputClassification()
     {

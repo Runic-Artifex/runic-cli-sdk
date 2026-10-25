@@ -261,7 +261,21 @@ internal sealed class ManagedChildProcess : ChildProcess
 
     public override void Dispose()
     {
-        job?.Dispose();
+        if (job is not null)
+        {
+            // The run has returned: the child has exited or was killed. Closing the handle must not end a
+            // descendant that outlives a normally exited child, as it did before the job had kill-on-close.
+            try
+            {
+                _ = WindowsNative.SetKillOnJobClose(job, kill: false);
+            }
+            catch (Exception exception) when (!IsFatal(exception))
+            {
+            }
+
+            job.Dispose();
+        }
+
         process.Dispose();
     }
 
@@ -271,6 +285,14 @@ internal sealed class ManagedChildProcess : ChildProcess
         try
         {
             job = WindowsNative.CreateJobObject(IntPtr.Zero, IntPtr.Zero);
+            // Kill-on-close ends the job when this process ends with the run still in progress, also by a crash
+            // or a closed console window, which skip the runner's own termination. Best effort: without the
+            // limit, the job still serves RequestStop and Kill.
+            if (!job.IsInvalid)
+            {
+                _ = WindowsNative.SetKillOnJobClose(job, kill: true);
+            }
+
             if (!job.IsInvalid && WindowsNative.AssignProcessToJobObject(job, process.SafeHandle))
             {
                 return job;

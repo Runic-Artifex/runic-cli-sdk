@@ -54,6 +54,11 @@
       "expected": { "kind": "protocol-error", "reason": "duplicate-property" }
     },
     {
+      "id": "wire.duplicate-payload-property",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtMTYiLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6dHJ1ZSwiZXhpdENvZGUiOjAsInBheWxvYWRUeXBlIjoic2FtcGxlLnN0YXR1cy8xIiwicGF5bG9hZCI6eyJzdGF0ZSI6InJlYWR5Iiwic3RhdGUiOiJmYWlsZWQifSwiZmF1bHQiOm51bGwsImRpYWdub3N0aWNzIjpbXX0K",
+      "expected": { "kind": "protocol-error", "reason": "duplicate-property" }
+    },
+    {
       "id": "wire.ansi-prefix",
       "wireUtf8Base64": "G1szMW17fQo=",
       "expected": { "kind": "protocol-error", "reason": "stdout-contamination" }

@@ -164,6 +164,13 @@ public sealed class CommandExecutionContext
     /// <see cref="CommandApp.HandleTerminationSignals"/> is false, or the invocation runs under the hosting adapter
     /// or a directly used <see cref="CommandExecutor"/>), the scope has no effect.
     /// </para>
+    /// <para>
+    /// A scope protects only the code it surrounds. A cancelled <c>ProcessRunner.RunAsync</c> call of
+    /// Runic.CommandLine.Processes stops its child before it returns, within up to twice the drain grace period; a
+    /// repeated signal in that time exits the process, and the runner's exit handler then kills the child at once.
+    /// To let the child stop gracefully, hold the scope around the whole <c>RunAsync</c> call. SIGHUP is not
+    /// handled; the runtime ends the process at once, without exit handlers.
+    /// </para>
     /// </remarks>
     public IDisposable ProtectShutdown() => ShutdownProtection?.Enter() ?? ShutdownProtection.None;
 

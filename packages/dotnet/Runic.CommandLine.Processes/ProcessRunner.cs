@@ -169,8 +169,18 @@ public sealed class ProcessRunner : IProcessRunner
 
         using (child)
         {
-            return await RunStartedAsync(child, effectiveRequest, outputHandler, startedAt, cancellationToken)
-                .ConfigureAwait(false);
+            // Until the run returns, a forced exit of this process (a repeated signal, Environment.Exit) kills the
+            // child too; see LiveChildren.
+            LiveChildren.Add(child);
+            try
+            {
+                return await RunStartedAsync(child, effectiveRequest, outputHandler, startedAt, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                LiveChildren.Remove(child);
+            }
         }
     }
 
@@ -403,12 +413,22 @@ public sealed class ProcessRunner : IProcessRunner
         return null;
     }
 
-    private static bool IsBatchFile(string fileName)
+    internal static bool IsBatchFile(string fileName)
     {
-        // Windows ignores trailing dots and spaces, so "tool.cmd." starts tool.cmd.
-        string extension = Path.GetExtension(fileName.TrimEnd('.', ' '));
-        return string.Equals(extension, ".bat", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(extension, ".cmd", StringComparison.OrdinalIgnoreCase);
+        // Windows ignores trailing dots and spaces, so "tool.cmd." starts tool.cmd, and names the unnamed data
+        // stream of a file "tool.cmd::$DATA". Drop a stream suffix from the last segment, then the dots and spaces.
+        // The name is a resolved, fully qualified Windows path, so its last segment has no drive colon.
+        ReadOnlySpan<char> name = fileName.AsSpan();
+        name = name[(name.LastIndexOfAny('\\', '/') + 1)..];
+        int stream = name.IndexOf(':');
+        if (stream >= 0)
+        {
+            name = name[..stream];
+        }
+
+        ReadOnlySpan<char> extension = Path.GetExtension(name.TrimEnd(". "));
+        return extension.Equals(".bat", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task WriteInputAsync(

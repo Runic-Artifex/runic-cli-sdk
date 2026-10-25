@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace Runic.CommandLine;
 
@@ -16,11 +18,17 @@ namespace Runic.CommandLine;
 /// backslashes and a delimiter, 2n+1 yield n backslashes and a literal quote. A token that starts with <c>@</c> is
 /// itself a response file, resolved against the directory of the file that names it; <c>@@</c> stands for a
 /// literal leading <c>@</c> and a lone <c>@</c> is literal. Files nest at most 16 levels and may not include
-/// themselves.
+/// themselves. Expansion is bounded: a file holds at most 1 MiB, and all files together at most 4 MiB and 65,536
+/// arguments, so that files naming each other several times cannot grow the arguments exponentially. Only
+/// seekable files are read: a FIFO, a pipe or a terminal is unreadable, and on Unix it is opened without
+/// blocking. A file that breaks a bound is unreadable (<c>RCLI1017</c>).
 /// </remarks>
 internal static class CommandResponseFiles
 {
     internal const int MaximumDepth = 16;
+    internal const int MaximumFileBytes = 1 << 20;
+    internal const int MaximumTotalBytes = 4 << 20;
+    internal const int MaximumTokens = 65_536;
     internal const string UnreadableCode = "RCLI1017";
     internal const string InvalidUtf8Code = "RCLI1018";
     internal const string UnterminatedQuoteCode = "RCLI1019";
@@ -55,10 +63,11 @@ internal static class CommandResponseFiles
         failure = null;
         var result = new List<string>(arguments.Count);
         var activeFiles = new HashSet<string>(PathComparer);
+        var budget = new Budget();
         for (int index = 0; index < arguments.Count; index++)
         {
             ArgumentNullException.ThrowIfNull(arguments[index], nameof(arguments));
-            failure = ExpandArgument(arguments[index], baseDirectory, 0, activeFiles, result, index);
+            failure = ExpandArgument(arguments[index], baseDirectory, 0, activeFiles, budget, result, index);
             if (failure is not null) return null;
         }
 
@@ -70,6 +79,7 @@ internal static class CommandResponseFiles
         string baseDirectory,
         int depth,
         HashSet<string> activeFiles,
+        Budget budget,
         List<string> result,
         int tokenIndex)
     {
@@ -98,20 +108,27 @@ internal static class CommandResponseFiles
         if (!activeFiles.Add(path)) return new(CycleCode, CycleKind, tokenIndex, reference);
         try
         {
-            string content;
-            try { content = StrictUtf8.GetString(File.ReadAllBytes(path)); }
-            catch (DecoderFallbackException) { return new(InvalidUtf8Code, InvalidUtf8Kind, tokenIndex, reference); }
+            byte[]? bytes;
+            try { bytes = ReadBounded(path, Math.Min(MaximumFileBytes, MaximumTotalBytes - budget.Bytes)); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException)
             {
-                return new(UnreadableCode, UnreadableKind, tokenIndex, reference);
+                bytes = null;
             }
+
+            if (bytes is null) return new(UnreadableCode, UnreadableKind, tokenIndex, reference);
+            budget.Bytes += bytes.Length;
+            string content;
+            try { content = StrictUtf8.GetString(bytes); }
+            catch (DecoderFallbackException) { return new(InvalidUtf8Code, InvalidUtf8Kind, tokenIndex, reference); }
 
             List<string>? tokens = Tokenize(content);
             if (tokens is null) return new(UnterminatedQuoteCode, UnterminatedQuoteKind, tokenIndex, reference);
+            budget.Tokens += tokens.Count;
+            if (budget.Tokens > MaximumTokens) return new(UnreadableCode, UnreadableKind, tokenIndex, reference);
             string directory = Path.GetDirectoryName(path) ?? baseDirectory;
             foreach (string token in tokens)
             {
-                ResponseFileFailure? failure = ExpandArgument(token, directory, depth + 1, activeFiles, result, tokenIndex);
+                ResponseFileFailure? failure = ExpandArgument(token, directory, depth + 1, activeFiles, budget, result, tokenIndex);
                 if (failure is not null) return failure;
             }
 
@@ -120,6 +137,97 @@ internal static class CommandResponseFiles
         finally
         {
             activeFiles.Remove(path);
+        }
+    }
+
+    // Reads at most limit bytes; returns null when the file holds more or is not seekable (a FIFO, pipe, socket or
+    // terminal), so that /dev/zero or a FIFO cannot exhaust memory or block the parser.
+    private static byte[]? ReadBounded(string path, int limit)
+    {
+        if (path.Contains('\0', StringComparison.Ordinal)) return null;
+        using FileStream stream = Open(path);
+        if (!stream.CanSeek) return null;
+        var buffer = new byte[Math.Min(limit, 64 * 1024) + 1];
+        int length = 0;
+        while (true)
+        {
+            if (length == buffer.Length)
+            {
+                if (length > limit) return null;
+                Array.Resize(ref buffer, Math.Min(buffer.Length * 2, limit + 1));
+            }
+
+            int read = stream.Read(buffer, length, buffer.Length - length);
+            if (read == 0) break;
+            length += read;
+            if (length > limit) return null;
+        }
+
+        Array.Resize(ref buffer, length);
+        return buffer;
+    }
+
+    private static FileStream Open(string path)
+    {
+        // Opening a FIFO for reading blocks until a writer opens it, so on Unix the file is opened with O_NONBLOCK
+        // (and O_NOCTTY, so a terminal never becomes the controlling one); the seekable check then rejects it.
+        if (!OperatingSystem.IsWindows() && NonBlockingOpen.TryOpen(path) is { } handle)
+        {
+            try { return new FileStream(handle, FileAccess.Read, bufferSize: 0); }
+            catch
+            {
+                handle.Dispose();
+                throw;
+            }
+        }
+
+        return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
+    }
+
+    private sealed class Budget
+    {
+        internal int Bytes;
+        internal int Tokens;
+    }
+
+    // open(2) resolved from the running process, which has the C library loaded on every Unix (glibc, musl, macOS).
+    private static unsafe class NonBlockingOpen
+    {
+        private static readonly delegate* unmanaged<byte*, int, int> OpenFunction = Resolve();
+
+        // O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC; null on another Unix, which falls back to a blocking open.
+        private static readonly int? Flags =
+            OperatingSystem.IsLinux() ? 0x800 | 0x100 | 0x80000 :
+            OperatingSystem.IsMacOS() ? 0x4 | 0x20000 | 0x1000000 :
+            null;
+
+        /// <summary>Opens the file for reading; null when the call is unavailable, so the caller opens it itself.</summary>
+        /// <exception cref="IOException">The file cannot be opened.</exception>
+        internal static SafeFileHandle? TryOpen(string path)
+        {
+            if (OpenFunction is null || Flags is not int flags) return null;
+            int length = Encoding.UTF8.GetByteCount(path);
+            byte[] buffer = new byte[length + 1];
+            _ = Encoding.UTF8.GetBytes(path, buffer);
+            int descriptor;
+            fixed (byte* name = buffer) descriptor = OpenFunction(name, flags);
+            if (descriptor < 0) throw new IOException("The response file could not be opened.");
+            return new SafeFileHandle(descriptor, ownsHandle: true);
+        }
+
+        private static delegate* unmanaged<byte*, int, int> Resolve()
+        {
+            if (OperatingSystem.IsWindows()) return null;
+            try
+            {
+                return NativeLibrary.TryGetExport(NativeLibrary.GetMainProgramHandle(), "open", out IntPtr address)
+                    ? (delegate* unmanaged<byte*, int, int>)address
+                    : null;
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                return null;
+            }
         }
     }
 

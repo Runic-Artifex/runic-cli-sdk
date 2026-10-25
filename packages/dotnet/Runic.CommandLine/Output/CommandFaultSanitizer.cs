@@ -15,7 +15,14 @@ internal static class CommandFaultSanitizer
 
     internal const string RedactedFaultMessage = "The command failed; details were redacted.";
 
-    internal static CommandFault Sanitize(CommandFault fault)
+    internal static CommandFault Sanitize(CommandFault fault) => Sanitize(fault, neutralizeFormatCharacters: true);
+
+    /// <summary>
+    /// Sanitizes a fault. <paramref name="neutralizeFormatCharacters"/> is false only for a fault that
+    /// <see cref="CommandJsonEnvelopeReader"/> already accepted, so that reading stays as it was; every writer
+    /// sanitizes again before output.
+    /// </summary>
+    internal static CommandFault Sanitize(CommandFault fault, bool neutralizeFormatCharacters)
     {
         ArgumentNullException.ThrowIfNull(fault);
 
@@ -28,7 +35,7 @@ internal static class CommandFaultSanitizer
             return SoftwareFailure();
         }
 
-        string message = SanitizeScalar(fault.Message, MaximumMessageLength);
+        string message = SanitizeScalar(fault.Message, MaximumMessageLength, neutralizeFormatCharacters);
         if (string.IsNullOrWhiteSpace(message) || ContainsTechnicalContent(fault.Message))
         {
             message = RedactedFaultMessage;
@@ -42,7 +49,7 @@ internal static class CommandFaultSanitizer
                 break;
             }
 
-            string key = SanitizeScalar(detail.Key, MaximumDetailKeyLength);
+            string key = SanitizeScalar(detail.Key, MaximumDetailKeyLength, neutralizeFormatCharacters);
             // A key is an identifier, not a redactable value: a key with
             // technical content is dropped together with its value.
             if (string.IsNullOrWhiteSpace(key) || details.ContainsKey(key) ||
@@ -53,7 +60,7 @@ internal static class CommandFaultSanitizer
 
             string value = ContainsTechnicalContent(detail.Value)
                 ? "[redacted]"
-                : SanitizeScalar(detail.Value, MaximumDetailValueLength);
+                : SanitizeScalar(detail.Value, MaximumDetailValueLength, neutralizeFormatCharacters);
             details.Add(key, value);
         }
 
@@ -65,7 +72,7 @@ internal static class CommandFaultSanitizer
     internal static string SanitizeText(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return SanitizeScalar(value, MaximumMessageLength);
+        return SanitizeScalar(value, MaximumMessageLength, neutralizeFormatCharacters: true);
     }
 
     internal static string SanitizeRequiredText(string value)
@@ -79,14 +86,16 @@ internal static class CommandFaultSanitizer
     internal static string SanitizeArgument(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return SanitizeScalar(value, MaximumDetailValueLength);
+        return SanitizeScalar(value, MaximumDetailValueLength, neutralizeFormatCharacters: true);
     }
 
+    // The strict reader's check. It does not reject the formatting characters that writers neutralize: whether
+    // the protocol's "Unicode control characters" includes them is a pending decision (SEC-40).
     internal static bool IsSafeText(string value, int maximumUtf8Bytes, bool allowEmpty)
     {
         ArgumentNullException.ThrowIfNull(value);
         return (allowEmpty || value.Length != 0) &&
-            string.Equals(value, SanitizeScalar(value, maximumUtf8Bytes), StringComparison.Ordinal) &&
+            string.Equals(value, SanitizeScalar(value, maximumUtf8Bytes, neutralizeFormatCharacters: false), StringComparison.Ordinal) &&
             !ContainsTechnicalContent(value);
     }
 
@@ -110,7 +119,17 @@ internal static class CommandFaultSanitizer
         return true;
     }
 
-    private static string SanitizeScalar(string value, int maximumLength)
+    /// <summary>
+    /// Whether a code point reorders or hides text on a terminal or in a viewer, as in Trojan Source spoofing:
+    /// the Bidi_Control characters, the zero-width and invisible formatting characters, and the tag characters.
+    /// The JSON encoder escapes the same characters (see <see cref="CommandJsonEncoding"/>); text written to a
+    /// terminal treats them like control characters.
+    /// </summary>
+    internal static bool IsInvisibleFormatCharacter(int value) =>
+        value is 0x061C or (>= 0x200B and <= 0x200F) or (>= 0x202A and <= 0x202E) or 0x2060 or
+            (>= 0x2066 and <= 0x2069) or 0xFEFF or (>= 0xE0000 and <= 0xE007F);
+
+    private static string SanitizeScalar(string value, int maximumLength, bool neutralizeFormatCharacters)
     {
         var builder = new StringBuilder(Math.Min(value.Length, maximumLength));
         bool previousWasSpace = false;
@@ -129,7 +148,8 @@ internal static class CommandFaultSanitizer
             }
 
             bool replaceWithSpace = Rune.IsControl(rune) ||
-                rune.Value is 0x1B or 0x2028 or 0x2029;
+                rune.Value is 0x1B or 0x2028 or 0x2029 ||
+                (neutralizeFormatCharacters && IsInvisibleFormatCharacter(rune.Value));
             if (replaceWithSpace)
             {
                 if (!previousWasSpace)

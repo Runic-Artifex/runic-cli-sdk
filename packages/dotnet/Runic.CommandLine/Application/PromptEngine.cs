@@ -175,7 +175,10 @@ internal sealed class PromptEngine
     internal static bool IsCancelKey(ConsoleKeyInfo key) =>
         key.Key == ConsoleKey.Escape || (key.Key == ConsoleKey.C && (key.Modifiers & ConsoleModifiers.Control) != 0) || key.KeyChar == '\u0003';
 
-    /// <summary>Removes control characters and ANSI sequences, so a line cannot move the cursor or break redraw arithmetic.</summary>
+    /// <summary>
+    /// Removes control characters and ANSI sequences, so a line cannot move the cursor or break redraw arithmetic,
+    /// and the formatting characters that reorder or hide text, such as U+202E RIGHT-TO-LEFT OVERRIDE.
+    /// </summary>
     internal static string Sanitize(string value)
     {
         StringBuilder? builder = null;
@@ -184,6 +187,14 @@ internal sealed class PromptEngine
             char character = value[index];
             if (!char.IsControl(character))
             {
+                bool pair = char.IsSurrogatePair(value, index);
+                if (CommandFaultSanitizer.IsInvisibleFormatCharacter(pair ? char.ConvertToUtf32(character, value[index + 1]) : character))
+                {
+                    builder ??= new StringBuilder(value, 0, index, value.Length);
+                    if (pair) index++;
+                    continue;
+                }
+
                 builder?.Append(character);
                 continue;
             }
