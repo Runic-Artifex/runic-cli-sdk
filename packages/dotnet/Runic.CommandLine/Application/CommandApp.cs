@@ -14,37 +14,43 @@ public sealed class CommandApp
     /// <summary>Initializes an application from an immutable catalog.</summary>
     public CommandApp(CommandCatalog catalog) => _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
     internal CommandCatalog Catalog => _catalog;
-    /// <summary>Gets or sets the executable name shown in help.</summary>
+    /// <summary>Gets the executable name shown in help.</summary>
     public string Name { get; init; } = "app";
-    /// <summary>Gets or sets the executable name registered by completion scripts, when different from Name.</summary>
+    /// <summary>Gets the executable name registered by completion scripts, when different from Name.</summary>
     public string? CompletionExecutableName { get; init; }
-    /// <summary>Gets or sets the application version.</summary>
+    /// <summary>Gets the application version.</summary>
     public string Version { get; init; } = "0.0.0";
-    /// <summary>Gets or sets invocation-local console IO.</summary>
+    /// <summary>Gets invocation-local console IO.</summary>
     public ICommandConsole Console { get; init; } = new SystemCommandConsole();
-    /// <summary>Gets or sets an optional scope factory.</summary>
+    /// <summary>
+    /// Gets an optional scope factory shared by every invocation. Not used when <see cref="CreateScopeFactory"/> is
+    /// set; with neither, handlers get no services.
+    /// </summary>
     public ICommandExecutionScopeFactory? ScopeFactory { get; init; }
-    /// <summary>Gets or sets an invocation-dependent scope factory for applications with launch-specific services.</summary>
+    /// <summary>
+    /// Gets an invocation-dependent scope factory for applications with launch-specific services. When set, it is
+    /// called for each invocation and <see cref="ScopeFactory"/> is not used.
+    /// </summary>
     public Func<ParsedInvocation, ICommandExecutionScopeFactory>? CreateScopeFactory { get; init; }
-    /// <summary>Gets or sets a presenter for framework requests when preserving an existing application wire contract.</summary>
+    /// <summary>Gets a presenter for framework requests when preserving an existing application wire contract.</summary>
     public Func<ParseOutcome, ICommandConsole, CancellationToken, ValueTask<int>>? PresentFrameworkRequest { get; init; }
-    /// <summary>Gets or sets the exit policy, including parser errors.</summary>
+    /// <summary>Gets the exit policy, including parser errors.</summary>
     public IExitCodePolicy ExitCodePolicy { get; init; } = DefaultExitCodePolicy.Instance;
-    /// <summary>Gets or sets the outcome presenter.</summary>
+    /// <summary>Gets the outcome presenter.</summary>
     public ICommandOutcomeSink OutcomeSink { get => _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver }; init => _outcomeSink = value; }
     private readonly ICommandOutcomeSink? _outcomeSink;
     /// <summary>
-    /// Gets or sets the invocation culture for help, diagnostics and handler formatting. Otherwise
+    /// Gets the invocation culture for help, diagnostics and handler formatting. Otherwise
     /// <see cref="CultureInfo.CurrentUICulture"/>, the user's display language, is captured at invocation time.
     /// </summary>
     public CultureInfo? Culture { get; init; }
-    /// <summary>Gets or sets optional text resolution for framework help and diagnostics.</summary>
+    /// <summary>Gets optional text resolution for framework help and diagnostics.</summary>
     public ICommandTextResolver? TextResolver { get; init; }
-    /// <summary>Gets or sets explicit parse settings. Otherwise output configuration is read at invocation time.</summary>
+    /// <summary>Gets explicit parse settings. Otherwise output configuration is read at invocation time.</summary>
     public ParseSettings? ParseSettings { get; init; }
-    /// <summary>Gets or sets an observer for internal exceptions; these are never displayed to users.</summary>
+    /// <summary>Gets an observer for internal exceptions; these are never displayed to users.</summary>
     public Action<Exception>? ExceptionObserver { get; init; }
-    /// <summary>Gets or sets an execution lifecycle observer.</summary>
+    /// <summary>Gets an execution lifecycle observer.</summary>
     public ICommandExecutionObserver? Observer { get; init; }
     /// <summary>
     /// Gets whether process termination requests cancel the invocation: Ctrl+C (SIGINT), SIGTERM and
@@ -53,7 +59,7 @@ public sealed class CommandApp
     /// Ctrl+C, unless the command holds <see cref="CommandExecutionContext.ProtectShutdown"/>.
     /// </summary>
     public bool HandleTerminationSignals { get; init; } = true;
-    /// <summary>Gets or sets a renderer for human catalog help.</summary>
+    /// <summary>Gets a renderer for human catalog help.</summary>
     public ICommandHelpPresenter? HelpPresenter { get; init; }
 
     /// <summary>Parses, presents framework requests, or executes one invocation, returning its process exit code.</summary>

@@ -31,8 +31,14 @@ The managed suites under `tests/dotnet` (Contracts, Hosting, Processes and the m
   `--treenode-filter "/<assembly>/<namespace>/<class>/<method>"` selects them, with `*` as a wildcard, for example
   `--treenode-filter "/*/*/DispatcherTests/TypedHandlerContext"`. Select one corpus row with
   `--treenode-filter "/*/*/*/*[CaseId=grammar.option.long-flag]"`. `--filter` is not supported. The exit code is 0 when
-  all selected cases pass, 2 when one fails and 8 when none ran. `dotnet test` is not supported yet: `global.json` does
-  not opt in to the MTP mode of `dotnet test`.
+  all selected cases pass, 2 when one fails and 8 when none ran.
+- **`dotnet test`.** `global.json` opts in to the Microsoft.Testing.Platform mode of `dotnet test` (`"test": { "runner":
+  "Microsoft.Testing.Platform" }`), so `dotnet test -c Release` in the repository root builds the solution and runs the
+  four managed suites; the probe programs and the example suites are not test applications and are skipped. Select one
+  suite with `--project <suite>`. In this mode the test application options follow directly, without `--`, for
+  example `dotnet test --project tests/dotnet/Runic.CommandLine.Tests -c Release --treenode-filter
+  "/*/*/*/*[CaseId=grammar.option.long-flag]"`. Without `--results-directory` the reports go to `TestResults` in the
+  repository root, which Git ignores. `eng/test.sh` and CI keep `dotnet run --project`, which also runs the examples.
 - **Reports.** `eng/test.sh` passes `--report-trx --coverage --coverage-output-format cobertura` and writes `<suite>.trx`
   and `<suite>.cobertura.xml` to `artifacts/test-results/<suite>`, which CI uploads as `command-line-test-results`, also
   when a case failed. CI also runs the managed suites on Windows and macOS with `eng/test.sh --managed-only`, which skips

@@ -11,7 +11,7 @@ public sealed class CommandAppTester
     /// <summary>Initializes an application factory. Set deterministic ParseSettings in the factory.</summary>
     public CommandAppTester(Func<TestCommandConsole, CommandApp> createApp) => _createApp = createApp ?? throw new ArgumentNullException(nameof(createApp));
     /// <summary>
-    /// Gets or sets the factory of each run's console, for example an interactive one with queued prompt answers.
+    /// Gets the factory of each run's console, for example an interactive one with queued prompt answers.
     /// By default each run gets a new noninteractive <see cref="TestCommandConsole"/>.
     /// </summary>
     public Func<TestCommandConsole> CreateConsole { get; init; } = static () => new TestCommandConsole();
