@@ -208,6 +208,41 @@ class ReleaseCheck(unittest.TestCase):
         self.assertNotIn(['gh', 'release', 'create'], [args[:3] for args in calls])
 
 
+    def test_github_marks_0_y_z_and_prereleases_as_prereleases_and_a_stable_version_from_1_0_as_a_release(self):
+        for version in ['0.10.0', '0.7.0-preview.2', '1.0.0-rc.1', '1.0.0-rc.12', '1.0.1-rc.1', '1.0.0-rc.1+build.2']:
+            self.assertTrue(release.github_prerelease(version), version)
+        for version in ['1.0.0', '1.0.1', '1.1.0', '2.0.0', '1.0.0+build.2']:
+            self.assertFalse(release.github_prerelease(version), version)
+        self.assertIn('Would create the prerelease v1.0.0-rc.1', release.release_check('1.0.0-rc.1', SHA, self.fake()[0]))
+        self.assertIn('Would create the release v1.0.0', release.release_check('1.0.0', SHA, self.fake()[0]))
+        for version, flagged in [('0.10.0', True), ('1.0.0-rc.1', True), ('1.0.0', False)]:
+            run_command, calls = self.fake()
+            release.create_release(version, SHA, [f'p/A.{version}.nupkg'], run_command)
+            self.assertEqual('--prerelease' in calls[-1], flagged, version)
+            run_command, calls = self.fake(release_exists=True, draft=True, assets=[f'A.{version}.nupkg'])
+            release.create_release(version, SHA, [f'p/A.{version}.nupkg'], run_command)
+            self.assertIn(f'--prerelease={str(flagged).lower()}', calls[-1], version)
+
+
+class VersionRules(unittest.TestCase):
+    def test_the_workflow_accepts_0_y_z_release_candidates_and_stable_versions_from_1_0(self):
+        workflow = (ROOT / '.github/workflows/publish-preview.yml').read_text(encoding='utf-8')
+        self.assertIn('./eng/package-version.sh "$VERSION"', workflow)
+        for version in ['0.10.0', '1.0.0-rc.1', '1.0.0', '1.0.1', '1.1.0-rc.2']:
+            result = subprocess.run([str(ROOT / 'eng/package-version.sh'), version], capture_output=True, text=True)
+            self.assertEqual((result.returncode, result.stdout.strip()), (0, version))
+        for version in ['1.0', 'v1.0.0', '01.0.0', '1.0.0-']:
+            self.assertNotEqual(subprocess.run([str(ROOT / 'eng/package-version.sh'), version], capture_output=True, text=True).returncode, 0, version)
+
+    def test_from_1_0_the_validation_baseline_is_a_stable_release(self):
+        props = (ROOT / 'eng/Versions.props').read_text(encoding='utf-8')
+        version = re.search(r'<RunicCommandLineVersion>([^<]+)<', props).group(1)
+        baseline = re.search(r'<RunicCommandLinePackageValidationBaselineVersion>([^<]+)<', props).group(1)
+        # Through 1.0.0-rc.N the baseline stays at the last 0.y.z release; after 1.0.0 it is 1.0.0 (eng/release/README.md).
+        if not version.startswith('0.'):
+            self.assertNotIn('-', baseline, f'Package validation baseline {baseline} is a prerelease')
+
+
 class PublishDryRun(unittest.TestCase):
     def test_dry_run_never_pushes(self):
         with tempfile.TemporaryDirectory() as directory:

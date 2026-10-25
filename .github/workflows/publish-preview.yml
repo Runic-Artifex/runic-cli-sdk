@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Exact version (0.y.z until 1.0)
+        description: Exact version (0.y.z, x.y.z-rc.N, or a stable x.y.z from 1.0.0)
         required: true
         type: string
       dry-run:
@@ -159,7 +159,8 @@ jobs:
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: python3 eng/release/publish-nuget.py artifacts/packages https://api.nuget.org/v3/index.json "$NUGET_API_KEY"
-      - name: Create GitHub prerelease
+      # A prerelease for 0.y.z and every x.y.z-rc.N; a stable version from 1.0.0 is a full release.
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           SBOM: ${{ needs.candidate.outputs.sbom }}
