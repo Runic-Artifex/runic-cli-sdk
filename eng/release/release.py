@@ -6,7 +6,8 @@ prepare        check the downloaded packages against the version and commit; wri
 describe       write the CycloneDX SBOM of the packages (local, deterministic for a commit)
 verify         check packages against an inventory written by prepare, the version and the CI run
 release-check  check that tag and GitHub release do not belong to another commit (read-only)
-release        create the GitHub prerelease, or finish one that already exists for this commit
+release        create the GitHub release (a prerelease for 0.y.z and x.y.z-rc.N), or finish one that
+               already exists for this commit
 """
 import hashlib
 import json
@@ -106,6 +107,13 @@ def package_version(version):
     if not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?', version):
         raise ReleaseError(f'Version must be SemVer: {version}')
     return version.split('+', 1)[0]
+
+
+def github_prerelease(version):
+    """GitHub marks every release before 1.0 as a prerelease, and from 1.0 every version with a
+    prerelease suffix (1.0.0-rc.1); a stable version from 1.0.0 is a full release."""
+    version = package_version(version)
+    return version.startswith('0.') or '-' in version
 
 
 def scan(directory, version, commit):
@@ -231,7 +239,8 @@ def release_check(version, commit, run=subprocess.run):
         return f"Would resume the draft release v{version} for {commit} ({found.get('url')})."
     if found:
         return f"GitHub release v{version} already exists for {commit} ({found.get('url')}); a rerun keeps it."
-    return f'Would create the prerelease v{version} at {commit}.'
+    kind = 'prerelease' if github_prerelease(version) else 'release'
+    return f'Would create the {kind} v{version} at {commit}.'
 
 
 def create_release(version, commit, files, run=subprocess.run):
@@ -242,9 +251,11 @@ def create_release(version, commit, files, run=subprocess.run):
     # missing an asset (for example one created before the SBOM existed) is kept
     # as it is with a warning. The attestations still cover the missing files.
     tag = f'v{version}'
+    prerelease = github_prerelease(version)
     found = existing_release(version, commit, run)
     if found is None:
-        command = ['gh', 'release', 'create', tag, *files, '--repo', REPOSITORY, '--target', commit, '--prerelease', '--generate-notes']
+        command = ['gh', 'release', 'create', tag, *files, '--repo', REPOSITORY, '--target', commit,
+                   *(['--prerelease'] if prerelease else []), '--generate-notes']
     else:
         present = {asset.get('name') for asset in found.get('assets') or []}
         missing = [file for file in files if Path(file).name not in present]
@@ -257,7 +268,8 @@ def create_release(version, commit, files, run=subprocess.run):
             return f'GitHub release {tag} already exists for {commit}; kept unchanged without {names}.'
         if missing and run(['gh', 'release', 'upload', tag, *missing, '--repo', REPOSITORY]).returncode != 0:
             raise ReleaseError(f'Could not complete GitHub release {tag}.')
-        command = ['gh', 'release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--prerelease'] if found.get('isDraft') else None
+        command = ['gh', 'release', 'edit', tag, '--repo', REPOSITORY, '--draft=false',
+                   f'--prerelease={str(prerelease).lower()}'] if found.get('isDraft') else None
     if command and run(command).returncode != 0:
         raise ReleaseError(f'Could not {"create" if found is None else "publish"} GitHub release {tag}.')
     return f'{"Created" if found is None else "Completed"} GitHub release {tag} at {commit}.'

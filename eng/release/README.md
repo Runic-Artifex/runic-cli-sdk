@@ -6,7 +6,7 @@ Command Line releases its four NuGet packages together: `Runic.CommandLine`,
 does not have a public package identity.
 
 Record behavior changes that need consumer action in `eng/release/notes/<version>.md`.
-Set the version (`0.y.z` until 1.0) in `eng/Versions.props`, run `./eng/verify.sh`,
+Set the version (`0.y.z` until 1.0, then `1.0.0-rc.N` and `1.0.0`) in `eng/Versions.props`, run `./eng/verify.sh`,
 merge to `main` and wait for that commit's CI push run to succeed. Then dispatch
 **Publish preview** on `main` with the same version. Check **dry-run** first to run
 every check without publishing. The workflow keeps the name `publish-preview.yml`
@@ -43,8 +43,10 @@ files against `release-sha256` and the packages against the candidate inventory,
 requested version and CI run (`release.py verify`). Before anything is published
 it attests those verified bytes: `actions/attest-build-provenance` covers the four
 packages and the SBOM, and `actions/attest` attaches the SBOM to the packages. It
-then publishes only missing packages and creates the GitHub prerelease at the
-dispatched commit from those exact packages and the SBOM (`release.py release`). A
+then publishes only missing packages and creates the GitHub release at the
+dispatched commit from those exact packages and the SBOM (`release.py release`). It
+is a GitHub prerelease for `0.y.z` and every prerelease version (`1.0.0-rc.N`); a
+stable version from `1.0.0` is a full release (`github_prerelease`). A
 rerun after a partial publication keeps an existing release of this tag and
 commit; for a draft it uploads only missing assets and publishes it. A published
 release is never modified, since immutable releases reject new assets: if it lacks
@@ -105,7 +107,35 @@ In a pull request in this repository:
    at the top of that file); they sort before `0.8.0`.
 3. Set `RunicCommandLinePackageValidationBaselineVersion` in `eng/Versions.props`
    to the published version and delete any `CompatibilitySuppressions.xml` files,
-   which describe breaks from the old baseline.
+   which describe breaks from the old baseline. From 1.0 the baseline is only ever a
+   stable version (see [Release candidates and 1.0.0](#release-candidates-and-100)).
+
+### Release candidates and 1.0.0
+
+Command Line goes through `1.0.0-rc.N` to `1.0.0` first in the release train
+(Command Line, then Translations, then Runic SDK). An rc is a routine release with
+these rules:
+
+- The **Validate version** step accepts any SemVer version that matches the
+  committed `RunicCommandLineVersion`, so `1.0.0-rc.1` and `1.0.0` publish through
+  the same `publish-preview.yml` and `preview` environment.
+- An rc is a GitHub prerelease, and NuGet lists it as a prerelease, so consumers
+  without `--prerelease` keep the last `0.y.z` release. 1.0.0 is a full GitHub release.
+  A dry run reports `Would create the prerelease v1.0.0-rc.N` or
+  `Would create the release v1.0.0`.
+- `AnalyzerReleases` headers must be `System.Version` values, and `1.0.0` sorts before
+  any four-component `1.0.0.N`, so an rc has no header of its own: rule rows stay in
+  `AnalyzerReleases.Unshipped.md` through the rcs and move under `## Release 1.0.0`
+  when 1.0.0 ships (rcs take fixes only, so normally there are none).
+- After an rc, move the PublicAPI entries as above, but leave
+  `RunicCommandLinePackageValidationBaselineVersion` at the last `0.y.z` release:
+  from 1.0 the baseline is never a prerelease (`test_release.py` fails otherwise). An
+  rc takes no API or behaviour changes, so it needs no `CompatibilitySuppressions.xml`.
+- After 1.0.0: set the baseline to `1.0.0`, every `PublicAPI.Unshipped.txt` is empty,
+  delete every `CompatibilitySuppressions.xml` (from then on one is allowed only as
+  the shared policy describes), and remove the pre-1.0 wording ("until 1.0" in
+  `SECURITY.md`, `README.md` and the [versioning](#versioning-and-support-from-10)
+  section below).
 4. Set `RunicCommandLineVersion` to the next candidate and update the candidate
    and published versions named in `README.md` and `examples/command-line/README.md`.
 
@@ -178,7 +208,8 @@ registration from the SDK repository.
 
 ## Versioning and support from 1.0
 
-This policy takes effect with 1.0.0. Until then every release is a preview with a
+This policy takes effect with 1.0.0 (its release candidates follow
+[Release candidates and 1.0.0](#release-candidates-and-100)). Until then every release is a preview with a
 plain `0.y.z` version (from 0.8.0; earlier releases were `0.y.z-preview.N`): a new
 minor (`0.9.0`) may contain breaking changes, a patch (`0.8.1`) only fixes or adds,
 and only the latest minor gets fixes. Releases are still marked as prereleases on
