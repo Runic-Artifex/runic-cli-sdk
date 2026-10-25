@@ -174,8 +174,8 @@ argument (`hello '@greet.rsp'`), because a bare `@name` is splatting there.
 
 Expansion is bounded: a file holds at most 1 MiB, and all files of one command
 line together at most 4 MiB and 65,536 arguments. A file that breaks a bound,
-or cannot be read like a regular file, such as a FIFO, a pipe or a terminal,
-counts as unreadable. A file that cannot be read (`RCLI1017`), is not valid
+such as `/dev/zero`, counts as unreadable; a pipe, such as `@/dev/stdin`, is
+read like a file within the same bounds. A file that cannot be read (`RCLI1017`), is not valid
 UTF-8 (`RCLI1018`), has an unterminated quote (`RCLI1019`), is nested too
 deeply (`RCLI1020`) or names itself (`RCLI1021`) is a usage error, exit code 2,
 in the selected output format. Help lists `@<file>` with the options, and the
@@ -405,9 +405,11 @@ keep environment-dependent tests deterministic.
 
 Faults, diagnostics, and the lines of a `CommandTaskLog` or spinner are
 sanitized before they reach the terminal: control characters, ANSI sequences,
-and the bidirectional and invisible formatting characters that can reorder or
-hide text (such as U+202E RIGHT-TO-LEFT OVERRIDE) are removed or become a
-space. A payload's human output and `HumanOutput` are written as the command
+and the characters that can reorder or hide text (the bidirectional
+overrides, embeddings and isolates such as U+202E RIGHT-TO-LEFT OVERRIDE, the
+tag characters, and U+200B, U+2060 and U+FEFF) are removed or become a space.
+The joiners and direction marks that Persian, Indic and right-to-left text and
+emoji need (ZWNJ, ZWJ, LRM, RLM, ALM) are kept. A payload's human output and `HumanOutput` are written as the command
 gives them. Show untrusted text, such as a child's output or a user's input,
 in a `CommandTaskLog` or put it into a fault rather than into human output.
 

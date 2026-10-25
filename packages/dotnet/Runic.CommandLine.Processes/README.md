@@ -383,7 +383,7 @@ can expose credentials.
 Only the result's fault is normalized. The captured output
 (`ProcessResult.StandardOutput.Text`, `StandardError.Text`) and the data passed
 to `OnLineAsync` and `OnChunkAsync` are the child's own bytes: an untrusted tool
-can write terminal escape sequences or bidirectional formatting characters
+can write terminal escape sequences or bidirectional overrides
 into them. Show such output through a `CommandTaskLog`, which removes them,
 rather than writing it to the terminal or a command's human output directly.
 

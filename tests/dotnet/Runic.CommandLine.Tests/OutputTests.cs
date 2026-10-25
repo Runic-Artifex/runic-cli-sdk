@@ -434,7 +434,7 @@ internal sealed class OutputTests
     [Test, DisplayName("output/faults-and-diagnostics-neutralize-bidi-and-invisible-format-characters")]
     public ValueTask FormatCharactersAreNeutralized()
     {
-        const string Hostile = "report\u202Etxt.exe\u2066x\u2069\u200By\u200Dz\u2060\uFEFF\u061C\u200E\U000E0041end";
+        const string Hostile = "report\u202Etxt.exe\u2066x\u2069\u200By\u202Az\u2060\uFEFF\u202D\u2068\U000E0041end";
         var fault = new CommandFault("RAS1001", Hostile, new Dictionary<string, string> { ["file"] = Hostile, ["k\u202Eey"] = "v" });
         var diagnostic = new CommandDiagnostic(
             "RCLI2001", "invalid-value", Hostile, CommandDiagnosticPhase.Binding, CommandDiagnosticSeverity.Error, 2,
@@ -447,16 +447,18 @@ internal sealed class OutputTests
 
         byte[] frame = CommandJsonEnvelopeWriter.Serialize(response, TestJsonContext.Default.TestResult);
         string json = Encoding.UTF8.GetString(frame);
-        foreach (string escaped in new[] { "\\u202E", "\\u2066", "\\u2069", "\\u200B", "\\u200D", "\\u2060", "\\uFEFF", "\\u061C", "\\u200E", "\\uDB40" })
+        foreach (string escaped in new[] { "\\u202E", "\\u2066", "\\u2069", "\\u200B", "\\u202A", "\\u2060", "\\uFEFF", "\\u202D", "\\u2068", "\\uDB40" })
             AssertEx.True(!json.Contains(escaped, StringComparison.OrdinalIgnoreCase), "Expected no " + escaped + " in " + json);
         using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1));
         JsonElement written = document.RootElement.GetProperty("diagnostics")[0];
         AssertEx.Equal(Expected, written.GetProperty("message").GetString());
         AssertEx.Equal(Expected, written.GetProperty("arguments")[0].GetString());
 
-        // Ordinary text from other scripts, and emoji without joiners, is kept.
-        AssertEx.Equal("Ungültig – 日本語 ✓ שלום 👍", CommandResponse.Failure<TestResult>(
-            "req-text", "pack", 10, new CommandFault("RAS1001", "Ungültig – 日本語 ✓ שלום 👍")).Fault!.Message);
+        // Ordinary text from other scripts is kept, with the joiners and marks that Persian, Indic and right-to-left
+        // text and emoji sequences need: ZWNJ, ZWJ, LRM, RLM and ALM.
+        const string Legitimate = "Ungültig – 日本語 ✓ שלום\u200F (x) می\u200Cخواهم क्\u200D 👨\u200D👩 \u200Eabc\u061C";
+        AssertEx.Equal(Legitimate, CommandResponse.Failure<TestResult>(
+            "req-text", "pack", 10, new CommandFault("RAS1001", Legitimate)).Fault!.Message);
         return ValueTask.CompletedTask;
     }
 

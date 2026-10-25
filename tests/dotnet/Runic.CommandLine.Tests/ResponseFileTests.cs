@@ -197,18 +197,14 @@ internal sealed class ResponseFileTests
         AssertEx.Equal(256, (await RunAsync(["@" + System.IO.Path.Combine(directory.Path, "small-0.rsp")])).Words!.Length);
     }
 
-    // SEC-41: a device or FIFO is not a response file. /dev/zero would be read without end, and opening a FIFO
-    // would block until a writer appears.
-    [Test, DisplayName("response-files/devices-and-fifos-are-unreadable")]
-    public async ValueTask DevicesAndFifosAreUnreadable()
+    // SEC-41: a device or pipe is read in chunks within the size bound: /dev/zero fails fast, and a FIFO that is
+    // written to is read like a file.
+    [Test, DisplayName("response-files/devices-hit-the-size-bound-and-fifos-are-read")]
+    public async ValueTask DevicesAndFifos()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            AssertUsageError(await RunAsync(["@CON"]).AsTask().WaitAsync(TimeSpan.FromSeconds(30)), "RCLI1017", "response-file-unreadable", 0, "CON");
-            return;
-        }
-
+        if (OperatingSystem.IsWindows()) return;
         AssertUsageError(await RunAsync(["@/dev/zero"]).AsTask().WaitAsync(TimeSpan.FromSeconds(30)), "RCLI1017", "response-file-unreadable", 0, "/dev/zero");
+
         using var directory = new TemporaryDirectory();
         string fifo = System.IO.Path.Combine(directory.Path, "pipe.rsp");
         using (var mkfifo = System.Diagnostics.Process.Start("mkfifo", [fifo]))
@@ -217,7 +213,57 @@ internal sealed class ResponseFileTests
             AssertEx.Equal(0, mkfifo.ExitCode);
         }
 
-        AssertUsageError(await RunAsync(["@" + fifo]).AsTask().WaitAsync(TimeSpan.FromSeconds(30)), "RCLI1017", "response-file-unreadable", 0, "pipe.rsp");
+        // One run reads the FIFO once; a second writer could open it before the first reader closed it.
+        Task writer = Task.Run(async () =>
+        {
+            await using var stream = new FileStream(fifo, FileMode.Open, FileAccess.Write);
+            await stream.WriteAsync(Utf8.GetBytes("from \"the fifo\"\n"));
+        });
+        Run run = await RunOnceAsync(["@" + fifo], responseFiles: true, ParseSettings.Default).AsTask().WaitAsync(TimeSpan.FromSeconds(30));
+        await writer.WaitAsync(TimeSpan.FromSeconds(30));
+        AssertEx.Equal(0, run.ExitCode, run.StandardError);
+        AssertEx.SequenceEqual(["from", "the fifo"], run.Words!);
+    }
+
+    // SEC-41: @/dev/stdin reads arguments from a pipe, as before the bounds.
+    [Test, DisplayName("response-files/piped-standard-input-is-read")]
+    public async ValueTask PipedStandardInput()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (string argument in new[] { ChildSwitch, "first", "@/dev/stdin", "last" }) start.ArgumentList.Add(argument);
+        using var child = System.Diagnostics.Process.Start(start)!;
+        Task<string> output = child.StandardOutput.ReadToEndAsync();
+        Task<string> error = child.StandardError.ReadToEndAsync();
+        await child.StandardInput.WriteAsync("piped \"two words\"\n");
+        child.StandardInput.Close();
+        await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
+        AssertEx.Equal(0, child.ExitCode, await error);
+        // The command's own human output comes first, then the words the child printed.
+        string text = await output;
+        AssertEx.True(text.EndsWith("\nfirst|piped|two words|last\n", StringComparison.Ordinal), text);
+    }
+
+    private const string ChildSwitch = "--response-file-child";
+
+    public static bool IsChildInvocation(string[] args) => args.Length >= 1 && args[0] == ChildSwitch;
+
+    // Runs the response-file catalog on the real console and prints the words it received.
+    public static async Task<int> RunChildAsync(string[] args)
+    {
+        string[]? received = null;
+        int exitCode = await new CommandApp(Catalog(responseFiles: true, words => received = words))
+        {
+            Name = "fixture", ParseSettings = ParseSettings.Default, HandleTerminationSignals = false,
+        }.RunAsync(args[1..]);
+        if (received is not null) Console.Out.Write(string.Join('|', received) + "\n");
+        return exitCode;
     }
 
     [Test, DisplayName("response-files/an-unterminated-quote-is-a-usage-error")]

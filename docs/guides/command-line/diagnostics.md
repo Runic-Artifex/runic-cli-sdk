@@ -345,9 +345,10 @@ the JSON alias with a value, as in `--json=true`, is `RCLI1004`.
 
 `response-file-unreadable`: a response file could not be read. It does not
 exist, is a directory, cannot be opened, or its name is not a valid path. It
-also covers a file that is not seekable, such as a FIFO, a pipe or a terminal,
-and expansion past its bounds: a file of more than 1 MiB, or more than 4 MiB or
-65,536 arguments from all response files of the command line together. Only
+also covers expansion past its bounds: a file of more than 1 MiB, such as
+`/dev/zero`, or more than 4 MiB or 65,536 arguments from all response files of
+the command line together. A pipe, such as `@/dev/stdin`, is read like a file
+within the same bounds. Only
 applications that declare `CommandCatalogBuilder.ResponseFiles()` read
 response files; see [response files](#response-files). The argument is the
 file name as written after `@`, or only its last segment when it names a home

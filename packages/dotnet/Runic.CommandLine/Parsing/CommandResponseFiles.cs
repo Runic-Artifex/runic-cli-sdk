@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
-using Microsoft.Win32.SafeHandles;
 
 namespace Runic.CommandLine;
 
@@ -19,9 +17,9 @@ namespace Runic.CommandLine;
 /// itself a response file, resolved against the directory of the file that names it; <c>@@</c> stands for a
 /// literal leading <c>@</c> and a lone <c>@</c> is literal. Files nest at most 16 levels and may not include
 /// themselves. Expansion is bounded: a file holds at most 1 MiB, and all files together at most 4 MiB and 65,536
-/// arguments, so that files naming each other several times cannot grow the arguments exponentially. Only
-/// seekable files are read: a FIFO, a pipe or a terminal is unreadable, and on Unix it is opened without
-/// blocking. A file that breaks a bound is unreadable (<c>RCLI1017</c>).
+/// arguments, so that files naming each other several times cannot grow the arguments exponentially. A file is
+/// read in chunks until a bound is exceeded, so a pipe such as <c>@/dev/stdin</c> works and <c>/dev/zero</c> fails
+/// fast. A file that breaks a bound is unreadable (<c>RCLI1017</c>).
 /// </remarks>
 internal static class CommandResponseFiles
 {
@@ -140,13 +138,13 @@ internal static class CommandResponseFiles
         }
     }
 
-    // Reads at most limit bytes; returns null when the file holds more or is not seekable (a FIFO, pipe, socket or
-    // terminal), so that /dev/zero or a FIFO cannot exhaust memory or block the parser.
+    // Reads in chunks and stops as soon as the file holds more than limit bytes, so /dev/zero or an endless pipe
+    // ends with RCLI1017 instead of exhausting memory. A pipe or FIFO is read like a file, as cat reads it; a FIFO
+    // without a writer blocks until one opens it.
     private static byte[]? ReadBounded(string path, int limit)
     {
         if (path.Contains('\0', StringComparison.Ordinal)) return null;
-        using FileStream stream = Open(path);
-        if (!stream.CanSeek) return null;
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
         var buffer = new byte[Math.Min(limit, 64 * 1024) + 1];
         int length = 0;
         while (true)
@@ -167,68 +165,10 @@ internal static class CommandResponseFiles
         return buffer;
     }
 
-    private static FileStream Open(string path)
-    {
-        // Opening a FIFO for reading blocks until a writer opens it, so on Unix the file is opened with O_NONBLOCK
-        // (and O_NOCTTY, so a terminal never becomes the controlling one); the seekable check then rejects it.
-        if (!OperatingSystem.IsWindows() && NonBlockingOpen.TryOpen(path) is { } handle)
-        {
-            try { return new FileStream(handle, FileAccess.Read, bufferSize: 0); }
-            catch
-            {
-                handle.Dispose();
-                throw;
-            }
-        }
-
-        return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
-    }
-
     private sealed class Budget
     {
         internal int Bytes;
         internal int Tokens;
-    }
-
-    // open(2) resolved from the running process, which has the C library loaded on every Unix (glibc, musl, macOS).
-    private static unsafe class NonBlockingOpen
-    {
-        private static readonly delegate* unmanaged<byte*, int, int> OpenFunction = Resolve();
-
-        // O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC; null on another Unix, which falls back to a blocking open.
-        private static readonly int? Flags =
-            OperatingSystem.IsLinux() ? 0x800 | 0x100 | 0x80000 :
-            OperatingSystem.IsMacOS() ? 0x4 | 0x20000 | 0x1000000 :
-            null;
-
-        /// <summary>Opens the file for reading; null when the call is unavailable, so the caller opens it itself.</summary>
-        /// <exception cref="IOException">The file cannot be opened.</exception>
-        internal static SafeFileHandle? TryOpen(string path)
-        {
-            if (OpenFunction is null || Flags is not int flags) return null;
-            int length = Encoding.UTF8.GetByteCount(path);
-            byte[] buffer = new byte[length + 1];
-            _ = Encoding.UTF8.GetBytes(path, buffer);
-            int descriptor;
-            fixed (byte* name = buffer) descriptor = OpenFunction(name, flags);
-            if (descriptor < 0) throw new IOException("The response file could not be opened.");
-            return new SafeFileHandle(descriptor, ownsHandle: true);
-        }
-
-        private static delegate* unmanaged<byte*, int, int> Resolve()
-        {
-            if (OperatingSystem.IsWindows()) return null;
-            try
-            {
-                return NativeLibrary.TryGetExport(NativeLibrary.GetMainProgramHandle(), "open", out IntPtr address)
-                    ? (delegate* unmanaged<byte*, int, int>)address
-                    : null;
-            }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
-            {
-                return null;
-            }
-        }
     }
 
     // Returns null for an unterminated quote.

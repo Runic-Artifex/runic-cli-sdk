@@ -401,11 +401,11 @@ internal sealed partial class PromptTests
         AssertEx.Equal(0, await App(console, async (prompts, token) =>
         {
             await using CommandTaskLog log = await prompts.StartTaskLogAsync("Bu\u202Eild", cancellationToken: token);
-            await log.WriteLineAsync("FAIL\u2066\u2067 OK\u2069 \u200Bdone\uFEFF\U000E0041 👍", token);
+            await log.WriteLineAsync("FAIL\u2066\u2067 OK\u2069 \u200Bdone\uFEFF\U000E0041 👨\u200D👩 می\u200Cخواهم", token);
             await log.FailAsync("bad\u202E", cancellationToken: token);
             return "ok";
         }).RunAsync(["ask"]));
-        AssertEx.Equal("Build\nFAIL OK done 👍\nBuild: bad\n", console.StandardError);
+        AssertEx.Equal("Build\nFAIL OK done 👨\u200D👩 می\u200Cخواهم\nBuild: bad\n", console.StandardError);
     }
 
     [Test, DisplayName("prompts/task-log-shows-recent-lines-and-clears-them-on-success")]

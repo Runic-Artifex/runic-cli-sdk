@@ -181,9 +181,9 @@ internal sealed class ParserAdversarialTests
         ParseOutcome unknownCommand = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["mis\uFEFFsing"], ParseSettings.Default);
         AssertEx.SequenceEqual(["<invalid>"], unknownCommand.Diagnostics.Single().Arguments);
 
-        // Other scripts are echoed as given.
-        ParseOutcome readable = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["check", "--größe"], ParseSettings.Default);
-        AssertEx.SequenceEqual(["--größe"], readable.Diagnostics.Single().Arguments);
+        // Other scripts are echoed as given, with their joiners.
+        ParseOutcome readable = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["check", "--größe-می\u200Cخواهم"], ParseSettings.Default);
+        AssertEx.SequenceEqual(["--größe-می\u200Cخواهم"], readable.Diagnostics.Single().Arguments);
         return ValueTask.CompletedTask;
     }
 

@@ -120,14 +120,16 @@ internal static class CommandFaultSanitizer
     }
 
     /// <summary>
-    /// Whether a code point reorders or hides text on a terminal or in a viewer, as in Trojan Source spoofing:
-    /// the Bidi_Control characters, the zero-width and invisible formatting characters, and the tag characters.
-    /// The JSON encoder escapes the same characters (see <see cref="CommandJsonEncoding"/>); text written to a
-    /// terminal treats them like control characters.
+    /// Whether a code point can spoof text on a terminal or in a viewer, as in Trojan Source: the bidirectional
+    /// embeddings, overrides and isolates (U+202A–U+202E, U+2066–U+2069), the invisible tag characters
+    /// (U+E0000–U+E007F), and the zero-width space and no-break spaces that hide a break inside a word
+    /// (U+200B, U+2060, U+FEFF). Text written to a terminal treats them like control characters. ZWNJ, ZWJ,
+    /// LRM, RLM and ALM (U+200C–U+200F, U+061C) are kept: Persian, Indic and right-to-left text and emoji
+    /// sequences need them. The JSON encoder still escapes all of them (see <see cref="CommandJsonEncoding"/>).
     /// </summary>
     internal static bool IsInvisibleFormatCharacter(int value) =>
-        value is 0x061C or (>= 0x200B and <= 0x200F) or (>= 0x202A and <= 0x202E) or 0x2060 or
-            (>= 0x2066 and <= 0x2069) or 0xFEFF or (>= 0xE0000 and <= 0xE007F);
+        value is 0x200B or (>= 0x202A and <= 0x202E) or 0x2060 or (>= 0x2066 and <= 0x2069) or 0xFEFF or
+            (>= 0xE0000 and <= 0xE007F);
 
     private static string SanitizeScalar(string value, int maximumLength, bool neutralizeFormatCharacters)
     {

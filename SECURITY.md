@@ -38,9 +38,11 @@ to bypass one is in scope for a report:
 - **Fault sanitizer.** A writer sanitizes every fault before output, human or
   JSON, and diagnostic arguments exclude raw token values unless a command
   marks them safe. Control characters, Unicode line separators, and the
-  bidirectional and invisible formatting characters that can reorder or hide
-  text on a terminal (such as U+202E RIGHT-TO-LEFT OVERRIDE, U+200B ZERO WIDTH
-  SPACE and U+FEFF) become a space. The check for technical content is a
+  characters that can reorder or hide text on a terminal become a space: the
+  bidirectional embeddings, overrides and isolates (U+202A–U+202E,
+  U+2066–U+2069), the tag characters (U+E0000–U+E007F), and U+200B, U+2060 and
+  U+FEFF. The joiners and direction marks that Persian, Indic and
+  right-to-left text and emoji need (U+200C–U+200F, U+061C) are kept. The check for technical content is a
   heuristic, not a guarantee; the
   [protocol](specs/command-line/protocol/README.md#diagnostic-object) lists
   what it matches and what producers must keep out of faults themselves.
@@ -61,8 +63,9 @@ to bypass one is in scope for a report:
 - **Response files.** An application that declares
   `CommandCatalogBuilder.ResponseFiles()` expands `@file` arguments within
   bounds: 16 nesting levels, 1 MiB per file, and 4 MiB and 65,536 arguments in
-  total. Only seekable files are read, so a FIFO, a pipe or a terminal is
-  unreadable (`RCLI1017`); on Unix it is opened without blocking.
+  total. Files are read in chunks and reading stops once a bound is exceeded
+  (`RCLI1017`), so `@/dev/zero` fails fast while `@/dev/stdin` from a pipe
+  works; a FIFO without a writer blocks, as `cat` would.
 - **Executable policy.** `Runic.CommandLine.Processes` starts children without
   a shell, evaluates every request with `IExecutablePolicy`, and rejects
   Windows batch files without an opt-in and, with it, arguments that `cmd.exe`
