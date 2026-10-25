@@ -30,6 +30,30 @@ repositories:
 [runic-translations-sdk](https://github.com/Runic-Artifex/runic-translations-sdk/security) and
 [runic-site](https://github.com/Runic-Artifex/runic-site/security).
 
+## Security-relevant behaviour
+
+Runic tools and applications rely on these behaviours of the packages; a way
+to bypass one is in scope for a report:
+
+- **Fault sanitizer.** A writer sanitizes every fault before output, human or
+  JSON, and diagnostic arguments exclude raw token values unless a command
+  marks them safe. The check for technical content is a heuristic, not a
+  guarantee; the
+  [protocol](specs/command-line/protocol/README.md#diagnostic-object) lists
+  what it matches and what producers must keep out of faults themselves.
+- **Executable policy.** `Runic.CommandLine.Processes` starts children without
+  a shell, evaluates every request with `IExecutablePolicy`, and rejects
+  Windows batch files without an opt-in and, with it, arguments that `cmd.exe`
+  would interpret (`RCLI6001`–`RCLI6008`); see
+  [security and failure behavior](packages/dotnet/Runic.CommandLine.Processes/README.md#security-and-failure-behavior).
+- **Environment inheritance.** A child inherits the parent environment unless
+  `InheritEnvironment` is false; see
+  [standard input and environment](packages/dotnet/Runic.CommandLine.Processes/README.md#standard-input-and-environment).
+- **Termination signals.** `CommandApp` cancels the invocation on the first
+  termination signal and exits at once on a repeated one unless the command
+  holds a shutdown protection scope; see the
+  [Runic.CommandLine README](packages/dotnet/Runic.CommandLine/README.md#presentation-and-testing).
+
 ## Verifying releases
 
 Every published NuGet package and GitHub release asset has a signed

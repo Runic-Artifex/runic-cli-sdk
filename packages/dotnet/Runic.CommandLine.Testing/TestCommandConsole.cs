@@ -71,7 +71,7 @@ public sealed class TestCommandConsole : ICommandConsole, ICommandTerminal
     /// <inheritdoc />
     public bool IsErrorRedirected { get; init; } = true;
 
-    /// <summary>Gets or sets whether prompts redraw with ANSI and read keys rather than lines. False by default.</summary>
+    /// <summary>Gets whether prompts redraw with ANSI and read keys rather than lines. False by default.</summary>
     public bool SupportsAnsi { get; init; }
     /// <inheritdoc />
     public bool SupportsUnicode { get; init; } = true;

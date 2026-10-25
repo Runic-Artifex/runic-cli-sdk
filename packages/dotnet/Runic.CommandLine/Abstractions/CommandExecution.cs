@@ -77,7 +77,7 @@ public sealed class CommandExecutionContext
     public CommandOutputMode OutputMode { get; }
 
     /// <summary>
-    /// Gets or sets what JSON output contains when <see cref="OutputMode"/> is <see cref="CommandOutputMode.Json"/>:
+    /// Gets what JSON output contains when <see cref="OutputMode"/> is <see cref="CommandOutputMode.Json"/>:
     /// <see cref="JsonOutputShape.Payload"/> when the command line gave a JSON output alias declared with that
     /// shape. The default is <see cref="JsonOutputShape.Envelope"/>.
     /// </summary>
@@ -97,7 +97,7 @@ public sealed class CommandExecutionContext
     public string CorrelationId { get; }
 
     /// <summary>
-    /// Gets or sets the application's text resolver, which <see cref="CommandPrompts"/> uses for framework prompt text.
+    /// Gets the application's text resolver, which <see cref="CommandPrompts"/> uses for framework prompt text.
     /// Handlers can resolve their own prompt messages with <c>new CommandTextContext(context.Culture, context.TextResolver)</c>.
     /// </summary>
     public ICommandTextResolver? TextResolver { get; init; }
