@@ -66,7 +66,8 @@ Limits below count UTF-8 bytes after JSON decoding, not UTF-16 code units or
 escaped source characters.
 
 - `requestId` is 1 to 128 UTF-8 bytes. It is opaque, is never interpreted as
-  authorization or executable input, and MUST contain no Unicode control,
+  authorization or executable input, and MUST contain no Unicode control
+  character (see [Unicode control characters](#unicode-control-characters)),
   whitespace, surrogate, or noncharacter scalar. A caller-supplied invalid ID
   is rejected before execution; a dispatcher otherwise generates one.
 - `command` is 1 to 512 UTF-8 bytes and matches
@@ -194,11 +195,36 @@ Fault messages, fault details, diagnostic messages, and diagnostic arguments
 are consumer-safe surfaces. They MUST NOT contain secrets, original values of
 sensitive options, stack traces, exception type names, environment-variable
 values, absolute internal paths, line breaks, terminal controls, or Unicode
-control characters. Unexpected exceptions are logged only to an authorized
+control characters (see below). Unexpected exceptions are logged only to an authorized
 diagnostic sink and map to the sanitized `RCLI5000` host fault. A developer
 opt-in, such as the .NET host's `RUNIC_COMMANDLINE_DEBUG=1` or
 `DOTNET_ENVIRONMENT=Development`, MAY make stderr such a sink; stdout, the
 frame and its fault remain unchanged.
+
+### Unicode control characters
+
+In this protocol, the Unicode control characters are:
+
+- the C0 and C1 controls and DEL (U+0000–U+001F, U+007F–U+009F), and the line
+  and paragraph separators U+2028 and U+2029;
+- the bidirectional embeddings and overrides U+202A–U+202E (LRE, RLE, PDF, LRO,
+  RLO) and the isolates U+2066–U+2069 (LRI, RLI, FSI, PDI);
+- the tag characters U+E0000–U+E007F;
+- the zero-width space U+200B, the word joiner U+2060 and the zero-width
+  no-break space or byte order mark U+FEFF.
+
+They can reorder or hide text on a terminal or in a viewer, as in Trojan Source.
+A writer replaces each run of them in a consumer-safe surface with one space.
+A strict reader rejects a response that carries one in a fault message or
+detail key or value (`unsafe-fault-content`), a diagnostic message or argument
+(`unsafe-diagnostic-content`), or the `requestId` (`invalid-request-id`). The
+zero-width non-joiner U+200C, the zero-width joiner U+200D, the direction marks
+U+200E (LRM) and U+200F (RLM) and the Arabic letter mark U+061C are not control
+characters: Persian, Indic and right-to-left text and emoji sequences need
+them. The .NET writer also escapes the joiners and marks, like the control
+characters, as `\uXXXX` in JSON strings, so a frame never shows them raw.
+
+### Fault sanitization
 
 A writer sanitizes each fault before output, human or JSON. Its check for
 technical content is a heuristic, not a guarantee: it matches only the

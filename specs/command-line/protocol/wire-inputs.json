@@ -74,6 +74,11 @@
       "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
     },
     {
+      "id": "wire.raw-bidi-override",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtMTciLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6ZmFsc2UsImV4aXRDb2RlIjoxMCwicGF5bG9hZFR5cGUiOm51bGwsInBheWxvYWQiOm51bGwsImZhdWx0Ijp7ImNvZGUiOiJSQ0xJMzAwMCIsIm1lc3NhZ2UiOiJQYWNrZWQgcmVwb3J04oCudHh0LmV4ZSIsImRldGFpbHMiOnt9LCJyZXRyeWFibGUiOmZhbHNlfSwiZGlhZ25vc3RpY3MiOltdfQo=",
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
+    },
+    {
       "id": "wire.excessive-depth",
       "wireUtf8Base64": "eyJ4IjpbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1swXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dfQo=",
       "expected": { "kind": "protocol-error", "reason": "json-depth-limit" }

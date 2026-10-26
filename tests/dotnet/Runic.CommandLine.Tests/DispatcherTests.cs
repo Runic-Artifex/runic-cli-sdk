@@ -357,6 +357,14 @@ internal sealed class DispatcherTests
             _ = new CommandExecutionRequest(invocation, console, CultureInfo.InvariantCulture, "bad\ud800"));
         AssertEx.Throws<ArgumentException>(() =>
             _ = new CommandExecutionRequest(invocation, console, CultureInfo.InvariantCulture, "bad\ufdd0"));
+        // SEC-40: the protocol's Unicode control characters include bidi, zero-width and tag characters.
+        foreach (string hostile in new[] { "bad\u202e", "bad\u2066", "bad\u200b", "bad\u2060", "bad\ufeff", "bad\U000E0041" })
+        {
+            AssertEx.Throws<ArgumentException>(() =>
+                _ = new CommandExecutionRequest(invocation, console, CultureInfo.InvariantCulture, hostile));
+        }
+
+        _ = new CommandExecutionRequest(invocation, console, CultureInfo.InvariantCulture, "id\u200c\u200d\u200e\u200f\u061c");
 
         return ValueTask.CompletedTask;
     }

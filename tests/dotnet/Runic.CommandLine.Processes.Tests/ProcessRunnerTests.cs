@@ -417,22 +417,21 @@ internal sealed class ProcessRunnerTests
         var policy = new CountingAllowPolicy();
         var runner = new ProcessRunner(policy, null, null, platform);
         var options = new ProcessExecutionOptions { InheritEnvironment = false };
-        await runner.RunAsync(new ProcessRequest("rcli-nonexistent-tool", options: options)).ConfigureAwait(false);
-        TestAssert.Equal(Path.GetFullPath("rcli-nonexistent-tool"), policy.LastFileName);
+        ProcessResult unresolved = await runner.RunAsync(new ProcessRequest("rcli-nonexistent-tool", options: options))
+            .ConfigureAwait(false);
+        TestAssert.Equal(ProcessState.StartFailed, unresolved.State);
+        TestAssert.Equal(ProcessStartFailureCategory.NotFound, unresolved.StartFailureCategory);
+        TestAssert.Equal(0, policy.EvaluationCount);
         await runner.RunAsync(new ProcessRequest("rcli-nonexistent-tool", environment:
             new Dictionary<string, string?> { ["PATH"] = "/explicit-tools" }, options: options)).ConfigureAwait(false);
         TestAssert.Equal(Path.GetFullPath("/explicit-tools/rcli-nonexistent-tool"), policy.LastFileName);
 
         string? previousPath = Environment.GetEnvironmentVariable("PATH");
-        // An isolated bare name resolves against the current directory, and TUnit runs the cases in the
-        // directory of this executable, so leave it while the executable must not be found.
-        string previousDirectory = Environment.CurrentDirectory;
         try
         {
             string name = Path.GetFileName(ChildProcessFixture.ExecutablePath);
             string directory = Path.GetDirectoryName(ChildProcessFixture.ExecutablePath)!;
             Environment.SetEnvironmentVariable("PATH", directory);
-            Environment.CurrentDirectory = Path.GetTempPath();
             ProcessResult isolated = await CreateRunner().RunAsync(new ProcessRequest(name,
                 ChildProcessFixture.CreateArguments("pressure", "1", "1", "0"),
                 environment: RuntimeEnvironment(), options: options)).ConfigureAwait(false);
@@ -444,12 +443,127 @@ internal sealed class ProcessRunnerTests
                 ChildProcessFixture.CreateArguments("pressure", "1", "1", "0"),
                 environment: environment, options: options)).ConfigureAwait(false);
             AssertExited(supplied, 0);
+            ProcessResult inherited = await CreateRunner().RunAsync(new ProcessRequest(name,
+                ChildProcessFixture.CreateArguments("pressure", "1", "1", "0"))).ConfigureAwait(false);
+            AssertExited(inherited, 0);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", previousPath);
+        }
+    }
+
+    // SEC-38: the fixture executable lies in the current directory, which is also the application directory. A bare
+    // name that no absolute PATH entry provides is not found there, with or without the inherited environment, and
+    // a "." entry in PATH does not bring the current directory back. An explicit relative path still runs.
+    [Test, DisplayName("bare names never run from the current or application directory")]
+    public async Task BareNameDoesNotRunFromCurrentDirectoryAsync()
+    {
+        string name = Path.GetFileName(ChildProcessFixture.ExecutablePath);
+        string directory = Path.GetDirectoryName(ChildProcessFixture.ExecutablePath)!;
+        string emptyDirectory = Path.Combine(Path.GetTempPath(), "runic-path-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(emptyDirectory);
+        string? previousPath = Environment.GetEnvironmentVariable("PATH");
+        string previousDirectory = Environment.CurrentDirectory;
+        try
+        {
+            Environment.CurrentDirectory = directory;
+            var observer = new RecordingObserver();
+            var runner = new ProcessRunner(new LocalExecutablePolicy(), observer);
+            string[] arguments = ChildProcessFixture.CreateArguments("pressure", "1", "1", "0");
+            foreach (string path in new[] { emptyDirectory, ".", string.Empty })
+            {
+                Environment.SetEnvironmentVariable("PATH", path.Length == 0 ? null : path);
+                foreach (bool inherit in new[] { true, false })
+                {
+                    var environment = RuntimeEnvironment();
+                    environment["PATH"] = path.Length == 0 ? null : path;
+                    var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(30)) { InheritEnvironment = inherit };
+                    ProcessResult result = await runner.RunAsync(new ProcessRequest(
+                        name, arguments, environment: inherit ? null : environment, options: options)).ConfigureAwait(false);
+                    TestAssert.Equal(ProcessState.StartFailed, result.State);
+                    TestAssert.Equal(ProcessStartFailureCategory.NotFound, result.StartFailureCategory);
+                    TestAssert.Equal(ProcessFaultCodes.StartFailed, result.Fault!.Code);
+                }
+            }
+
+            TestAssert.Equal(0, observer.StartedCount);
+            Environment.SetEnvironmentVariable("PATH", previousPath);
+            AssertExited(await runner.RunAsync(new ProcessRequest("./" + name, arguments)).ConfigureAwait(false), 0);
+            Environment.CurrentDirectory = Path.GetDirectoryName(directory)!;
+            AssertExited(await runner.RunAsync(new ProcessRequest(
+                Path.GetFileName(directory) + "/" + name, arguments)).ConfigureAwait(false), 0);
         }
         finally
         {
             Environment.SetEnvironmentVariable("PATH", previousPath);
             Environment.CurrentDirectory = previousDirectory;
+            Directory.Delete(emptyDirectory);
         }
+    }
+
+    // SEC-38 on Windows: CreateProcess would find "tool" as tool.exe in the application or current directory before
+    // PATH. The runner resolves the name through PATH and PATHEXT itself and passes CreateProcess a full path.
+    [Test, DisplayName("windows bare name present only in the current directory is not found")]
+    public async Task WindowsBareNameInCurrentDirectoryIsNotFoundAsync()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        string directory = Path.GetDirectoryName(ChildProcessFixture.ExecutablePath)!;
+        string name = Path.GetFileNameWithoutExtension(ChildProcessFixture.ExecutablePath);
+        string[] arguments = ChildProcessFixture.CreateArguments("pressure", "1", "1", "0");
+        string previousDirectory = Environment.CurrentDirectory;
+        try
+        {
+            Environment.CurrentDirectory = directory;
+            var observer = new RecordingObserver();
+            var runner = new ProcessRunner(new LocalExecutablePolicy(), observer);
+            var systemOnly = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["PATH"] = Environment.SystemDirectory,
+                ["PATHEXT"] = ".COM;.EXE",
+            };
+            ProcessResult result = await runner.RunAsync(new ProcessRequest(name, arguments, environment: systemOnly))
+                .ConfigureAwait(false);
+            TestAssert.Equal(ProcessState.StartFailed, result.State);
+            TestAssert.Equal(ProcessStartFailureCategory.NotFound, result.StartFailureCategory);
+            TestAssert.Equal(0, observer.StartedCount);
+
+            AssertExited(await runner.RunAsync(new ProcessRequest(@".\" + name + ".exe", arguments)).ConfigureAwait(false), 0);
+            var withDirectory = new Dictionary<string, string?>(systemOnly, StringComparer.OrdinalIgnoreCase)
+            {
+                ["PATH"] = Environment.SystemDirectory + ";" + directory,
+            };
+            AssertExited(await runner.RunAsync(new ProcessRequest(name, arguments, environment: withDirectory))
+                .ConfigureAwait(false), 0);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = previousDirectory;
+        }
+    }
+
+    [Test, DisplayName("unresolved bare names are not found before the policy runs")]
+    public async Task UnresolvedBareNameIsNotFoundAsync()
+    {
+        var policy = new CountingAllowPolicy();
+        var observer = new RecordingObserver();
+        var platform = new ProcessPlatform(false, static _ => true, static _ => ".:bin");
+        var runner = new ProcessRunner(policy, observer, null, platform);
+
+        ProcessResult result = await runner.RunAsync(new ProcessRequest("gh")).ConfigureAwait(false);
+
+        TestAssert.Equal(ProcessState.StartFailed, result.State);
+        TestAssert.Equal(ProcessStartFailureCategory.NotFound, result.StartFailureCategory);
+        TestAssert.Equal(ProcessFaultCodes.StartFailed, result.Fault!.Code);
+        TestAssert.Equal(0, policy.EvaluationCount);
+        TestAssert.SequenceEqual(StartFailedCompletion, observer.Events);
+
+        await runner.RunAsync(new ProcessRequest("./gh")).ConfigureAwait(false);
+        TestAssert.Equal(Path.GetFullPath("./gh"), policy.LastFileName);
     }
 
     [Test, DisplayName("timeout terminates the child and is distinct")]

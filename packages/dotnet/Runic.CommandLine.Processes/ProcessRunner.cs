@@ -78,7 +78,7 @@ public sealed class ProcessRunner : IProcessRunner
                 startedAt);
         }
 
-        ProcessRequest effectiveRequest;
+        ProcessRequest? effectiveRequest;
         try
         {
             effectiveRequest = ResolveRequest(request);
@@ -86,6 +86,13 @@ public sealed class ProcessRunner : IProcessRunner
         catch (Exception exception) when (!IsFatal(exception))
         {
             return StartFailed(ProcessStartFailureCategory.InvalidRequest, startedAt);
+        }
+
+        if (effectiveRequest is null)
+        {
+            // SEC-38: a bare name that no PATH entry provides is not found. The runner never passes a bare name on,
+            // so neither the operating system nor Process.Start can find it in the current or application directory.
+            return StartFailed(ProcessStartFailureCategory.NotFound, startedAt);
         }
 
         CommandFault? batchFault = ValidateBatchFile(effectiveRequest);
@@ -283,9 +290,14 @@ public sealed class ProcessRunner : IProcessRunner
             startedAt);
     }
 
-    private ProcessRequest ResolveRequest(ProcessRequest request)
+    private ProcessRequest? ResolveRequest(ProcessRequest request)
     {
-        string resolvedFileName = ResolveExecutable(request);
+        string? resolvedFileName = ResolveExecutable(request);
+        if (resolvedFileName is null)
+        {
+            return null;
+        }
+
         if (string.Equals(resolvedFileName, request.FileName, StringComparison.Ordinal))
         {
             return request;
@@ -299,7 +311,11 @@ public sealed class ProcessRunner : IProcessRunner
             request.Options);
     }
 
-    private string ResolveExecutable(ProcessRequest request)
+    // A name with a directory separator is a path the caller chose, so "./tool" and "bin/tool" resolve against the
+    // current directory. A bare name resolves only through the absolute entries of the effective PATH (and PATHEXT
+    // on Windows); null means it was not found. Relative PATH entries such as "." are skipped, so a bare name never
+    // resolves to the current directory (SEC-38).
+    private string? ResolveExecutable(ProcessRequest request)
     {
         if (Path.IsPathFullyQualified(request.FileName))
         {
@@ -315,7 +331,7 @@ public sealed class ProcessRunner : IProcessRunner
         string? pathValue = GetEffectiveEnvironmentValue(request, "PATH");
         if (string.IsNullOrWhiteSpace(pathValue))
         {
-            return UnresolvedExecutable(request);
+            return null;
         }
 
         string[] extensions = GetExecutableExtensions(request.FileName, request);
@@ -324,6 +340,11 @@ public sealed class ProcessRunner : IProcessRunner
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         for (int directoryIndex = 0; directoryIndex < directories.Length; directoryIndex++)
         {
+            if (!Path.IsPathRooted(directories[directoryIndex]))
+            {
+                continue;
+            }
+
             for (int extensionIndex = 0; extensionIndex < extensions.Length; extensionIndex++)
             {
                 string candidate = Path.GetFullPath(
@@ -335,12 +356,8 @@ public sealed class ProcessRunner : IProcessRunner
             }
         }
 
-        return UnresolvedExecutable(request);
+        return null;
     }
-
-    private static string UnresolvedExecutable(ProcessRequest request) =>
-        // Process.Start can otherwise search the parent PATH even after Environment.Clear().
-        request.Options.InheritEnvironment ? request.FileName : Path.GetFullPath(request.FileName);
 
     private string[] GetExecutableExtensions(string fileName, ProcessRequest request)
     {

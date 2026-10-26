@@ -409,7 +409,14 @@ and the characters that can reorder or hide text (the bidirectional
 overrides, embeddings and isolates such as U+202E RIGHT-TO-LEFT OVERRIDE, the
 tag characters, and U+200B, U+2060 and U+FEFF) are removed or become a space.
 The joiners and direction marks that Persian, Indic and right-to-left text and
-emoji need (ZWNJ, ZWJ, LRM, RLM, ALM) are kept. A payload's human output and `HumanOutput` are written as the command
+emoji need (ZWNJ, ZWJ, LRM, RLM, ALM) are kept. The protocol counts the removed
+characters among its
+[Unicode control characters](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/specs/command-line/protocol/README.md#unicode-control-characters):
+`CommandJsonEnvelopeReader.Read<T>` and `CommandTestEnvelope.Read<T>` reject a
+frame that carries one in fault or diagnostic text (`unsafe-fault-content`,
+`unsafe-diagnostic-content`) or in its request ID (`invalid-request-id`), and a
+request or correlation ID that contains one is rejected like one with a control
+character. A payload's human output and `HumanOutput` are written as the command
 gives them. Show untrusted text, such as a child's output or a user's input,
 in a `CommandTaskLog` or put it into a fault rather than into human output.
 

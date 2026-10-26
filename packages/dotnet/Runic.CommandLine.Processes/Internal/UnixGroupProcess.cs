@@ -400,26 +400,10 @@ internal sealed unsafe class UnixGroupProcess : ChildProcess
 
     // The runner already searched the effective PATH. Process.Start then tries the application directory and
     // the current directory, so an unresolved bare name keeps that behavior here.
-    private static string? ResolveSpawnPath(string fileName)
-    {
-        if (fileName.Contains('/', StringComparison.Ordinal))
-        {
-            return Path.GetFullPath(fileName);
-        }
-
-        string? processPath = Environment.ProcessPath;
-        if (processPath is not null)
-        {
-            string candidate = Path.Combine(Path.GetDirectoryName(processPath) ?? string.Empty, fileName);
-            if (File.Exists(candidate))
-            {
-                return Path.GetFullPath(candidate);
-            }
-        }
-
-        string current = Path.Combine(Directory.GetCurrentDirectory(), fileName);
-        return File.Exists(current) ? current : null;
-    }
+    // ProcessRunner passes a resolved path. A bare name is never looked up in the application or current directory
+    // (SEC-38).
+    private static string? ResolveSpawnPath(string fileName) =>
+        fileName.Contains('/', StringComparison.Ordinal) ? Path.GetFullPath(fileName) : null;
 
     private static List<string> CreateEnvironment(ProcessRequest request)
     {
