@@ -462,16 +462,43 @@ internal sealed class OutputTests
         return ValueTask.CompletedTask;
     }
 
-    // The strict reader does not reject these characters yet (SEC-40 reader side is a pending maintainer
-    // decision), and it returns the fault as read.
-    [Test, DisplayName("output/reader-keeps-accepting-format-characters-pending-a-decision")]
-    public ValueTask ReaderStillAcceptsFormatCharacters()
+    // SEC-40 reader side (D046.6): the protocol's Unicode control characters include the bidi embeddings, overrides
+    // and isolates, the tag characters and U+200B, U+2060 and U+FEFF, so the strict reader rejects a frame that
+    // carries one in fault or diagnostic text or in the request ID, as it rejects C0 and C1 controls. The joiners
+    // and marks the writer keeps are read as they are.
+    [Test, DisplayName("output/reader-rejects-bidi-and-invisible-format-characters")]
+    public ValueTask ReaderRejectsFormatCharacters()
     {
-        const string Frame = "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req\",\"command\":\"status\",\"success\":false,\"exitCode\":10,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI3000\",\"message\":\"bad\\u202Etext\",\"details\":{},\"retryable\":false},\"diagnostics\":[]}\n";
+        foreach (string hostile in new[] { "\\u202A", "\\u202E", "\\u2066", "\\u2069", "\\u200B", "\\u2060", "\\uFEFF", "\\uDB40\\uDC41", "\\uDB40\\uDC7F" })
+        {
+            AssertEx.Equal("unsafe-fault-content", ReadKind(FaultFrame("bad" + hostile + "text", "\"x\":\"y\"")), hostile);
+            AssertEx.Equal("unsafe-fault-content", ReadKind(FaultFrame("bad", "\"x\":\"y" + hostile + "\"")), hostile);
+            AssertEx.Equal("unsafe-fault-content", ReadKind(FaultFrame("bad", "\"k" + hostile + "\":\"y\"")), hostile);
+            AssertEx.Equal("unsafe-diagnostic-content", ReadKind(DiagnosticFrame("bad" + hostile, "ok")), hostile);
+            AssertEx.Equal("unsafe-diagnostic-content", ReadKind(DiagnosticFrame("bad", "o" + hostile + "k")), hostile);
+            AssertEx.Equal("invalid-request-id", ReadKind(Encoding.UTF8.GetBytes(
+                "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req" + hostile + "\",\"command\":\"status\",\"success\":false,\"exitCode\":10,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI3000\",\"message\":\"bad\",\"details\":{},\"retryable\":false},\"diagnostics\":[]}\n")), hostile);
+        }
+
+        // Unescaped UTF-8 is rejected too.
+        AssertEx.Equal("unsafe-fault-content", ReadKind(FaultFrame("bad\u202Etext", "\"x\":\"y\"")));
+        AssertEx.Throws<ArgumentException>(() => CommandResponse.Success("req\u2066", "status", TestCodec.Identity, new TestResult(1, "x")));
+
+        const string Legitimate = "\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645 \u0915\u094D\u200D \u200Eabc\u200F \u061C";
         CommandResponse<TestResult> read = CommandJsonEnvelopeReader.Read(
-            Encoding.UTF8.GetBytes(Frame), TestCodec.Identity, TestJsonContext.Default.TestResult);
-        AssertEx.Equal("bad\u202Etext", read.Fault!.Message);
+            FaultFrame(Legitimate, "\"x\":\"" + Legitimate + "\""), TestCodec.Identity, TestJsonContext.Default.TestResult);
+        AssertEx.Equal(Legitimate, read.Fault!.Message);
+        AssertEx.Equal(Legitimate, read.Fault.Details["x"]);
         return ValueTask.CompletedTask;
+
+        static byte[] FaultFrame(string message, string details) => Encoding.UTF8.GetBytes(
+            "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req\",\"command\":\"status\",\"success\":false,\"exitCode\":10,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI3000\",\"message\":\"" + message + "\",\"details\":{" + details + "},\"retryable\":false},\"diagnostics\":[]}\n");
+
+        static byte[] DiagnosticFrame(string message, string argument) => Encoding.UTF8.GetBytes(
+            "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req\",\"command\":\"status\",\"success\":false,\"exitCode\":2,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI2001\",\"message\":\"bad\",\"details\":{},\"retryable\":false},\"diagnostics\":[{\"code\":\"RCLI2001\",\"kind\":\"invalid-value\",\"commandPath\":[\"status\"],\"messageKey\":\"diagnostics.invalid-value\",\"message\":\"" + message + "\",\"phase\":\"binding\",\"severity\":\"error\",\"tokenIndex\":1,\"arguments\":[\"" + argument + "\"]}]}\n");
+
+        static string ReadKind(byte[] frame) => AssertEx.Throws<CommandProtocolException>(() =>
+            CommandJsonEnvelopeReader.Read(frame, TestCodec.Identity, TestJsonContext.Default.TestResult)).Kind;
     }
 
     // SEC-43, protocol §Compatibility: duplicate property names are invalid at every level, also in the payload.

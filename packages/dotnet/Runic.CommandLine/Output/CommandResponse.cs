@@ -21,8 +21,7 @@ public sealed class CommandResponse<T>
         T? payload,
         CommandFault? fault,
         IReadOnlyList<CommandDiagnostic>? diagnostics,
-        CommandFailureData? failureData = null,
-        bool read = false)
+        CommandFailureData? failureData = null)
     {
         CommandResponseValidation.ValidateRequestId(requestId, nameof(requestId));
         CommandResponseValidation.ValidateCommand(command, nameof(command));
@@ -64,8 +63,7 @@ public sealed class CommandResponse<T>
         ExitCode = exitCode;
         PayloadType = payloadType;
         Payload = payload;
-        // A read fault already passed the reader's checks and is kept as read; writers sanitize it again.
-        Fault = fault is null ? null : CommandFaultSanitizer.Sanitize(fault, neutralizeFormatCharacters: !read);
+        Fault = fault is null ? null : CommandFaultSanitizer.Sanitize(fault);
         Diagnostics = CopyDiagnostics(diagnostics);
         FailureData = failureData;
     }
@@ -149,7 +147,7 @@ public sealed class CommandResponse<T>
         CommandFault? fault,
         IReadOnlyList<CommandDiagnostic> diagnostics,
         CommandFailureData? failureData = null) =>
-        new(requestId, command, success, exitCode, payloadType, payload, fault, diagnostics, failureData, read: true);
+        new(requestId, command, success, exitCode, payloadType, payload, fault, diagnostics, failureData);
 
     private static IReadOnlyList<CommandDiagnostic> CopyDiagnostics(
         IReadOnlyList<CommandDiagnostic>? diagnostics)
@@ -209,6 +207,11 @@ internal static class CommandResponseValidation
         foreach (Rune rune in value.EnumerateRunes())
         {
             int scalar = rune.Value;
+            if (CommandFaultSanitizer.IsInvisibleFormatCharacter(scalar))
+            {
+                throw new ArgumentException("A request ID cannot contain control or whitespace characters.", parameterName);
+            }
+
             if (scalar is >= 0xFDD0 and <= 0xFDEF || (scalar & 0xFFFE) == 0xFFFE)
             {
                 throw new ArgumentException("A request ID cannot contain a Unicode noncharacter.", parameterName);

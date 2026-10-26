@@ -219,6 +219,13 @@ public sealed class CommandExecutionContext
         foreach (Rune rune in correlationId.EnumerateRunes())
         {
             int scalar = rune.Value;
+            if (CommandFaultSanitizer.IsInvisibleFormatCharacter(scalar))
+            {
+                throw new ArgumentException(
+                    "Correlation identifiers cannot contain control or whitespace characters.",
+                    nameof(correlationId));
+            }
+
             if (scalar is >= 0xFDD0 and <= 0xFDEF || (scalar & 0xFFFE) == 0xFFFE)
             {
                 throw new ArgumentException(

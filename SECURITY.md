@@ -42,7 +42,12 @@ to bypass one is in scope for a report:
   bidirectional embeddings, overrides and isolates (U+202A–U+202E,
   U+2066–U+2069), the tag characters (U+E0000–U+E007F), and U+200B, U+2060 and
   U+FEFF. The joiners and direction marks that Persian, Indic and
-  right-to-left text and emoji need (U+200C–U+200F, U+061C) are kept. The check for technical content is a
+  right-to-left text and emoji need (U+200C–U+200F, U+061C) are kept. The
+  protocol counts the replaced characters among its
+  [Unicode control characters](specs/command-line/protocol/README.md#unicode-control-characters),
+  so the strict reader (`CommandJsonEnvelopeReader`) rejects a frame that
+  carries one in fault or diagnostic text or in the request ID, as it rejects
+  C0 and C1 controls. The check for technical content is a
   heuristic, not a guarantee; the
   [protocol](specs/command-line/protocol/README.md#diagnostic-object) lists
   what it matches and what producers must keep out of faults themselves.
@@ -71,6 +76,13 @@ to bypass one is in scope for a report:
   Windows batch files without an opt-in and, with it, arguments that `cmd.exe`
   would interpret (`RCLI6001`–`RCLI6008`); see
   [security and failure behavior](packages/dotnet/Runic.CommandLine.Processes/README.md#security-and-failure-behavior).
+- **Executable resolution.** A bare executable name such as `gh` runs only
+  from an absolute entry of the effective `PATH` (with `PATHEXT` on Windows).
+  Without a match it fails as not found (`RCLI6005`): it never runs from the
+  current directory or the application directory, so a file planted in a
+  cloned repository or an extracted archive does not stand in for a missing
+  tool. A path such as `./tool` resolves against the current directory; see
+  [executable resolution](packages/dotnet/Runic.CommandLine.Processes/README.md#executable-resolution).
 - **Environment inheritance.** A child inherits the whole parent environment
   unless `InheritEnvironment` is false, including credentials such as
   `GITHUB_TOKEN` or `NUGET_API_KEY` in a CI job. Run tools that do not need

@@ -349,9 +349,35 @@ With `InheritEnvironment = false`, the child starts with an empty environment
 before the request's explicit overrides are applied. Include variables required
 by your tool or runtime, such as `DOTNET_ROOT` for an apphost on a custom .NET
 installation. Prefer absolute executable paths. Bare executable names use the
-request's explicit `PATH`; without a match they resolve relative to the caller's
-current directory instead of falling back to the parent's `PATH`. Environment
-removal entries (`null`) and child overrides never change the parent environment.
+request's explicit `PATH` instead of falling back to the parent's `PATH`.
+Environment removal entries (`null`) and child overrides never change the parent
+environment.
+
+## Executable resolution
+
+The runner resolves the executable before the policy sees the request and starts
+the child with a full path:
+
+- An absolute path is used as given.
+- A name with a directory separator, such as `./tool`, `bin/tool` or
+  `.\tool.exe`, is a path the caller chose and resolves against the caller's
+  current directory.
+- A bare name, such as `gh` or `npm`, is looked up only in the absolute entries
+  of the effective `PATH`: the request's own `PATH`, or the parent's when
+  `InheritEnvironment` is true and the request does not set it. On Windows the
+  `PATHEXT` extensions are tried in each directory; a name that already has
+  an extension, such as `python3.12`, is tried as given first. Relative entries such as `.`
+  are skipped. Without a match the request ends in `ProcessState.StartFailed`
+  with `ProcessStartFailureCategory.NotFound` (`RCLI6005`) before the policy
+  runs.
+
+A bare name never runs from the current directory or the application directory,
+on any operating system. The runner does not rely on the search that
+`Process.Start` on Unix or `CreateProcess` on Windows applies to a bare name,
+which looks in those directories first; otherwise a tool that is not installed
+could be replaced by a file planted in a cloned repository or extracted archive.
+Earlier versions started a bare name without a match from the current directory;
+to run a tool there, name it as `./tool` (Windows: `.\tool.exe`).
 
 The [ProcessInput tool-chain example](../../../examples/command-line/ProcessInput)
 passes bounded output between two tools and closes stdin for a health check,

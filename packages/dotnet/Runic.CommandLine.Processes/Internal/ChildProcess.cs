@@ -175,6 +175,13 @@ internal sealed class ManagedChildProcess : ChildProcess
 
     internal static ManagedChildProcess StartProcess(ProcessRequest request)
     {
+        // Given a name that is not fully qualified, Process.Start on Unix and CreateProcess on Windows search the
+        // application and current directories first. ProcessRunner resolves every name to a full path (SEC-38).
+        if (!Path.IsPathFullyQualified(request.FileName))
+        {
+            throw new ProcessStartFailedException(ProcessStartFailureCategory.NotFound);
+        }
+
         var process = new Process { StartInfo = CreateStartInfo(request) };
         try
         {

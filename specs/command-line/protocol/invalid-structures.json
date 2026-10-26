@@ -118,6 +118,51 @@
       "id": "invalid.diagnostic-message-key",
       "document": { "protocol": "runic.commandline/1", "requestId": "req-23", "command": "status", "success": false, "exitCode": 3, "payloadType": null, "payload": null, "fault": { "code": "RCLI2001", "message": "Invalid.", "details": {}, "retryable": false }, "diagnostics": [{ "code": "RCLI2001", "kind": "invalid-value", "commandPath": ["status"], "messageKey": "diagnostics/invalid value", "message": "Invalid.", "phase": "binding", "severity": "error", "tokenIndex": 1, "arguments": [] }] },
       "expected": { "kind": "protocol-error", "reason": "invalid-diagnostic-message-key" }
+    },
+    {
+      "id": "invalid.request-id-bidi-override",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req\u202e-24", "command": "status", "success": true, "exitCode": 0, "payloadType": "sample.status/1", "payload": {}, "fault": null, "diagnostics": [] },
+      "expected": { "kind": "protocol-error", "reason": "invalid-request-id" }
+    },
+    {
+      "id": "invalid.fault-message-bidi-override",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-25", "command": "status", "success": false, "exitCode": 10, "payloadType": null, "payload": null, "fault": { "code": "RCLI3000", "message": "Packed report\u202etxt.exe", "details": {}, "retryable": false }, "diagnostics": [] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
+    },
+    {
+      "id": "invalid.fault-message-embedding",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-26", "command": "status", "success": false, "exitCode": 10, "payloadType": null, "payload": null, "fault": { "code": "RCLI3000", "message": "Status \u202aready\u202c", "details": {}, "retryable": false }, "diagnostics": [] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
+    },
+    {
+      "id": "invalid.fault-detail-isolate",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-27", "command": "status", "success": false, "exitCode": 10, "payloadType": null, "payload": null, "fault": { "code": "RCLI3000", "message": "The status could not be read.", "details": { "file": "report\u2066exe.txt\u2069" }, "retryable": false }, "diagnostics": [] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
+    },
+    {
+      "id": "invalid.fault-detail-key-zero-width-space",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-28", "command": "status", "success": false, "exitCode": 10, "payloadType": null, "payload": null, "fault": { "code": "RCLI3000", "message": "The status could not be read.", "details": { "fi\u200ble": "report.txt" }, "retryable": false }, "diagnostics": [] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
+    },
+    {
+      "id": "invalid.fault-message-byte-order-mark",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-29", "command": "status", "success": false, "exitCode": 10, "payloadType": null, "payload": null, "fault": { "code": "RCLI3000", "message": "Status\ufeff OK", "details": {}, "retryable": false }, "diagnostics": [] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
+    },
+    {
+      "id": "invalid.diagnostic-message-word-joiner",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-30", "command": "status", "success": false, "exitCode": 10, "payloadType": null, "payload": null, "fault": { "code": "RCLI3000", "message": "The status could not be read.", "details": {}, "retryable": false }, "diagnostics": [{ "code": "RCLI2001", "kind": "invalid-value", "commandPath": ["status"], "messageKey": "diagnostics.invalid-value", "message": "The value is in\u2060valid.", "phase": "binding", "severity": "error", "tokenIndex": 1, "arguments": [] }] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-diagnostic-content" }
+    },
+    {
+      "id": "invalid.diagnostic-argument-tag-character",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-31", "command": "status", "success": false, "exitCode": 10, "payloadType": null, "payload": null, "fault": { "code": "RCLI3000", "message": "The status could not be read.", "details": {}, "retryable": false }, "diagnostics": [{ "code": "RCLI2001", "kind": "invalid-value", "commandPath": ["status"], "messageKey": "diagnostics.invalid-value", "message": "The value is invalid.", "phase": "binding", "severity": "error", "tokenIndex": 1, "arguments": ["value\udb40\udc41\udb40\udc7f"] }] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-diagnostic-content" }
+    },
+    {
+      "id": "invalid.fault-joiners-and-marks-are-accepted",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-32", "command": "status", "success": false, "exitCode": 10, "payloadType": null, "payload": null, "fault": { "code": "RCLI3000", "message": "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645 \u0915\u094d\u200d\u0937 \u05e9\u05dc\u05d5\u05dd\u200f (1) \u200eabc \u061c \ud83d\udc68\u200d\ud83d\udc69", "details": { "name": "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645" }, "retryable": false }, "diagnostics": [] },
+      "expected": { "kind": "accepted", "reason": "joiners-and-direction-marks" }
     }
   ]
 }
