@@ -513,6 +513,7 @@ internal sealed class ProcessRunnerTests
         }
 
         string directory = Path.GetDirectoryName(ChildProcessFixture.ExecutablePath)!;
+        // "Runic.CommandLine.Processes.Tests" has a dot, so PATHEXT must apply to a name that already has an extension.
         string name = Path.GetFileNameWithoutExtension(ChildProcessFixture.ExecutablePath);
         string[] arguments = ChildProcessFixture.CreateArguments("pressure", "1", "1", "0");
         string previousDirectory = Environment.CurrentDirectory;
@@ -544,6 +545,45 @@ internal sealed class ProcessRunnerTests
         {
             Environment.CurrentDirectory = previousDirectory;
         }
+    }
+
+    // The request's own PATH and PATHEXT drive Windows resolution, also for a name with a dot, which is tried as
+    // given and then with each PATHEXT extension, in PATH order.
+    [Test, DisplayName("windows resolution uses the request PATH and PATHEXT, also for dotted names")]
+    public async Task WindowsRequestPathResolutionAsync()
+    {
+        string first = Path.GetFullPath("/runic-first-bin");
+        string second = Path.GetFullPath("/runic-second-bin");
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            Path.Combine(second, "My.Tool.EXE"),
+            Path.Combine(second, "gh.EXE"),
+            Path.Combine(first, "python3.12"),
+            Path.Combine(second, "python3.12.EXE"),
+        };
+        var policy = new CountingAllowPolicy();
+        var platform = new ProcessPlatform(true, existing.Contains, static _ => "/runic-inherited-bin");
+        var runner = new ProcessRunner(policy, null, null, platform);
+        var environment = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Path"] = "relative-bin;" + first + ";" + second + Path.DirectorySeparatorChar,
+            ["PATHEXT"] = " .COM ; .EXE ",
+        };
+
+        foreach ((string name, string expected) in new[]
+        {
+            ("My.Tool", Path.Combine(second, "My.Tool.EXE")),
+            ("gh", Path.Combine(second, "gh.EXE")),
+            ("python3.12", Path.Combine(first, "python3.12")),
+        })
+        {
+            await runner.RunAsync(new ProcessRequest(name, environment: environment)).ConfigureAwait(false);
+            TestAssert.Equal(expected, policy.LastFileName);
+        }
+
+        ProcessResult inherited = await runner.RunAsync(new ProcessRequest("My.Tool")).ConfigureAwait(false);
+        TestAssert.Equal(ProcessStartFailureCategory.NotFound, inherited.StartFailureCategory);
+        TestAssert.Equal(3, policy.EvaluationCount);
     }
 
     [Test, DisplayName("unresolved bare names are not found before the policy runs")]
@@ -1116,7 +1156,10 @@ internal sealed class ProcessRunnerTests
 
     private static void AssertExited(ProcessResult result, int expectedExitCode)
     {
-        TestAssert.Equal(ProcessState.Exited, result.State);
+        TestAssert.True(
+            result.State == ProcessState.Exited,
+            $"Expected 'Exited', but found '{result.State}' (start failure: {result.StartFailureCategory}, " +
+            $"fault: {result.Fault?.Code} {result.Fault?.Message}).");
         TestAssert.Equal<int?>(expectedExitCode, result.ExitCode);
         TestAssert.Null(result.StartFailureCategory);
         TestAssert.Null(result.Fault);

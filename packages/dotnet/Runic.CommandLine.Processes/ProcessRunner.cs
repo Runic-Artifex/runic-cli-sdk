@@ -359,19 +359,22 @@ public sealed class ProcessRunner : IProcessRunner
         return null;
     }
 
+    // On Windows a name with a dot, such as "python3.12" or "My.Tool", may still need a PATHEXT extension: as with
+    // Go's LookPath, the name is tried as given first when it has an extension, then with each PATHEXT entry.
     private string[] GetExecutableExtensions(string fileName, ProcessRequest request)
     {
-        if (!platform.IsWindows || Path.HasExtension(fileName))
+        if (!platform.IsWindows)
         {
             return [string.Empty];
         }
 
         string? pathExtensions = GetEffectiveEnvironmentValue(request, "PATHEXT");
-        return string.IsNullOrWhiteSpace(pathExtensions)
+        string[] extensions = string.IsNullOrWhiteSpace(pathExtensions)
             ? [".COM", ".EXE", ".BAT", ".CMD"]
             : pathExtensions.Split(
                 platform.PathListSeparator,
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return Path.HasExtension(fileName) ? [string.Empty, .. extensions] : extensions;
     }
 
     private string? GetEffectiveEnvironmentValue(ProcessRequest request, string name)

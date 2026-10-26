@@ -365,7 +365,8 @@ the child with a full path:
 - A bare name, such as `gh` or `npm`, is looked up only in the absolute entries
   of the effective `PATH`: the request's own `PATH`, or the parent's when
   `InheritEnvironment` is true and the request does not set it. On Windows the
-  `PATHEXT` extensions are tried in each directory. Relative entries such as `.`
+  `PATHEXT` extensions are tried in each directory; a name that already has
+  an extension, such as `python3.12`, is tried as given first. Relative entries such as `.`
   are skipped. Without a match the request ends in `ProcessState.StartFailed`
   with `ProcessStartFailureCategory.NotFound` (`RCLI6005`) before the policy
   runs.
