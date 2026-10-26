@@ -120,7 +120,7 @@ vulnerabilities as described in [SECURITY.md](SECURITY.md).
 The four NuGet package identities release together, independently from the
 Runic SDK. See [the release guide](eng/release/README.md). The latest published
 release is `0.9.0`; see its [upgrade notes](eng/release/notes/0.9.0.md).
-The next release is `0.10.0`: until 1.0 releases use plain `0.y.z` versions, where
+The next release is `0.9.1`: until 1.0 releases use plain `0.y.z` versions, where
 a new minor may break and a patch only fixes or adds, and are still marked as
 prereleases on GitHub.
 The first standalone release was `0.6.0-preview.2`; consumers on earlier SDK
