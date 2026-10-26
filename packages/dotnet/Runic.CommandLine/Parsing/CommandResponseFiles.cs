@@ -16,11 +16,17 @@ namespace Runic.CommandLine;
 /// backslashes and a delimiter, 2n+1 yield n backslashes and a literal quote. A token that starts with <c>@</c> is
 /// itself a response file, resolved against the directory of the file that names it; <c>@@</c> stands for a
 /// literal leading <c>@</c> and a lone <c>@</c> is literal. Files nest at most 16 levels and may not include
-/// themselves.
+/// themselves. Expansion is bounded: a file holds at most 1 MiB, and all files together at most 4 MiB and 65,536
+/// arguments, so that files naming each other several times cannot grow the arguments exponentially. A file is
+/// read in chunks until a bound is exceeded, so a pipe such as <c>@/dev/stdin</c> works and <c>/dev/zero</c> fails
+/// fast. A file that breaks a bound is unreadable (<c>RCLI1017</c>).
 /// </remarks>
 internal static class CommandResponseFiles
 {
     internal const int MaximumDepth = 16;
+    internal const int MaximumFileBytes = 1 << 20;
+    internal const int MaximumTotalBytes = 4 << 20;
+    internal const int MaximumTokens = 65_536;
     internal const string UnreadableCode = "RCLI1017";
     internal const string InvalidUtf8Code = "RCLI1018";
     internal const string UnterminatedQuoteCode = "RCLI1019";
@@ -55,10 +61,11 @@ internal static class CommandResponseFiles
         failure = null;
         var result = new List<string>(arguments.Count);
         var activeFiles = new HashSet<string>(PathComparer);
+        var budget = new Budget();
         for (int index = 0; index < arguments.Count; index++)
         {
             ArgumentNullException.ThrowIfNull(arguments[index], nameof(arguments));
-            failure = ExpandArgument(arguments[index], baseDirectory, 0, activeFiles, result, index);
+            failure = ExpandArgument(arguments[index], baseDirectory, 0, activeFiles, budget, result, index);
             if (failure is not null) return null;
         }
 
@@ -70,6 +77,7 @@ internal static class CommandResponseFiles
         string baseDirectory,
         int depth,
         HashSet<string> activeFiles,
+        Budget budget,
         List<string> result,
         int tokenIndex)
     {
@@ -98,20 +106,27 @@ internal static class CommandResponseFiles
         if (!activeFiles.Add(path)) return new(CycleCode, CycleKind, tokenIndex, reference);
         try
         {
-            string content;
-            try { content = StrictUtf8.GetString(File.ReadAllBytes(path)); }
-            catch (DecoderFallbackException) { return new(InvalidUtf8Code, InvalidUtf8Kind, tokenIndex, reference); }
+            byte[]? bytes;
+            try { bytes = ReadBounded(path, Math.Min(MaximumFileBytes, MaximumTotalBytes - budget.Bytes)); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException)
             {
-                return new(UnreadableCode, UnreadableKind, tokenIndex, reference);
+                bytes = null;
             }
+
+            if (bytes is null) return new(UnreadableCode, UnreadableKind, tokenIndex, reference);
+            budget.Bytes += bytes.Length;
+            string content;
+            try { content = StrictUtf8.GetString(bytes); }
+            catch (DecoderFallbackException) { return new(InvalidUtf8Code, InvalidUtf8Kind, tokenIndex, reference); }
 
             List<string>? tokens = Tokenize(content);
             if (tokens is null) return new(UnterminatedQuoteCode, UnterminatedQuoteKind, tokenIndex, reference);
+            budget.Tokens += tokens.Count;
+            if (budget.Tokens > MaximumTokens) return new(UnreadableCode, UnreadableKind, tokenIndex, reference);
             string directory = Path.GetDirectoryName(path) ?? baseDirectory;
             foreach (string token in tokens)
             {
-                ResponseFileFailure? failure = ExpandArgument(token, directory, depth + 1, activeFiles, result, tokenIndex);
+                ResponseFileFailure? failure = ExpandArgument(token, directory, depth + 1, activeFiles, budget, result, tokenIndex);
                 if (failure is not null) return failure;
             }
 
@@ -121,6 +136,39 @@ internal static class CommandResponseFiles
         {
             activeFiles.Remove(path);
         }
+    }
+
+    // Reads in chunks and stops as soon as the file holds more than limit bytes, so /dev/zero or an endless pipe
+    // ends with RCLI1017 instead of exhausting memory. A pipe or FIFO is read like a file, as cat reads it; a FIFO
+    // without a writer blocks until one opens it.
+    private static byte[]? ReadBounded(string path, int limit)
+    {
+        if (path.Contains('\0', StringComparison.Ordinal)) return null;
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
+        var buffer = new byte[Math.Min(limit, 64 * 1024) + 1];
+        int length = 0;
+        while (true)
+        {
+            if (length == buffer.Length)
+            {
+                if (length > limit) return null;
+                Array.Resize(ref buffer, Math.Min(buffer.Length * 2, limit + 1));
+            }
+
+            int read = stream.Read(buffer, length, buffer.Length - length);
+            if (read == 0) break;
+            length += read;
+            if (length > limit) return null;
+        }
+
+        Array.Resize(ref buffer, length);
+        return buffer;
+    }
+
+    private sealed class Budget
+    {
+        internal int Bytes;
+        internal int Tokens;
     }
 
     // Returns null for an unterminated quote.

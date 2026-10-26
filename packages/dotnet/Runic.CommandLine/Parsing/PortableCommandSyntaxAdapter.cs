@@ -1241,9 +1241,12 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             return "<invalid>";
         }
 
+        // Control characters, and the formatting characters that reorder or hide text on a terminal.
         for (int index = 0; index < value.Length; index++)
         {
             if (char.IsControl(value[index])) return "<invalid>";
+            int codePoint = char.IsSurrogatePair(value, index) ? char.ConvertToUtf32(value[index], value[index + 1]) : value[index];
+            if (CommandFaultSanitizer.IsInvisibleFormatCharacter(codePoint)) return "<invalid>";
         }
 
         return value;

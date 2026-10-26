@@ -21,7 +21,8 @@ public sealed class CommandResponse<T>
         T? payload,
         CommandFault? fault,
         IReadOnlyList<CommandDiagnostic>? diagnostics,
-        CommandFailureData? failureData = null)
+        CommandFailureData? failureData = null,
+        bool read = false)
     {
         CommandResponseValidation.ValidateRequestId(requestId, nameof(requestId));
         CommandResponseValidation.ValidateCommand(command, nameof(command));
@@ -63,7 +64,8 @@ public sealed class CommandResponse<T>
         ExitCode = exitCode;
         PayloadType = payloadType;
         Payload = payload;
-        Fault = fault is null ? null : CommandFaultSanitizer.Sanitize(fault);
+        // A read fault already passed the reader's checks and is kept as read; writers sanitize it again.
+        Fault = fault is null ? null : CommandFaultSanitizer.Sanitize(fault, neutralizeFormatCharacters: !read);
         Diagnostics = CopyDiagnostics(diagnostics);
         FailureData = failureData;
     }
@@ -147,7 +149,7 @@ public sealed class CommandResponse<T>
         CommandFault? fault,
         IReadOnlyList<CommandDiagnostic> diagnostics,
         CommandFailureData? failureData = null) =>
-        new(requestId, command, success, exitCode, payloadType, payload, fault, diagnostics, failureData);
+        new(requestId, command, success, exitCode, payloadType, payload, fault, diagnostics, failureData, read: true);
 
     private static IReadOnlyList<CommandDiagnostic> CopyDiagnostics(
         IReadOnlyList<CommandDiagnostic>? diagnostics)

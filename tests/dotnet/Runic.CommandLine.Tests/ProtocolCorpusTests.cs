@@ -15,7 +15,7 @@ internal sealed class ProtocolCorpusTests
 
     public static IEnumerable<string> WireCaseIds()
     {
-        AssertEx.Equal(15, Wire.Cases.Length, "The frozen wire corpus row count changed.");
+        AssertEx.Equal(16, Wire.Cases.Length, "The frozen wire corpus row count changed.");
         return Wire.Cases.Select(static test => test.Id);
     }
 
@@ -54,7 +54,7 @@ internal sealed class ProtocolCorpusTests
         AssertEx.Equal(64, manifest.Limits.DiagnosticCount);
         AssertEx.Equal(CommandFailureData.MaximumPayloadBytes, manifest.Limits.FailureDataPayloadBytes);
         AssertEx.Equal(CommandFailureData.MaximumPayloadDepth, manifest.Limits.FailureDataPayloadDepth);
-        AssertEx.Equal(15, manifest.Fixtures.Single(static fixture => fixture.Id == "protocol.wire-inputs").CaseCount);
+        AssertEx.Equal(16, manifest.Fixtures.Single(static fixture => fixture.Id == "protocol.wire-inputs").CaseCount);
         AssertEx.Equal(23, manifest.Fixtures.Single(static fixture => fixture.Id == "protocol.invalid-structures").CaseCount);
         return ValueTask.CompletedTask;
     }

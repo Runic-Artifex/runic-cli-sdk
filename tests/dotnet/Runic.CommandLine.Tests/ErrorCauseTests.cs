@@ -503,6 +503,28 @@ internal sealed class ErrorCauseTests
         AssertEx.True(observed is ArgumentException);
     }
 
+    // SEC-42: the developer exception output keeps line breaks and tabs, but no terminal controls or the
+    // formatting characters that reorder or hide text, for both of its environment triggers.
+    [Test, DisplayName("causes/development-exception-output-is-stripped-of-terminal-controls")]
+    public async ValueTask DevelopmentOutputIsStripped()
+    {
+        foreach (Func<string, string?> environment in new Func<string, string?>[]
+        {
+            static name => name == "RUNIC_COMMANDLINE_DEBUG" ? "1" : null,
+            static name => name == "DOTNET_ENVIRONMENT" ? "Development" : null,
+        })
+        {
+            var console = new TestCommandConsole();
+            AssertEx.Equal(3, await App(console, environment).RunAsync(["cause-throw-hostile"]));
+            string error = console.StandardError;
+            AssertEx.True(error.Contains("System.ArgumentException: handler[31mdetailend.", StringComparison.Ordinal), error);
+            AssertEx.True(error.Contains("\n   at ", StringComparison.Ordinal), error);
+            foreach (char character in new[] { '\u001b', '\r', '\u0007', '\u009B', '\u202E', '\u200B' })
+                AssertEx.True(!error.Contains(character, StringComparison.Ordinal), "U+" + ((int)character).ToString("X4", CultureInfo.InvariantCulture) + " in " + error);
+            AssertEx.True(error.EndsWith("\nRCLI5000: The command could not be completed.\n", StringComparison.Ordinal), error);
+        }
+    }
+
     [Test, DisplayName("causes/unknown-description-keys-are-reported")]
     public async ValueTask DescriptionKeys()
     {
@@ -589,6 +611,9 @@ internal static class SampleCauseCommands
 
     [Command("cause-throw", Hidden = true)]
     internal static string Throw() => throw new ArgumentException("handler-detail");
+
+    [Command("cause-throw-hostile", Hidden = true)]
+    internal static string ThrowHostile() => throw new ArgumentException("handler\u001b[31m\u202Edetail\r\u0007\u009Bend\u200B.");
 
     [Command("cause-keys", Hidden = true, DescriptionKey = "commands.cause-keys", Description = "Keys")]
     internal static string Keys([Option("--limit", DescriptionKey = "options.cause-keys.limt", Description = "Limit")] int limit = 1) => "ok";

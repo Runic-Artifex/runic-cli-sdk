@@ -172,13 +172,17 @@ is relative to the current directory. `@@scope` is the literal argument
 `@scope`, and `@` alone is an ordinary argument. In PowerShell, quote the
 argument (`hello '@greet.rsp'`), because a bare `@name` is splatting there.
 
-A file that cannot be read (`RCLI1017`), is not valid UTF-8 (`RCLI1018`), has
-an unterminated quote (`RCLI1019`), is nested too deeply (`RCLI1020`) or names
-itself (`RCLI1021`) is a usage error, exit code 2, in the selected output
-format. Help lists `@<file>` with the options, and the generated completions
-complete a file name after `@`. `CommandLineHostingAdapter.Classify` expands
-the files too; `ICommandSyntaxAdapter.Parse` and `CommandTestInvocation.Parse`
-take arguments as given. Without the declaration, `@greet.rsp` is an ordinary
+Expansion is bounded: a file holds at most 1 MiB, and all files of one command
+line together at most 4 MiB and 65,536 arguments. A file that breaks a bound,
+such as `/dev/zero`, counts as unreadable; a pipe, such as `@/dev/stdin`, is
+read like a file within the same bounds. A file that cannot be read (`RCLI1017`), is not valid
+UTF-8 (`RCLI1018`), has an unterminated quote (`RCLI1019`), is nested too
+deeply (`RCLI1020`) or names itself (`RCLI1021`) is a usage error, exit code 2,
+in the selected output format. Help lists `@<file>` with the options, and the
+generated completions complete a file name after `@`.
+`CommandLineHostingAdapter.Classify` expands the files too;
+`ICommandSyntaxAdapter.Parse` and `CommandTestInvocation.Parse` take arguments
+as given. Without the declaration, `@greet.rsp` is an ordinary
 argument.
 
 ## Method-first inputs and results
@@ -317,6 +321,18 @@ catch (OperationCanceledException)
 not handle the signals: with `HandleTerminationSignals = false`, under the
 hosting adapter or with a directly used `CommandExecutor`.
 
+The scope protects only the code it surrounds. A `ProcessRunner` run that is
+cancelled stops its child itself, which can take up to twice
+`DrainGracePeriod`, before `RunAsync` returns; a scope taken in the `catch`
+above begins after that. A repeated signal during the run exits the process,
+and the runner then kills the child and its process group or job at once
+instead of waiting for it to stop. To let such a child stop gracefully
+however often the user presses Ctrl+C, hold the scope around the whole
+`RunAsync` call, which also keeps a repeated signal from exiting during the
+run. `SIGHUP` is not one of the handled signals: when the terminal closes, the
+runtime ends the process at once, without exit handlers, and a Unix child in a
+process group of its own can outlive it.
+
 The exit codes follow the Unix 128-plus-signal convention; Windows uses the same
 values. On Windows, Ctrl+C and Ctrl+Break map to SIGINT and SIGQUIT, and SIGTERM
 corresponds to the system shutdown event. Windows may end the process as soon as
@@ -386,6 +402,16 @@ a `JsonDocument` for ad-hoc inspection and does not validate the envelope's
 members, its success and failure rules, limits or payload type. Supply
 explicit ParseSettings, for example `CommandTestEnvironment.Capture(variables)`, to
 keep environment-dependent tests deterministic.
+
+Faults, diagnostics, and the lines of a `CommandTaskLog` or spinner are
+sanitized before they reach the terminal: control characters, ANSI sequences,
+and the characters that can reorder or hide text (the bidirectional
+overrides, embeddings and isolates such as U+202E RIGHT-TO-LEFT OVERRIDE, the
+tag characters, and U+200B, U+2060 and U+FEFF) are removed or become a space.
+The joiners and direction marks that Persian, Indic and right-to-left text and
+emoji need (ZWNJ, ZWJ, LRM, RLM, ALM) are kept. A payload's human output and `HumanOutput` are written as the command
+gives them. Show untrusted text, such as a child's output or a user's input,
+in a `CommandTaskLog` or put it into a fault rather than into human output.
 
 ## Interactive prompts
 

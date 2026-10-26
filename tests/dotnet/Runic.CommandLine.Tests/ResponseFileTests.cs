@@ -164,6 +164,108 @@ internal sealed class ResponseFileTests
         AssertUsageError(await RunAsync(["@bad\0name"]), "RCLI1017", "response-file-unreadable", 0, "<invalid>");
     }
 
+    // SEC-41: expansion is bounded, so a hostile response file is a usage error rather than exhausted memory.
+    [Test, DisplayName("response-files/expansion-is-bounded-in-size-and-arguments")]
+    public async ValueTask ExpansionIsBounded()
+    {
+        using var directory = new TemporaryDirectory();
+        // One file over 1 MiB.
+        byte[] large = new byte[(1 << 20) + 1];
+        Array.Fill(large, (byte)'a');
+        string tooLarge = directory.Write("large.rsp", large);
+        AssertUsageError(await RunAsync(["x", "@" + tooLarge]), "RCLI1017", "response-file-unreadable", 1, "large.rsp");
+
+        // Files of at most 1 MiB each, but more than 4 MiB together.
+        byte[] part = new byte[900 * 1024];
+        Array.Fill(part, (byte)'b');
+        for (int index = 0; index < 5; index++) directory.Write("part-" + index + ".rsp", part);
+        string parts = directory.Write("parts.rsp", "@part-0.rsp @part-1.rsp @part-2.rsp @part-3.rsp @part-4.rsp");
+        AssertUsageError(await RunAsync(["@" + parts]), "RCLI1017", "response-file-unreadable", 0, "part-4.rsp");
+
+        // Files that name the next level four times each: 4^9 arguments without the bound.
+        directory.Write("level-9.rsp", "leaf");
+        for (int level = 8; level >= 0; level--)
+            directory.Write("level-" + level + ".rsp", string.Join(' ', Enumerable.Repeat("@level-" + (level + 1) + ".rsp", 4)));
+        Run fanOut = await RunAsync(["@" + System.IO.Path.Combine(directory.Path, "level-0.rsp")]);
+        AssertEx.Equal(CommandExitCodes.Usage, fanOut.ExitCode, fanOut.StandardError);
+        AssertEx.True(fanOut.StandardError.Contains("RCLI1017", StringComparison.Ordinal), fanOut.StandardError);
+
+        // Below the bounds, the same shape expands: 4^4 = 256 arguments.
+        directory.Write("small-4.rsp", "leaf");
+        for (int level = 3; level >= 0; level--)
+            directory.Write("small-" + level + ".rsp", string.Join(' ', Enumerable.Repeat("@small-" + (level + 1) + ".rsp", 4)));
+        AssertEx.Equal(256, (await RunAsync(["@" + System.IO.Path.Combine(directory.Path, "small-0.rsp")])).Words!.Length);
+    }
+
+    // SEC-41: a device or pipe is read in chunks within the size bound: /dev/zero fails fast, and a FIFO that is
+    // written to is read like a file.
+    [Test, DisplayName("response-files/devices-hit-the-size-bound-and-fifos-are-read")]
+    public async ValueTask DevicesAndFifos()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        AssertUsageError(await RunAsync(["@/dev/zero"]).AsTask().WaitAsync(TimeSpan.FromSeconds(30)), "RCLI1017", "response-file-unreadable", 0, "/dev/zero");
+
+        using var directory = new TemporaryDirectory();
+        string fifo = System.IO.Path.Combine(directory.Path, "pipe.rsp");
+        using (var mkfifo = System.Diagnostics.Process.Start("mkfifo", [fifo]))
+        {
+            await mkfifo.WaitForExitAsync();
+            AssertEx.Equal(0, mkfifo.ExitCode);
+        }
+
+        // One run reads the FIFO once; a second writer could open it before the first reader closed it.
+        Task writer = Task.Run(async () =>
+        {
+            await using var stream = new FileStream(fifo, FileMode.Open, FileAccess.Write);
+            await stream.WriteAsync(Utf8.GetBytes("from \"the fifo\"\n"));
+        });
+        Run run = await RunOnceAsync(["@" + fifo], responseFiles: true, ParseSettings.Default).AsTask().WaitAsync(TimeSpan.FromSeconds(30));
+        await writer.WaitAsync(TimeSpan.FromSeconds(30));
+        AssertEx.Equal(0, run.ExitCode, run.StandardError);
+        AssertEx.SequenceEqual(["from", "the fifo"], run.Words!);
+    }
+
+    // SEC-41: @/dev/stdin reads arguments from a pipe, as before the bounds.
+    [Test, DisplayName("response-files/piped-standard-input-is-read")]
+    public async ValueTask PipedStandardInput()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (string argument in new[] { ChildSwitch, "first", "@/dev/stdin", "last" }) start.ArgumentList.Add(argument);
+        using var child = System.Diagnostics.Process.Start(start)!;
+        Task<string> output = child.StandardOutput.ReadToEndAsync();
+        Task<string> error = child.StandardError.ReadToEndAsync();
+        await child.StandardInput.WriteAsync("piped \"two words\"\n");
+        child.StandardInput.Close();
+        await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
+        AssertEx.Equal(0, child.ExitCode, await error);
+        // The command's own human output comes first, then the words the child printed.
+        string text = await output;
+        AssertEx.True(text.EndsWith("\nfirst|piped|two words|last\n", StringComparison.Ordinal), text);
+    }
+
+    private const string ChildSwitch = "--response-file-child";
+
+    public static bool IsChildInvocation(string[] args) => args.Length >= 1 && args[0] == ChildSwitch;
+
+    // Runs the response-file catalog on the real console and prints the words it received.
+    public static async Task<int> RunChildAsync(string[] args)
+    {
+        string[]? received = null;
+        int exitCode = await new CommandApp(Catalog(responseFiles: true, words => received = words))
+        {
+            Name = "fixture", ParseSettings = ParseSettings.Default, HandleTerminationSignals = false,
+        }.RunAsync(args[1..]);
+        if (received is not null) Console.Out.Write(string.Join('|', received) + "\n");
+        return exitCode;
+    }
+
     [Test, DisplayName("response-files/an-unterminated-quote-is-a-usage-error")]
     public async ValueTask UnterminatedQuote()
     {

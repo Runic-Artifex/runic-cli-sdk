@@ -344,7 +344,11 @@ the JSON alias with a value, as in `--json=true`, is `RCLI1004`.
 ### RCLI1017
 
 `response-file-unreadable`: a response file could not be read. It does not
-exist, is a directory, cannot be opened, or its name is not a valid path. Only
+exist, is a directory, cannot be opened, or its name is not a valid path. It
+also covers expansion past its bounds: a file of more than 1 MiB, such as
+`/dev/zero`, or more than 4 MiB or 65,536 arguments from all response files of
+the command line together. A pipe, such as `@/dev/stdin`, is read like a file
+within the same bounds. Only
 applications that declare `CommandCatalogBuilder.ResponseFiles()` read
 response files; see [response files](#response-files). The argument is the
 file name as written after `@`, or only its last segment when it names a home
@@ -434,7 +438,11 @@ category is `Usage`, exit code 2.
 The command failed unexpectedly: it threw an exception, or its fault had a code
 that is not a valid identifier. The exception is not written to the output. Set
 `RUNIC_COMMANDLINE_DEBUG=1` to write it to standard error, or log it with
-`CommandApp.ExceptionObserver`. The exit category is `HostFailure`, exit code 3.
+`CommandApp.ExceptionObserver`. `DOTNET_ENVIRONMENT=Development` and an attached
+debugger also write it to standard error. That text is stripped of control
+characters other than line breaks and tabs, but not redacted: it can contain
+paths and secrets, so keep both variables unset where standard error is
+collected, such as in CI. The exit category is `HostFailure`, exit code 3.
 
 ## Processes
 

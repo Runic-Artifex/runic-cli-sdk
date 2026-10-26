@@ -196,8 +196,9 @@ sensitive options, stack traces, exception type names, environment-variable
 values, absolute internal paths, line breaks, terminal controls, or Unicode
 control characters. Unexpected exceptions are logged only to an authorized
 diagnostic sink and map to the sanitized `RCLI5000` host fault. A developer
-opt-in, such as the .NET host's `RUNIC_COMMANDLINE_DEBUG=1`, MAY make stderr
-such a sink; stdout, the frame and its fault remain unchanged.
+opt-in, such as the .NET host's `RUNIC_COMMANDLINE_DEBUG=1` or
+`DOTNET_ENVIRONMENT=Development`, MAY make stderr such a sink; stdout, the
+frame and its fault remain unchanged.
 
 A writer sanitizes each fault before output, human or JSON. Its check for
 technical content is a heuristic, not a guarantee: it matches only the
@@ -244,7 +245,8 @@ limits. Producers MUST emit every required known field. Adding an optional
 unknown field is compatible. Removing a required field, changing a known
 field's JSON type, weakening an invariant, or reinterpreting a known value
 requires a new protocol major identity. Duplicate JSON property names are
-invalid rather than last-value-wins.
+invalid rather than last-value-wins, at every level, including inside the
+payload.
 
 Payload compatibility is independent of envelope compatibility. A client
 MUST validate `payloadType` before invoking its pre-registered, non-reflection

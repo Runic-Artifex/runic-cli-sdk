@@ -39,6 +39,7 @@ internal static class ChildProcessFixture
             "term-aware" => await RunTermAwareAsync(args).ConfigureAwait(false),
             "read-tty" => ReadTerminal(args),
             "run-probe" => await RunProbeAsync(args).ConfigureAwait(false),
+            "exit-during-run" => await ExitDuringRunAsync(args).ConfigureAwait(false),
             _ => 97,
         };
     }
@@ -315,6 +316,42 @@ internal static class ChildProcessFixture
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"state={result.State} code={result.ExitCode?.ToString(CultureInfo.InvariantCulture) ?? "none"} group={(observer.Identity?.ProcessGroupId is null ? "none" : "own")} out={result.StandardOutput.Text.Trim()}"));
         return 0;
+    }
+
+    // Starts a long child through the runner and, once it runs, ends this process without letting the run return:
+    // "exit" calls Environment.Exit as CommandApp does on a repeated signal, "terminate" ends the process at once.
+    private static async Task<int> ExitDuringRunAsync(string[] args)
+    {
+        string mode = args[2];
+        string identityPath = args[3];
+        var observer = new ProbeObserver();
+        var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(60), drainGracePeriod: TimeSpan.FromSeconds(10))
+        {
+            StandardInput = ProcessStandardInput.Closed,
+        };
+        Task<ProcessResult> run = new ProcessRunner(new LocalExecutablePolicy(), observer).RunAsync(new ProcessRequest(
+            ExecutablePath, CreateArguments("sleep", "30000"), options: options)).AsTask();
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        while (observer.Identity is null && !run.IsCompleted && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20).ConfigureAwait(false);
+        }
+
+        if (observer.Identity is not ProcessIdentity identity)
+        {
+            return 95;
+        }
+
+        await File.WriteAllTextAsync(identityPath, identity.ProcessId.ToString(CultureInfo.InvariantCulture), Encoding.UTF8)
+            .ConfigureAwait(false);
+        if (mode == "terminate")
+        {
+            using Process self = Process.GetCurrentProcess();
+            self.Kill();
+        }
+
+        Environment.Exit(130);
+        return 94;
     }
 
     private sealed class ProbeObserver : IProcessObserver

@@ -733,6 +733,150 @@ internal sealed class ProcessRunnerTests
         TestAssert.Equal(Path.GetFullPath(Path.Combine(FakeBinDirectory, "npm.CMD")), policy.LastFileName);
     }
 
+    // SEC-44: Windows names a file's unnamed data stream "tool.cmd::$DATA" and ignores trailing dots and spaces.
+    [Test, DisplayName("windows batch detection sees through stream suffixes and trailing dots and spaces")]
+    public async Task WindowsBatchStreamSuffixesAreRejectedAsync()
+    {
+        var policy = new CountingAllowPolicy();
+        var runner = new ProcessRunner(policy, null, null, CreateWindowsPlatform("npm.cmd"));
+        foreach (string name in new[] { "build.cmd::$DATA", "build.CMD .::$DATA", "build.bat:stream", "build.Bat:stream:$DATA", "build.cmd. . " })
+        {
+            ProcessResult result = await runner.RunAsync(new ProcessRequest(Path.Combine(FakeBinDirectory, name))).ConfigureAwait(false);
+            TestAssert.Equal(ProcessState.Rejected, result.State);
+            TestAssert.Equal(ProcessFaultCodes.BatchFileRejected, result.Fault!.Code);
+        }
+
+        TestAssert.Equal(0, policy.EvaluationCount);
+        foreach (string name in new[] { "build.exe", "build.cmd.exe", "build.exe::$DATA", "cmd", "bat" })
+        {
+            TestAssert.False(ProcessRunner.IsBatchFile(Path.Combine(FakeBinDirectory, name)), name);
+        }
+    }
+
+    // SEC-44: a real batch file through cmd.exe. Without the opt-in it is rejected, also through PATHEXT and a stream
+    // suffix; with it, cmd.exe metacharacters are rejected and plain arguments reach the script, also from a
+    // directory whose name contains & and ^.
+    [Test, DisplayName("windows batch file runs through cmd.exe only with the opt-in")]
+    public async Task RealWindowsBatchFileAsync()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "runic-batch-" + Guid.NewGuid().ToString("N"), "a&b^c");
+        Directory.CreateDirectory(directory);
+        string script = Path.Combine(directory, "echo-args.cmd");
+        string marker = Path.Combine(directory, "injected.txt");
+        await File.WriteAllTextAsync(script, "@echo off\r\necho RUNIC-BATCH-RAN\r\necho [%*]\r\n", Encoding.ASCII).ConfigureAwait(false);
+        try
+        {
+            var observer = new RecordingObserver();
+            var runner = new ProcessRunner(new LocalExecutablePolicy(), observer);
+            var path = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase) { ["PATH"] = directory, ["PATHEXT"] = ".COM;.EXE;.BAT;.CMD" };
+            foreach (ProcessRequest request in new[]
+            {
+                new ProcessRequest(script, ["plain"]),
+                new ProcessRequest("echo-args", ["plain"], environment: path),
+                new ProcessRequest(script + "::$DATA", ["plain"]),
+            })
+            {
+                ProcessResult rejected = await runner.RunAsync(request).ConfigureAwait(false);
+                TestAssert.Equal(ProcessState.Rejected, rejected.State);
+                TestAssert.Equal(ProcessFaultCodes.BatchFileRejected, rejected.Fault!.Code);
+            }
+
+            TestAssert.Equal(0, observer.StartedCount);
+            var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(30), allowWindowsBatchFiles: true);
+            foreach (string argument in BatchMetacharacterArguments.Append("x & echo injected > \"" + marker + "\""))
+            {
+                ProcessResult result = await runner.RunAsync(new ProcessRequest(script, ["ok", argument], options: options))
+                    .ConfigureAwait(false);
+                TestAssert.Equal(ProcessState.Rejected, result.State);
+                TestAssert.Equal(ProcessFaultCodes.BatchFileArgumentRejected, result.Fault!.Code);
+                TestAssert.Equal("1", result.Fault.Details["argumentIndex"]);
+            }
+
+            TestAssert.Equal(0, observer.StartedCount);
+            ProcessResult ran = await runner.RunAsync(
+                new ProcessRequest(script, ["left pad", @"C:\trailing\", "two  spaces", "@scope/name@1.0.0"], options: options))
+                .ConfigureAwait(false);
+            AssertExited(ran, 0);
+            string output = ran.StandardOutput.Text;
+            TestAssert.True(output.Contains("RUNIC-BATCH-RAN", StringComparison.Ordinal), output);
+            TestAssert.True(output.Contains("left pad", StringComparison.Ordinal), output);
+            TestAssert.True(output.Contains("two  spaces", StringComparison.Ordinal), output);
+            TestAssert.True(output.Contains("@scope/name@1.0.0", StringComparison.Ordinal), output);
+            TestAssert.False(File.Exists(marker), "A batch argument was interpreted by cmd.exe.");
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(directory)!, recursive: true);
+        }
+    }
+
+    // SEC-39: the process exit handler kills the children of runs that have not returned.
+    [Test, DisplayName("exit handler kills the children of running requests")]
+    public async Task ExitHandlerKillsLiveChildrenAsync()
+    {
+        var observer = new RecordingObserver();
+        var options = new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(30), drainGracePeriod: TimeSpan.FromSeconds(2));
+        ValueTask<ProcessResult> pending = CreateRunner(observer).RunAsync(CreateChildRequest(options, "sleep", "30000"));
+        Task<ProcessResult> run = pending.AsTask();
+        DateTimeOffset deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(10);
+        while (Runic.CommandLine.Processes.Internal.LiveChildren.Count == 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(20).ConfigureAwait(false);
+        }
+
+        TestAssert.Equal(1, Runic.CommandLine.Processes.Internal.LiveChildren.Count);
+        Runic.CommandLine.Processes.Internal.LiveChildren.KillAll();
+        ProcessResult result = await run.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        TestAssert.Equal(ProcessState.Exited, result.State);
+        TestAssert.True(result.ExitCode is not null and not 0, "The killed child reported success.");
+        TestAssert.True(result.Duration < TimeSpan.FromSeconds(10), "The child was not killed.");
+        TestAssert.Equal(0, Runic.CommandLine.Processes.Internal.LiveChildren.Count);
+    }
+
+    // SEC-39: a forced exit while the runner still waits for its child, as CommandApp's exit on a repeated signal,
+    // kills the child. On Windows the job also ends the child when the parent ends without exit handlers.
+    [Test, DisplayName("forced parent exit does not leave the child running")]
+    public async Task ForcedExitKillsChildAsync()
+    {
+        string[] modes = OperatingSystem.IsWindows() ? ["exit", "terminate"] : ["exit"];
+        foreach (string mode in modes)
+        {
+            string identityPath = Path.Combine(Path.GetTempPath(), $"wut-cli-exit-{Guid.NewGuid():N}.txt");
+            int? childProcessId = null;
+            try
+            {
+                using var parent = Process.Start(new ProcessStartInfo(ChildProcessFixture.ExecutablePath,
+                    ChildProcessFixture.CreateArguments("exit-during-run", mode, identityPath))
+                {
+                    UseShellExecute = false,
+                    RedirectStandardInput = true,
+                })!;
+                await parent.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                TestAssert.True(File.Exists(identityPath), "The parent did not start its child (exit code " +
+                    parent.ExitCode.ToString(CultureInfo.InvariantCulture) + ").");
+                childProcessId = int.Parse(
+                    await File.ReadAllTextAsync(identityPath).ConfigureAwait(false), NumberStyles.None, CultureInfo.InvariantCulture);
+                TestAssert.True(
+                    await WaitForProcessExitAsync(childProcessId.Value, TimeSpan.FromSeconds(5)).ConfigureAwait(false),
+                    "The child outlived the parent's forced exit (" + mode + ").");
+            }
+            finally
+            {
+                if (childProcessId is not null)
+                {
+                    TryKillProcess(childProcessId.Value);
+                }
+
+                File.Delete(identityPath);
+            }
+        }
+    }
+
     [Test, DisplayName("batch extensions are ordinary files outside windows")]
     public async Task BatchExtensionsAreOrdinaryOutsideWindowsAsync()
     {

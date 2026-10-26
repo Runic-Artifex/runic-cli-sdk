@@ -245,6 +245,9 @@ public sealed class CommandCatalogBuilder
     /// (<c>@@scope</c> is the argument <c>@scope</c>), and <c>@</c> on its own is an ordinary argument.
     /// </para>
     /// <para>
+    /// Expansion is bounded: a file holds at most 1 MiB, and all response files of one command line together at
+    /// most 4 MiB and 65,536 arguments; a file past a bound is unreadable. A pipe, such as <c>@/dev/stdin</c>, is read
+    /// like a file within the same bounds.
     /// A response file that cannot be read (<c>RCLI1017</c>), is not valid UTF-8 (<c>RCLI1018</c>), has an
     /// unterminated quote (<c>RCLI1019</c>), is nested too deeply (<c>RCLI1020</c>) or includes itself
     /// (<c>RCLI1021</c>) is a usage error (exit code 2) at the command-line argument that named it. Help lists

@@ -123,6 +123,9 @@ public static class CommandJsonEnvelopeReader
                     throw Error("outcome-invariant", "A successful response cannot contain a fault.");
                 }
 
+                // Protocol §Compatibility: duplicate property names are invalid rather than last-value-wins, also
+                // inside the payload, which the serializer would otherwise read with the last value winning.
+                RejectDuplicatePayloadMembers(payloadElement);
                 T? payload;
                 try
                 {
@@ -626,6 +629,20 @@ public static class CommandJsonEnvelopeReader
             {
                 throw Error("duplicate-property", $"The command response member '{name}' contains a duplicate property.");
             }
+        }
+    }
+
+    // The frame's depth is already bounded (ValidateDepth), so the recursion is too.
+    private static void RejectDuplicatePayloadMembers(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            RejectDuplicateMembers(element, "payload");
+            foreach (JsonProperty property in element.EnumerateObject()) RejectDuplicatePayloadMembers(property.Value);
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement item in element.EnumerateArray()) RejectDuplicatePayloadMembers(item);
         }
     }
 

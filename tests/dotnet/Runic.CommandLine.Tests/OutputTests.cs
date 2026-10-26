@@ -429,6 +429,72 @@ internal sealed class OutputTests
         return ValueTask.CompletedTask;
     }
 
+    // SEC-40: bidi overrides, isolates, zero-width and tag characters reorder or hide text on a terminal, so
+    // writers replace them like control characters.
+    [Test, DisplayName("output/faults-and-diagnostics-neutralize-bidi-and-invisible-format-characters")]
+    public ValueTask FormatCharactersAreNeutralized()
+    {
+        const string Hostile = "report\u202Etxt.exe\u2066x\u2069\u200By\u202Az\u2060\uFEFF\u202D\u2068\U000E0041end";
+        var fault = new CommandFault("RAS1001", Hostile, new Dictionary<string, string> { ["file"] = Hostile, ["k\u202Eey"] = "v" });
+        var diagnostic = new CommandDiagnostic(
+            "RCLI2001", "invalid-value", Hostile, CommandDiagnosticPhase.Binding, CommandDiagnosticSeverity.Error, 2,
+            [Hostile]);
+        CommandResponse<TestResult> response = CommandResponse.Failure<TestResult>("req-bidi", "pack", 10, fault, [diagnostic]);
+        const string Expected = "report txt.exe x y z end";
+        AssertEx.Equal(Expected, response.Fault!.Message);
+        AssertEx.Equal(Expected, response.Fault.Details["file"]);
+        AssertEx.Equal("v", response.Fault.Details["k ey"]);
+
+        byte[] frame = CommandJsonEnvelopeWriter.Serialize(response, TestJsonContext.Default.TestResult);
+        string json = Encoding.UTF8.GetString(frame);
+        foreach (string escaped in new[] { "\\u202E", "\\u2066", "\\u2069", "\\u200B", "\\u202A", "\\u2060", "\\uFEFF", "\\u202D", "\\u2068", "\\uDB40" })
+            AssertEx.True(!json.Contains(escaped, StringComparison.OrdinalIgnoreCase), "Expected no " + escaped + " in " + json);
+        using JsonDocument document = JsonDocument.Parse(frame.AsMemory(0, frame.Length - 1));
+        JsonElement written = document.RootElement.GetProperty("diagnostics")[0];
+        AssertEx.Equal(Expected, written.GetProperty("message").GetString());
+        AssertEx.Equal(Expected, written.GetProperty("arguments")[0].GetString());
+
+        // Ordinary text from other scripts is kept, with the joiners and marks that Persian, Indic and right-to-left
+        // text and emoji sequences need: ZWNJ, ZWJ, LRM, RLM and ALM.
+        const string Legitimate = "Ungültig – 日本語 ✓ שלום\u200F (x) می\u200Cخواهم क्\u200D 👨\u200D👩 \u200Eabc\u061C";
+        AssertEx.Equal(Legitimate, CommandResponse.Failure<TestResult>(
+            "req-text", "pack", 10, new CommandFault("RAS1001", Legitimate)).Fault!.Message);
+        return ValueTask.CompletedTask;
+    }
+
+    // The strict reader does not reject these characters yet (SEC-40 reader side is a pending maintainer
+    // decision), and it returns the fault as read.
+    [Test, DisplayName("output/reader-keeps-accepting-format-characters-pending-a-decision")]
+    public ValueTask ReaderStillAcceptsFormatCharacters()
+    {
+        const string Frame = "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req\",\"command\":\"status\",\"success\":false,\"exitCode\":10,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI3000\",\"message\":\"bad\\u202Etext\",\"details\":{},\"retryable\":false},\"diagnostics\":[]}\n";
+        CommandResponse<TestResult> read = CommandJsonEnvelopeReader.Read(
+            Encoding.UTF8.GetBytes(Frame), TestCodec.Identity, TestJsonContext.Default.TestResult);
+        AssertEx.Equal("bad\u202Etext", read.Fault!.Message);
+        return ValueTask.CompletedTask;
+    }
+
+    // SEC-43, protocol §Compatibility: duplicate property names are invalid at every level, also in the payload.
+    [Test, DisplayName("output/reader-rejects-duplicate-payload-members")]
+    public ValueTask ReaderRejectsDuplicatePayloadMembers()
+    {
+        byte[] frame = SuccessFrame();
+        string json = Encoding.UTF8.GetString(frame);
+        int payload = json.IndexOf("\"payload\":{", StringComparison.Ordinal) + "\"payload\":{".Length;
+        AssertEx.True(payload > "\"payload\":{".Length, json);
+        AssertEx.Equal(TestCodec.Identity, CommandJsonEnvelopeReader.Read(frame, TestCodec.Identity, TestJsonContext.Default.TestResult).PayloadType);
+        foreach (string member in new[] { "\"x\":1,\"x\":2,", "\"nested\":[{\"a\":1,\"a\":1}]," })
+        {
+            byte[] duplicated = Encoding.UTF8.GetBytes(json.Insert(payload, member));
+            AssertProtocolKind(duplicated, "duplicate-property");
+        }
+
+        // Unknown payload members without duplicates stay accepted.
+        byte[] unknown = Encoding.UTF8.GetBytes(json.Insert(payload, "\"x\":1,\"nested\":[{\"a\":1,\"b\":1}],"));
+        AssertEx.Equal(TestCodec.Identity, CommandJsonEnvelopeReader.Read(unknown, TestCodec.Identity, TestJsonContext.Default.TestResult).PayloadType);
+        return ValueTask.CompletedTask;
+    }
+
     [Test, DisplayName("output/control-only-fault-message-is-redacted")]
     public ValueTask ControlOnlyMessageIsRedacted()
     {

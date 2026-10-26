@@ -37,22 +37,57 @@ to bypass one is in scope for a report:
 
 - **Fault sanitizer.** A writer sanitizes every fault before output, human or
   JSON, and diagnostic arguments exclude raw token values unless a command
-  marks them safe. The check for technical content is a heuristic, not a
-  guarantee; the
+  marks them safe. Control characters, Unicode line separators, and the
+  characters that can reorder or hide text on a terminal become a space: the
+  bidirectional embeddings, overrides and isolates (U+202A–U+202E,
+  U+2066–U+2069), the tag characters (U+E0000–U+E007F), and U+200B, U+2060 and
+  U+FEFF. The joiners and direction marks that Persian, Indic and
+  right-to-left text and emoji need (U+200C–U+200F, U+061C) are kept. The check for technical content is a
+  heuristic, not a guarantee; the
   [protocol](specs/command-line/protocol/README.md#diagnostic-object) lists
   what it matches and what producers must keep out of faults themselves.
+- **Sanitized and raw output.** Faults, diagnostics, and the lines of a
+  `CommandTaskLog` or spinner are sanitized. Some surfaces are written as the
+  command gives them: a payload's human output, `HumanOutput`, and the output
+  of a child process, captured (`ProcessResult.StandardOutput.Text`) or
+  streamed (`OnLineAsync`, `OnChunkAsync`). A command that echoes child
+  output or user input there passes terminal escape sequences through; show
+  untrusted text in a `CommandTaskLog`, or put it into a fault, instead.
+- **Developer exception output.** With a debugger attached,
+  `RUNIC_COMMANDLINE_DEBUG=1` or `DOTNET_ENVIRONMENT=Development`, `CommandApp`
+  also writes the exceptions it observed to stderr, never to the JSON frame.
+  That text keeps line breaks and tabs but no other control characters or the
+  formatting characters above. It is not redacted: an exception message can
+  contain paths, connection strings or tokens, so do not set either variable
+  where stderr is collected, for example in a CI job or a container image.
+- **Response files.** An application that declares
+  `CommandCatalogBuilder.ResponseFiles()` expands `@file` arguments within
+  bounds: 16 nesting levels, 1 MiB per file, and 4 MiB and 65,536 arguments in
+  total. Files are read in chunks and reading stops once a bound is exceeded
+  (`RCLI1017`), so `@/dev/zero` fails fast while `@/dev/stdin` from a pipe
+  works; a FIFO without a writer blocks, as `cat` would.
 - **Executable policy.** `Runic.CommandLine.Processes` starts children without
   a shell, evaluates every request with `IExecutablePolicy`, and rejects
   Windows batch files without an opt-in and, with it, arguments that `cmd.exe`
   would interpret (`RCLI6001`–`RCLI6008`); see
   [security and failure behavior](packages/dotnet/Runic.CommandLine.Processes/README.md#security-and-failure-behavior).
-- **Environment inheritance.** A child inherits the parent environment unless
-  `InheritEnvironment` is false; see
+- **Environment inheritance.** A child inherits the whole parent environment
+  unless `InheritEnvironment` is false, including credentials such as
+  `GITHUB_TOKEN` or `NUGET_API_KEY` in a CI job. Run tools that do not need
+  them with `InheritEnvironment = false` and an explicit minimal environment;
+  see
   [standard input and environment](packages/dotnet/Runic.CommandLine.Processes/README.md#standard-input-and-environment).
 - **Termination signals.** `CommandApp` cancels the invocation on the first
-  termination signal and exits at once on a repeated one unless the command
-  holds a shutdown protection scope; see the
+  termination signal (Ctrl+C/SIGINT, SIGTERM, SIGQUIT) and exits at once on a
+  repeated one unless the command holds a shutdown protection scope; see the
   [Runic.CommandLine README](packages/dotnet/Runic.CommandLine/README.md#presentation-and-testing).
+  When the process exits while a `ProcessRunner` run is still in progress, as
+  on that repeated signal, the runner kills the run's child and its process
+  group or job; on Windows the job also ends the child when the process ends
+  without running exit handlers. `SIGHUP`, for example a closed terminal, is
+  not handled: the runtime ends the process at once, and a Unix child in a
+  process group of its own can keep running. See
+  [cancellation, timeout and descendants](packages/dotnet/Runic.CommandLine.Processes/README.md#cancellation-timeout-and-descendants).
 
 ## Verifying releases
 

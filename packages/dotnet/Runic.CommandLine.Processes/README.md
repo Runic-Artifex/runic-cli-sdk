@@ -2,9 +2,11 @@
 
 `Runic.CommandLine.Processes` runs local tools for command applications without
 building a shell command string. It preserves argument tokens, applies an
-executable policy before launch, bounds retained stdout/stderr, and returns a
-sanitized result for success, rejection, timeout, cancellation, and start
-failure.
+executable policy before launch, bounds retained stdout/stderr, and returns one
+result for success, rejection, timeout, cancellation, and start failure. The
+result's fault is normalized so that it does not leak the request's input; the
+captured and streamed child output is the child's, unchanged, and can contain
+terminal escape sequences (see [security and failure behavior](#security-and-failure-behavior)).
 
 ## Install
 
@@ -26,7 +28,7 @@ development server or another long-lived child manages that process itself.
 ## Run an allowlisted tool
 
 Constrain executable and working-directory roots, pass one argument per token,
-and inspect the resulting state:
+give the tool only the environment it needs, and inspect the resulting state:
 
 ```csharp
 var policy = new LocalExecutablePolicy(
@@ -37,10 +39,15 @@ var request = new ProcessRequest(
     toolPath,
     new[] { "export", "--output", outputPath },
     workingDirectory: applicationDataDirectory,
+    // Without this, the tool inherits every variable of the parent, such as GITHUB_TOKEN in a CI job.
+    environment: new Dictionary<string, string?> { ["LANG"] = "C.UTF-8" },
     options: new ProcessExecutionOptions(
         timeout: TimeSpan.FromSeconds(30),
         standardOutputLimitBytes: 64 * 1024,
-        standardErrorLimitBytes: 64 * 1024));
+        standardErrorLimitBytes: 64 * 1024)
+    {
+        InheritEnvironment = false,
+    });
 
 ProcessResult result = await runner.RunAsync(request, cancellationToken: cancellationToken);
 
@@ -229,6 +236,29 @@ started:
   runner terminates the job and the process tree at once. A descendant the child
   started before it joined the job is reached through the process tree only.
 
+The runner returns only after its child has exited, so these steps assume that
+the caller's process lives until then. When the process exits while a run is
+still in progress, the runner cannot wait out the grace period:
+
+- **A forced exit**, such as `Environment.Exit` in `CommandApp` on a repeated
+  Ctrl+C or SIGTERM, or `Main` returning while a run is pending, runs the
+  runtime's exit handlers. The runner's handler kills the child of every run
+  that has not returned, with `SIGKILL` to its process group or by terminating
+  its job and process tree, without the `SIGTERM` step. A child that needs its
+  grace period, such as a tool releasing locks, gets it only when the command
+  holds `CommandExecutionContext.ProtectShutdown()` around the whole
+  `RunAsync` call; see the
+  [Runic.CommandLine README](../Runic.CommandLine/README.md#presentation-and-testing).
+- **An exit without handlers**, such as a crash, `SIGKILL`, or `SIGHUP` when
+  the terminal closes (`CommandApp` does not handle `SIGHUP`), skips the
+  runner. On Windows the job is set to kill its processes when its last handle
+  closes, so the child still ends with the parent, also when the console window
+  is closed. On Unix a child in a process group of its own keeps running; a
+  child in the caller's group also receives the terminal's `SIGHUP`.
+
+After a run returns, the job no longer kills on close: a descendant that
+outlives a normally exited child is left running, as before.
+
 Which group a Unix child gets depends on the caller's terminal:
 
 - **A caller with a controlling terminal**, such as a command-line application,
@@ -333,6 +363,8 @@ Windows starts `.bat` and `.cmd` files through `cmd.exe`, which parses the
 command line again and interprets `&`, `|`, `%` and other characters even inside
 quoted arguments. Because bare names such as `npm` resolve through `PATHEXT`
 to `npm.cmd`, the runner rejects batch files with `RCLI6007` after resolution.
+It recognizes the extension as Windows does, ignoring case, trailing dots and
+spaces, and a stream suffix (`tool.cmd::$DATA`).
 Set `allowWindowsBatchFiles: true` on `ProcessExecutionOptions` only for
 trusted scripts; arguments or paths that contain `% ! ^ & | < > " ( )` or line
 breaks are still rejected with `RCLI6008` rather than escaped. Prefer the
@@ -347,6 +379,13 @@ does not eliminate operating-system races: a permitted file or symlink can be
 replaced between evaluation and start. When inputs cross a trust boundary, use
 an absolute allowlisted executable and a minimal child environment—inheritance
 can expose credentials.
+
+Only the result's fault is normalized. The captured output
+(`ProcessResult.StandardOutput.Text`, `StandardError.Text`) and the data passed
+to `OnLineAsync` and `OnChunkAsync` are the child's own bytes: an untrusted tool
+can write terminal escape sequences or bidirectional overrides
+into them. Show such output through a `CommandTaskLog`, which removes them,
+rather than writing it to the terminal or a command's human output directly.
 
 Use `ProcessState` to handle terminal behavior and `ProcessFaultCodes` for
 stable diagnostics such as `RCLI6001` (executable rejected), `RCLI6002`
