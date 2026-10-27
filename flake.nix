@@ -11,12 +11,9 @@
       devShells = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          lib = pkgs.lib;
-          pinned = pkg: expected: label:
-            assert lib.assertMsg (pkg.version == expected)
-              "nixpkgs provides ${label} ${pkg.version}, but the repository pins ${expected}";
-            pkg;
-          dotnet = pinned pkgs.dotnetCorePackages.sdk_10_0 (lib.importJSON ./global.json).sdk.version ".NET SDK";
+          # global.json disables SDK roll-forward; nix/toolchain provides exactly that version (from the official
+          # binaries while nixpkgs is older) and fails evaluation otherwise.
+          dotnet = (import ./nix/toolchain { inherit pkgs; }).dotnet-sdk;
         in {
           default = pkgs.mkShell {
             packages = with pkgs; [
