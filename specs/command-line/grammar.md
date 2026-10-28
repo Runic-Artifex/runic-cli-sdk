@@ -8,7 +8,7 @@ Commands use invariant names matching `[a-z][a-z0-9-]*`. Command aliases are exp
 
 Long options accept `--name value` and `--name=value`. A zero-arity Boolean flag accepts no value. Short options are explicit one-ASCII-letter aliases such as `-v`; short bundles are unsupported. Slash aliases such as `/verbose` are recognized only when the exact alias is registered. Other slash-prefixed tokens are data, which preserves absolute Unix paths.
 
-`--` ends option recognition. Every subsequent token is positional data, including `--help`, a registered slash alias, an empty string, or a leading-hyphen token. Positional definitions declare order and arity; only the final positional may be unbounded. A command may declare trailing arguments (`IsTrailing`): they receive every token after the first `--`, including later `--` tokens, and its positional definitions then receive only tokens before it. Option and argument values are preserved byte-for-byte after UTF-8 JSON decoding.
+`--` ends option recognition. Every subsequent token is positional data, including `--help`, a registered slash alias, an empty string, or a leading-hyphen token. Positional definitions declare order and arity; only the final positional may be unbounded, and a required positional never follows an optional one. Positional tokens bind to the definitions in order: each definition takes as many tokens as its maximum allows while leaving the minimums of the definitions after it. When there are fewer positional tokens than the minimums add up to, the result is one `missing-argument` diagnostic for the first definition whose minimum, added to the minimums before it, exceeds the number of positional tokens; its single argument is that definition's name (the `id` in the fixture catalog), so `copy source.txt` names `destination`. A positional token left over after every definition reached its maximum is `unexpected-argument` at that token. A command may declare trailing arguments (`IsTrailing`): they receive every token after the first `--`, including later `--` tokens, and its positional definitions then receive only tokens before it. Option and argument values are preserved byte-for-byte after UTF-8 JSON decoding.
 
 Scalar options and flags reject a second occurrence. Options configured with `repeat: append` preserve all occurrences in encounter order, including identical values. Built-in `--help` and `-h` are valid at the root and every command node, never invoke a handler, and normalize aliases to a help result. `--version` is root-only.
 
@@ -21,7 +21,7 @@ Every corpus row has an immutable `id`, `args`, and `expected` object. `expected
 - `version`: the reserved root version request.
 - `error`: one or more ordered diagnostics.
 
-Diagnostic `tokenIndex` is zero-based. When input ends before a required token, it equals `args.length`. Wave A assigns these stable grammar identities within the registered CLI diagnostic range:
+Diagnostic `tokenIndex` is zero-based. When input ends before a required token, it equals `args.length`. A corpus diagnostic may also list `arguments`, the diagnostic's ordered arguments; when it does, an implementation must report exactly those. Diagnostic messages are presentation text and not part of the grammar. Wave A assigns these stable grammar identities within the registered CLI diagnostic range:
 
 | Code | Kind |
 |---|---|

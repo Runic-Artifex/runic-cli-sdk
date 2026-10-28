@@ -242,6 +242,17 @@ internal sealed class CorpusContractTests
             {
                 throw new InvalidOperationException($"Fixture '{fixtureId}' has a negative diagnostic token index.");
             }
+
+            // Optional: the diagnostic's ordered arguments.
+            if (diagnostic.TryGetProperty("arguments", out JsonElement arguments))
+            {
+                if (arguments.ValueKind != JsonValueKind.Array)
+                {
+                    throw new InvalidOperationException($"Fixture '{fixtureId}' diagnostic arguments must be an array.");
+                }
+
+                ValidateStringArray(arguments, fixtureId, "expected.diagnostics.arguments");
+            }
         }
     }
 

@@ -59,7 +59,7 @@ internal sealed class TestingEnvironmentTests
         var disabled = new TestCommandConsole { IsInteractive = true };
         AssertEx.Equal(CommandExitCodes.Usage, await App(disabled, CommandTestEnvironment.Capture(
             new Dictionary<string, string?> { ["RUNIC_COMMANDLINE_NO_INPUT"] = "1" })).RunAsync(["ask"]));
-        AssertEx.True(disabled.StandardError.StartsWith("RCLI4001: Name needs an answer, but prompts are disabled.", StringComparison.Ordinal), disabled.StandardError);
+        AssertEx.True(disabled.StandardError.StartsWith("Name needs an answer, but prompts are disabled.", StringComparison.Ordinal), disabled.StandardError);
 
         var enabled = new TestCommandConsole { IsInteractive = true };
         enabled.QueueInput("ada");

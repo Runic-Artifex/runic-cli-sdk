@@ -34,6 +34,10 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
   argument named `parameter` is an option spelling such as `--limit` or an
   argument placeholder such as `<name>`.
 - Resolved text passes through the same sanitizers as the English text.
+- A usage error in human output ends with the usage line of its command, built
+  from the `help.usage`, `help.command-placeholder` and
+  `help.options-placeholder` keys as in help, and the `hints.usage` line, whose
+  `command` argument is the help command line, such as `tool copy --help`.
 
 ## Keys
 
@@ -80,21 +84,22 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `faults.RCLI4001` | | The message of its `diagnostics.prompt-*` diagnostic, below. |
 | `faults.RCLI5000` | | The command could not be completed. |
 | `hints.RCLI5000` | | Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr. |
-| `diagnostics.unknown-option` | `option` | An unrecognized option was supplied. ({option}) |
-| `diagnostics.unknown-option-suggestion` | `option`, `suggestion` | An unrecognized option was supplied. ({option}) Did you mean '{suggestion}'? |
-| `diagnostics.unknown-command` | `command` (absent when no command was typed) | An unrecognized command was supplied. |
-| `diagnostics.unknown-command-suggestion` | `command`, `suggestion` | An unrecognized command was supplied. Did you mean '{suggestion}'? |
-| `diagnostics.missing-option-value` | `option` | A required option value is missing. ({option}) |
-| `diagnostics.unexpected-option-value` | `option` | A flag does not accept a value. ({option}) |
-| `diagnostics.missing-argument` | `argument` | A required command argument is missing. ({argument}) |
-| `diagnostics.unexpected-argument` | | An unexpected command argument was supplied. |
-| `diagnostics.duplicate-option` | `option` | An option was specified more than once. ({option}) |
-| `diagnostics.unsupported-short-bundle` | | Bundled short options are not supported. |
+| `hints.usage` | `command` | Run "{command}" for more information. |
+| `diagnostics.unknown-option` | `option` | The option '{option}' is not recognized. |
+| `diagnostics.unknown-option-suggestion` | `option`, `suggestion` | The option '{option}' is not recognized. Did you mean '{suggestion}'? |
+| `diagnostics.unknown-command` | `command` (absent when no command was typed) | The command '{command}' is not recognized. Without `command`: No command was given. |
+| `diagnostics.unknown-command-suggestion` | `command`, `suggestion` | The command '{command}' is not recognized. Did you mean '{suggestion}'? |
+| `diagnostics.missing-option-value` | `option` | The {option} option requires a value. |
+| `diagnostics.unexpected-option-value` | `option` | The {option} option does not take a value. |
+| `diagnostics.missing-argument` | `argument` | The {argument} argument is missing. |
+| `diagnostics.unexpected-argument` | | Too many arguments were given. |
+| `diagnostics.duplicate-option` | `option` | The {option} option was given more than once. |
+| `diagnostics.unsupported-short-bundle` | | Short options cannot be combined; give each one separately. |
 | `diagnostics.invalid-output-mode` | `option` | {option} must be human or json. |
 | `diagnostics.conflicting-output-selector` | `option`, `conflict` | {option} and {conflict} both select the output format. Use one of them. |
 | `diagnostics.transport-output-option-collision` | | The command line is invalid. |
-| `diagnostics.missing-required-option` | `option`, `command` | A required option was not supplied. ({option}) |
-| `diagnostics.unexpected-root-help-argument` | | Root help does not accept additional arguments. |
+| `diagnostics.missing-required-option` | `option`, `command` | The {option} option is required. |
+| `diagnostics.unexpected-root-help-argument` | | The application's help takes no other arguments. |
 | `diagnostics.response-file-unreadable` | `file` | The response file '{file}' could not be read. |
 | `diagnostics.response-file-invalid-utf8` | `file` | The response file '{file}' is not valid UTF-8. |
 | `diagnostics.response-file-unterminated-quote` | `file` | The response file '{file}' has an unterminated quote. |

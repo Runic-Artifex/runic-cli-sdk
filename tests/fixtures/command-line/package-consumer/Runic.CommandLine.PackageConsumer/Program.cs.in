@@ -136,7 +136,7 @@ internal static class Program
         HostedCommandLineExecutionResult humanExecution = await adapter.ExecuteAsync(
             new HostedCommandLineExecutionInput(humanDecision, humanConsole, CultureInfo.InvariantCulture, "package-consumer-2", new CommandOutputDispatcher())).ConfigureAwait(false);
         if (!humanExecution.Succeeded || humanConsole.StandardOutput.Length == 0 ||
-            humanConsole.StandardError != "RCLI3001: The generated result format is deprecated.\n") return 33;
+            humanConsole.StandardError != "The generated result format is deprecated.\n") return 33;
 
         HostedCommandLineDecision failureHumanDecision = adapter.Classify(
             new HostedCommandLineLaunchInput(
@@ -148,7 +148,7 @@ internal static class Program
             new HostedCommandLineExecutionInput(failureHumanDecision, failureHumanConsole, CultureInfo.InvariantCulture, "package-consumer-3", new CommandOutputDispatcher())).ConfigureAwait(false);
         if (failureHumanExecution.ExitCode != CommandExitCodes.Validation ||
             failureHumanConsole.StandardOutput != "Dry-run report\n" ||
-            failureHumanConsole.StandardError != "RCLI3002: The documents require review.\nRCLI3000: The dry run cannot continue.\n") return 35;
+            failureHumanConsole.StandardError != "The documents require review.\nThe dry run cannot continue.\n") return 35;
 
         HostedCommandLineDecision failureJsonDecision = adapter.Classify(
             new HostedCommandLineLaunchInput(
@@ -210,7 +210,7 @@ internal static class Program
             linkedFault.Message != "The command failed; details were redacted.") return 105;
         var linkedHuman = new BufferCommandConsole();
         await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, linkedHuman, CultureInfo.InvariantCulture, linked, CommandResultCodecs.String).ConfigureAwait(false);
-        if (linkedHuman.StandardError != "RCLI8001: The command failed; details were redacted.\nHelp for RCLI8001: https://docs.example.com/errors#rcli8001\n") return 106;
+        if (linkedHuman.StandardError != "The command failed; details were redacted.\nHelp for RCLI8001: https://docs.example.com/errors#rcli8001\n") return 106;
 
         Console.Out.Write(Array.IndexOf(launchArgs, "--emit-recovery-frame") >= 0 ? recoveryConsole.StandardOutput : console.StandardOutput);
         return 0;

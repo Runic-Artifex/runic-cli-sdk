@@ -73,12 +73,14 @@ public sealed class CommandPresentation
             return 0;
         }
         CommandResponse<string> response;
+        string? usageHint = null;
         if (parsed.Kind == ParseOutcomeKind.Error)
         {
             CommandDiagnostic diagnostic = parsed.Diagnostics[0];
             int exitCode = ExitCodePolicy.GetExitCode(CommandExitCategory.Usage);
             response = CommandResponse.Failure<string>(requestId, diagnostic.Path.Count > 0 ? diagnostic.Path.ToString() : "root", exitCode,
                 new CommandFault(diagnostic.Code, diagnostic.Message), parsed.Diagnostics);
+            if (mode == CommandOutputMode.Human) usageHint = new CommandUsageHint(catalog, Name).Format(diagnostic.Path, textContext, console);
         }
         else
         {
@@ -88,7 +90,7 @@ public sealed class CommandPresentation
             response = CommandResponse.Success(requestId, parsed.Kind == ParseOutcomeKind.Version ? "version" : "help", CommandResultCodecs.String.PayloadType, text);
         }
         await CommandOutputDispatcher.DispatchAsync(mode,
-            console, culture, response, CommandResultCodecs.String, textContext, cancellationToken).ConfigureAwait(false);
+            console, culture, response, CommandResultCodecs.String, textContext, usageHint, cancellationToken).ConfigureAwait(false);
         return response.ExitCode;
     }
 
@@ -98,7 +100,7 @@ public sealed class CommandPresentation
 
     // Human help on the process terminal follows its width, one column short so a full line never triggers the
     // legacy Windows console's automatic wrap. Redirected, test and machine output use the fixed default.
-    private static int HelpWidth(ICommandConsole console, CommandOutputMode mode)
+    internal static int HelpWidth(ICommandConsole console, CommandOutputMode mode)
     {
         if (mode != CommandOutputMode.Human || console is not SystemCommandConsole || console.IsOutputRedirected) return CommandHelpFormatter.DefaultWidth;
         try

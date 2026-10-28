@@ -188,7 +188,9 @@ internal sealed class ResponseFileTests
             directory.Write("level-" + level + ".rsp", string.Join(' ', Enumerable.Repeat("@level-" + (level + 1) + ".rsp", 4)));
         Run fanOut = await RunAsync(["@" + System.IO.Path.Combine(directory.Path, "level-0.rsp")]);
         AssertEx.Equal(CommandExitCodes.Usage, fanOut.ExitCode, fanOut.StandardError);
-        AssertEx.True(fanOut.StandardError.Contains("RCLI1017", StringComparison.Ordinal), fanOut.StandardError);
+        AssertEx.True(fanOut.StandardError.StartsWith("The response file 'level-", StringComparison.Ordinal) &&
+            fanOut.StandardError.EndsWith("could not be read.\nUsage: fixture <command> [options]\nRun \"fixture --help\" for more information.\n", StringComparison.Ordinal),
+            fanOut.StandardError);
 
         // Below the bounds, the same shape expands: 4^4 = 256 arguments.
         directory.Write("small-4.rsp", "leaf");
@@ -299,7 +301,7 @@ internal sealed class ResponseFileTests
         // An invalid output selection on the command line is reported first, as the parser reports it.
         Run invalidFormat = await RunAsync(["--format", "yaml", "@missing.rsp"]);
         AssertEx.Equal(CommandExitCodes.Usage, invalidFormat.ExitCode);
-        AssertEx.True(invalidFormat.StandardError.Contains("RCLI1010", StringComparison.Ordinal) || invalidFormat.StandardError.Contains("must be human or json", StringComparison.Ordinal), invalidFormat.StandardError);
+        AssertEx.True(invalidFormat.StandardError.StartsWith("--format must be human or json.\n", StringComparison.Ordinal), invalidFormat.StandardError);
 
         // A response file may select the output format itself.
         string selects = directory.Write("json.rsp", "--format json word");

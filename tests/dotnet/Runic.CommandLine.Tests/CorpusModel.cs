@@ -39,7 +39,7 @@ internal sealed record CorpusExpected(
 
 internal sealed record CorpusValue(string Id, string[] Values);
 
-internal sealed record CorpusDiagnostic(string Code, string Kind, int TokenIndex);
+internal sealed record CorpusDiagnostic(string Code, string Kind, int TokenIndex, string[]? Arguments = null);
 
 internal sealed record OutputClassificationCorpus(
     int FormatVersion,

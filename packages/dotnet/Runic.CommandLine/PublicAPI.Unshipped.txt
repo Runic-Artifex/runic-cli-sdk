@@ -1,1 +1,2 @@
 #nullable enable
+const Runic.CommandLine.CommandTextKeys.HintUsage = "hints.usage" -> string!

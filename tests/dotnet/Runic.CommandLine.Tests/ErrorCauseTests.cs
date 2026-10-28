@@ -241,6 +241,10 @@ internal sealed class ErrorCauseTests
         AssertEx.True(console.StandardOutput.Contains("--priority <priority>  [default: Careful]", StringComparison.Ordinal), console.StandardOutput);
     }
 
+    // The lines a usage error of the command ends with in human output.
+    private static string Hint(string command, string? usage = null) =>
+        "Usage: sample " + (usage ?? command) + " [options]\nRun \"sample " + command + " --help\" for more information.\n";
+
     // Runs once for human output and once for JSON; returns stderr of the first and the frame of the second.
     private static async ValueTask<(string Human, JsonDocument Json)> Fail(int exitCode, string[] args, Func<string, string?>? environment = null)
     {
@@ -277,19 +281,19 @@ internal sealed class ErrorCauseTests
         (string human, JsonDocument json) = await Fail(2, ["cause-values", "--limit", "abc"]);
         using (json)
         {
-            AssertEx.Equal("RCLI2005: --limit requires a whole number.\n", human);
+            AssertEx.Equal("--limit requires a whole number.\n" + Hint("cause-values"), human);
             AssertFault(json, "RCLI2005", "--limit requires a whole number.");
             AssertEx.Equal(1, json.RootElement.GetProperty("diagnostics").GetArrayLength());
             AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2005", "invalid-integer", "--limit requires a whole number.", "binding", "--limit");
         }
         (human, json) = await Fail(2, ["cause-values", "--delay", "1.5"]);
-        using (json) AssertEx.Equal("RCLI2005: --delay requires a whole number.\n", human);
+        using (json) AssertEx.Equal("--delay requires a whole number.\n" + Hint("cause-values"), human);
         (human, json) = await Fail(2, ["cause-values", "--ratio", "x"]);
-        using (json) AssertEx.Equal("RCLI2005: --ratio requires a number.\n", human);
+        using (json) AssertEx.Equal("--ratio requires a number.\n" + Hint("cause-values"), human);
         (human, json) = await Fail(2, ["cause-values", "--id", "x"]);
         using (json)
         {
-            AssertEx.True(human.StartsWith("RCLI2005: --id requires a GUID", StringComparison.Ordinal), human);
+            AssertEx.True(human.StartsWith("--id requires a GUID", StringComparison.Ordinal), human);
             AssertEx.Equal("invalid-guid", json.RootElement.GetProperty("diagnostics")[0].GetProperty("kind").GetString());
         }
     }
@@ -300,7 +304,7 @@ internal sealed class ErrorCauseTests
         (string human, JsonDocument json) = await Fail(2, ["cause-values", "--limit", "99"]);
         using (json)
         {
-            AssertEx.Equal("RCLI2002: --limit requires a number between 1 and 50.\n", human);
+            AssertEx.Equal("--limit requires a number between 1 and 50.\n" + Hint("cause-values"), human);
             AssertFault(json, "RCLI2002", "--limit requires a number between 1 and 50.");
             AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2002", "out-of-range", "--limit requires a number between 1 and 50.", "binding", "--limit", "1", "50");
         }
@@ -309,7 +313,7 @@ internal sealed class ErrorCauseTests
         {
             JsonElement diagnostic = json.RootElement.GetProperty("diagnostics")[0];
             AssertEx.Equal("below-minimum", diagnostic.GetProperty("kind").GetString());
-            AssertEx.Equal(human, "RCLI2002: " + diagnostic.GetProperty("message").GetString() + "\n");
+            AssertEx.True(human.StartsWith(diagnostic.GetProperty("message").GetString() + "\n", StringComparison.Ordinal), human);
             AssertEx.True(human.Contains("0.5", StringComparison.Ordinal), human);
         }
         var console = new TestCommandConsole();
@@ -324,30 +328,30 @@ internal sealed class ErrorCauseTests
         (string human, JsonDocument json) = await Fail(2, ["cause-validated", "--count", "50"]);
         using (json)
         {
-            AssertEx.Equal("RCLI2002: --count requires a number between 1 and 10.\n", human);
+            AssertEx.Equal("--count requires a number between 1 and 10.\n" + Hint("cause-validated"), human);
             AssertFault(json, "RCLI2002", "--count requires a number between 1 and 10.");
             AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2002", "out-of-range", "--count requires a number between 1 and 10.", "binding", "--count", "1", "10");
         }
         (human, json) = await Fail(2, ["cause-validated", "--count", "abc"]);
         using (json)
         {
-            AssertEx.Equal("RCLI2005: --count requires a whole number.\n", human);
+            AssertEx.Equal("--count requires a whole number.\n" + Hint("cause-validated"), human);
             AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2005", "invalid-integer", "--count requires a whole number.", "binding", "--count");
         }
         // A non-integral value is a type error even though it is also outside the range.
         (human, json) = await Fail(2, ["cause-validated", "--count", "99.5"]);
-        using (json) AssertEx.Equal("RCLI2005: --count requires a whole number.\n", human);
+        using (json) AssertEx.Equal("--count requires a whole number.\n" + Hint("cause-validated"), human);
         // --level binds first; its out-of-range element stops binding before its list validator runs.
         CauseListValidator.Calls = 0;
         (human, json) = await Fail(2, ["cause-validated", "--level", "1", "--level", "0"]);
-        using (json) AssertEx.Equal("RCLI2002: --level requires a number between 1 and 3.\n", human);
+        using (json) AssertEx.Equal("--level requires a number between 1 and 3.\n" + Hint("cause-validated"), human);
         AssertEx.Equal(0, CauseCountValidator.Seen.Count, string.Join(",", CauseCountValidator.Seen));
         AssertEx.Equal(0, CauseListValidator.Calls);
 
         (human, json) = await Fail(2, ["cause-validated", "--count", "7"]);
         using (json)
         {
-            AssertEx.Equal("RCLI2005: --count has a value that failed validation.\n", human);
+            AssertEx.Equal("--count has a value that failed validation.\n" + Hint("cause-validated"), human);
             AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2005", "validation-failed", "--count has a value that failed validation.", "binding", "--count");
         }
         var console = new TestCommandConsole();
@@ -364,7 +368,7 @@ internal sealed class ErrorCauseTests
         (string human, JsonDocument json) = await Fail(2, ["cause-argument", "many"]);
         using (json)
         {
-            AssertEx.Equal("RCLI2005: <COUNT> requires a whole number.\n", human);
+            AssertEx.Equal("<COUNT> requires a whole number.\n" + Hint("cause-argument", "cause-argument <COUNT>"), human);
             AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI2005", "invalid-integer", "<COUNT> requires a whole number.", "binding", "<COUNT>");
         }
     }
@@ -375,14 +379,14 @@ internal sealed class ErrorCauseTests
         (string human, JsonDocument json) = await Fail(2, ["cause-values", "--encoding", "yaml"]);
         using (json)
         {
-            AssertEx.Equal("RCLI1015: --encoding must be one of: json, csv.\n", human);
+            AssertEx.Equal("--encoding must be one of: json, csv.\n" + Hint("cause-values"), human);
             AssertFault(json, "RCLI1015", "--encoding must be one of: json, csv.");
             AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI1015", "invalid-choice", "--encoding must be one of: json, csv.", "parse", "--encoding", "json, csv");
         }
         (human, json) = await Fail(2, ["cause-values", "--token", "nope"]);
         using (json)
         {
-            AssertEx.Equal("RCLI1015: --token must be one of the choices shown in --help.\n", human);
+            AssertEx.Equal("--token must be one of the choices shown in --help.\n" + Hint("cause-values"), human);
             JsonElement diagnostic = json.RootElement.GetProperty("diagnostics")[0];
             AssertEx.Equal("diagnostics.invalid-choice-hidden", diagnostic.GetProperty("messageKey").GetString());
             AssertEx.SequenceEqual(["--token"], diagnostic.GetProperty("arguments").EnumerateArray().Select(static item => item.GetString()!));
@@ -395,7 +399,8 @@ internal sealed class ErrorCauseTests
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(2, await App(console).RunAsync(["cause-values", "--format", "yaml"]));
-        AssertEx.Equal("RCLI1010: --format must be human or json.\n", console.StandardError);
+        // The output selection is checked before the command, so its usage hint is the application's.
+        AssertEx.Equal("--format must be human or json.\nUsage: sample <command> [options]\nRun \"sample --help\" for more information.\n", console.StandardError);
         ParseOutcome parsed = PortableCommandSyntaxAdapter.Instance.Parse(GeneratedCommandCatalog.Create(), ["cause-values", "--format=yaml"], ParseSettings.Default);
         AssertEx.Equal("invalid-output-mode", parsed.Diagnostics.Single().Kind);
         AssertEx.Equal("diagnostics.invalid-output-mode", parsed.Diagnostics.Single().MessageKey);
@@ -412,14 +417,14 @@ internal sealed class ErrorCauseTests
         (string human, JsonDocument json) = await Fail(2, ["cause-env"], Environment);
         using (json)
         {
-            AssertEx.Equal("RCLI1014: CAUSE_VERBOSE must be true/false, yes/no or 1/0 for --verbose.\n", human);
+            AssertEx.Equal("CAUSE_VERBOSE must be true/false, yes/no or 1/0 for --verbose.\n" + Hint("cause-env"), human);
             AssertDiagnostic(json.RootElement.GetProperty("diagnostics")[0], "RCLI1014", "invalid-environment-value",
                 "CAUSE_VERBOSE must be true/false, yes/no or 1/0 for --verbose.", "parse", "--verbose", "CAUSE_VERBOSE");
         }
         (human, json) = await Fail(2, ["cause-env", "--verbose"], Environment);
         using (json)
         {
-            AssertEx.Equal("RCLI2005: --limit requires a whole number.\nRCLI2006: The value for --limit came from environment variable CAUSE_LIMIT.\n", human);
+            AssertEx.Equal("--limit requires a whole number.\nThe value for --limit came from environment variable CAUSE_LIMIT.\n" + Hint("cause-env"), human);
             AssertFault(json, "RCLI2005", "--limit requires a whole number.");
             JsonElement diagnostics = json.RootElement.GetProperty("diagnostics");
             AssertEx.Equal(2, diagnostics.GetArrayLength());
@@ -428,7 +433,7 @@ internal sealed class ErrorCauseTests
         }
         // An explicit value is not attributed to the environment.
         (human, json) = await Fail(2, ["cause-env", "--verbose", "--limit", "y"], Environment);
-        using (json) AssertEx.Equal("RCLI2005: --limit requires a whole number.\n", human);
+        using (json) AssertEx.Equal("--limit requires a whole number.\n" + Hint("cause-env"), human);
     }
 
     [Test, DisplayName("causes/command-typos-are-suggested-with-a-default-command")]
@@ -461,7 +466,7 @@ internal sealed class ErrorCauseTests
     {
         var console = new TestCommandConsole();
         AssertEx.Equal(3, await App(console).RunAsync(["cause-throw"]));
-        AssertEx.Equal("RCLI5000: The command could not be completed. Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr.\n", console.StandardError);
+        AssertEx.Equal("The command could not be completed. Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr.\n", console.StandardError);
         console = new();
         AssertEx.Equal(3, await App(console).RunAsync(["cause-throw", "--format=json"]));
         using (var frame = CommandTestEnvelope.Parse(console.StandardOutput))
@@ -482,7 +487,7 @@ internal sealed class ErrorCauseTests
             console = new();
             AssertEx.Equal(3, await App(console, environment).RunAsync(["cause-throw"]));
             AssertEx.True(console.StandardError.Contains("System.ArgumentException: handler-detail", StringComparison.Ordinal), console.StandardError);
-            AssertEx.True(console.StandardError.EndsWith("\nRCLI5000: The command could not be completed.\n", StringComparison.Ordinal), console.StandardError);
+            AssertEx.True(console.StandardError.EndsWith("\nThe command could not be completed.\n", StringComparison.Ordinal), console.StandardError);
             console = new();
             AssertEx.Equal(3, await App(console, environment).RunAsync(["cause-throw", "--format=json"]));
             using var frame = CommandTestEnvelope.Parse(console.StandardOutput);
@@ -499,7 +504,7 @@ internal sealed class ErrorCauseTests
             Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default, ExceptionObserver = exception => observed = exception,
         };
         AssertEx.Equal(3, await app.RunAsync(["cause-throw"]));
-        AssertEx.Equal("RCLI5000: The command could not be completed.\n", console.StandardError);
+        AssertEx.Equal("The command could not be completed.\n", console.StandardError);
         AssertEx.True(observed is ArgumentException);
     }
 
@@ -521,7 +526,7 @@ internal sealed class ErrorCauseTests
             AssertEx.True(error.Contains("\n   at ", StringComparison.Ordinal), error);
             foreach (char character in new[] { '\u001b', '\r', '\u0007', '\u009B', '\u202E', '\u200B' })
                 AssertEx.True(!error.Contains(character, StringComparison.Ordinal), "U+" + ((int)character).ToString("X4", CultureInfo.InvariantCulture) + " in " + error);
-            AssertEx.True(error.EndsWith("\nRCLI5000: The command could not be completed.\n", StringComparison.Ordinal), error);
+            AssertEx.True(error.EndsWith("\nThe command could not be completed.\n", StringComparison.Ordinal), error);
         }
     }
 
@@ -567,10 +572,10 @@ internal sealed class ErrorCauseTests
         }
         console = new();
         AssertEx.Equal(2, await App(console, resolver: resolver).RunAsync(["cause-values", "--encoding", "yaml"]));
-        AssertEx.Equal("RCLI1015: --encoding muss eines von json, csv sein.\n", console.StandardError);
+        AssertEx.Equal("--encoding muss eines von json, csv sein.\n" + Hint("cause-values"), console.StandardError);
         console = new();
         AssertEx.Equal(3, await App(console, resolver: resolver).RunAsync(["cause-throw"]));
-        AssertEx.Equal("RCLI5000: The command could not be completed. Mit RUNIC_COMMANDLINE_DEBUG=1 erscheint die Ausnahme auf stderr.\n", console.StandardError);
+        AssertEx.Equal("The command could not be completed. Mit RUNIC_COMMANDLINE_DEBUG=1 erscheint die Ausnahme auf stderr.\n", console.StandardError);
     }
 
     private sealed class KeyResolver(Dictionary<string, string> texts) : ICommandTextResolver

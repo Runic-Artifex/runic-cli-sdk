@@ -66,10 +66,10 @@ internal sealed class LocalizationTests
         AssertEx.Equal("Unbekannte Option: --unknown", localized.GetProperty("message").GetString());
         AssertEx.SequenceEqual(diagnostic.Arguments, localized.GetProperty("arguments").EnumerateArray().Select(a => a.GetString()!));
         AssertEx.Equal(localized.GetProperty("message").GetString(), frame.RootElement.GetProperty("fault").GetProperty("message").GetString());
-        AssertEx.True(diagnostic.Message.StartsWith("An unrecognized option was supplied.", StringComparison.Ordinal));
+        AssertEx.Equal("The option '--unknown' is not recognized.", diagnostic.Message);
         console = new();
         AssertEx.Equal(2, await App(console).RunAsync(["localized", "--unknown"]));
-        AssertEx.True(console.StandardError.Contains("RCLI1001: Unbekannte Option: --unknown", StringComparison.Ordinal));
+        AssertEx.True(console.StandardError.StartsWith("Unbekannte Option: --unknown\n", StringComparison.Ordinal), console.StandardError);
     }
     [Test, DisplayName("localization/standalone-execution-faults-and-diagnostics")]
     public async ValueTask Execution()
@@ -220,7 +220,9 @@ internal sealed class LocalizationTests
         AssertEx.SequenceEqual(["shwo", "show"], command.Arguments);
         var console = new TestCommandConsole();
         AssertEx.Equal(2, await App(console).RunAsync(["config", "shwo"]));
-        AssertEx.Equal("RCLI1002: Unbekannter Befehl shwo. Meinten Sie show?\n", console.StandardError);
+        // The usage hint after it is localized too: the usage line through the help keys, the last line through hints.usage.
+        AssertEx.Equal("Unbekannter Befehl shwo. Meinten Sie show?\nAufruf: sample config [options]\nMit \"sample config --help\" erscheint die Hilfe.\n",
+            console.StandardError);
     }
     private sealed class RecordingResolver : ICommandTextResolver
     {
@@ -239,6 +241,7 @@ internal sealed class LocalizationTests
             return key switch
             {
                 "help.usage" => "Aufruf",
+                "hints.usage" => "Mit \"" + arguments[0] + "\" erscheint die Hilfe.",
                 "completion.invalid-shell" => "Shell auswählen: bash, zsh, fish oder powershell.",
                 "commands.localized" => "Lokalisierter Befehl",
                 "options.count" => "Anzahl",

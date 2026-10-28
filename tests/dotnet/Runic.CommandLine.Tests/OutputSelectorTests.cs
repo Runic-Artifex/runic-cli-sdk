@@ -167,7 +167,7 @@ internal sealed class OutputSelectorTests
             Name = "sample", Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default,
         };
         AssertEx.Equal(2, await app.RunAsync(["greet", "Ada", "--output", "yaml"]));
-        AssertEx.Equal("RCLI1010: --format must be human or json.\n", console.StandardError);
+        AssertEx.Equal("--format must be human or json.\nUsage: sample <command> [options]\nRun \"sample --help\" for more information.\n", console.StandardError);
     }
 
     [Test, DisplayName("output-selector/builder-validates-spellings")]

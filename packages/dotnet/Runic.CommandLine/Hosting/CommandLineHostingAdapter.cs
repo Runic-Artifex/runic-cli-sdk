@@ -138,7 +138,7 @@ public sealed class CommandLineHostingAdapter
 
     /// <summary>
     /// Writes the close-match suggestion of a launch that belongs to the user interface, such as
-    /// "An unrecognized command was supplied. Did you mean 'list'?" for <c>lst</c>, as one line to standard error,
+    /// "The command 'lst' is not recognized. Did you mean 'list'?" for <c>lst</c>, as one line to standard error,
     /// and returns whether it wrote one. Call it before opening the interface so a mistyped command is not silent; it writes nothing for a
     /// document path, an empty launch or any other launch without <see cref="HostedCommandLineDecision.SuggestedCommand"/>.
     /// The console and culture follow <see cref="RunAsync"/>, and the text uses the presentation's text resolver
@@ -231,7 +231,10 @@ public sealed class CommandLineHostingAdapter
         string correlationId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
         if (!decision.CanExecute)
             return await PresentAsync(decision, console, culture, correlationId, cancellationToken).ConfigureAwait(false);
-        ICommandOutcomeSink sink = _app?.OutcomeSink ?? new CommandOutputDispatcher { TextResolver = Presentation.TextResolver };
+        ICommandOutcomeSink sink = _app?.OutcomeSink ?? new CommandOutputDispatcher
+        {
+            TextResolver = Presentation.TextResolver, UsageHint = new CommandUsageHint(_catalog, Presentation.Name),
+        };
         HostedCommandLineExecutionResult result = await ExecuteAsync(
             new HostedCommandLineExecutionInput(decision, console, culture, correlationId, sink) { ExceptionObserver = Presentation.ExceptionObserver },
             cancellationToken).ConfigureAwait(false);
