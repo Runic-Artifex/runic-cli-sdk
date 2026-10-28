@@ -56,7 +56,7 @@ internal sealed class PromptTerminalTests
         string output = child.Output;
         int hidden = output.LastIndexOf("\u001b[?25l", StringComparison.Ordinal);
         AssertEx.True(hidden >= 0 && output.IndexOf("\u001b[?25h", hidden, StringComparison.Ordinal) > hidden, output);
-        AssertEx.True(output.Contains("RCLI4000", StringComparison.Ordinal), output);
+        AssertEx.True(output.Contains("The command was cancelled.", StringComparison.Ordinal), output);
     }
 
     [Test, DisplayName("prompts/pty-no-color-asks-a-plain-line-question")]
@@ -81,7 +81,7 @@ internal sealed class PromptTerminalTests
         await child.WaitForOutputAsync("Enter a number from 1 to 3: ");
         await child.SendAsync("\u0003");
         AssertEx.Equal(CommandExitCodes.Cancelled, await child.WaitForExitAsync());
-        AssertEx.True(child.Output.Contains("RCLI4000", StringComparison.Ordinal), child.Output);
+        AssertEx.True(child.Output.Contains("The command was cancelled.", StringComparison.Ordinal), child.Output);
     }
 
     [Test, DisplayName("prompts/pty-asks-when-standard-output-is-piped")]
@@ -118,7 +118,7 @@ internal sealed class PromptTerminalTests
         // invocation was not cancelled when no cancellation fault was written.
         AssertEx.Equal(130, await child.WaitForExitAsync());
         string output = child.Output;
-        AssertEx.True(!output.Contains("RCLI4000", StringComparison.Ordinal), output);
+        AssertEx.True(!output.Contains("The command was cancelled.", StringComparison.Ordinal), output);
         int hidden = output.LastIndexOf("\u001b[?25l", StringComparison.Ordinal);
         AssertEx.True(hidden >= 0 && output.IndexOf("\u001b[?25h", hidden, StringComparison.Ordinal) > hidden, output);
     }

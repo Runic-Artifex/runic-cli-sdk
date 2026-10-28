@@ -155,13 +155,13 @@ internal sealed partial class PromptTests
         var console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.Usage, await App(console, (prompts, token) => prompts.TextAsync("Project name", cancellationToken: token)).RunAsync(["ask"]));
         AssertEx.Equal(string.Empty, console.StandardOutput);
-        AssertEx.Equal("RCLI4001: Project name needs an answer, but the command is not running in an interactive terminal. Pass the value on the command line.\n",
+        AssertEx.Equal("Project name needs an answer, but the command is not running in an interactive terminal. Pass the value on the command line.\nUsage: prompts ask [options]\nRun \"prompts ask --help\" for more information.\n",
             console.StandardError);
 
         console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.Usage, await App(console, async (prompts, token) =>
             string.Join(",", await prompts.MultiSelectAsync("Parts", Templates, required: true, cancellationToken: token))).RunAsync(["ask"]));
-        AssertEx.True(console.StandardError.StartsWith("RCLI4001: Parts needs an answer", StringComparison.Ordinal), console.StandardError);
+        AssertEx.True(console.StandardError.StartsWith("Parts needs an answer", StringComparison.Ordinal), console.StandardError);
     }
 
     [Test, DisplayName("prompts/json-output-never-prompts")]
@@ -201,7 +201,7 @@ internal sealed partial class PromptTests
             TestCommandConsole console = Interactive();
             var settings = new ParseSettings(null) { GetEnvironmentVariable = name => name == "RUNIC_COMMANDLINE_NO_INPUT" ? value : null };
             AssertEx.Equal(CommandExitCodes.Usage, await App(console, (prompts, token) => prompts.TextAsync("Name", cancellationToken: token), settings).RunAsync(["ask"]));
-            AssertEx.True(console.StandardError.StartsWith("RCLI4001: Name needs an answer, but prompts are disabled.", StringComparison.Ordinal), console.StandardError);
+            AssertEx.True(console.StandardError.StartsWith("Name needs an answer, but prompts are disabled.", StringComparison.Ordinal), console.StandardError);
         }
 
         TestCommandConsole enabled = Interactive();
@@ -242,7 +242,7 @@ internal sealed partial class PromptTests
 
         console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.Usage, await App(console, (prompts, token) => prompts.TextAsync("Name", cancellationToken: token), resolver: resolver).RunAsync(["ask"]));
-        AssertEx.Equal("RCLI4001: Name braucht eine Antwort.\n", console.StandardError);
+        AssertEx.Equal("Name braucht eine Antwort.\nUsage: prompts ask [options]\nRun \"prompts ask --help\" for more information.\n", console.StandardError);
 
         // Handlers resolve their own prompt text with the same resolver.
         console = new TestCommandConsole();
@@ -334,13 +334,13 @@ internal sealed partial class PromptTests
         TestCommandConsole console = Terminal();
         console.QueueKey(ConsoleKey.Escape);
         AssertEx.Equal(CommandExitCodes.Cancelled, await App(console, (prompts, token) => prompts.SelectAsync("Template", Templates, cancellationToken: token)).RunAsync(["ask"]));
-        AssertEx.True(Plain(console.StandardError).EndsWith("■  Template  Cancelled\nRCLI4000: The command was cancelled.\n", StringComparison.Ordinal), console.StandardError);
+        AssertEx.True(Plain(console.StandardError).EndsWith("■  Template  Cancelled\nThe command was cancelled.\n", StringComparison.Ordinal), console.StandardError);
         AssertEx.True(console.StandardError.Contains(ShowCursor, StringComparison.Ordinal), console.StandardError);
 
         console = Interactive();
         console.QueueInput(null);
         AssertEx.Equal(CommandExitCodes.Cancelled, await App(console, (prompts, token) => prompts.TextAsync("Name", cancellationToken: token)).RunAsync(["ask"]));
-        AssertEx.Equal("Name: \nRCLI4000: The command was cancelled.\n", console.StandardError);
+        AssertEx.Equal("Name: \nThe command was cancelled.\n", console.StandardError);
     }
 
     [Test, DisplayName("prompts/ctrl-c-cancels-a-waiting-terminal-prompt-and-restores-the-cursor")]
@@ -354,7 +354,7 @@ internal sealed partial class PromptTests
         await cancellation.CancelAsync();
         AssertEx.Equal(CommandExitCodes.Cancelled, await run.WaitAsync(TimeSpan.FromSeconds(30)));
         string error = console.Inner.StandardError;
-        AssertEx.True(error.EndsWith(ShowCursor + "RCLI4000: The command was cancelled.\n", StringComparison.Ordinal), error);
+        AssertEx.True(error.EndsWith(ShowCursor + "The command was cancelled.\n", StringComparison.Ordinal), error);
         AssertEx.True(Frames(error)[^1].StartsWith("■  Template  Cancelled\n", StringComparison.Ordinal), error);
     }
 
@@ -367,7 +367,7 @@ internal sealed partial class PromptTests
         await console.Waiting.WaitAsync(TimeSpan.FromSeconds(30));
         await cancellation.CancelAsync();
         AssertEx.Equal(CommandExitCodes.Cancelled, await run.WaitAsync(TimeSpan.FromSeconds(30)));
-        AssertEx.Equal("Name: \nRCLI4000: The command was cancelled.\n", console.Inner.StandardError);
+        AssertEx.Equal("Name: \nThe command was cancelled.\n", console.Inner.StandardError);
     }
 
     [Test, DisplayName("prompts/task-log-writes-plain-lines-without-a-terminal")]
@@ -649,7 +649,7 @@ internal sealed partial class PromptTests
             EnvironmentVariables = new Dictionary<string, string?> { ["RUNIC_COMMANDLINE_NO_INPUT"] = "1" },
         };
         AssertEx.Equal(CommandExitCodes.Usage, await adapter.RunAsync(adapter.Classify(input), console));
-        AssertEx.True(console.StandardError.StartsWith("RCLI4001: Name needs an answer, but prompts are disabled.", StringComparison.Ordinal), console.StandardError);
+        AssertEx.True(console.StandardError.StartsWith("Name needs an answer, but prompts are disabled.", StringComparison.Ordinal), console.StandardError);
 
         console = Interactive();
         console.QueueInput("ada");
@@ -689,7 +689,7 @@ internal sealed partial class PromptTests
         await console.Waiting.WaitAsync(TimeSpan.FromSeconds(30));
         await cancellation.CancelAsync();
         AssertEx.Equal(CommandExitCodes.Cancelled, await run.WaitAsync(TimeSpan.FromSeconds(30)));
-        AssertEx.True(console.Inner.StandardError.EndsWith(ShowCursor + "RCLI4000: The command was cancelled.\n", StringComparison.Ordinal), console.Inner.StandardError);
+        AssertEx.True(console.Inner.StandardError.EndsWith(ShowCursor + "The command was cancelled.\n", StringComparison.Ordinal), console.Inner.StandardError);
     }
 
     [Test, DisplayName("prompts/task-logs-animate-when-prompts-are-disabled")]

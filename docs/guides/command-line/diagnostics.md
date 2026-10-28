@@ -21,6 +21,24 @@ and arguments are stable; see the
 [grammar](../../../specs/command-line/grammar.md) and
 [protocol](../../../specs/command-line/protocol/README.md) specifications.
 
+Codes are for programs. JSON output carries the code of every fault and
+diagnostic; human output writes each one as its message alone, and shows a code
+only on the `Help for` line of a [help link](#help-links). A usage error (exit
+code 2) in human output ends with the usage line of its command and the help
+command to run:
+
+```text
+The binding argument is missing.
+Usage: storyline bind <world> <binding> [options]
+Run "storyline bind --help" for more information.
+```
+
+Both lines are localizable (`help.usage`, `hints.usage`; see
+[text keys](text-keys.md)). They are written by `CommandApp`, its hosting
+adapter and their default outcome sink; an application that writes usage errors
+itself, through `PresentFrameworkRequest`, the command's `humanOutput` or its
+own outcome sink, writes its own text.
+
 `RCLI8000` through `RCLI8999` are reserved for applications and are never
 emitted by this library or its generator. An application documents its own
 codes and can link a fault or diagnostic to that documentation with
@@ -59,7 +77,7 @@ JSON output adds a `helpUri` member to the fault or diagnostic, and human
 output writes a line after it:
 
 ```text
-RAS1001: The archive could not be read.
+The archive could not be read.
 Help for RAS1001: https://docs.example.com/errors#ras1001
 ```
 
@@ -265,8 +283,10 @@ suggests a close spelling when there is one.
 
 ### RCLI1002
 
-`unknown-command`: no command matches the leading tokens. The diagnostic
-suggests a close command name when there is one.
+`unknown-command`: no command matches the leading tokens. Its argument is the
+token given where the command belongs, after any leading output or global
+options, and is absent when no command was typed. The diagnostic suggests a
+close command name when there is one.
 
 ### RCLI1003
 
@@ -280,7 +300,9 @@ followed by another option or `--`.
 
 ### RCLI1005
 
-`missing-argument`: a required positional argument is missing.
+`missing-argument`: a required positional argument is missing. Arguments bind
+left to right, so the diagnostic names the first argument the given tokens do
+not reach: `copy a.txt` for `copy <source> <destination>` names `destination`.
 
 ### RCLI1006
 

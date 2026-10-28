@@ -222,7 +222,7 @@ internal sealed class DispatcherTests
         AssertEx.Equal(CommandExitCodes.Validation, result.ExitCode);
         AssertEx.Equal("dry-run report\n", console.StandardOutput);
         AssertEx.Equal(
-            "RCLI3001: The dry run report is incomplete.\nRCLI3000: The dry run failed.\n",
+            "The dry run report is incomplete.\nThe dry run failed.\n",
             console.StandardError);
     }
 

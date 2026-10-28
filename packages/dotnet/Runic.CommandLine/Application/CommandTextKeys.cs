@@ -121,6 +121,12 @@ public static class CommandTextKeys
     /// <summary>The human-output hint after an <c>RCLI5000</c> fault that explains how to see the exception.</summary>
     /// <remarks>It is not under <c>faults.</c> so that catalogs which nest keys can hold it beside <see cref="FaultHostFailure"/>.</remarks>
     public const string FaultHostFailureHint = "hints.RCLI5000";
+    /// <summary>
+    /// The last line after a usage error in human output (<c>Run "{command}" for more information.</c>); argument:
+    /// <c>command</c>, the help command line of the command the error belongs to, such as <c>tool copy --help</c>.
+    /// </summary>
+    /// <remarks>The usage line before it uses the <c>help.</c> keys of the help usage line.</remarks>
+    public const string HintUsage = "hints.usage";
 
     /// <summary>An unrecognized option; argument: <c>option</c>.</summary>
     public const string DiagnosticUnknownOption = "diagnostics.unknown-option";
@@ -226,7 +232,7 @@ public static class CommandTextKeys
         new(CompletionInvalidShell),
         new(PromptSelectHint), new(PromptMultiSelectHint), new(PromptYes), new(PromptNo), new(PromptChooseOne, "count"),
         new(PromptChooseMany, "count"), new(PromptAnswerYesNo, "yes", "no"), new(PromptRequired), new(PromptCancelled), new(PromptDone),
-        new(FaultCancelled), new(FaultPromptUnavailable), new(FaultHostFailure), new(FaultHostFailureHint),
+        new(FaultCancelled), new(FaultPromptUnavailable), new(FaultHostFailure), new(FaultHostFailureHint), new(HintUsage, "command"),
         new(DiagnosticUnknownOption, "option"),
         new(DiagnosticUnknownOptionSuggestion, "option", "suggestion"),
         new(DiagnosticUnknownCommand, "command"),

@@ -37,7 +37,7 @@ public sealed class CommandApp
     /// <summary>Gets the exit policy, including parser errors.</summary>
     public IExitCodePolicy ExitCodePolicy { get; init; } = DefaultExitCodePolicy.Instance;
     /// <summary>Gets the outcome presenter.</summary>
-    public ICommandOutcomeSink OutcomeSink { get => _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver }; init => _outcomeSink = value; }
+    public ICommandOutcomeSink OutcomeSink { get => _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver, UsageHint = new CommandUsageHint(_catalog, Name) }; init => _outcomeSink = value; }
     private readonly ICommandOutcomeSink? _outcomeSink;
     /// <summary>
     /// Gets the invocation culture for help, diagnostics and handler formatting. Otherwise
@@ -130,7 +130,10 @@ public sealed class CommandApp
             if (parsed.Kind == ParseOutcomeKind.Invocation)
             {
                 CommandExecutor executor = CreateExecutor(parsed.Invocation!);
-                ICommandOutcomeSink sink = _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver, ShowHostFailureHint = debug is null && ExceptionObserver is null };
+                ICommandOutcomeSink sink = _outcomeSink ?? new CommandOutputDispatcher
+                {
+                    TextResolver = TextResolver, ShowHostFailureHint = debug is null && ExceptionObserver is null, UsageHint = new CommandUsageHint(_catalog, Name),
+                };
                 CommandExecutionResult result = await executor.ExecuteAsync(
                     new CommandExecutionRequest(parsed.Invocation!, Console, culture, requestId)
                     {

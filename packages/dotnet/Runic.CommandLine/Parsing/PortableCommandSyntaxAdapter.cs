@@ -136,16 +136,16 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
         if (!TryResolveCommand(catalog, tokens, out ResolvedCommand? resolved, transport) || resolved is null)
         {
-            int unknownIndex = Math.Min(LeadingCommandIndex(catalog, tokens, transport), tokens.Length - 1);
+            // The argument is the token given where a command belongs, after any leading output or global
+            // options; it is absent when the command line holds only those options.
+            int commandIndex = LeadingCommandIndex(catalog, tokens, transport);
             return Error(
                 UnknownCommandCode,
                 "unknown-command",
                 0,
-                arguments: TrySplitOutput(tokens[0], transport, out _, out string leadingSpelling)
-                    ? [leadingSpelling]
-                    : [SafeUnknownCommand(tokens[0])],
+                arguments: commandIndex < tokens.Length ? [SafeUnknownCommand(tokens[commandIndex])] : null,
                 outputClassification: initialOutputClassification,
-                suggestion: CommandSuggestions.Commands(tokens[unknownIndex], catalog.Commands));
+                suggestion: commandIndex < tokens.Length ? CommandSuggestions.Commands(tokens[commandIndex], catalog.Commands) : null);
         }
 
         if (resolved.Command.TryGetOption(transport.Name, out _))
@@ -612,22 +612,13 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         CommandOutputClassification outputClassification,
         out IReadOnlyList<CommandValueBinding>? bindings)
     {
-        var result = new List<CommandValueBinding>(descriptors.Count);
-        int tokenIndex = 0;
-        for (int descriptorIndex = 0; descriptorIndex < descriptors.Count; descriptorIndex++)
+        // Too few tokens: the arguments bind left to right, so the first argument whose minimum the remaining
+        // tokens cannot meet is the one missing, not an earlier argument that a token was reserved away from.
+        int requiredSoFar = 0;
+        foreach (CommandArgumentDescriptor descriptor in descriptors)
         {
-            CommandArgumentDescriptor descriptor = descriptors[descriptorIndex];
-            int requiredAfter = 0;
-            for (int later = descriptorIndex + 1; later < descriptors.Count; later++)
-            {
-                requiredAfter = checked(requiredAfter + descriptors[later].Arity.Minimum);
-            }
-
-            int available = tokens.Count - tokenIndex;
-            int availableForCurrent = Math.Max(0, available - requiredAfter);
-            int maximum = descriptor.Arity.Maximum ?? int.MaxValue;
-            int count = Math.Min(availableForCurrent, maximum);
-            if (count < descriptor.Arity.Minimum)
+            requiredSoFar = checked(requiredSoFar + descriptor.Arity.Minimum);
+            if (requiredSoFar > tokens.Count)
             {
                 bindings = null;
                 return Error(
@@ -638,7 +629,19 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                     [descriptor.Name],
                     outputClassification: outputClassification);
             }
+        }
 
+        // Enough tokens for every minimum: each argument takes as many as it accepts while leaving the minimums of
+        // the arguments after it, so an optional argument before a required one is filled only by surplus tokens.
+        var result = new List<CommandValueBinding>(descriptors.Count);
+        int tokenIndex = 0;
+        int requiredAfter = requiredSoFar;
+        foreach (CommandArgumentDescriptor descriptor in descriptors)
+        {
+            requiredAfter -= descriptor.Arity.Minimum;
+            int available = tokens.Count - tokenIndex;
+            int maximum = descriptor.Arity.Maximum ?? int.MaxValue;
+            int count = Math.Min(available - requiredAfter, maximum);
             if (count > 0)
             {
                 var values = new string[count];
@@ -1121,7 +1124,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         string? suggestion = null,
         string? environmentVariable = null)
     {
-        string message = (FormattedMessage(kind, arguments) ?? MessageFor(kind) + (arguments is { Count: > 0 } && kind is not "unknown-command" ? " (" + arguments[0] + ")" : "")) +
+        string message = (FormattedMessage(kind, arguments) ?? MessageFor(kind)) +
             (suggestion is not null ? " Did you mean '" + suggestion + "'?" : "");
         string? messageKey = CommandValueDiagnostics.MessageKey(kind, arguments ?? []);
         // A suggestion is a trailing argument with its own key, so a translation can still offer it.
@@ -1170,9 +1173,17 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             outputClassification: given.OutputClassification);
     }
 
-    // Messages that name their subject inside the sentence rather than in a trailing "(name)".
+    // Messages name their subject in the sentence: a declared option or argument as declared, a token the user
+    // typed in quotes. A kind without its argument falls back to MessageFor.
     private static string? FormattedMessage(string kind, IReadOnlyList<string>? arguments) => (kind, arguments) switch
     {
+        ("unknown-option", { Count: > 0 }) => "The option '" + arguments[0] + "' is not recognized.",
+        ("unknown-command", { Count: > 0 }) => "The command '" + arguments[0] + "' is not recognized.",
+        ("missing-option-value", { Count: > 0 }) => "The " + arguments[0] + " option requires a value.",
+        ("unexpected-option-value", { Count: > 0 }) => "The " + arguments[0] + " option does not take a value.",
+        ("missing-argument", { Count: > 0 }) => "The " + arguments[0] + " argument is missing.",
+        ("duplicate-option", { Count: > 0 }) => "The " + arguments[0] + " option was given more than once.",
+        ("missing-required-option", { Count: > 0 }) => "The " + arguments[0] + " option is required.",
         ("invalid-choice", { Count: > 0 }) => CommandValueDiagnostics.Format(kind, arguments),
         ("invalid-output-mode", { Count: > 0 }) => arguments[0] + " must be human or json.",
         ("conflicting-output-selector", { Count: > 1 }) => arguments[0] + " and " + arguments[1] + " both select the output format. Use one of them.",
@@ -1208,16 +1219,16 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     {
         "invalid-environment-value" => "The environment fallback is not valid for this option.",
         "invalid-choice" => "The value must be one of the choices shown in --help.",
-        "unknown-option" => "An unrecognized option was supplied.",
-        "unknown-command" => "An unrecognized command was supplied.",
-        "missing-option-value" => "A required option value is missing.",
-        "unexpected-option-value" => "A flag does not accept a value.",
-        "missing-argument" => "A required command argument is missing.",
-        "unexpected-argument" => "An unexpected command argument was supplied.",
-        "duplicate-option" => "An option was specified more than once.",
-        "missing-required-option" => "A required option was not supplied.",
-        "unexpected-root-help-argument" => "Root help does not accept additional arguments.",
-        "unsupported-short-bundle" => "Bundled short options are not supported.",
+        "unknown-option" => "The option is not recognized.",
+        "unknown-command" => "No command was given.",
+        "missing-option-value" => "An option requires a value.",
+        "unexpected-option-value" => "A flag does not take a value.",
+        "missing-argument" => "A required argument is missing.",
+        "unexpected-argument" => "Too many arguments were given.",
+        "duplicate-option" => "An option was given more than once.",
+        "missing-required-option" => "A required option is missing.",
+        "unexpected-root-help-argument" => "The application's help takes no other arguments.",
+        "unsupported-short-bundle" => "Short options cannot be combined; give each one separately.",
         _ => "The command line is invalid.",
     };
 

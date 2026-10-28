@@ -46,30 +46,30 @@ internal sealed class JsonPayloadOutputTests
         console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.HostFailure, await App(console).RunAsync(["fail", "--json"]));
         AssertEx.Equal("", console.StandardOutput);
-        AssertEx.True(console.StandardError.StartsWith("RCLI5000: ", StringComparison.Ordinal) &&
+        AssertEx.True(console.StandardError.StartsWith("The command could not be completed.", StringComparison.Ordinal) &&
             !console.StandardError.Contains("internal-secret", StringComparison.Ordinal), console.StandardError);
     }
 
     [Test, DisplayName("output-alias-payload/failure-text-replaces-the-fault-line")]
     public async ValueTask FailureTextReplacesFaultLine()
     {
-        // Without failure text: the document, then diagnostics and the CODE: message line.
+        // Without failure text: the document, then diagnostics and the fault line.
         var console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.CommandFailure, await App(console).RunAsync(["payload-failure", "--json"]));
         AssertEx.Equal("[\"left\"]\n", console.StandardOutput);
-        AssertEx.Equal("RCLI3999: Some items were skipped.\nTEST0001: The operation failed.\n", console.StandardError);
+        AssertEx.Equal("Some items were skipped.\nThe operation failed.\n", console.StandardError);
 
         // With failure text: the diagnostics stay, the text replaces the fault line and is written exactly.
         console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.CommandFailure, await App(console).RunAsync(["payload-failure", "--human-text", "--json"]));
         AssertEx.Equal("[\"left\"]\n", console.StandardOutput);
-        AssertEx.Equal("RCLI3999: Some items were skipped.\nError: the operation failed.\n", console.StandardError);
+        AssertEx.Equal("Some items were skipped.\nError: the operation failed.\n", console.StandardError);
 
         // Human mode keeps writing the failure text to stdout and the fault line to stderr.
         console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.CommandFailure, await App(console).RunAsync(["payload-failure", "--human-text"]));
         AssertEx.Equal("Error: the operation failed.\n", console.StandardOutput);
-        AssertEx.True(console.StandardError.Contains("TEST0001: The operation failed.", StringComparison.Ordinal), console.StandardError);
+        AssertEx.True(console.StandardError.Contains("The operation failed.", StringComparison.Ordinal), console.StandardError);
     }
 
     private static readonly string[] LeftItems = ["left"];
@@ -98,7 +98,9 @@ internal sealed class JsonPayloadOutputTests
             var console = new TestCommandConsole();
             AssertEx.Equal(CommandExitCodes.Usage, await App(console).RunAsync(args), string.Join(' ', args));
             AssertEx.Equal("", console.StandardOutput, string.Join(' ', args));
-            AssertEx.True(console.StandardError.StartsWith("RCLI10", StringComparison.Ordinal), console.StandardError);
+            // Usage errors stay human text on standard error and end with the usage hint.
+            AssertEx.True(console.StandardError.Contains("\nUsage: app ", StringComparison.Ordinal) &&
+                console.StandardError.EndsWith(" --help\" for more information.\n", StringComparison.Ordinal), console.StandardError);
         }
 
         var help = new TestCommandConsole();
@@ -166,7 +168,7 @@ internal sealed class JsonPayloadOutputTests
         AssertEx.Equal("{\"status\":\"Ready\",\"count\":2}\n", console.StandardOutput);
         decision = hosted.Classify(new HostedCommandLineLaunchInput(["report", "--bogus", "--json"]));
         AssertEx.Equal(CommandExitCodes.Usage, await hosted.RunAsync(decision));
-        AssertEx.True(console.StandardError.StartsWith("RCLI1001", StringComparison.Ordinal), console.StandardError);
+        AssertEx.Equal("The option '--bogus' is not recognized.\nUsage: app report [options]\nRun \"app report --help\" for more information.\n", console.StandardError);
     }
 
     [Test, DisplayName("output-alias-payload/catalog-validates-the-shape")]

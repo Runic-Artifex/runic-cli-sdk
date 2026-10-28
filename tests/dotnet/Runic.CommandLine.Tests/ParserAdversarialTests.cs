@@ -217,14 +217,14 @@ internal sealed class ParserAdversarialTests
             ["--runic-output=JSON", "missing"],
             settings);
         AssertErrorOutput(unknownCommandBeforeTransport, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
-        AssertEx.SequenceEqual(["--runic-output"], unknownCommandBeforeTransport.Diagnostics.Single().Arguments);
+        AssertEx.SequenceEqual(["missing"], unknownCommandBeforeTransport.Diagnostics.Single().Arguments);
 
         ParseOutcome transportOnly = PortableCommandSyntaxAdapter.Instance.Parse(
             catalog,
             ["--runic-output=JSON"],
             settings);
         AssertErrorOutput(transportOnly, CommandOutputMode.Json, CommandOutputModeSource.ExplicitArgument);
-        AssertEx.SequenceEqual(["--runic-output"], transportOnly.Diagnostics.Single().Arguments);
+        AssertEx.Equal(0, transportOnly.Diagnostics.Single().Arguments.Count);
 
         CommandCatalog outputProbeCatalog = CreateOutputProbeCatalog("--runic-output");
         ParseOutcome defaultCommand = PortableCommandSyntaxAdapter.Instance.Parse(

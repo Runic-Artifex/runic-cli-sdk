@@ -266,7 +266,7 @@ internal sealed class OutputTests
                 new CommandFault("RCLI3000", "Expected failure.")),
             new TestCodec());
         AssertEx.Equal(string.Empty, console.StandardOutput);
-        AssertEx.Equal("RCLI3000: Expected failure.\n", console.StandardError);
+        AssertEx.Equal("Expected failure.\n", console.StandardError);
     }
 
     [Test, DisplayName("output/dispatcher-writes-success-diagnostics-to-human-stderr")]
@@ -285,7 +285,7 @@ internal sealed class OutputTests
             new TestCodec());
 
         AssertEx.Equal("7:ok\n", console.StandardOutput);
-        AssertEx.Equal("RCLI3001: The option is deprecated.\n", console.StandardError);
+        AssertEx.Equal("The option is deprecated.\n", console.StandardError);
     }
 
     [Test, DisplayName("output/dispatcher-does-not-repeat-a-fault-diagnostic")]
@@ -303,7 +303,7 @@ internal sealed class OutputTests
             CommandResponse.Failure<TestResult>("req-human-fault", "status", 10, fault, [diagnostic]),
             new TestCodec());
 
-        AssertEx.Equal("RCLI3000: Expected failure.\n", console.StandardError);
+        AssertEx.Equal("Expected failure.\n", console.StandardError);
     }
 
     [Test, DisplayName("output/unsafe-fault-message-keeps-well-formed-code")]
@@ -395,7 +395,7 @@ internal sealed class OutputTests
                 new CommandFault("RAS1001", "Could not read /home/ada/atlas.png.")),
             new TestCodec());
         AssertEx.Equal(string.Empty, console.StandardOutput);
-        AssertEx.Equal("RAS1001: The command failed; details were redacted.\n", console.StandardError);
+        AssertEx.Equal("The command failed; details were redacted.\n", console.StandardError);
     }
 
     [Test, DisplayName("output/unsafe-fault-detail-keys-are-dropped")]
@@ -547,7 +547,7 @@ internal sealed class OutputTests
             CommandResponse.Failure<TestResult>("req-human-redacted", "pack", 10, fault, [diagnostic]),
             new TestCodec());
 
-        AssertEx.Equal("RCLI8001: The diagnostic content was redacted.\n", console.StandardError);
+        AssertEx.Equal("The diagnostic content was redacted.\n", console.StandardError);
     }
 
     private static byte[] SuccessFrame() => CommandJsonEnvelopeWriter.Serialize(

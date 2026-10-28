@@ -156,7 +156,7 @@ public sealed class CommandCatalogBuilder
     /// A command whose result is <see cref="CommandUnit"/> writes nothing. A failed or cancelled command writes the
     /// payload of its <see cref="CommandOutcome{T}.FailureData"/> the same way, or nothing when it declared none;
     /// its diagnostics are human text on standard error, followed by its <see cref="CommandOutcome{T}.HumanOutput"/>
-    /// when it supplied one and by the <c>CODE: message</c> fault line otherwise. The exit code is the one
+    /// when it supplied one and by the fault message otherwise. The exit code is the one
     /// the envelope reports. Help, version and usage errors, including a usage error on a command line that gives
     /// the flag, are presented as human text, so <c>tool --bogus --json</c> writes its error to standard error.
     /// </para>

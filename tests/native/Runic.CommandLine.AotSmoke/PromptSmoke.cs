@@ -51,7 +51,7 @@ internal static class PromptSmoke
 
         var redirected = new ScriptedConsole(interactive: false, ansi: false);
         if (await App(redirected).RunAsync(["ask"]).ConfigureAwait(false) != CommandExitCodes.Usage) return 37;
-        if (!redirected.StandardError.StartsWith("RCLI4001: Template needs an answer", StringComparison.Ordinal)) return 38;
+        if (!redirected.StandardError.StartsWith("Template needs an answer", StringComparison.Ordinal)) return 38;
         return 0;
     }
 

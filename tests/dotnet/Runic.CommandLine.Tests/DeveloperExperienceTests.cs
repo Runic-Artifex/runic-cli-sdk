@@ -76,7 +76,8 @@ internal sealed class DeveloperExperienceTests
 
         console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.Usage, await adapter.RunAsync(adapter.Classify(new HostedCommandLineLaunchInput(["dx-service", "--bogus"])), console));
-        AssertEx.True(console.StandardError.Contains("RCLI1001", StringComparison.Ordinal), console.StandardError);
+        AssertEx.Equal("The option '--bogus' is not recognized.\nUsage: sample dx-service [options]\nRun \"sample dx-service --help\" for more information.\n",
+            console.StandardError);
 
         HostedCommandLineDecision ui = adapter.Classify(new HostedCommandLineLaunchInput([], emptyInputFallback: EmptyInputFallback.UserInterface));
         await AssertEx.ThrowsAsync<InvalidOperationException>(async () => await adapter.RunAsync(ui, console));
@@ -127,7 +128,7 @@ internal sealed class DeveloperExperienceTests
         AssertEx.True(!typo.IsCommandLineRequest, "An unknown word still belongs to the user interface.");
         AssertEx.Equal("list", typo.SuggestedCommand);
         AssertEx.True(await adapter.WriteSuggestionAsync(typo));
-        AssertEx.Equal("An unrecognized command was supplied. Did you mean 'list'?\n", console.StandardError);
+        AssertEx.Equal("The command 'lst' is not recognized. Did you mean 'list'?\n", console.StandardError);
         AssertEx.Equal("", console.StandardOutput);
 
         // Document paths and words that are not close stay silent.
@@ -142,7 +143,7 @@ internal sealed class DeveloperExperienceTests
         HostedCommandLineDecision known = Classify("list", "--bogus");
         AssertEx.True(known.IsCommandLineRequest && known.SuggestedCommand is null);
         AssertEx.True(!await adapter.WriteSuggestionAsync(known));
-        AssertEx.Equal("An unrecognized command was supplied. Did you mean 'list'?\n", console.StandardError);
+        AssertEx.Equal("The command 'lst' is not recognized. Did you mean 'list'?\n", console.StandardError);
 
         // The default command keeps a document path as its argument and never suggests.
         HostedCommandLineDecision defaultDocument = new CommandLineHostingAdapter(App(new TestCommandConsole()))
