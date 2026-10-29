@@ -89,6 +89,27 @@ CommandCatalog legacy = GeneratedCommandCatalog.Create(builder => builder.Output
 CommandCatalog adopted = GeneratedCommandCatalog.Create(builder => builder.OutputSelector("--format", "--output"));
 ```
 
+An application whose commands have their own `--format`, such as
+`tool bind --format epub`, keeps it by giving the selector another spelling.
+Declare it on the assembly, where the generator sees it:
+
+```csharp
+[assembly: OutputSelector("--output-format")]
+```
+
+`GeneratedCommandCatalog.Create()` then declares `--output-format` before it
+calls `configure`, which may still declare another, and the generator checks
+options against it: `RCLI9045` warns about an option spelled like the declared
+selector or its aliases instead of `--format`, and `RCLI9046` reports a
+spelling the builder would reject. A selector declared only in `configure` is
+invisible to the generator, so `RCLI9045` still warns about `--format` there.
+
+Where `--output` is not a spelling of the catalog, `--output human|json` is an
+unknown option whose message suggests the selector, so a script written for
+0.7 fails with `The option '--output' is not recognized. Did you mean
+'--format'?`. To keep such scripts working, declare `--output` as a hidden
+alias as above.
+
 A hidden alias parses exactly like the selector (`--output json`,
 `--output=json`, before the command), but help, completions and "did you mean"
 suggestions show only the selector, and diagnostics about the value name the
@@ -409,7 +430,23 @@ and the characters that can reorder or hide text (the bidirectional
 overrides, embeddings and isolates such as U+202E RIGHT-TO-LEFT OVERRIDE, the
 tag characters, and U+200B, U+2060 and U+FEFF) are removed or become a space.
 The joiners and direction marks that Persian, Indic and right-to-left text and
-emoji need (ZWNJ, ZWJ, LRM, RLM, ALM) are kept. The protocol counts the removed
+emoji need (ZWNJ, ZWJ, LRM, RLM, ALM) are kept. Human output keeps the line
+breaks of a fault or diagnostic message (`\n` and `\r\n`, written as `\n`), so
+a message written on several lines reads as written:
+
+```csharp
+return CommandOutcome.Failure<CheckReport>(CommandExitCategory.CommandFailure,
+    new CommandFault("STORY_CHECK", "2 problems in saltmarch:\n  codex/a.md: bad\n  codex/b.md: worse"));
+```
+
+```text
+2 problems in saltmarch:
+  codex/a.md: bad
+  codex/b.md: worse
+```
+
+JSON output and `CommandResponse<T>.Fault` keep the single-line form the protocol
+requires, with each line break replaced by a space. The protocol counts the removed
 characters among its
 [Unicode control characters](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/specs/command-line/protocol/README.md#unicode-control-characters):
 `CommandJsonEnvelopeReader.Read<T>` and `CommandTestEnvelope.Read<T>` reject a
@@ -601,13 +638,37 @@ CommandAppTestResult result = await tester.RunAsync(["init"]);
 | Code | Category | Typical cause |
 | --- | --- | --- |
 | 0 | `Success` | The command succeeded, or help, version or a completion script was written. |
-| 1 | `CommandFailure` | The command reported an expected failure. |
+| 1 | `CommandFailure` | The command reported an expected domain failure on well-formed input: a business rule refused the operation, a check found problems, a conflict, a failed child process. |
 | 1 | `Unavailable` | A required resource or service was unavailable, including "not found". |
 | 2 | `Usage` | Unknown command or option, missing, malformed or out-of-range input (`RCLI1xxx`, `RCLI2xxx`), or a prompt that cannot ask (`RCLI4001`). |
-| 2 | `Validation` | A handler rejected well-formed input, for example a business rule. |
+| 2 | `Validation` | A handler rejected the shape of well-formed input, for example two options that exclude each other. |
 | 3 | `HostFailure` | An unexpected exception or infrastructure failure (`RCLI5000`). |
 | 130 | `Cancelled` | Ctrl+C, SIGTERM, SIGQUIT or the caller's token cancelled the invocation, or the user cancelled a prompt. |
 | 130, 131, 143 | none | A repeated termination signal while the invocation still runs (128 plus the signal number). |
+
+Choose a handler's failure category by asking whether the command line itself is
+wrong. Exit code 2 means it is: the same command line fails the same way whatever
+the files, services or data the command works on, so the user has to change it.
+Return `Validation` for such input-shaped errors that the parser and binder do not
+catch, such as `--since` later than `--until`. Exit code 1 means the command line
+was fine and the operation failed on what it found: return `CommandFailure` for a
+domain failure, such as a refused operation, a failed check or a conflict, and
+`Unavailable` when something it needs is missing or unreachable. A script can then
+tell "fix the invocation" (2) from "the operation failed" (1).
+
+```csharp
+if (since > until)
+{
+    return CommandOutcome.Failure<Report>(CommandExitCategory.Validation,
+        new CommandFault("REPORT_RANGE", "--since must not be later than --until."));    // exit code 2
+}
+
+if (store.IsLocked(id))
+{
+    return CommandOutcome.Failure<Report>(CommandExitCategory.CommandFailure,
+        new CommandFault("REPORT_LOCKED", "The report is locked; unlock it first."));    // exit code 1
+}
+```
 
 These are the codes every Runic tool reports: 1 for failures and 2 for usage, as
 the dotnet CLI does, and 130 for an interrupted command, as a shell does. The
@@ -1041,8 +1102,9 @@ errors identify the parameter and expected type without echoing its value. `help
 <command-path>`, prefix output selection, and empty default-command invocations
 are now accepted. The version-1 machine envelope has not changed.
 
-For applications with their own `--format` option, declare another selector on
-the catalog, for example `builder.OutputSelector("--runic-output")`. Set the
+For applications with their own `--format` option, declare another selector,
+for example `[assembly: OutputSelector("--runic-output")]` (see "Choose the
+output selector"). Set the
 `GetEnvironmentVariable` callback of explicit `ParseSettings` if the application
 also declares parameter environment fallbacks. `ParseSettings` itself never reads
 the process environment.

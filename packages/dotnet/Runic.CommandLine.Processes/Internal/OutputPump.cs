@@ -55,17 +55,7 @@ internal sealed class OutputCapture
     {
         lock (gate)
         {
-            string text;
-            try
-            {
-                text = encoding.GetString(retained, 0, retainedCount);
-            }
-            catch (Exception exception) when (!OutputPump.IsFatal(exception))
-            {
-                text = string.Empty;
-            }
-
-            return new ProcessOutput(text, observed, observed > limit, drainTimedOut);
+            return new ProcessOutput(retained.AsSpan(0, retainedCount).ToArray(), encoding, observed, observed > limit, drainTimedOut);
         }
     }
 }

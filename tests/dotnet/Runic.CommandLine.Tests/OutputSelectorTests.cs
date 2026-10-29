@@ -24,6 +24,43 @@ internal sealed class OutputSelectorTests
         return ValueTask.CompletedTask;
     }
 
+    // Scripts written for 0.7 and earlier pass --output json; the error names the spelling that replaced it.
+    [Test, DisplayName("output-selector/former-spelling-suggests-the-selector")]
+    public async ValueTask FormerSpellingSuggestsSelector()
+    {
+        CommandCatalog catalog = FixtureCatalog.Create();
+        foreach (string[] args in new[]
+        {
+            new[] { "status", "--output", "json" },
+            ["status", "--output=JSON"],
+            ["status", "--output", "human"],
+            ["--output", "json", "status"],
+        })
+        {
+            CommandDiagnostic diagnostic = Parse(catalog, args).Diagnostics.Single();
+            AssertEx.Equal(args[0] == "status" ? "RCLI1001" : "RCLI1002", diagnostic.Code, string.Join(' ', args));
+            AssertEx.Equal("--format", diagnostic.Arguments[^1], string.Join(' ', args));
+            AssertEx.True(diagnostic.Message.EndsWith(" Did you mean '--format'?", StringComparison.Ordinal), diagnostic.Message);
+            AssertEx.Equal(CommandTextKeys.Diagnostic(diagnostic.Kind + "-suggestion"), diagnostic.MessageKey);
+        }
+
+        // Another value is not an output mode, so --output names an option the command lacks.
+        foreach (string[] args in new[] { new[] { "status", "--output", "report.txt" }, ["status", "--output"], ["status", "--outputs", "json"] })
+        {
+            CommandDiagnostic diagnostic = Parse(catalog, args).Diagnostics.Single();
+            AssertEx.Equal("RCLI1001", diagnostic.Code, string.Join(' ', args));
+            AssertEx.True(!diagnostic.Message.Contains("--format", StringComparison.Ordinal), diagnostic.Message);
+        }
+
+        // A declared selector is the one suggested.
+        CommandDiagnostic declared = Parse(FixtureCatalog.Create(static builder => builder.OutputSelector("--emit")), "status", "--output", "json").Diagnostics.Single();
+        AssertEx.Equal("The option '--output' is not recognized. Did you mean '--emit'?", declared.Message);
+
+        var console = new TestCommandConsole();
+        AssertEx.Equal(CommandExitCodes.Usage, await new CommandApp(catalog) { Name = "tool", Console = console, HandleTerminationSignals = false }.RunAsync(["status", "--output", "json"]));
+        AssertEx.True(console.StandardError.StartsWith("The option '--output' is not recognized. Did you mean '--format'?\n", StringComparison.Ordinal), console.StandardError);
+    }
+
     [Test, DisplayName("output-selector/hidden-alias-parses-like-the-selector")]
     public ValueTask HiddenAliasParsesLikeSelector()
     {

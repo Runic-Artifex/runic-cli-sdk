@@ -22,6 +22,7 @@ internal static class ChildProcessFixture
         return args[1] switch
         {
             "echo-arguments" => EchoArguments(args.AsSpan(2)),
+            "write-bytes" => WriteBytes(args[2]),
             "input-echo" => await EchoInputAsync().ConfigureAwait(false),
             "input-duplex" => await DuplexAsync(args).ConfigureAwait(false),
             "input-inherit" => await InheritInputAsync().ConfigureAwait(false),
@@ -54,6 +55,14 @@ internal static class ChildProcessFixture
         result[1] = mode;
         arguments.CopyTo(result, 2);
         return result;
+    }
+
+    // Writes the hexadecimal bytes to standard output unchanged, as Git writes a file name that is not UTF-8.
+    private static int WriteBytes(string hex)
+    {
+        using Stream output = Console.OpenStandardOutput();
+        output.Write(Convert.FromHexString(hex));
+        return 0;
     }
 
     private static int EchoArguments(ReadOnlySpan<string> arguments)

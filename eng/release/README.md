@@ -230,8 +230,9 @@ same policy. For Command Line:
 - The path to 1.0 is: 0.8.0 carries every breaking change of the 1.0 API
   review; 0.9.0 only adds (the NativeAOT RIDs below, opt-in `@file` response
   files, a per-command outcome presenter and a strict
-  `CommandTestEnvelope.Read<T>`); then `1.0.0-rc.N` takes fixes only, and 1.0.0
-  follows the last release candidate.
+  `CommandTestEnvelope.Read<T>`); 0.10.0 and 0.11.0 take the gaps the Runic
+  consumer applications found (0.11.0 only adds API); then
+  `1.0.0-rc.N` takes fixes only, and 1.0.0 follows the last release candidate.
 - Command Line depends on no other Runic SDK and ships first in the 1.0 release
   train, before Runic Translations and Runic SDK. After 1.0 it releases minors
   and patches independently; Runic Translations and the Runic SDK tools reference

@@ -49,7 +49,7 @@ var request = new ProcessRequest(
         InheritEnvironment = false,
     });
 
-ProcessResult result = await runner.RunAsync(request, cancellationToken: cancellationToken);
+ProcessResult result = await runner.RunAsync(request, cancellationToken);
 
 if (result.State == ProcessState.Exited && result.ExitCode == 0)
 {
@@ -72,6 +72,26 @@ kept. On Windows, a descendant started with handle inheritance, as
 `Process.Start` does, inherits the child's stdout and stderr even when it
 redirects its own output. Timeouts and drain grace periods use the `TimeProvider` passed to
 `ProcessRunner`.
+
+### Bytes that are not text
+
+`ProcessOutput.Text` decodes the retained bytes with the channel encoding (UTF-8
+by default), which replaces bytes that are not valid in it. `ProcessOutput.Bytes`
+holds the same retained bytes exactly as the child wrote them, for output that
+is not text in one encoding: file names, which Git and other tools write as raw
+bytes, or binary data. It has the same retained-byte cap.
+
+```csharp
+var request = new ProcessRequest("git", ["ls-files", "-z"], repository, options: ProcessExecutionOptions.NonInteractive);
+ProcessResult result = (await runner.RunAsync(request, cancellationToken)).EnsureCompleted(cancellationToken);
+foreach (Range path in result.StandardOutput.Bytes.Span.Split((byte)0))
+{
+    // Decode each path as the repository requires, or report one that is not valid UTF-8.
+}
+```
+
+The text is decoded when it is first read, so a caller that reads only the bytes
+does not decode them.
 
 ## Live output
 
@@ -140,8 +160,10 @@ else await log.FailAsync($"nix build ended in {result.State}", cancellationToken
 ```
 
 `IProcessRunner` has one member,
-`RunAsync(request, outputHandler = null, cancellationToken = default)`. Pass the
-token by name when you pass no handler. `ProcessRunner` streams the output to the
+`RunAsync(request, outputHandler = null, cancellationToken = default)`. Without a
+handler, pass the token as the second argument: the extension method
+`ProcessRunnerExtensions.RunAsync(request, cancellationToken)` calls the member
+with no handler, for every runner. `ProcessRunner` streams the output to the
 handler while the child runs; a runner that cannot stream, such as a test double,
 implements the same member and passes its capture to the handler itself.
 
@@ -213,9 +235,11 @@ behaves the same:
   for a failed output handler.
 
 Each factory takes optional `startedAt` and `duration` values.
-`new ProcessOutput(text)` counts the text's UTF-8 bytes as observed; pass
-`observedByteCount`, `isTruncated` or `drainTimedOut` to fake a truncated or
-cut-off capture.
+`new ProcessOutput(text)` counts the text's UTF-8 bytes as observed, and its
+`Bytes` are that UTF-8; `ProcessOutput.FromBytes(bytes, encoding)` creates a
+capture of raw bytes, whose `Text` decodes them with the encoding (UTF-8 by
+default). Pass `observedByteCount`, `isTruncated` or `drainTimedOut` to fake a
+truncated or cut-off capture.
 
 ## Cancellation, timeout and descendants
 

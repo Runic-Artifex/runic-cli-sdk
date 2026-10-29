@@ -154,6 +154,31 @@ internal sealed partial class ProcessOutputTests
         TestAssert.Equal(new string('O', 150000), handler.Text(ProcessOutputChannel.StandardOutput));
     }
 
+    // A file name that is not UTF-8, as Git writes it with core.quotePath=false, reaches the caller unchanged.
+    [Test, DisplayName("output/the-capture-keeps-the-bytes-the-child-wrote")]
+    public async Task CaptureKeepsBytesAsync()
+    {
+        byte[] written = [0x61, 0xFF, 0xFE, 0x2F, 0xC3, 0xA9, 0x00, 0x0A];
+        var runner = new ProcessRunner(new LocalExecutablePolicy());
+        // Without an output handler: runner.RunAsync(request, token).
+        ProcessResult result = await runner.RunAsync(Request(Unattended, "write-bytes", Convert.ToHexString(written)), CancellationToken.None).ConfigureAwait(false);
+        AssertExited(result);
+        TestAssert.SequenceEqual(written, result.StandardOutput.Bytes.ToArray());
+        TestAssert.Equal<long>(written.Length, result.StandardOutput.ObservedByteCount);
+        // The text decodes them with the channel encoding, which replaces the invalid bytes.
+        TestAssert.Equal("a\uFFFD\uFFFD/é\0\n", result.StandardOutput.Text);
+        TestAssert.Equal(0, result.StandardError.Bytes.Length);
+
+        // The bytes are bounded by the retained-byte cap, as the text is.
+        ProcessResult truncated = await runner.RunAsync(
+            Request(new ProcessExecutionOptions(timeout: TimeSpan.FromSeconds(60), standardOutputLimitBytes: 3) { StandardInput = ProcessStandardInput.Closed },
+                "write-bytes", Convert.ToHexString(written)),
+            CancellationToken.None).ConfigureAwait(false);
+        TestAssert.SequenceEqual(written[..3], truncated.StandardOutput.Bytes.ToArray());
+        TestAssert.True(truncated.StandardOutput.IsTruncated);
+        TestAssert.Equal<long>(written.Length, truncated.StandardOutput.ObservedByteCount);
+    }
+
     [Test, DisplayName("output/a-stream-handler-writes-one-channel-and-forwards-all-output")]
     public async Task StreamHandlerWritesChannelAsync()
     {

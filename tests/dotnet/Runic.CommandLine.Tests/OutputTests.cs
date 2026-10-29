@@ -522,6 +522,48 @@ internal sealed class OutputTests
         return ValueTask.CompletedTask;
     }
 
+    // Storyline kept its own presenter because the default writer flattened a message written on several lines.
+    [Test, DisplayName("output/human-output-keeps-the-line-breaks-of-a-message")]
+    public async ValueTask HumanOutputKeepsLineBreaks()
+    {
+        var fault = new CommandFault("STORY_CHECK", "\n2 problems in broken:\r\n  codex/a.md: bad\n  codex/b.md: worse\u001b[31m\n");
+        var diagnostic = new CommandDiagnostic(
+            "RCLI8002", "world-note", "Notes: \n  one\ttwo\u2028three", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Warning);
+        CommandResponse<TestResult> response = CommandResponse.Failure<TestResult>("req-lines", "check", 1, fault, [diagnostic]);
+        const string Expected = "Notes:\n  one two three\n2 problems in broken:\n  codex/a.md: bad\n  codex/b.md: worse [31m\n";
+
+        var console = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture, response, new TestCodec());
+        AssertEx.Equal(Expected, console.StandardError);
+
+        // A text resolver that translates nothing keeps them; a translation brings its own.
+        console = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture, response, new TestCodec(),
+            new CommandTextContext(CultureInfo.InvariantCulture, new FaultResolver(null)));
+        AssertEx.Equal(Expected, console.StandardError);
+        console = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture, response, new TestCodec(),
+            new CommandTextContext(CultureInfo.InvariantCulture, new FaultResolver("Zwei Probleme:\n  a\n  b")));
+        AssertEx.Equal("Notes:\n  one two three\nZwei Probleme:\n  a\n  b\n", console.StandardError);
+
+        // The fault and JSON output keep the single line the protocol requires.
+        AssertEx.True(!response.Fault!.Message.Contains('\n') && !response.Fault.Message.Contains('\r'), response.Fault.Message);
+        string json = Encoding.UTF8.GetString(CommandJsonEnvelopeWriter.Serialize(response, TestJsonContext.Default.TestResult));
+        AssertEx.True(!json.TrimEnd('\n').Contains('\n') && !json.Contains("\\n", StringComparison.Ordinal), json);
+
+        // A message that has technical content on any line is still redacted as a whole.
+        console = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture,
+            CommandResponse.Failure<TestResult>("req-lines-unsafe", "check", 1, new CommandFault("STORY_CHECK", "Could not read:\n  /home/ada/world")), new TestCodec());
+        AssertEx.Equal("The command failed; details were redacted.\n", console.StandardError);
+    }
+
+    private sealed class FaultResolver(string? text) : ICommandTextResolver
+    {
+        public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) =>
+            key == CommandTextKeys.Fault("STORY_CHECK") ? text : null;
+    }
+
     [Test, DisplayName("output/control-only-fault-message-is-redacted")]
     public ValueTask ControlOnlyMessageIsRedacted()
     {
