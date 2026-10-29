@@ -883,3 +883,4 @@ const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileTooDeep = "diagnos
 const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileUnreadable = "diagnostics.response-file-unreadable" -> string!
 const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileUnterminatedQuote = "diagnostics.response-file-unterminated-quote" -> string!
 const Runic.CommandLine.CommandTextKeys.HelpResponseFiles = "help.response-files" -> string!
+const Runic.CommandLine.CommandTextKeys.HintUsage = "hints.usage" -> string!
