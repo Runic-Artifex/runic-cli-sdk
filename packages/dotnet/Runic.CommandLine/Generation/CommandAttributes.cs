@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Runic.CommandLine;
 
@@ -43,6 +44,46 @@ public sealed class CommandGroupAttribute : Attribute
     public string? Description { get; set; }
     /// <summary>Gets or sets extended group help.</summary>
     public string? LongDescription { get; set; }
+}
+
+/// <summary>
+/// Declares the long option that selects human or JSON output for the generated catalog, replacing the default
+/// <c>--format</c>, and optionally hidden aliases that keep former spellings working:
+/// <c>[assembly: OutputSelector("--output-format")]</c> leaves <c>--format</c> to the application's own commands.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <c>GeneratedCommandCatalog.Create</c> declares the selector with
+/// <see cref="CommandCatalogBuilder.OutputSelector(string, IEnumerable{string})"/> before it calls its
+/// <c>configure</c> callback, which may still declare another. Unlike a selector declared only in that callback, the
+/// generator sees this one: it reports <c>RCLI9045</c> for an option spelled like the declared selector or one of its
+/// aliases rather than like <c>--format</c>, and <c>RCLI9046</c> for a spelling the builder would reject.
+/// </para>
+/// <para>
+/// The spellings follow the rules of <see cref="CommandCatalogBuilder.OutputSelector(string, IEnumerable{string})"/>:
+/// long option spellings (<c>--</c>, a lowercase letter, then lowercase letters, digits or hyphens) other than
+/// <c>--help</c> and <c>--version</c>, each given once.
+/// </para>
+/// </remarks>
+[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false, Inherited = false)]
+public sealed class OutputSelectorAttribute : Attribute
+{
+    /// <summary>Initializes the declaration.</summary>
+    /// <param name="name">A long option spelling such as <c>--output-format</c>.</param>
+    /// <param name="hiddenAliases">Further spellings that parse exactly like the selector and are not shown.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="hiddenAliases"/> is null.</exception>
+    public OutputSelectorAttribute(string name, params string[] hiddenAliases)
+    {
+        Name = name ?? throw new ArgumentNullException(nameof(name));
+        ArgumentNullException.ThrowIfNull(hiddenAliases);
+        HiddenAliases = Array.AsReadOnly((string[])hiddenAliases.Clone());
+    }
+
+    /// <summary>Gets the selector's spelling.</summary>
+    public string Name { get; }
+
+    /// <summary>Gets the hidden aliases of the selector.</summary>
+    public IReadOnlyList<string> HiddenAliases { get; }
 }
 
 /// <summary>Marks one generated command as the root fallback for positional-only invocation.</summary>

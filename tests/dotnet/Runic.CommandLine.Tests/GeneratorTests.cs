@@ -219,6 +219,48 @@ internal sealed class GeneratorTests
         }
     }
 
+    [Test, DisplayName("generator/assembly-output-selector-declares-the-catalog-selector")]
+    public async ValueTask AssemblyOutputSelectorDeclaresTheSelector()
+    {
+        const string source = """
+            using Runic.CommandLine;
+
+            [assembly: OutputSelector("--output-format", "--output")]
+
+            internal static class Commands
+            {
+                [Command("bind")]
+                public static string Bind([Option("--format")] string format = "epub") => format;
+            }
+            """;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new CommandLineGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(CreateCompilation(source), out Compilation compiled, out var diagnostics);
+        AssertEx.Equal(0, diagnostics.Length, string.Join("\n", diagnostics));
+        using var bytes = new MemoryStream();
+        var emitted = compiled.Emit(bytes);
+        AssertEx.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        bytes.Position = 0;
+        var loader = new AssemblyLoadContext("assembly-output-selector", isCollectible: true);
+        try
+        {
+            MethodInfo create = loader.LoadFromStream(bytes).GetType("Runic.CommandLine.Generated.GeneratedCommandCatalog")!.GetMethod("Create")!;
+            var catalog = (CommandCatalog)create.Invoke(null, [null])!;
+            AssertEx.Equal("--output-format", catalog.OutputSelector);
+            AssertEx.SequenceEqual(["--output"], catalog.OutputSelectorAliases);
+
+            // The command keeps --format; the declared selector and its alias select the output.
+            var console = new TestCommandConsole();
+            AssertEx.Equal(0, await new CommandApp(catalog) { Console = console, HandleTerminationSignals = false }.RunAsync(["bind", "--format", "pdf", "--output", "json"]));
+            using (var frame = CommandTestEnvelope.Parse(console.StandardOutput))
+                AssertEx.Equal("pdf", frame.RootElement.GetProperty("payload").GetString());
+
+            // A selector declared in configure still replaces it.
+            var configured = (CommandCatalog)create.Invoke(null, [new Action<CommandCatalogBuilder>(static builder => builder.OutputSelector("--emit"))])!;
+            AssertEx.Equal("--emit", configured.OutputSelector);
+        }
+        finally { loader.Unload(); }
+    }
+
     [Test, DisplayName("generator/command-unit-results-behave-like-void")]
     public async ValueTask CommandUnitResultsBehaveLikeVoid()
     {

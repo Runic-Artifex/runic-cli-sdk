@@ -90,6 +90,8 @@
     { "id": "grammar.option.missing-value", "args": ["export", "--encoding"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 2 }] } },
     { "id": "grammar.option.flag-rejects-equals", "args": ["status", "--verbose=true"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1004", "kind": "unexpected-option-value", "tokenIndex": 1 }] } },
     { "id": "grammar.option.unknown-long", "args": ["status", "--quiet"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1 }] } },
+    { "id": "grammar.option.former-output-selector", "args": ["status", "--output", "json"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1 }] } },
+    { "id": "grammar.option.former-output-selector-before-command", "args": ["--output", "json", "status"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0 }] } },
     { "id": "grammar.option.short-bundle-unsupported", "args": ["status", "-vh"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1008", "kind": "unsupported-short-bundle", "tokenIndex": 1 }] } },
     { "id": "grammar.argument.required", "args": ["export", "input.db"], "expected": { "kind": "invocation", "commandPath": ["export"], "options": [], "arguments": [{ "id": "input", "values": ["input.db"] }] } },
     { "id": "grammar.argument.missing", "args": ["copy", "source.txt"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1005", "kind": "missing-argument", "tokenIndex": 2, "arguments": ["destination"] }] } },

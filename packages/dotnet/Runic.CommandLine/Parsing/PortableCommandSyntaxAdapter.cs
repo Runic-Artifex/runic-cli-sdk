@@ -145,7 +145,9 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 0,
                 arguments: commandIndex < tokens.Length ? [SafeUnknownCommand(tokens[commandIndex])] : null,
                 outputClassification: initialOutputClassification,
-                suggestion: commandIndex < tokens.Length ? CommandSuggestions.Commands(tokens[commandIndex], catalog.Commands) : null);
+                suggestion: commandIndex < tokens.Length
+                    ? FormerSelectorSuggestion(tokens, commandIndex, transport) ?? CommandSuggestions.Commands(tokens[commandIndex], catalog.Commands)
+                    : null);
         }
 
         if (resolved.Command.TryGetOption(transport.Name, out _))
@@ -306,7 +308,9 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                             index,
                             resolved.Path,
                             [SafeUnknownOption(token)],
-                            CurrentOutputClassification(), CommandSuggestions.Options(token, resolved.Command, transport.Name, transport.JsonAlias));
+                            CurrentOutputClassification(),
+                            FormerSelectorSuggestion(tokens, index, transport) ??
+                                CommandSuggestions.Options(token, resolved.Command, transport.Name, transport.JsonAlias));
                 }
 
                 if (optionBindingIndexes.TryGetValue(option.Id, out int bindingIndex) &&
@@ -883,6 +887,17 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             ? Error(DuplicateOptionCode, "duplicate-option", tokenIndex, path, [spelling], outputClassification)
             : Error(ConflictingOutputSelectorCode, "conflicting-output-selector", tokenIndex, path,
                 [spelling, firstSpelling], outputClassification);
+
+    // "--output human|json" selected the output before 0.8.0. Where that spelling is not recognized, an unknown
+    // "--output" whose value is an output mode is an old command line, so the diagnostic suggests the selector that
+    // replaced it. Any other value suggests nothing: "--output report.txt" names an option the application lacks.
+    private static string? FormerSelectorSuggestion(string[] tokens, int index, TransportOutput transport)
+    {
+        const string FormerSelector = "--output";
+        if (!TrySplitSelector(tokens[index], FormerSelector, out string? value)) return null;
+        value ??= index + 1 < tokens.Length ? tokens[index + 1] : null;
+        return value is not null && TryParseOutputMode(value, out _) ? transport.Name : null;
+    }
 
     private static bool TryParseOutputMode(string value, out CommandOutputMode mode)
     {

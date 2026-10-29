@@ -51,7 +51,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor ListConverter = new("RCLI9034", "Converter on a list parameter", "List parameter '{0}' cannot use ConvertWith; list binding converts each supported element type", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9034");
     private static readonly DiagnosticDescriptor InvalidGroup = new("RCLI9043", "Invalid command group description", "[CommandGroup] path '{0}' {1}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9043");
     private static readonly DiagnosticDescriptor NonCamelCaseResultContext = new("RCLI9044", "Command result JSON context does not use camelCase", "Command '{0}' returns '{1}' through JSON context '{2}', which does not use camelCase: payload properties would be serialized PascalCase, while Runic payloads are camelCase; add [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)] to the context", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9044");
-    private static readonly DiagnosticDescriptor DefaultOutputSelectorOption = new("RCLI9045", "Option spelled like the default output selector", "Option '{0}' of command '{1}' is spelled like the default output selector --format; rename the option, or declare another selector with CommandCatalogBuilder.OutputSelector(...) in GeneratedCommandCatalog.Create(configure), otherwise catalog validation reports RCLI0026 at run time", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9045");
+    private static readonly DiagnosticDescriptor DefaultOutputSelectorOption = new("RCLI9045", "Option spelled like the output selector", "Option '{0}' of command '{1}' is spelled like the output selector {2}; rename the option, or declare another selector with [assembly: OutputSelector(\"--output-format\")], otherwise catalog validation reports RCLI0026 at run time", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9045");
+    private static readonly DiagnosticDescriptor InvalidOutputSelector = new("RCLI9046", "Invalid output selector", "[assembly: OutputSelector] {0}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9046");
 
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -69,17 +70,60 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             static (attributeContext, _) => CreateGroups(attributeContext.TargetSymbol, attributeContext.Attributes))
             .SelectMany(static (groups, _) => groups)
             .WithTrackingName("CommandGroups");
+        // The assembly's [OutputSelector] projects to strings, so a change elsewhere in the compilation leaves the
+        // catalog cached.
+        IncrementalValueProvider<OutputSelectorInfo?> selector = context.CompilationProvider
+            .Select(static (compilation, _) => ReadOutputSelector(compilation.Assembly))
+            .WithTrackingName("OutputSelector");
         context.RegisterSourceOutput(
-            commands.Collect().Combine(groups.Collect()).WithTrackingName("CommandCatalog"),
-            static (productionContext, input) => Emit(productionContext, input.Left, input.Right));
+            commands.Collect().Combine(groups.Collect()).Combine(selector).WithTrackingName("CommandCatalog"),
+            static (productionContext, input) => Emit(productionContext, input.Left.Left, input.Left.Right, input.Right));
     }
 
-    private static void Emit(SourceProductionContext context, ImmutableArray<CommandCandidate> candidates, ImmutableArray<GroupCandidate> groupCandidates)
+    private static OutputSelectorInfo? ReadOutputSelector(IAssemblySymbol assembly)
     {
+        AttributeData? attribute = assembly.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Runic.CommandLine.OutputSelectorAttribute");
+        if (attribute is null) return null;
+        Location? location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation();
+        LocationInfo? locationInfo = location?.SourceTree is null ? null : new LocationInfo(location.SourceTree.FilePath, location.SourceSpan, location.GetLineSpan().Span);
+        string? name = attribute.ConstructorArguments.Length > 0 ? attribute.ConstructorArguments[0].Value as string : null;
+        string?[] aliases = attribute.ConstructorArguments.Length > 1 && attribute.ConstructorArguments[1].Kind == TypedConstantKind.Array && !attribute.ConstructorArguments[1].IsNull
+            ? attribute.ConstructorArguments[1].Values.Select(static value => value.Value as string).ToArray()
+            : [];
+        string? invalid = new[] { name }.Concat(aliases).FirstOrDefault(static spelling => !IsSelectorSpelling(spelling));
+        string? problem = !IsSelectorSpelling(name) || invalid is not null
+            ? $"spelling '{invalid ?? name}' is not a long option spelling (--, a lowercase letter, then lowercase letters, digits or hyphens) other than --help and --version"
+            : aliases.Prepend(name).GroupBy(static spelling => spelling, StringComparer.Ordinal).FirstOrDefault(static group => group.Count() > 1) is { } repeated
+                ? $"spelling '{repeated.Key}' is given more than once"
+                : null;
+        return new OutputSelectorInfo(name ?? string.Empty, new EquatableArray<string>(aliases.Select(static alias => alias ?? string.Empty).ToArray()), locationInfo, problem);
+    }
+
+    private static bool IsSelectorSpelling(string? value) =>
+        value is not null && value.Length >= 3 && value.StartsWith("--", StringComparison.Ordinal) && value[2] is >= 'a' and <= 'z' &&
+        value.Skip(3).All(static character => character is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-') &&
+        value is not ("--help" or "--version");
+
+    private static void Emit(SourceProductionContext context, ImmutableArray<CommandCandidate> candidates, ImmutableArray<GroupCandidate> groupCandidates, OutputSelectorInfo? selector)
+    {
+        if (selector?.Problem is { } selectorProblem)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(InvalidOutputSelector, selector.Location?.ToLocation(), selectorProblem));
+            selector = null;
+        }
+
+        // An option spelled like the selector or one of its aliases fails catalog validation (RCLI0026). A selector
+        // declared only at run time is not visible here, so this is a warning.
+        string[] selectorSpellings = selector is null ? [DefaultOutputSelector] : selector.HiddenAliases.Prepend(selector.Name).ToArray();
         var commands = new List<CommandModel>();
         foreach (CommandCandidate candidate in candidates.OrderBy(static item => item.SortKey, StringComparer.Ordinal))
         {
             foreach (DiagnosticInfo diagnostic in candidate.Diagnostics) context.ReportDiagnostic(diagnostic.ToDiagnostic());
+            foreach (OptionSpellingInfo option in candidate.Options)
+            {
+                if (option.Spellings.FirstOrDefault(spelling => selectorSpellings.Contains(spelling, StringComparer.Ordinal)) is { } collision)
+                    context.ReportDiagnostic(Diagnostic.Create(DefaultOutputSelectorOption, option.Location?.ToLocation(), option.Spellings.First(), option.Command, collision));
+            }
             if (candidate.Command is not null) commands.Add(candidate.Command);
         }
 
@@ -116,7 +160,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         }
         if (commands.Count == 0) return;
 
-        context.AddSource("Runic.CommandLine.GeneratedCatalog.g.cs", SourceText.From(Render(commands, groups), Encoding.UTF8));
+        context.AddSource("Runic.CommandLine.GeneratedCatalog.g.cs", SourceText.From(Render(commands, groups, selector), Encoding.UTF8));
     }
 
     private static EquatableArray<GroupCandidate> CreateGroups(ISymbol type, ImmutableArray<AttributeData> attributes)
@@ -143,11 +187,12 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static CommandCandidate CreateCandidate(IMethodSymbol method, Compilation compilation)
     {
         var diagnostics = new List<DiagnosticInfo>();
-        CommandModel? command = TryCreate(diagnostics, method, compilation);
-        return new CommandCandidate(method.ToDisplayString(), command, new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
+        var options = new List<OptionSpellingInfo>();
+        CommandModel? command = TryCreate(diagnostics, options, method, compilation);
+        return new CommandCandidate(method.ToDisplayString(), command, new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()), new EquatableArray<OptionSpellingInfo>(options.ToArray()));
     }
 
-    private static CommandModel? TryCreate(List<DiagnosticInfo> diagnostics, IMethodSymbol method, Compilation compilation)
+    private static CommandModel? TryCreate(List<DiagnosticInfo> diagnostics, List<OptionSpellingInfo> options, IMethodSymbol method, Compilation compilation)
     {
         AttributeData attribute = method.GetAttributes().First(static item => item.AttributeClass?.ToDisplayString() == "Runic.CommandLine.CommandAttribute");
         string? name = attribute.ConstructorArguments.Length == 1 ? attribute.ConstructorArguments[0].Value as string : null;
@@ -160,7 +205,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         var parameters = new List<ParameterModel>();
         foreach (IParameterSymbol parameter in method.Parameters)
         {
-            ParameterModel? parameterModel = TryCreateParameter(diagnostics, method, parameter, compilation);
+            ParameterModel? parameterModel = TryCreateParameter(diagnostics, options, method, parameter, compilation);
             if (parameterModel is null) return null;
             parameters.Add(parameterModel);
         }
@@ -217,7 +262,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         return CreateModel(method, name!, result!, shape, parameters, payloadType!, jsonContext, isDefault);
     }
 
-    private static ParameterModel? TryCreateParameter(List<DiagnosticInfo> diagnostics, IMethodSymbol method, IParameterSymbol parameter, Compilation compilation)
+    private static ParameterModel? TryCreateParameter(List<DiagnosticInfo> diagnostics, List<OptionSpellingInfo> options, IMethodSymbol method, IParameterSymbol parameter, Compilation compilation)
     {
         AttributeData? positional = FindAttribute(parameter, "Runic.CommandLine.ArgumentAttribute");
         AttributeData? trailing = FindAttribute(parameter, "Runic.CommandLine.TrailingArgumentsAttribute");
@@ -367,9 +412,10 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
                 Report(diagnostics, InvalidMetadata, parameter, methodName, "option alias", aliases.First(alias => !IsOptionSpelling(alias) || IsReservedOption(alias)));
                 return null;
             }
-            // The application may declare another selector at run time, so the default spelling is only a warning.
-            if (spelling == DefaultOutputSelector || aliases.Contains(DefaultOutputSelector))
-                ReportAttribute(diagnostics, DefaultOutputSelectorOption, option, spelling!, methodName);
+            // Checked against the output selector once the assembly's [OutputSelector] is known (Emit).
+            Location? optionLocation = option.ApplicationSyntaxReference?.GetSyntax().GetLocation();
+            options.Add(new OptionSpellingInfo(methodName, new EquatableArray<string>(aliases.Prepend(spelling!).ToArray()),
+                optionLocation?.SourceTree is null ? null : new LocationInfo(optionLocation.SourceTree.FilePath, optionLocation.SourceSpan, optionLocation.GetLineSpan().Span)));
             bool allowMultipleValues = GetAllowMultipleValues(option);
             bool allowMultipleOccurrences = GetAllowMultipleOccurrences(option);
             bool isRequired = GetRequired(option) || (!parameter.HasExplicitDefaultValue && !IsNullable(parameter) && !IsBoolean(parameter.Type) && !IsList(parameter.Type));
@@ -539,7 +585,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
 
     private static readonly string GeneratorVersion = typeof(CommandLineGenerator).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
 
-    private static string Render(IReadOnlyList<CommandModel> commands, IReadOnlyList<GroupCandidate> groups)
+    private static string Render(IReadOnlyList<CommandModel> commands, IReadOnlyList<GroupCandidate> groups, OutputSelectorInfo? selector)
     {
         var source = new StringBuilder("// <auto-generated/>\n#nullable enable\n#pragma warning disable CS1591\nnamespace Runic.CommandLine.Generated;\n\n");
         source.Append("[global::System.CodeDom.Compiler.GeneratedCode(\"Runic.CommandLine.Generators\", \"").Append(GeneratorVersion).AppendLine("\")]").AppendLine("internal static class GeneratedCommandCatalog").AppendLine("{").AppendLine("    public static global::Runic.CommandLine.CommandCatalog Create(global::System.Action<global::Runic.CommandLine.CommandCatalogBuilder>? configure = null) { var builder = new global::Runic.CommandLine.CommandCatalogBuilder()");
@@ -552,6 +598,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         foreach (GroupCandidate group in groups) source.Append("        ").Append(group.Registration).AppendLine();
         CommandModel? defaultCommand = commands.FirstOrDefault(static command => command.IsDefault);
         if (defaultCommand is not null) source.Append(defaultCommand.IsRoot ? "        .RootCommand(" : "        .DefaultCommand(").Append(Literal(defaultCommand.Name)).AppendLine(")");
+        if (selector is not null) source.Append("        .OutputSelector(").Append(string.Join(", ", selector.HiddenAliases.Prepend(selector.Name).Select(Literal))).AppendLine(")");
         source.AppendLine("        ; configure?.Invoke(builder); return builder.Build(); }").AppendLine();
         for (int index = 0; index < commands.Count; index++) RenderCommand(source, commands[index], index);
         source.AppendLine("}");
@@ -956,7 +1003,11 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static AttributeData? ArgumentMetadata(IParameterSymbol parameter) =>
         FindAttribute(parameter, "Runic.CommandLine.ArgumentAttribute") ?? FindAttribute(parameter, "Runic.CommandLine.TrailingArgumentsAttribute");
 
-    private sealed record CommandCandidate(string SortKey, CommandModel? Command, EquatableArray<DiagnosticInfo> Diagnostics);
+    private sealed record CommandCandidate(string SortKey, CommandModel? Command, EquatableArray<DiagnosticInfo> Diagnostics, EquatableArray<OptionSpellingInfo> Options);
+
+    private sealed record OptionSpellingInfo(string Command, EquatableArray<string> Spellings, LocationInfo? Location);
+
+    private sealed record OutputSelectorInfo(string Name, EquatableArray<string> HiddenAliases, LocationInfo? Location, string? Problem);
 
     private sealed record GroupCandidate(string SortKey, string Path, string? Registration, LocationInfo? Location, EquatableArray<DiagnosticInfo> Diagnostics);
 

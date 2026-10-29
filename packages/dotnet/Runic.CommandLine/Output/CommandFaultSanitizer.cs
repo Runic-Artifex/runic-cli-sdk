@@ -76,6 +76,24 @@ internal static class CommandFaultSanitizer
             : sanitized;
     }
 
+    // Human output keeps the line breaks of a message, so that a message the author wrote on several lines reads as
+    // written: \n and \r\n become \n, and leading and trailing line breaks are dropped because the writer ends the
+    // message with its own. Every other control character becomes a space, as in SanitizeText; JSON output and
+    // CommandResponse.Fault keep the single-line form the protocol requires.
+    internal static string SanitizeHumanText(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return SanitizeScalar(value, MaximumMessageLength, keepLineBreaks: true).Trim('\n');
+    }
+
+    internal static string SanitizeRequiredHumanText(string value)
+    {
+        string sanitized = SanitizeHumanText(value);
+        return string.IsNullOrWhiteSpace(sanitized)
+            ? "The diagnostic message was redacted."
+            : sanitized;
+    }
+
     internal static string SanitizeArgument(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -126,7 +144,7 @@ internal static class CommandFaultSanitizer
         value is 0x200B or (>= 0x202A and <= 0x202E) or 0x2060 or (>= 0x2066 and <= 0x2069) or 0xFEFF or
             (>= 0xE0000 and <= 0xE007F);
 
-    private static string SanitizeScalar(string value, int maximumLength)
+    private static string SanitizeScalar(string value, int maximumLength, bool keepLineBreaks = false)
     {
         var builder = new StringBuilder(Math.Min(value.Length, maximumLength));
         bool previousWasSpace = false;
@@ -142,6 +160,27 @@ internal static class CommandFaultSanitizer
             {
                 rune = Rune.ReplacementChar;
                 consumed = 1;
+            }
+
+            if (keepLineBreaks && (rune.Value == '\n' || (rune.Value == '\r' && index + 1 < value.Length && value[index + 1] == '\n')))
+            {
+                if (utf8Bytes == maximumLength)
+                {
+                    break;
+                }
+
+                // A line does not end in the space written for a control character or the author's trailing space.
+                if (previousWasSpace && builder.Length > 0 && builder[^1] == ' ')
+                {
+                    builder.Length--;
+                    utf8Bytes--;
+                }
+
+                builder.Append('\n');
+                previousWasSpace = false;
+                utf8Bytes++;
+                index += rune.Value == '\r' ? 2 : 1;
+                continue;
             }
 
             bool replaceWithSpace = Rune.IsControl(rune) ||

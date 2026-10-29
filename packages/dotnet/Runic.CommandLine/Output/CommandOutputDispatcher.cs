@@ -250,7 +250,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CommandFault fault = CommandFaultSanitizer.Sanitize(response.Fault!);
         if (!ContainsFaultDiagnostic(response.Diagnostics, fault))
         {
-            text.Append(fault.Message);
+            text.Append(response.HumanFaultMessage ?? fault.Message);
             if (faultHint is not null && !CommandFaultSanitizer.ContainsTechnicalContent(faultHint))
             {
                 text.Append(' ');
@@ -281,8 +281,9 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             : console.WriteErrorAsync(text.AsMemory(), cancellationToken);
     }
 
-    // Human output writes each diagnostic and the fault as its message alone. The code is for programs, which read it
-    // from JSON output; people read the message, and a code they can look up comes with its help link.
+    // Human output writes each diagnostic and the fault as its message alone, with the line breaks the author wrote.
+    // The code is for programs, which read it from JSON output; people read the message, and a code they can look up
+    // comes with its help link.
     private static string BuildDiagnostics(IReadOnlyList<CommandDiagnostic> diagnostics)
     {
         var text = new StringBuilder();
@@ -290,7 +291,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         {
             text.Append(CommandFaultSanitizer.ContainsTechnicalContent(diagnostic.Message)
                 ? "The diagnostic content was redacted."
-                : CommandFaultSanitizer.SanitizeRequiredText(diagnostic.Message));
+                : CommandFaultSanitizer.SanitizeRequiredHumanText(diagnostic.Message));
             text.Append('\n');
             if (diagnostic.HelpUri is { } helpUri)
             {

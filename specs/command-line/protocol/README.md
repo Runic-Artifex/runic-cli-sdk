@@ -53,7 +53,10 @@ Success has `success: true`, `exitCode: 0`, a supported non-null
 `success: false`, a nonzero `exitCode`, `payloadType: null`, `payload: null`,
 and a fault. The default failure exit codes are 1 expected command failure and
 unavailable resource, 2 usage/parse and validation, 3 unexpected host/software
-failure, and 130 cancelled. A host policy may select another nonzero signed
+failure, and 130 cancelled. Exit code 2 means the command line itself is wrong
+(input-shaped: parse and binding errors, and input a handler rejects whatever
+state it works on); exit code 1 means a well-formed command failed on that state
+(domain failures, including "not found"). A host policy may select another nonzero signed
 32-bit value, for example distinct codes per category, without changing the
 semantic fault.
 

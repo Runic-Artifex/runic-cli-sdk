@@ -100,7 +100,9 @@ public sealed class CommandTextContext
         }
         if (fault is not null && ReferenceEquals(fault, response.Fault))
             fault = new CommandFault(fault.Code, Resolve(CommandTextKeys.Fault(fault.Code), fault.Message), fault.Details, fault.Retryable) { HelpUri = fault.HelpUri };
+        // Untranslated, the fault keeps the line breaks human output writes; a translation brings its own.
+        string? humanFaultMessage = fault is not null && fault.Message == response.Fault?.Message ? response.HumanFaultMessage : null;
         return CommandResponse<T>.Read(response.RequestId, response.Command, response.Succeeded, response.ExitCode,
-            response.PayloadType, response.Payload, fault, diagnostics, response.FailureData);
+            response.PayloadType, response.Payload, fault, diagnostics, response.FailureData, humanFaultMessage);
     }
 }

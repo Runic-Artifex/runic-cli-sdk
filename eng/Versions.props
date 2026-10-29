@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <RunicCommandLineVersion>1.0.0-rc.1</RunicCommandLineVersion>
+    <RunicCommandLineVersion>0.11.0</RunicCommandLineVersion>
     <!-- Last published release; package validation compares candidates with it. -->
     <RunicCommandLinePackageValidationBaselineVersion>0.10.0</RunicCommandLinePackageValidationBaselineVersion>
     <Version Condition="'$(Version)' == ''">$(RunicCommandLineVersion)</Version>

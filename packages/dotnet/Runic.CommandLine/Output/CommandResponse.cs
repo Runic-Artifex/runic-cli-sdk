@@ -21,7 +21,8 @@ public sealed class CommandResponse<T>
         T? payload,
         CommandFault? fault,
         IReadOnlyList<CommandDiagnostic>? diagnostics,
-        CommandFailureData? failureData = null)
+        CommandFailureData? failureData = null,
+        string? humanFaultMessage = null)
     {
         CommandResponseValidation.ValidateRequestId(requestId, nameof(requestId));
         CommandResponseValidation.ValidateCommand(command, nameof(command));
@@ -64,6 +65,7 @@ public sealed class CommandResponse<T>
         PayloadType = payloadType;
         Payload = payload;
         Fault = fault is null ? null : CommandFaultSanitizer.Sanitize(fault);
+        HumanFaultMessage = humanFaultMessage ?? HumanMessage(fault, Fault);
         Diagnostics = CopyDiagnostics(diagnostics);
         FailureData = failureData;
     }
@@ -94,6 +96,22 @@ public sealed class CommandResponse<T>
 
     /// <summary>Gets the ordered, consumer-safe diagnostics.</summary>
     public IReadOnlyList<CommandDiagnostic> Diagnostics { get; }
+
+    // The fault message as human output writes it, with the author's line breaks, when it has any; null otherwise.
+    // Fault.Message is the single-line form of JSON output.
+    internal string? HumanFaultMessage { get; }
+
+    private static string? HumanMessage(CommandFault? fault, CommandFault? sanitized)
+    {
+        if (fault is null || sanitized is null || !fault.Message.Contains('\n', StringComparison.Ordinal) ||
+            string.Equals(sanitized.Message, CommandFaultSanitizer.RedactedFaultMessage, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        string message = CommandFaultSanitizer.SanitizeHumanText(fault.Message);
+        return message.Contains('\n', StringComparison.Ordinal) ? message : null;
+    }
 
     internal static CommandResponse<T> CreateSuccess(
         string requestId,
@@ -146,8 +164,9 @@ public sealed class CommandResponse<T>
         T? payload,
         CommandFault? fault,
         IReadOnlyList<CommandDiagnostic> diagnostics,
-        CommandFailureData? failureData = null) =>
-        new(requestId, command, success, exitCode, payloadType, payload, fault, diagnostics, failureData);
+        CommandFailureData? failureData = null,
+        string? humanFaultMessage = null) =>
+        new(requestId, command, success, exitCode, payloadType, payload, fault, diagnostics, failureData, humanFaultMessage);
 
     private static IReadOnlyList<CommandDiagnostic> CopyDiagnostics(
         IReadOnlyList<CommandDiagnostic>? diagnostics)

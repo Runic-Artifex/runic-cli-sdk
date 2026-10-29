@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TUnit.Core;
@@ -50,6 +51,46 @@ internal sealed class ProcessResultFactoryTests
         IProcessRunner named = new FakeRunner(ProcessResult.Exited(0));
         TestAssert.Equal(ProcessState.Exited,
             (await named.RunAsync(new ProcessRequest("tool"), cancellationToken: cancelled.Token).ConfigureAwait(false)).State);
+    }
+
+    // runner.RunAsync(request, token) once failed with CS1503, because the token landed on the output handler.
+    [Test, DisplayName("fakes/run-async-takes-a-token-without-a-handler")]
+    public async Task RunAsyncTakesTokenAsync()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var runner = new FakeRunner(ProcessResult.Exited(0, new ProcessOutput("x\n")), ProcessResult.Exited(1));
+        TestAssert.Equal("x\n", (await runner.RunAsync(new ProcessRequest("tool"), cancellation.Token).ConfigureAwait(false)).StandardOutput.Text);
+        IProcessRunner asInterface = runner;
+        TestAssert.Equal<int?>(1, (await asInterface.RunAsync(new ProcessRequest("tool"), cancellation.Token).ConfigureAwait(false)).ExitCode);
+        TestAssert.Equal(cancellation.Token, runner.Tokens[1]);
+        TestAssert.Null(runner.Handlers[1]);
+        await TestAssert.ThrowsAsync<ArgumentNullException>(async () => await ProcessRunnerExtensions.RunAsync(null!, new ProcessRequest("tool"), CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
+    }
+
+    [Test, DisplayName("fakes/a-capture-from-bytes-decodes-its-text")]
+    public void CaptureFromBytes()
+    {
+        byte[] latin = [0x63, 0x61, 0x66, 0xE9];
+        ProcessOutput output = ProcessOutput.FromBytes(latin, Encoding.Latin1);
+        TestAssert.SequenceEqual(latin, output.Bytes.ToArray());
+        TestAssert.Equal("café", output.Text);
+        TestAssert.Equal(4L, output.ObservedByteCount);
+        TestAssert.False(output.IsTruncated);
+
+        // UTF-8 by default; invalid bytes are replaced in the text and kept in the bytes.
+        ProcessOutput utf8 = ProcessOutput.FromBytes(latin, observedByteCount: 10, isTruncated: true, drainTimedOut: true);
+        TestAssert.Equal("caf\uFFFD", utf8.Text);
+        TestAssert.Equal(10L, utf8.ObservedByteCount);
+        TestAssert.True(utf8.IsTruncated && utf8.DrainTimedOut);
+
+        // An encoding that throws on invalid bytes leaves the text empty; the bytes are still exact.
+        ProcessOutput strict = ProcessOutput.FromBytes(latin, new UTF8Encoding(false, true));
+        TestAssert.Equal(string.Empty, strict.Text);
+        TestAssert.SequenceEqual(latin, strict.Bytes.ToArray());
+
+        // A capture created from text has its UTF-8 bytes.
+        TestAssert.SequenceEqual(Encoding.UTF8.GetBytes("münze"), new ProcessOutput("münze").Bytes.ToArray());
+        TestAssert.Throws<ArgumentOutOfRangeException>(() => ProcessOutput.FromBytes(latin, observedByteCount: -1));
     }
 
     // ProcessStartFailureCategory starts at Other = 0 since 0.8; the fault keeps the category names.
@@ -219,10 +260,16 @@ internal sealed class ProcessResultFactoryTests
 
         public List<ProcessRequest> Requests { get; } = [];
 
+        public List<IProcessOutputHandler?> Handlers { get; } = [];
+
+        public List<CancellationToken> Tokens { get; } = [];
+
         public async ValueTask<ProcessResult> RunAsync(
             ProcessRequest request, IProcessOutputHandler? outputHandler = null, CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            Handlers.Add(outputHandler);
+            Tokens.Add(cancellationToken);
             ProcessResult result = results.Dequeue();
             if (outputHandler is not null)
             {

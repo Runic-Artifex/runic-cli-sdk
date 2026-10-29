@@ -13,7 +13,7 @@ tag of the package you use, so the page always matches your version.
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
 | `RCLI6001`–`RCLI6011` | `Runic.CommandLine.Processes` | Process faults returned to the command |
-| `RCLI9001`–`RCLI9045` | Source generator | Compiler errors and warnings |
+| `RCLI9001`–`RCLI9046` | Source generator | Compiler errors and warnings |
 
 Parse and binding diagnostics are written for the people who run your
 application, so their output carries no link to this page. Their codes, kinds
@@ -784,14 +784,29 @@ and switch to camelCase with the next major of that payload type.
 
 ### RCLI9045
 
-Option spelled like the default output selector. An `[Option]` of a generated
-command is named `--format` or has `--format` as an alias, the output selector
-of a catalog that declares no other. Rename the option, or declare another
-selector with `CommandCatalogBuilder.OutputSelector(...)` in
-`GeneratedCommandCatalog.Create(configure)`, for example
-`GeneratedCommandCatalog.Create(b => b.OutputSelector("--output"))`. Otherwise
-catalog validation reports [`RCLI0026`](#rcli0026) when the catalog is built at
-run time. The generator cannot see a selector declared at run time, so this is a
-warning; suppress it where the application declares another selector. Other
-spellings, including `--output`, are not reported, because they are selector
-spellings only when the application declares them.
+Option spelled like the output selector. An `[Option]` of a generated command
+is named like the catalog's output selector or one of its hidden aliases, or has
+such an alias: `--format` when the assembly declares no other selector, or the
+spellings of its `[assembly: OutputSelector(...)]`. Catalog validation would
+report [`RCLI0026`](#rcli0026) when the catalog is built at run time. Rename the
+option, or let the command keep it and give the selector another spelling:
+
+```csharp
+[assembly: OutputSelector("--output-format")]
+```
+
+The generated catalog then declares that selector, so `--format` belongs to the
+command, and the generator checks options against `--output-format` instead.
+A selector declared only at run time, with `CommandCatalogBuilder.OutputSelector(...)`
+in `GeneratedCommandCatalog.Create(configure)`, is not visible to the generator,
+so this is a warning; prefer the attribute, or suppress the warning where
+`configure` declares another selector. Other spellings, including `--output`,
+are not reported unless the assembly declares them.
+
+### RCLI9046
+
+Invalid output selector. The spellings of `[assembly: OutputSelector(name,
+hiddenAliases)]` must be long option spellings (`--`, a lowercase letter, then
+lowercase letters, digits or hyphens) other than `--help` and `--version`, each
+given once, as `CommandCatalogBuilder.OutputSelector` requires. The generated
+catalog does not declare an invalid selector.

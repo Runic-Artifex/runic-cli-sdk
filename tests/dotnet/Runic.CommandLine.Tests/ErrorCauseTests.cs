@@ -114,10 +114,47 @@ internal sealed class ErrorCauseTests
         AssertEx.Equal(2, warnings.Length, string.Join("\n", diagnostics));
         AssertEx.Equal(2, diagnostics.Length, string.Join("\n", diagnostics));
         AssertEx.True(warnings.All(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning));
-        AssertEx.Equal("Option '--format' of command 'named' is spelled like the default output selector --format; rename the option, or declare another selector with CommandCatalogBuilder.OutputSelector(...) in GeneratedCommandCatalog.Create(configure), otherwise catalog validation reports RCLI0026 at run time",
+        AssertEx.Equal("Option '--format' of command 'named' is spelled like the output selector --format; rename the option, or declare another selector with [assembly: OutputSelector(\"--output-format\")], otherwise catalog validation reports RCLI0026 at run time",
             Text(warnings.Single(static diagnostic => Text(diagnostic).Contains("command 'named'", StringComparison.Ordinal))));
         AssertEx.True(warnings.Any(static diagnostic => Text(diagnostic).StartsWith("Option '--layout' of command 'aliased'", StringComparison.Ordinal)), string.Join("\n", diagnostics));
         AssertEx.True(warnings.All(static diagnostic => diagnostic.Descriptor.HelpLinkUri.EndsWith("#rcli9045", StringComparison.Ordinal)));
+        return ValueTask.CompletedTask;
+    }
+
+    // An application whose commands keep their own --format declares another selector where the generator sees it.
+    [Test, DisplayName("causes/generator-checks-options-against-the-declared-output-selector")]
+    public ValueTask DeclaredOutputSelectorSpelling()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Generate("""
+            [assembly: OutputSelector("--output-format", "--out-format")]
+            internal static class Commands
+            {
+                [Command("bind")] internal static string Bind([Option("--format")] string format = "") => format;
+                [Command("named")] internal static string Named([Option("--output-format")] string format = "") => format;
+                [Command("aliased")] internal static string Aliased([Option("--layout", "--out-format")] string layout = "") => layout;
+            }
+            """);
+        Diagnostic[] warnings = diagnostics.Where(static diagnostic => diagnostic.Id == "RCLI9045").ToArray();
+        AssertEx.Equal(2, diagnostics.Length, string.Join("\n", diagnostics));
+        AssertEx.Equal(2, warnings.Length, string.Join("\n", diagnostics));
+        AssertEx.True(warnings.Any(static diagnostic => Text(diagnostic).StartsWith("Option '--output-format' of command 'named' is spelled like the output selector --output-format;", StringComparison.Ordinal)), string.Join("\n", diagnostics));
+        AssertEx.True(warnings.Any(static diagnostic => Text(diagnostic).StartsWith("Option '--layout' of command 'aliased' is spelled like the output selector --out-format;", StringComparison.Ordinal)), string.Join("\n", diagnostics));
+
+        foreach ((string declaration, string problem) in new[]
+        {
+            ("\"--Format\"", "spelling '--Format' is not a long option spelling"),
+            ("\"--output-format\", \"-o\"", "spelling '-o' is not a long option spelling"),
+            ("\"--help\"", "spelling '--help' is not a long option spelling"),
+            ("\"--output-format\", \"--output-format\"", "spelling '--output-format' is given more than once"),
+        })
+        {
+            Diagnostic invalid = Single(Generate("[assembly: OutputSelector(" + declaration + ")]\n" +
+                "internal static class Commands { [Command(\"bind\")] internal static string Bind([Option(\"--format\")] string format = \"\") => format; }"), "RCLI9046");
+            AssertEx.Equal(DiagnosticSeverity.Error, invalid.Severity);
+            AssertEx.True(Text(invalid).StartsWith("[assembly: OutputSelector] " + problem, StringComparison.Ordinal), Text(invalid));
+            AssertEx.True(invalid.Descriptor.HelpLinkUri.EndsWith("#rcli9046", StringComparison.Ordinal));
+        }
+
         return ValueTask.CompletedTask;
     }
 

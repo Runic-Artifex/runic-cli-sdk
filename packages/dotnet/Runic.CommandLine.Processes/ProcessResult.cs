@@ -298,12 +298,16 @@ public sealed class ProcessResult
     }
 }
 
-/// <summary>Contains one decoded, bounded process output channel.</summary>
+/// <summary>Contains one bounded process output channel: the bytes the child wrote, and their text.</summary>
 public sealed class ProcessOutput
 {
+    private readonly Encoding? encoding;
+    private byte[]? bytes;
+    private string? text;
+
     /// <summary>
     /// Initializes a channel's capture, as <see cref="ProcessRunner"/> returns it, for example in a test double of
-    /// <see cref="IProcessRunner"/>.
+    /// <see cref="IProcessRunner"/>. <see cref="Bytes"/> is the text in UTF-8, the default channel encoding.
     /// </summary>
     /// <param name="text">The retained text.</param>
     /// <param name="observedByteCount">
@@ -326,14 +330,69 @@ public sealed class ProcessOutput
             ArgumentOutOfRangeException.ThrowIfNegative(count, nameof(observedByteCount));
         }
 
-        Text = text;
+        this.text = text;
         ObservedByteCount = observedByteCount ?? Encoding.UTF8.GetByteCount(text);
         IsTruncated = isTruncated;
         DrainTimedOut = drainTimedOut;
     }
 
-    /// <summary>Gets retained output decoded with the request encoding.</summary>
-    public string Text { get; }
+    // The runner's capture: the retained bytes, decoded when Text is first read.
+    internal ProcessOutput(byte[] bytes, Encoding encoding, long observedByteCount, bool isTruncated, bool drainTimedOut)
+    {
+        this.bytes = bytes;
+        this.encoding = encoding;
+        ObservedByteCount = observedByteCount;
+        IsTruncated = isTruncated;
+        DrainTimedOut = drainTimedOut;
+    }
+
+    /// <summary>
+    /// Creates a channel's capture from the bytes the child wrote, for example in a test double of
+    /// <see cref="IProcessRunner"/> for a caller that reads <see cref="Bytes"/>.
+    /// </summary>
+    /// <param name="bytes">The retained bytes; they are copied.</param>
+    /// <param name="encoding">The channel encoding that <see cref="Text"/> decodes them with; UTF-8 by default.</param>
+    /// <param name="observedByteCount">
+    /// The total number of bytes observed; by default the length of <paramref name="bytes"/>. A truncated capture
+    /// observed more bytes than it retained.
+    /// </param>
+    /// <param name="isTruncated">Whether the observed bytes exceeded the retained-byte cap.</param>
+    /// <param name="drainTimedOut">Whether the channel was still open when the drain grace period expired.</param>
+    /// <returns>The capture.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The observed byte count is negative.</exception>
+    public static ProcessOutput FromBytes(
+        ReadOnlySpan<byte> bytes,
+        Encoding? encoding = null,
+        long? observedByteCount = null,
+        bool isTruncated = false,
+        bool drainTimedOut = false)
+    {
+        if (observedByteCount is { } count)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(count, nameof(observedByteCount));
+        }
+
+        return new ProcessOutput(
+            bytes.ToArray(),
+            encoding ?? new UTF8Encoding(false, false),
+            observedByteCount ?? bytes.Length,
+            isTruncated,
+            drainTimedOut);
+    }
+
+    /// <summary>
+    /// Gets the retained bytes exactly as the child wrote them, before decoding: for output that is not text in the
+    /// channel encoding, such as file names, which Git and other tools write as raw bytes, or binary data. At most the
+    /// retained-byte cap of the channel.
+    /// </summary>
+    public ReadOnlyMemory<byte> Bytes => bytes ??= Encoding.UTF8.GetBytes(text!);
+
+    /// <summary>
+    /// Gets the retained output decoded with the request encoding. Bytes that are not valid in that encoding are
+    /// replaced as the encoding's fallback does, or, for an encoding that throws on them, the text is empty; read
+    /// <see cref="Bytes"/> for the exact output.
+    /// </summary>
+    public string Text => text ??= Decode();
 
     /// <summary>Gets the total number of bytes observed while draining the channel.</summary>
     public long ObservedByteCount { get; }
@@ -346,4 +405,16 @@ public sealed class ProcessOutput
     /// for example because a descendant inherited the pipe. The captured text may then be incomplete.
     /// </summary>
     public bool DrainTimedOut { get; }
+
+    private string Decode()
+    {
+        try
+        {
+            return encoding!.GetString(bytes!);
+        }
+        catch (Exception exception) when (!Internal.OutputPump.IsFatal(exception))
+        {
+            return string.Empty;
+        }
+    }
 }
