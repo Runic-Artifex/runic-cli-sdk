@@ -1,5 +1,1 @@
 #nullable enable
-Runic.CommandLine.Processes.ProcessOutput.Bytes.get -> System.ReadOnlyMemory<byte>
-Runic.CommandLine.Processes.ProcessRunnerExtensions
-static Runic.CommandLine.Processes.ProcessOutput.FromBytes(System.ReadOnlySpan<byte> bytes, System.Text.Encoding? encoding = null, long? observedByteCount = null, bool isTruncated = false, bool drainTimedOut = false) -> Runic.CommandLine.Processes.ProcessOutput!
-static Runic.CommandLine.Processes.ProcessRunnerExtensions.RunAsync(this Runic.CommandLine.Processes.IProcessRunner! runner, Runic.CommandLine.Processes.ProcessRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>

@@ -1,5 +1,1 @@
 #nullable enable
-Runic.CommandLine.OutputSelectorAttribute
-Runic.CommandLine.OutputSelectorAttribute.HiddenAliases.get -> System.Collections.Generic.IReadOnlyList<string!>!
-Runic.CommandLine.OutputSelectorAttribute.Name.get -> string!
-Runic.CommandLine.OutputSelectorAttribute.OutputSelectorAttribute(string! name, params string![]! hiddenAliases) -> void

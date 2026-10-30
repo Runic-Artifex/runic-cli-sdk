@@ -133,3 +133,7 @@ Runic.CommandLine.Processes.ProcessStartFailureCategory.Other = 0 -> Runic.Comma
 Runic.CommandLine.Processes.ProcessStartFailureCategory.Unsupported = 4 -> Runic.CommandLine.Processes.ProcessStartFailureCategory
 static Runic.CommandLine.Processes.ProcessExecutionOptions.MaximumOutputLimitBytes.get -> int
 static Runic.CommandLine.Processes.ProcessStandardInput.MaximumInputLimitBytes.get -> int
+Runic.CommandLine.Processes.ProcessOutput.Bytes.get -> System.ReadOnlyMemory<byte>
+Runic.CommandLine.Processes.ProcessRunnerExtensions
+static Runic.CommandLine.Processes.ProcessOutput.FromBytes(System.ReadOnlySpan<byte> bytes, System.Text.Encoding? encoding = null, long? observedByteCount = null, bool isTruncated = false, bool drainTimedOut = false) -> Runic.CommandLine.Processes.ProcessOutput!
+static Runic.CommandLine.Processes.ProcessRunnerExtensions.RunAsync(this Runic.CommandLine.Processes.IProcessRunner! runner, Runic.CommandLine.Processes.ProcessRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Runic.CommandLine.Processes.ProcessResult!>

@@ -73,3 +73,11 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 RCLI9044 | Runic.CommandLine | Warning | Command result JSON context does not use camelCase
 RCLI9045 | Runic.CommandLine | Warning | Option spelled like the default output selector
+
+## Release 0.11.0
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|-------
+RCLI9046 | Runic.CommandLine | Error | Invalid output selector
