@@ -884,3 +884,7 @@ const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileUnreadable = "diag
 const Runic.CommandLine.CommandTextKeys.DiagnosticResponseFileUnterminatedQuote = "diagnostics.response-file-unterminated-quote" -> string!
 const Runic.CommandLine.CommandTextKeys.HelpResponseFiles = "help.response-files" -> string!
 const Runic.CommandLine.CommandTextKeys.HintUsage = "hints.usage" -> string!
+Runic.CommandLine.OutputSelectorAttribute
+Runic.CommandLine.OutputSelectorAttribute.HiddenAliases.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Runic.CommandLine.OutputSelectorAttribute.Name.get -> string!
+Runic.CommandLine.OutputSelectorAttribute.OutputSelectorAttribute(string! name, params string![]! hiddenAliases) -> void

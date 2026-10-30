@@ -3,8 +3,8 @@
 Start with the [package-only quick-start](../../README.md#package-only-quick-start):
 install the core package, write one command method, then run human or JSON output.
 The candidate on `main`, the version in
-[`eng/Versions.props`](../../eng/Versions.props) (next release `0.11.0`), is
-distinct from the latest published `0.10.0`; these sources are checked
+[`eng/Versions.props`](../../eng/Versions.props) (next release `1.0.0-rc.1`), is
+distinct from the latest published `0.11.0`; these sources are checked
 against the candidate, not assumed to work against earlier package APIs. Use matching versions of `Runic.CommandLine`
 and optional `Runic.CommandLine.Spectre`.
 The [package-consumer check](../../tests/fixtures/command-line/package-consumer/Runic.CommandLine.PackageConsumer/README.md)
