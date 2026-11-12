@@ -16,7 +16,125 @@ public sealed class CommandCatalogBuilder
     private string? _completionOption;
     private OutputSelectorDeclaration? _outputSelector;
     private bool _responseFiles;
+    private CommandSyntaxDialect _syntax;
+    private bool _caseInsensitive;
+    private CommandHelpOrder _helpOrder;
+    private readonly List<string> _declarationOrder = [];
     private readonly List<Action<CommandBuilderNode>> _globalOptions = [];
+
+    /// <summary>
+    /// Declares the dialect in which the catalog's commands, options and framework requests are spelled. Every runner
+    /// (<see cref="CommandApp"/>, <see cref="Hosting.CommandLineHostingAdapter"/>, <see cref="PortableCommandSyntaxAdapter"/>),
+    /// help, usage hint and suggestion follows it. Without it, the catalog uses the portable grammar.
+    /// </summary>
+    /// <param name="dialect">The dialect, such as <see cref="CommandSyntaxDialect.WindowsSlash"/>.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dialect"/> is not defined.</exception>
+    /// <remarks>
+    /// <para>
+    /// Under <see cref="CommandSyntaxDialect.WindowsSlash"/>, <c>tool /policy /link a b /json</c> runs
+    /// <c>policy link</c>. The rules, in order:
+    /// </para>
+    /// <list type="number">
+    /// <item><description>
+    /// The command path is read first, after any leading output or global options. A token <c>/word</c> or
+    /// <c>word</c> that spells a command at that level (its name, an alias or its display spelling) is that command;
+    /// the first token that does not ends the path. A subcommand therefore wins over an option of its parent with the
+    /// same word.
+    /// </description></item>
+    /// <item><description>
+    /// <c>/?</c> and <c>/help</c> request help, <c>/version</c> the version, and the output selector, its hidden
+    /// aliases, the JSON output alias and the completion option are recognized as <c>/name</c> as well as in their
+    /// portable spelling.
+    /// </description></item>
+    /// <item><description>
+    /// After the path, <c>/name</c> is a flag or an option of the command, <c>/name value</c> and <c>/name=value</c>
+    /// give it a value. An option declared as <c>--name</c>, <c>-n</c> or <c>/name</c> is spelled <c>/name</c> or
+    /// <c>/n</c>; the portable spellings are still recognized.
+    /// </description></item>
+    /// <item><description>
+    /// Any other token is data, as an unknown word after the command path is under the portable grammar: an
+    /// absolute path, an LDAP path or a file name that starts with <c>/</c> reaches the handler unchanged.
+    /// A data token that spells a command option, <c>/?</c> or a framework option is that option, so pass such a
+    /// value after <c>--</c>, which still ends options, or inline, as in <c>/name=/help</c>.
+    /// </description></item>
+    /// </list>
+    /// <para>
+    /// Help, usage lines, the usage-error hint and "Did you mean" suggestions use the dialect's spellings:
+    /// <c>Usage: tool /policy /link &lt;name&gt; &lt;path&gt; [options]</c> and <c>Run "tool /policy /?"</c>.
+    /// The generated shell completions complete the portable spellings, which the dialect also accepts.
+    /// </para>
+    /// <para>
+    /// <see cref="Build"/> reports <c>RCLI0008</c> for two option spellings of one command that the dialect writes
+    /// alike, such as <c>--n</c> and <c>-n</c> (both <c>/n</c>), <c>RCLI0007</c> for an option spelled <c>/help</c>
+    /// or <c>/version</c>, and <c>RCLI0024</c>-<c>RCLI0026</c> for an option written like a framework option.
+    /// <see cref="CommandCatalog.Combine"/> reports <c>RCLI0027</c> for catalogs that declare different dialects.
+    /// </para>
+    /// </remarks>
+    public CommandCatalogBuilder Syntax(CommandSyntaxDialect dialect)
+    {
+        if (!Enum.IsDefined(dialect)) throw new ArgumentOutOfRangeException(nameof(dialect));
+        _syntax = dialect;
+        return this;
+    }
+
+    /// <summary>
+    /// Matches command names, aliases, display spellings and option spellings, including the framework options, in
+    /// any case: <c>POLICY LINK</c>, <c>/Policy /LINK</c> and <c>--Name</c> are <c>policy link --name</c>. Values,
+    /// arguments and data are never changed. Matching is ordinal, without culture rules.
+    /// </summary>
+    /// <returns>This builder.</returns>
+    /// <remarks>
+    /// <see cref="Build"/> reports <c>RCLI0004</c> for sibling command spellings and <c>RCLI0008</c> for option
+    /// spellings of one command that differ only by case, such as <c>-n</c> and <c>-N</c>, and <c>RCLI0007</c> for an
+    /// option spelled like <c>-h</c>, <c>--help</c> or <c>--version</c> in another case.
+    /// <see cref="CommandCatalog.Combine"/> reports <c>RCLI0027</c> when catalogs differ in it.
+    /// </remarks>
+    public CommandCatalogBuilder CaseInsensitive()
+    {
+        _caseInsensitive = true;
+        return this;
+    }
+
+    /// <summary>Selects the order in which help lists commands; registration order unless declared.</summary>
+    /// <param name="order">The order, such as <see cref="CommandHelpOrder.Declaration"/>.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="order"/> is not defined.</exception>
+    /// <remarks>
+    /// The order applies to help only; <see cref="CommandCatalog.Commands"/>, completion and JSON output keep
+    /// registration order. A generated catalog registers its commands by name and records their source order with
+    /// <see cref="DeclarationOrder"/>, so <see cref="CommandHelpOrder.Declaration"/> keeps the order in which they were
+    /// declared. A catalog combined with <see cref="CommandCatalog.Combine"/> lists each part's commands in turn.
+    /// </remarks>
+    public CommandCatalogBuilder HelpOrder(CommandHelpOrder order)
+    {
+        if (!Enum.IsDefined(order)) throw new ArgumentOutOfRangeException(nameof(order));
+        _helpOrder = order;
+        return this;
+    }
+
+    /// <summary>
+    /// Records the order in which commands were declared, by canonical space-separated path, for
+    /// <see cref="CommandHelpOrder.Declaration"/>. The generated catalog calls it with the source order of its
+    /// commands. A command not listed comes after the listed ones, in registration order, and a group comes where its
+    /// first declared command does. A later call appends to the order.
+    /// </summary>
+    /// <param name="commandPaths">Canonical command paths, such as <c>policy link</c>.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentException">A path is null, empty or white space.</exception>
+    public CommandCatalogBuilder DeclarationOrder(params IEnumerable<string> commandPaths)
+    {
+        ArgumentNullException.ThrowIfNull(commandPaths);
+        foreach (string path in commandPaths)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(path, nameof(commandPaths));
+            _declarationOrder.Add(path);
+        }
+
+        return this;
+    }
+
+    private CommandCatalogGrammar Grammar => new(_syntax, _caseInsensitive, _helpOrder);
 
     /// <summary>Adds an option to every command. It may also precede the command path.</summary>
     public CommandCatalogBuilder GlobalOption(string id, string name, CommandArity arity, CommandHelp? help = null, params string[] aliases)
@@ -126,15 +244,20 @@ public sealed class CommandCatalogBuilder
     /// <c>--</c>, also before the command), and appears in help and completions. Giving both the flag and the
     /// selector is a usage error (<c>RCLI1016</c>), as is giving the flag twice (<c>RCLI1007</c>).
     /// </summary>
-    /// <param name="name">A long option spelling such as <c>--json</c>.</param>
+    /// <param name="name">
+    /// A long option spelling such as <c>--json</c>, or under <see cref="CommandSyntaxDialect.WindowsSlash"/> a slash
+    /// spelling such as <c>/json</c>.
+    /// </param>
     /// <returns>This builder.</returns>
     /// <exception cref="ArgumentException">
-    /// The name is not a long option spelling (<c>--</c>, a lowercase letter, then lowercase letters, digits or
-    /// hyphens), or is <c>--help</c> or <c>--version</c>.
+    /// The name is neither a long option spelling (<c>--</c>, a lowercase letter, then lowercase letters, digits or
+    /// hyphens) nor a slash spelling (<c>/</c> and the same characters), or is <c>--help</c>, <c>--version</c>,
+    /// <c>/help</c> or <c>/version</c>.
     /// </exception>
     /// <remarks>
-    /// <see cref="Build"/> reports <c>RCLI0024</c> for a command option spelled like the flag, and for a flag
-    /// spelled like the output selector or one of its aliases.
+    /// <see cref="Build"/> reports <c>RCLI0024</c> for a command option spelled like the flag, for a flag
+    /// spelled like the output selector or one of its aliases, and for a slash spelling in a catalog that does not
+    /// declare <see cref="CommandSyntaxDialect.WindowsSlash"/>.
     /// </remarks>
     public CommandCatalogBuilder JsonOutputAlias(string name) => JsonOutputAlias(name, JsonOutputShape.Envelope);
 
@@ -144,7 +267,10 @@ public sealed class CommandCatalogBuilder
     /// <see cref="JsonOutputShape.Payload"/>, an application keeps an existing <c>--json</c> contract whose
     /// consumers read the bare document rather than a <c>runic.commandline/1</c> envelope.
     /// </summary>
-    /// <param name="name">A long option spelling such as <c>--json</c>.</param>
+    /// <param name="name">
+    /// A long option spelling such as <c>--json</c>, or under <see cref="CommandSyntaxDialect.WindowsSlash"/> a slash
+    /// spelling such as <c>/json</c>.
+    /// </param>
     /// <param name="shape">What the flag writes.</param>
     /// <returns>This builder.</returns>
     /// <exception cref="ArgumentException">The name is not a valid alias, as for <see cref="JsonOutputAlias(string)"/>.</exception>
@@ -171,10 +297,11 @@ public sealed class CommandCatalogBuilder
     public CommandCatalogBuilder JsonOutputAlias(string name, JsonOutputShape shape)
     {
         ArgumentNullException.ThrowIfNull(name);
-        if (!ParseSettings.IsLongOptionSpelling(name) || name is "--help" or "--version")
+        bool slashSpelling = name.Length > 1 && name[0] == '/' && ParseSettings.IsLongOptionSpelling("--" + name[1..]);
+        if ((!ParseSettings.IsLongOptionSpelling(name) && !slashSpelling) || name is "--help" or "--version" or "/help" or "/version")
         {
             throw new ArgumentException(
-                "The JSON output alias must be a long option spelling other than --help and --version.",
+                "The JSON output alias must be a long option spelling, or a slash spelling such as /json, other than help and version.",
                 nameof(name));
         }
 
@@ -370,12 +497,15 @@ public sealed class CommandCatalogBuilder
     {
         foreach (CommandBuilderNode command in _commands) AddGlobals(command);
         var issues = new List<CommandCatalogIssue>();
-        ValidateSiblings(_commands, "root", issues);
+        CommandCatalogGrammar grammar = Grammar;
+        ValidateSiblings(_commands, "root", issues, grammar);
 
         foreach (CommandBuilderNode command in _commands)
         {
-            command.Validate(command.Name, issues);
+            command.Validate(command.Name, issues, grammar);
         }
+
+        AssignDeclarationRanks();
 
         if (issues.Count != 0)
         {
@@ -385,10 +515,10 @@ public sealed class CommandCatalogBuilder
         var descriptors = new List<CommandDescriptor>(_commands.Count);
         foreach (CommandBuilderNode command in _commands)
         {
-            descriptors.Add(command.Freeze());
+            descriptors.Add(command.Freeze(grammar));
         }
 
-        CommandCatalog.ValidateFrameworkOptions(_outputSelector, _jsonOutputAlias, _completionOption, descriptors, issues);
+        CommandCatalog.ValidateFrameworkOptions(_outputSelector, _jsonOutputAlias, _completionOption, descriptors, issues, grammar);
         if (issues.Count != 0) throw new CommandCatalogValidationException(CommandDescriptor.Freeze(issues));
 
         CommandDescriptor? defaultCommand = null;
@@ -400,12 +530,31 @@ public sealed class CommandCatalogBuilder
                 throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", "root", $"The default command '{_defaultCommandName}' must name a registered root command.")]);
             }
 
-            if (_defaultCommandIsRoot && (defaultCommand.Aliases.Count > 0 || defaultCommand.Subcommands.Count > 0))
+            if (_defaultCommandIsRoot && (defaultCommand.Aliases.Count > 0 || defaultCommand.Subcommands.Count > 0 ||
+                !string.Equals(defaultCommand.Spelling, defaultCommand.Name, StringComparison.Ordinal)))
             {
-                throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", defaultCommand.Name, $"The root command '{_defaultCommandName}' has no spelling, so it cannot have aliases or subcommands.")]);
+                throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0018", defaultCommand.Name, $"The root command '{_defaultCommandName}' has no spelling, so it cannot have aliases, a display spelling or subcommands.")]);
             }
         }
-        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot, _completionOption, _outputSelector, _responseFiles);
+        return new CommandCatalog(CommandDescriptor.Freeze(descriptors), defaultCommand, _jsonOutputAlias, _jsonOutputAliasShape, _defaultCommandIsRoot, _completionOption, _outputSelector, _responseFiles, grammar);
+    }
+
+    // A listed command takes its position in the declaration order, any other command its registration position
+    // after them, and a group the earliest rank below it.
+    private void AssignDeclarationRanks()
+    {
+        var listed = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (string path in _declarationOrder) listed.TryAdd(path, listed.Count);
+        int next = listed.Count;
+        foreach (CommandBuilderNode command in _commands) Assign(command, command.Name);
+
+        int Assign(CommandBuilderNode node, string path)
+        {
+            int rank = listed.TryGetValue(path, out int position) ? position : next++;
+            foreach (CommandBuilderNode child in node.Children) rank = Math.Min(rank, Assign(child, path + " " + child.Name));
+            node.DeclarationRank = rank;
+            return rank;
+        }
     }
 
     private void AddGlobals(CommandBuilderNode node)
@@ -417,9 +566,10 @@ public sealed class CommandCatalogBuilder
     internal static void ValidateSiblings(
         IReadOnlyList<CommandBuilderNode> commands,
         string location,
-        List<CommandCatalogIssue> issues)
+        List<CommandCatalogIssue> issues,
+        CommandCatalogGrammar grammar)
     {
-        var spellings = new Dictionary<string, string>(StringComparer.Ordinal);
+        var spellings = new Dictionary<string, string>(grammar.Comparer);
         foreach (CommandBuilderNode command in commands)
         {
             RegisterSpelling(command.Name, command.Name);
@@ -427,6 +577,8 @@ public sealed class CommandCatalogBuilder
             {
                 RegisterSpelling(alias, command.Name);
             }
+
+            if (command.Spelling is { } spelling && !grammar.Comparer.Equals(spelling, command.Name)) RegisterSpelling(spelling, command.Name);
         }
 
         void RegisterSpelling(string spelling, string owner)
@@ -537,6 +689,26 @@ public sealed class CommandBuilder<TOptions, THandler, TResult>
         string? descriptionKey = null)
     {
         _node.AddArgument(id, name, CommandArity.ZeroOrMore, isSensitive, descriptionKey, isTrailing: true);
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the command's display spelling, such as <c>resetAll</c> for <c>reset-all</c>: help, usage lines and
+    /// suggestions show it in place of the name, and the command line matches it as well as the name and aliases,
+    /// case-insensitively when the catalog declares <see cref="CommandCatalogBuilder.CaseInsensitive"/>. The name
+    /// stays the command's identity in <see cref="ParsedInvocation.Path"/>, JSON output and diagnostics.
+    /// </summary>
+    /// <param name="spelling">An ASCII letter, then ASCII letters, digits or hyphens.</param>
+    /// <returns>This builder.</returns>
+    /// <remarks>
+    /// <see cref="CommandCatalogBuilder.Build"/> reports <c>RCLI0002</c> for an invalid or reserved spelling
+    /// (<c>help</c>, <c>version</c>, <c>output</c> or <c>root</c> in any case) and <c>RCLI0004</c> for one that a
+    /// sibling command already uses.
+    /// </remarks>
+    public CommandBuilder<TOptions, THandler, TResult> Spelling(string spelling)
+    {
+        ArgumentNullException.ThrowIfNull(spelling);
+        _node.Spelling = spelling;
         return this;
     }
 
@@ -689,6 +861,8 @@ internal abstract class CommandBuilderNode
     internal object? HumanPresenter { get; set; }
     internal object? OutcomePresenter { get; set; }
     internal string Name { get; }
+    internal string? Spelling { get; set; }
+    internal int DeclarationRank { get; set; }
 
     internal IReadOnlyList<string> Aliases => _aliases;
     internal List<CommandBuilderNode> Children => _subcommands;
@@ -774,7 +948,7 @@ internal abstract class CommandBuilderNode
 
     internal void AddSubcommand(CommandBuilderNode command) => _subcommands.Add(command);
 
-    internal void Validate(string path, List<CommandCatalogIssue> issues)
+    internal void Validate(string path, List<CommandCatalogIssue> issues, CommandCatalogGrammar grammar)
     {
         ValidateCommandName(Name, path, issues);
         foreach (string alias in _aliases)
@@ -782,18 +956,23 @@ internal abstract class CommandBuilderNode
             ValidateCommandName(alias, path, issues);
         }
 
+        if (Spelling is not null && (!IsSpelling(Spelling) || Spelling.ToLowerInvariant() is "help" or "version" or "output" or "root"))
+        {
+            issues.Add(new CommandCatalogIssue("RCLI0002", path, $"Command spelling '{Spelling}' is invalid or reserved; use an ASCII letter, then ASCII letters, digits or hyphens."));
+        }
+
         if (DescriptionKey is not null && string.IsNullOrWhiteSpace(DescriptionKey))
         {
             issues.Add(new CommandCatalogIssue("RCLI0003", path, "The description key cannot be empty."));
         }
 
-        ValidateOptions(path, issues);
+        ValidateOptions(path, issues, grammar);
         ValidateArguments(path, issues);
         ValidateRegistration(path, issues);
-        CommandCatalogBuilder.ValidateSiblings(_subcommands, path, issues);
+        CommandCatalogBuilder.ValidateSiblings(_subcommands, path, issues, grammar);
         foreach (CommandBuilderNode subcommand in _subcommands)
         {
-            subcommand.Validate($"{path} {subcommand.Name}", issues);
+            subcommand.Validate($"{path} {subcommand.Name}", issues, grammar);
         }
     }
 
@@ -801,7 +980,7 @@ internal abstract class CommandBuilderNode
 
     internal abstract CommandRegistration CreateRegistration();
 
-    internal CommandDescriptor Freeze()
+    internal CommandDescriptor Freeze(CommandCatalogGrammar grammar)
     {
         var options = new List<CommandOptionDescriptor>(_options.Count);
         foreach (OptionDefinition option in _options)
@@ -815,7 +994,7 @@ internal abstract class CommandBuilderNode
                 option.IsRequired,
                 option.IsSensitive,
                 option.DescriptionKey,
-                ParameterHelp.GetValueOrDefault(option.Id), GlobalOptionIds.Contains(option.Id)));
+                ParameterHelp.GetValueOrDefault(option.Id), GlobalOptionIds.Contains(option.Id), grammar.Syntax));
         }
 
         var arguments = new List<CommandArgumentDescriptor>(_arguments.Count);
@@ -835,7 +1014,7 @@ internal abstract class CommandBuilderNode
         var children = new List<CommandDescriptor>(_subcommands.Count);
         foreach (CommandBuilderNode child in _subcommands)
         {
-            children.Add(child.Freeze());
+            children.Add(child.Freeze(grammar));
         }
 
         return new CommandDescriptor(
@@ -845,10 +1024,10 @@ internal abstract class CommandBuilderNode
             CommandDescriptor.Freeze(options),
             CommandDescriptor.Freeze(arguments),
             CommandDescriptor.Freeze(children),
-            CreateRegistration(), Help);
+            CreateRegistration(), Help, Spelling, grammar.Comparer, grammar.Syntax, DeclarationRank);
     }
 
-    private void ValidateOptions(string path, List<CommandCatalogIssue> issues)
+    private void ValidateOptions(string path, List<CommandCatalogIssue> issues, CommandCatalogGrammar grammar)
     {
         foreach (var entry in ParameterHelp)
         {
@@ -862,7 +1041,11 @@ internal abstract class CommandBuilderNode
         }
 
         var ids = new HashSet<string>(StringComparer.Ordinal);
+        // Spellings compare as the dialect writes and matches them: --n and -n are both /n under the slash dialect.
         var spellings = new HashSet<string>(StringComparer.Ordinal);
+        string[] reserved = grammar.Syntax == CommandSyntaxDialect.WindowsSlash
+            ? [grammar.Key("/help"), grammar.Key("/version")]
+            : [grammar.Key("--help"), grammar.Key("-h"), grammar.Key("--version")];
         foreach (OptionDefinition option in _options)
         {
             if (!IsIdentifier(option.Id))
@@ -894,14 +1077,19 @@ internal abstract class CommandBuilderNode
 
         void ValidateOptionSpelling(string spelling)
         {
-            if (!IsOptionSpelling(spelling) || IsReservedOption(spelling))
+            string key = grammar.Key(spelling);
+            if (!IsOptionSpelling(spelling) || IsReservedOption(spelling) || Array.IndexOf(reserved, key) >= 0)
             {
                 issues.Add(new CommandCatalogIssue("RCLI0007", path, $"Option spelling '{spelling}' is invalid or reserved."));
             }
 
-            if (!spellings.Add(spelling))
+            if (!spellings.Add(key))
             {
-                issues.Add(new CommandCatalogIssue("RCLI0008", path, $"Option spelling '{spelling}' is registered more than once."));
+                string written = CommandDialect.Option(grammar.Syntax, spelling);
+                issues.Add(new CommandCatalogIssue("RCLI0008", path, string.Equals(key, spelling, StringComparison.Ordinal)
+                    ? $"Option spelling '{spelling}' is registered more than once."
+                    : $"Option spelling '{spelling}' is registered more than once: under the catalog's {grammar.Syntax} syntax" +
+                      (grammar.CaseInsensitive ? " and case-insensitive matching" : "") + $" it matches '{written}' like another spelling."));
             }
         }
     }
@@ -965,6 +1153,18 @@ internal abstract class CommandBuilderNode
             {
                 return false;
             }
+        }
+
+        return true;
+    }
+
+    // A display spelling: an ASCII letter, then ASCII letters, digits or hyphens.
+    private static bool IsSpelling(string value)
+    {
+        if (value.Length == 0 || !char.IsAsciiLetter(value[0])) return false;
+        foreach (char character in value)
+        {
+            if (!char.IsAsciiLetterOrDigit(character) && character != '-') return false;
         }
 
         return true;

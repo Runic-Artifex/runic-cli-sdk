@@ -1,1 +1,20 @@
 #nullable enable
+Runic.CommandLine.CommandApp.SyntaxAdapter.get -> Runic.CommandLine.ICommandSyntaxAdapter?
+Runic.CommandLine.CommandApp.SyntaxAdapter.init -> void
+Runic.CommandLine.CommandAttribute.Spelling.get -> string?
+Runic.CommandLine.CommandAttribute.Spelling.set -> void
+Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>.Spelling(string! spelling) -> Runic.CommandLine.CommandBuilder<TOptions, THandler, TResult>!
+Runic.CommandLine.CommandCatalog.HelpOrder.get -> Runic.CommandLine.CommandHelpOrder
+Runic.CommandLine.CommandCatalog.IsCaseInsensitive.get -> bool
+Runic.CommandLine.CommandCatalog.Syntax.get -> Runic.CommandLine.CommandSyntaxDialect
+Runic.CommandLine.CommandCatalogBuilder.CaseInsensitive() -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.CommandCatalogBuilder.DeclarationOrder(params System.Collections.Generic.IEnumerable<string!>! commandPaths) -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.CommandCatalogBuilder.HelpOrder(Runic.CommandLine.CommandHelpOrder order) -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.CommandCatalogBuilder.Syntax(Runic.CommandLine.CommandSyntaxDialect dialect) -> Runic.CommandLine.CommandCatalogBuilder!
+Runic.CommandLine.CommandDescriptor.Spelling.get -> string!
+Runic.CommandLine.CommandHelpOrder
+Runic.CommandLine.CommandHelpOrder.Declaration = 1 -> Runic.CommandLine.CommandHelpOrder
+Runic.CommandLine.CommandHelpOrder.Registration = 0 -> Runic.CommandLine.CommandHelpOrder
+Runic.CommandLine.CommandSyntaxDialect
+Runic.CommandLine.CommandSyntaxDialect.Portable = 0 -> Runic.CommandLine.CommandSyntaxDialect
+Runic.CommandLine.CommandSyntaxDialect.WindowsSlash = 1 -> Runic.CommandLine.CommandSyntaxDialect

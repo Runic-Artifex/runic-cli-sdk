@@ -259,7 +259,16 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         }
 
         if (!ValidateDescriptionKey(diagnostics, attribute, method, name!)) return null;
-        return CreateModel(method, name!, result!, shape, parameters, payloadType!, jsonContext, isDefault);
+        // A display spelling is checked like CommandBuilder.Spelling, so an invalid one fails at compile time.
+        TypedConstant spellingArgument = attribute.NamedArguments.FirstOrDefault(static pair => pair.Key == "Spelling").Value;
+        string? spelling = spellingArgument.Value as string;
+        if (!spellingArgument.IsNull && !IsDisplaySpelling(spelling))
+        {
+            Report(diagnostics, InvalidMetadata, method, name, "command spelling", spelling ?? string.Empty);
+            return null;
+        }
+
+        return CreateModel(method, name!, result!, shape, parameters, payloadType!, jsonContext, isDefault, spelling);
     }
 
     private static ParameterModel? TryCreateParameter(List<DiagnosticInfo> diagnostics, List<OptionSpellingInfo> options, IMethodSymbol method, IParameterSymbol parameter, Compilation compilation)
@@ -503,9 +512,10 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     }
 
     // Renders every index-independent fragment while symbols are available; Render only numbers them.
-    private static CommandModel CreateModel(IMethodSymbol method, string name, ITypeSymbol result, ResultShape shape, List<ParameterModel> parameters, string payloadType, INamedTypeSymbol? jsonContext, bool isDefault)
+    private static CommandModel CreateModel(IMethodSymbol method, string name, ITypeSymbol result, ResultShape shape, List<ParameterModel> parameters, string payloadType, INamedTypeSymbol? jsonContext, bool isDefault, string? spelling)
     {
         var registration = new StringBuilder();
+        if (spelling is not null) registration.Append(".Spelling(").Append(Literal(spelling)).Append(')');
         foreach (ParameterModel parameter in parameters.Where(static parameter => parameter.Kind == ParameterKind.Option))
         {
             registration.Append(".Option(").Append(Literal(parameter.Id)).Append(", ").Append(Literal(parameter.Spelling!)).Append(", global::Runic.CommandLine.CommandArity.").Append(IsBoolean(parameter.Symbol.Type) ? "Zero" : parameter.AllowMultipleValues ? "OneOrMore" : "ExactlyOne");
@@ -596,6 +606,14 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             source.Append(".BindWith(__Binder").Append(index).Append(".Instance).CreateHandlerWith(__Factory").Append(index).Append(".Instance).Produces(__Codec").Append(index).Append(".Instance))").AppendLine();
         }
         foreach (GroupCandidate group in groups) source.Append("        ").Append(group.Registration).AppendLine();
+        // Commands register by name; their source order (file, then position) serves CommandHelpOrder.Declaration.
+        string[] declared = commands
+            .OrderBy(static command => command.Location?.FilePath ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(static command => command.Location?.Span.Start ?? 0)
+            .ThenBy(static command => command.SortKey, StringComparer.Ordinal)
+            .Select(static command => command.Name).ToArray();
+        if (!declared.SequenceEqual(commands.Select(static command => command.Name), StringComparer.Ordinal))
+            source.Append("        .DeclarationOrder(").Append(string.Join(", ", declared.Select(Literal))).AppendLine(")");
         CommandModel? defaultCommand = commands.FirstOrDefault(static command => command.IsDefault);
         if (defaultCommand is not null) source.Append(defaultCommand.IsRoot ? "        .RootCommand(" : "        .DefaultCommand(").Append(Literal(defaultCommand.Name)).AppendLine(")");
         if (selector is not null) source.Append("        .OutputSelector(").Append(string.Join(", ", selector.HiddenAliases.Prepend(selector.Name).Select(Literal))).AppendLine(")");
@@ -948,6 +966,11 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         value.Length == 2 && value[0] == '-' && ((value[1] is >= 'a' and <= 'z') || (value[1] is >= 'A' and <= 'Z'));
     private static bool IsReservedOption(string value) => value is "--help" or "-h" or "--version";
     private static bool IsReservedCommand(string value) => value is "help" or "version" or "output" or "root";
+    // CommandBuilder.Spelling: an ASCII letter, then ASCII letters, digits or hyphens, and no reserved word in any case.
+    private static bool IsDisplaySpelling(string? value) =>
+        !string.IsNullOrEmpty(value) && value![0] is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') &&
+        value.All(static character => character is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9') or '-') &&
+        !IsReservedCommand(value.ToLowerInvariant());
     private static bool IsPayloadType(string value)
     {
         int separator = value.LastIndexOf('/');

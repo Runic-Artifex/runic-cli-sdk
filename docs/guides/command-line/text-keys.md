@@ -37,7 +37,10 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 - A usage error in human output ends with the usage line of its command, built
   from the `help.usage`, `help.command-placeholder` and
   `help.options-placeholder` keys as in help, and the `hints.usage` line, whose
-  `command` argument is the help command line, such as `tool copy --help`.
+  `command` argument is the help command line, such as `tool copy --help`, or
+  `tool /copy /?` in a catalog that declares the Windows slash dialect. Help,
+  hints and diagnostics write commands and options in the catalog's dialect
+  through their arguments, so the dialect adds no keys.
 
 ## Keys
 

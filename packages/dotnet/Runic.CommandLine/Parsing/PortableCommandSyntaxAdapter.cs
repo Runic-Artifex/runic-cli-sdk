@@ -7,9 +7,20 @@ namespace Runic.CommandLine;
 
 /// <summary>
 /// Implements the version 1 portable command grammar using only library-owned
-/// descriptors and BCL facilities.
+/// descriptors and BCL facilities, and the dialect a catalog declares with
+/// <see cref="CommandCatalogBuilder.Syntax"/> and <see cref="CommandCatalogBuilder.CaseInsensitive"/>.
 /// </summary>
-/// <remarks>The adapter is stateless, thread-safe, deterministic, and Native-AOT compatible.</remarks>
+/// <remarks>
+/// <para>The adapter is stateless, thread-safe, deterministic, and Native-AOT compatible.</para>
+/// <para>
+/// A catalog that declares neither is parsed by the portable grammar exactly. Under
+/// <see cref="CommandSyntaxDialect.WindowsSlash"/> the adapter first reads the command path and the framework requests
+/// in their slash spellings (<c>/policy /link</c>, <c>/?</c>, <c>/help</c>, <c>/version</c>, <c>/format json</c>,
+/// <c>/json</c>), resolves command options as <c>/name</c> and <c>/name=value</c>, and leaves every other token,
+/// including one that starts with <c>/</c> but spells no command or option, as data. Diagnostics then name options,
+/// commands and suggestions in the slash spelling. Token indexes always count the arguments as given.
+/// </para>
+/// </remarks>
 public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 {
     private const string UnknownOptionCode = "RCLI1001";
@@ -41,6 +52,12 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
         string[] tokens = args.ToArray();
         ValidateTokens(tokens);
+        if (!CommandDialect.Normalizes(catalog)) return ParseCore(catalog, tokens, settings);
+        return CommandDialect.Present(catalog, ParseCore(catalog, CommandDialect.Normalize(catalog, tokens), settings));
+    }
+
+    private static ParseOutcome ParseCore(CommandCatalog catalog, string[] tokens, ParseSettings settings)
+    {
         TransportOutput transport = TransportOutput.From(catalog);
         ResolvedCommand? preScanResolved = null;
         if (tokens.Length > 0)
@@ -289,6 +306,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             if (recognizeOptions && !negativeArgument && TryResolveOption(
                     resolved.Command,
                     token,
+                    transport.Slash,
                     out CommandOptionDescriptor? option,
                     out string? inlineValue,
                     out OptionTokenKind tokenKind))
@@ -678,7 +696,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     {
         foreach (CommandDescriptor command in catalog.Commands)
         {
-            if (TryResolveOption(command, token, out option, out value, out _) && option?.IsGlobal == true) return true;
+            if (TryResolveOption(command, token, CommandDialect.IsSlash(catalog), out option, out value, out _) && option?.IsGlobal == true) return true;
         }
         option = null;
         value = null;
@@ -707,7 +725,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     // options. Unlike command resolution, an implicit default command does not count as a match.
     internal static CommandPath? MatchExplicitPath(CommandCatalog catalog, IReadOnlyList<string> arguments)
     {
-        string[] tokens = [.. arguments];
+        string[] tokens = CommandDialect.Normalize(catalog, arguments);
         int start = LeadingCommandIndex(catalog, tokens, TransportOutput.From(catalog));
         if (start >= tokens.Length || !catalog.TryGetCommand(tokens[start], out CommandDescriptor? command) || command is null) return null;
         var path = new List<string> { command.Name };
@@ -755,6 +773,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     private static bool TryResolveOption(
         CommandDescriptor command,
         string token,
+        bool slash,
         out CommandOptionDescriptor? option,
         out string? inlineValue,
         out OptionTokenKind tokenKind)
@@ -794,6 +813,21 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             return true;
         }
 
+        // Under the slash dialect /name and /name=value resolve any spelling of an option; an unknown /word is data.
+        if (slash && token.Length > 1 && token[0] == '/')
+        {
+            int separator = token.IndexOf('=', StringComparison.Ordinal);
+            if (command.TryGetSlashOption(separator < 0 ? token : token[..separator], out option) && option is not null)
+            {
+                if (separator >= 0) inlineValue = token[(separator + 1)..];
+                tokenKind = OptionTokenKind.Option;
+                return true;
+            }
+
+            option = null;
+            return false;
+        }
+
         if (token.Length > 0 && token[0] == '/' &&
             command.TryGetOption(token, out option) &&
             option is not null)
@@ -815,7 +849,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             return true;
         }
 
-        return TryResolveOption(command, token, out _, out _, out _);
+        return TryResolveOption(command, token, transport.Slash, out _, out _, out _);
     }
 
     private static bool TrySplitOutput(string token, TransportOutput transport, out string? inlineValue) =>
@@ -1023,7 +1057,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         string.Equals(token, "--version", StringComparison.Ordinal) ||
         token.StartsWith('-') ||
         TrySplitOutput(token, transport, out _) ||
-        (command is not null && TryResolveOption(command, token, out _, out _, out _));
+        (command is not null && TryResolveOption(command, token, transport.Slash, out _, out _, out _));
 
     private static bool TryFindRootSpecial(
         CommandCatalog catalog,
@@ -1190,6 +1224,11 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
 
     // Messages name their subject in the sentence: a declared option or argument as declared, a token the user
     // typed in quotes. A kind without its argument falls back to MessageFor.
+    // The English message of a parse diagnostic, followed by its suggestion.
+    internal static string MessageText(string kind, IReadOnlyList<string> arguments, string? suggestion) =>
+        (kind == "environment-value-source" ? CommandValueDiagnostics.Format(kind, arguments) : FormattedMessage(kind, arguments) ?? MessageFor(kind)) +
+        (suggestion is not null ? " Did you mean '" + suggestion + "'?" : "");
+
     private static string? FormattedMessage(string kind, IReadOnlyList<string>? arguments) => (kind, arguments) switch
     {
         ("unknown-option", { Count: > 0 }) => "The option '" + arguments[0] + "' is not recognized.",
@@ -1297,10 +1336,11 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     private sealed record IndexedToken(string Value, int Index);
 
     // The selector, its hidden aliases (which parse exactly like it) and the JSON output alias flag.
-    private readonly record struct TransportOutput(string Name, IReadOnlyList<string> HiddenAliases, string? JsonAlias)
+    // Slash: the catalog's dialect resolves /name as any spelling of an option.
+    private readonly record struct TransportOutput(string Name, IReadOnlyList<string> HiddenAliases, string? JsonAlias, bool Slash = false)
     {
         internal static TransportOutput From(CommandCatalog catalog) =>
-            new(catalog.OutputSelector, catalog.OutputSelectorAliases, catalog.JsonOutputAlias);
+            new(catalog.OutputSelector, catalog.OutputSelectorAliases, catalog.JsonOutputAlias, CommandDialect.IsSlash(catalog));
 
         internal bool IsAlias(string spelling) => string.Equals(spelling, JsonAlias, StringComparison.Ordinal);
     }

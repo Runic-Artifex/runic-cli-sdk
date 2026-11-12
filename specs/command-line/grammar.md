@@ -49,3 +49,44 @@ An explicit valid selector has highest precedence and causes `RUNIC_COMMANDLINE_
 A catalog may declare a JSON output alias (`catalog.jsonOutputAlias`, `--json` in the fixture catalog): a zero-arity flag that stands for the selector with the value `json`. It is recognized exactly, in the same positions as the selector, before or after the command path and before `--`; after `--` it is positional data. It never binds as a command option or consumes a token as an option value, so an option that expects a value reports a missing value when the alias follows it. The alias with an inline value (`--json=true`) is `unexpected-option-value`. The alias given twice is `duplicate-option`. The alias and the selector together are `conflicting-output-selector`, reported at the later of the two. Diagnostics follow token order, so a missing or invalid value of an earlier selector is reported first. The alias is an explicit selection, so it overrides `RUNIC_COMMANDLINE_OUTPUT` in the same way. An alias may be declared with a payload shape; that changes only what JSON output contains (see the protocol README), not recognition, diagnostics or the classified mode.
 
 Classification is a pure operation over captured arguments and a captured nullable environment value. Implementations must not read or mutate process-global environment state while replaying the corpus.
+
+## Windows slash dialect
+
+The grammar above is the portable grammar, the default. An implementation may let an application declare another
+dialect for its catalog; the grammar corpus covers only the portable grammar. Runic.CommandLine offers the Windows
+slash dialect (`CommandSyntaxDialect.WindowsSlash`) and case-insensitive matching, which may be declared together or
+apart. Results are the same normalized results: canonical command paths, option and argument IDs, and values exactly
+as given. Token indexes count the arguments as given.
+
+Case-insensitive matching compares command names, aliases, display spellings and option spellings, including `--help`,
+`-h`, `--version`, the output selector, its aliases, the JSON output alias and the completion option, ordinally
+ignoring case. Values, arguments and data are never changed.
+
+Under the slash dialect a command line is read in this order:
+
+1. Leading output and global options may precede the command, as in the portable grammar, in either spelling.
+2. The command path is read next. A token `/word` or `word` that spells a command at the current level (its name, an
+   alias or its display spelling) is that command, and the first token that does not ends the path. A subcommand
+   therefore wins over a parent option written with the same word. `help` or `/help` followed by a command path asks
+   for that path's help, as `help` does in the portable grammar.
+3. `/?` and `/help` request help and `/version` the version. The output selector, its hidden aliases, the JSON output
+   alias and the completion option are recognized as `/name` (with `/name value` or `/name=value` for a value) as
+   well as in their portable spellings.
+4. After the path, `/name` is a flag or option of the command, and `/name value` or `/name=value` gives it a value.
+   An option declared as `--name`, `-n` or `/name` is written `/name` or `/n`; its portable spellings are still
+   recognized, and an unknown `-x` or `--name` is still `unknown-option`.
+5. Every other token is data, as an unknown word after the command path is in the portable grammar. A token that
+   starts with `/` but spells no command, option or framework request, such as `/weird-name`, `/tmp/file` or an LDAP
+   path, binds as a positional argument unchanged. An unknown `/word` where a command belongs is `unknown-command`.
+6. `--` still ends option recognition; every later token is data.
+
+Ambiguous tokens follow these rules: a token that spells a known command (in the path) or option, `/?`, `/help`,
+`/version` or a framework option is that word, never data, even where a value is expected, so an option that
+expects a value reports `missing-option-value` before it. Pass such a value inline (`/name=/help`) or after `--`.
+Within one command, two option spellings that the dialect writes alike (`--n` and `-n`, `--verbose` and `/verbose`)
+are a catalog error, as are option spellings `/help` and `/version`.
+
+Diagnostics keep their codes, kinds, token indexes and argument positions. Arguments that name a declared option
+or a framework option are written in the dialect (`/name`, `/format`), and an `unknown-command` suggestion is the
+command's display spelling with its slash (`/policy`). Help and usage hints write commands, options, `/?` and
+`/version` the same way.

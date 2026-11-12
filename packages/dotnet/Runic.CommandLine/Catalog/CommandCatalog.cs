@@ -20,8 +20,11 @@ public sealed class CommandCatalog
         bool defaultCommandIsRoot = false,
         string? completionOption = null,
         OutputSelectorDeclaration? outputSelector = null,
-        bool responseFiles = false)
+        bool responseFiles = false,
+        CommandCatalogGrammar? grammar = null,
+        IReadOnlyList<CommandDescriptor>? helpRoots = null)
     {
+        Grammar = grammar ?? CommandCatalogGrammar.Default;
         Commands = commands;
         ResponseFiles = responseFiles;
         _outputSelector = outputSelector;
@@ -30,7 +33,7 @@ public sealed class CommandCatalog
         RootCommand = defaultCommandIsRoot ? defaultCommand : null;
         JsonOutputAlias = jsonOutputAlias;
         JsonOutputAliasShape = jsonOutputAliasShape;
-        _commandsByName = new Dictionary<string, CommandDescriptor>(StringComparer.Ordinal);
+        _commandsByName = new Dictionary<string, CommandDescriptor>(Grammar.Comparer);
         foreach (CommandDescriptor command in commands)
         {
             // The root command has no spelling: its name is only its identity in output.
@@ -40,8 +43,43 @@ public sealed class CommandCatalog
             {
                 _commandsByName.Add(alias, command);
             }
+
+            _commandsByName.TryAdd(command.Spelling, command);
         }
+
+        HelpRoots = helpRoots ?? (Grammar.HelpOrder == CommandHelpOrder.Declaration ? InDeclarationOrder(commands) : commands);
     }
+
+    internal CommandCatalogGrammar Grammar { get; }
+
+    /// <summary>
+    /// Gets the dialect in which commands, options and framework requests are spelled, <see cref="CommandSyntaxDialect.Portable"/>
+    /// unless the application declared another with <see cref="CommandCatalogBuilder.Syntax"/>.
+    /// </summary>
+    public CommandSyntaxDialect Syntax => Grammar.Syntax;
+
+    /// <summary>
+    /// Gets whether command names, aliases, display spellings and option spellings match regardless of case, as the
+    /// application declared with <see cref="CommandCatalogBuilder.CaseInsensitive"/>. Values are never changed.
+    /// </summary>
+    public bool IsCaseInsensitive => Grammar.CaseInsensitive;
+
+    /// <summary>
+    /// Gets the order in which help lists commands, <see cref="CommandHelpOrder.Registration"/> unless the application
+    /// declared another with <see cref="CommandCatalogBuilder.HelpOrder"/>.
+    /// </summary>
+    public CommandHelpOrder HelpOrder => Grammar.HelpOrder;
+
+    // Root commands in help order.
+    internal IReadOnlyList<CommandDescriptor> HelpRoots { get; }
+
+    // Sibling commands in help order: registration order, or a stable sort by declaration rank.
+    internal IReadOnlyList<CommandDescriptor> InHelpOrder(IReadOnlyList<CommandDescriptor> siblings) =>
+        ReferenceEquals(siblings, Commands) ? HelpRoots :
+        Grammar.HelpOrder == CommandHelpOrder.Declaration ? InDeclarationOrder(siblings) : siblings;
+
+    private static CommandDescriptor[] InDeclarationOrder(IReadOnlyList<CommandDescriptor> siblings) =>
+        System.Linq.Enumerable.ToArray(System.Linq.Enumerable.OrderBy(siblings, static command => command.DeclarationRank));
 
     /// <summary>Gets root commands in registration order.</summary>
     public IReadOnlyList<CommandDescriptor> Commands { get; }
@@ -120,10 +158,23 @@ public sealed class CommandCatalog
         string? completionOption = null;
         OutputSelectorDeclaration? outputSelector = null;
         bool responseFiles = false;
+        CommandCatalogGrammar? grammar = null;
+        var helpRoots = new List<CommandDescriptor>();
         foreach (CommandCatalog catalog in catalogs)
         {
             ArgumentNullException.ThrowIfNull(catalog);
             responseFiles |= catalog.ResponseFiles;
+            // Descriptors match by their catalog's rules, so every part must declare the same ones.
+            if (grammar is not null && grammar != catalog.Grammar)
+            {
+                issues.Add(new CommandCatalogIssue(
+                    "RCLI0027",
+                    "root",
+                    $"Combined catalogs declare different command-line grammars: {grammar} and {catalog.Grammar}."));
+            }
+
+            grammar ??= catalog.Grammar;
+            helpRoots.AddRange(catalog.HelpRoots);
             if (catalog.DeclaredOutputSelector is { } declaredSelector)
             {
                 if (outputSelector is not null && !outputSelector.Equals(declaredSelector))
@@ -190,17 +241,20 @@ public sealed class CommandCatalog
             {
                 Register(command.Name, command.Name);
                 foreach (string alias in command.Aliases) Register(alias, command.Name);
+                if (!catalog.Grammar.Comparer.Equals(command.Spelling, command.Name)) Register(command.Spelling, command.Name);
                 commands.Add(command);
             }
         }
 
-        if (issues.Count == 0) ValidateFrameworkOptions(outputSelector, jsonOutputAlias, completionOption, commands, issues);
+        grammar ??= CommandCatalogGrammar.Default;
+        if (issues.Count == 0) ValidateFrameworkOptions(outputSelector, jsonOutputAlias, completionOption, commands, issues, grammar);
         if (issues.Count != 0) throw new CommandCatalogValidationException(issues);
-        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape, defaultCommandIsRoot, completionOption, outputSelector, responseFiles);
+        return new CommandCatalog(CommandDescriptor.Freeze(commands), defaultCommand, jsonOutputAlias, jsonOutputAliasShape, defaultCommandIsRoot,
+            completionOption, outputSelector, responseFiles, grammar, CommandDescriptor.Freeze(helpRoots));
 
         void Register(string spelling, string owner)
         {
-            if (!spellings.TryAdd(spelling, owner))
+            if (!spellings.TryAdd(grammar is { CaseInsensitive: true } ? spelling.ToUpperInvariant() : spelling, owner))
             {
                 issues.Add(new CommandCatalogIssue(
                     "RCLI0004",
@@ -217,12 +271,25 @@ public sealed class CommandCatalog
         string? jsonOutputAlias,
         string? completionOption,
         IReadOnlyList<CommandDescriptor> commands,
-        List<CommandCatalogIssue> issues)
+        List<CommandCatalogIssue> issues,
+        CommandCatalogGrammar? grammar = null)
     {
+        grammar ??= CommandCatalogGrammar.Default;
         string selector = outputSelector?.Name ?? DefaultOutputSelector;
         IReadOnlyList<string> selectorAliases = outputSelector?.HiddenAliases ?? [];
+        // Two spellings conflict when the dialect writes them alike: --json and /json under the slash dialect.
+        bool Same(string? left, string? right) =>
+            left is not null && right is not null && string.Equals(grammar.Key(left), grammar.Key(right), StringComparison.Ordinal);
         bool IsSelectorSpelling(string spelling) =>
-            string.Equals(spelling, selector, StringComparison.Ordinal) || System.Linq.Enumerable.Contains(selectorAliases, spelling, StringComparer.Ordinal);
+            Same(spelling, selector) || System.Linq.Enumerable.Any(selectorAliases, alias => Same(spelling, alias));
+
+        if (jsonOutputAlias is not null && jsonOutputAlias.StartsWith('/') && grammar.Syntax != CommandSyntaxDialect.WindowsSlash)
+        {
+            issues.Add(new CommandCatalogIssue(
+                "RCLI0024",
+                "root",
+                $"The JSON output alias '{jsonOutputAlias}' is a slash spelling, which only the WindowsSlash syntax recognizes. Declare Syntax(CommandSyntaxDialect.WindowsSlash) or spell it like --json."));
+        }
 
         if (jsonOutputAlias is not null && IsSelectorSpelling(jsonOutputAlias))
         {
@@ -232,7 +299,7 @@ public sealed class CommandCatalog
                 $"The JSON output alias '{jsonOutputAlias}' is spelled like the output selector '{selector}' or one of its aliases."));
         }
 
-        if (completionOption is not null && (IsSelectorSpelling(completionOption) || string.Equals(completionOption, jsonOutputAlias, StringComparison.Ordinal)))
+        if (completionOption is not null && (IsSelectorSpelling(completionOption) || Same(completionOption, jsonOutputAlias)))
         {
             issues.Add(new CommandCatalogIssue(
                 "RCLI0025",
@@ -256,17 +323,17 @@ public sealed class CommandCatalog
                                 "RCLI0026",
                                 path,
                                 $"Option '{option.Id}' of command '{path}' is spelled like the output selector '{selector}'" +
-                                (string.Equals(spelling, selector, StringComparison.Ordinal) ? "." : $" alias '{spelling}'.") +
+                                (Same(spelling, selector) ? "." : $" alias '{spelling}'.") +
                                 " Declare another selector with CommandCatalogBuilder.OutputSelector, or rename the option."));
                         }
-                        else if (string.Equals(spelling, jsonOutputAlias, StringComparison.Ordinal))
+                        else if (Same(spelling, jsonOutputAlias))
                         {
                             issues.Add(new CommandCatalogIssue(
                                 "RCLI0024",
                                 path,
                                 $"Option '{option.Id}' of command '{path}' is spelled like the JSON output alias '{jsonOutputAlias}'."));
                         }
-                        else if (string.Equals(spelling, completionOption, StringComparison.Ordinal))
+                        else if (Same(spelling, completionOption))
                         {
                             issues.Add(new CommandCatalogIssue(
                                 "RCLI0025",
@@ -281,7 +348,10 @@ public sealed class CommandCatalog
         }
     }
 
-    /// <summary>Resolves a root command by canonical name or alias.</summary>
+    /// <summary>
+    /// Resolves a root command by canonical name, alias or display spelling, case-insensitively when the catalog
+    /// declares <see cref="CommandCatalogBuilder.CaseInsensitive"/>.
+    /// </summary>
     public bool TryGetCommand(string token, out CommandDescriptor? command)
     {
         ArgumentNullException.ThrowIfNull(token);
@@ -329,4 +399,22 @@ internal sealed record OutputSelectorDeclaration(string Name, IReadOnlyList<stri
 
     public override string ToString() =>
         HiddenAliases.Count == 0 ? "'" + Name + "'" : "'" + Name + "' (aliases '" + string.Join("', '", HiddenAliases) + "')";
+}
+
+/// <summary>How a catalog's command lines are spelled and matched, and how help orders commands.</summary>
+internal sealed record CommandCatalogGrammar(CommandSyntaxDialect Syntax, bool CaseInsensitive, CommandHelpOrder HelpOrder)
+{
+    internal static CommandCatalogGrammar Default { get; } = new(CommandSyntaxDialect.Portable, false, CommandHelpOrder.Registration);
+
+    internal StringComparer Comparer => CaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    // An option spelling as the dialect writes and matches it, so spellings that read alike compare equal.
+    internal string Key(string spelling)
+    {
+        string written = CommandDialect.Option(Syntax, spelling);
+        return CaseInsensitive ? written.ToUpperInvariant() : written;
+    }
+
+    public override string ToString() =>
+        Syntax + (CaseInsensitive ? ", case-insensitive" : ", case-sensitive") + ", help order " + HelpOrder;
 }

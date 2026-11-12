@@ -17,7 +17,7 @@ internal sealed class CommandUsageHint
     {
         string usage = CommandHelpFormatter.FormatUsage(_catalog, _applicationName, path, context,
             CommandPresentation.HelpWidth(console, CommandOutputMode.Human));
-        string help = _applicationName + (path.Count > 0 ? " " + path : "") + " --help";
+        string help = _applicationName + (path.Count > 0 ? " " + CommandDialect.Path(_catalog, path) : "") + " " + CommandDialect.Help(_catalog);
         string english = "Run \"" + help + "\" for more information.";
         string run = context.Resolve(CommandTextKeys.HintUsage, english, [help]);
         // Resolved text passes the sanitizer that diagnostic messages pass.

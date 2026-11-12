@@ -31,7 +31,10 @@ public static class CommandTestEnvironment
 /// <summary>Creates deterministic parsed invocations for command tests.</summary>
 public static class CommandTestInvocation
 {
-    /// <summary>Parses arguments and returns the successful invocation.</summary>
+    /// <summary>
+    /// Parses arguments in the catalog's declared grammar, such as <see cref="CommandSyntaxDialect.WindowsSlash"/>, and
+    /// returns the successful invocation.
+    /// </summary>
     public static ParsedInvocation Parse(CommandCatalog catalog, ParseSettings settings, params string[] args)
     {
         ArgumentNullException.ThrowIfNull(catalog);
