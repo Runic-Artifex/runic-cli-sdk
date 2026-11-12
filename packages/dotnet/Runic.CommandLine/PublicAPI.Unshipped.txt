@@ -18,3 +18,37 @@ Runic.CommandLine.CommandHelpOrder.Registration = 0 -> Runic.CommandLine.Command
 Runic.CommandLine.CommandSyntaxDialect
 Runic.CommandLine.CommandSyntaxDialect.Portable = 0 -> Runic.CommandLine.CommandSyntaxDialect
 Runic.CommandLine.CommandSyntaxDialect.WindowsSlash = 1 -> Runic.CommandLine.CommandSyntaxDialect
+const Runic.CommandLine.CommandTextKeys.HelpExitCodes = "help.exit-codes" -> string!
+Runic.CommandLine.CommandApp.JsonOutput.get -> Runic.CommandLine.CommandJsonOutputOptions!
+Runic.CommandLine.CommandApp.JsonOutput.init -> void
+Runic.CommandLine.CommandExitCodeAttribute
+Runic.CommandLine.CommandExitCodeAttribute.CommandExitCodeAttribute(int exitCode, string! description) -> void
+Runic.CommandLine.CommandExitCodeAttribute.Description.get -> string!
+Runic.CommandLine.CommandExitCodeAttribute.DescriptionKey.get -> string?
+Runic.CommandLine.CommandExitCodeAttribute.DescriptionKey.set -> void
+Runic.CommandLine.CommandExitCodeAttribute.ExitCode.get -> int
+Runic.CommandLine.CommandExitCodeHelp
+Runic.CommandLine.CommandExitCodeHelp.CommandExitCodeHelp(int exitCode, string! description, string? descriptionKey = null) -> void
+Runic.CommandLine.CommandExitCodeHelp.Description.get -> string!
+Runic.CommandLine.CommandExitCodeHelp.DescriptionKey.get -> string?
+Runic.CommandLine.CommandExitCodeHelp.ExitCode.get -> int
+Runic.CommandLine.CommandHelp.ExitCodes.get -> System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandExitCodeHelp!>!
+Runic.CommandLine.CommandHelp.ExitCodes.init -> void
+Runic.CommandLine.CommandJsonEscaping
+Runic.CommandLine.CommandJsonEscaping.Ascii = 1 -> Runic.CommandLine.CommandJsonEscaping
+Runic.CommandLine.CommandJsonEscaping.Unicode = 0 -> Runic.CommandLine.CommandJsonEscaping
+Runic.CommandLine.CommandJsonOutputOptions
+Runic.CommandLine.CommandJsonOutputOptions.CommandJsonOutputOptions() -> void
+Runic.CommandLine.CommandJsonOutputOptions.DocumentEveryOutcome.get -> bool
+Runic.CommandLine.CommandJsonOutputOptions.DocumentEveryOutcome.init -> void
+Runic.CommandLine.CommandJsonOutputOptions.Escaping.get -> Runic.CommandLine.CommandJsonEscaping
+Runic.CommandLine.CommandJsonOutputOptions.Escaping.init -> void
+Runic.CommandLine.CommandJsonOutputOptions.QuietStandardError.get -> bool
+Runic.CommandLine.CommandJsonOutputOptions.QuietStandardError.init -> void
+Runic.CommandLine.CommandOutcome<T>.ExitCode.get -> int?
+Runic.CommandLine.CommandOutcome<T>.WithExitCode(int exitCode) -> Runic.CommandLine.CommandOutcome<T>!
+Runic.CommandLine.CommandOutputDispatcher.JsonOutput.get -> Runic.CommandLine.CommandJsonOutputOptions!
+Runic.CommandLine.CommandOutputDispatcher.JsonOutput.init -> void
+Runic.CommandLine.CommandPresentation.JsonOutput.get -> Runic.CommandLine.CommandJsonOutputOptions!
+Runic.CommandLine.CommandPresentation.JsonOutput.init -> void
+static Runic.CommandLine.CommandJsonOutputOptions.Default.get -> Runic.CommandLine.CommandJsonOutputOptions!

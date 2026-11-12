@@ -21,6 +21,19 @@ public sealed class CommandPresentation
     /// <summary>Gets the policy used for framework errors; use the executor's policy for consistency.</summary>
     public IExitCodePolicy ExitCodePolicy { get; init; } = DefaultExitCodePolicy.Instance;
 
+    /// <summary>
+    /// Gets how JSON output treats framework requests without a document, standard error and non-ASCII text; use the
+    /// outcome sink's options for consistency. See <see cref="CommandApp.JsonOutput"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The value is null.</exception>
+    public CommandJsonOutputOptions JsonOutput
+    {
+        get => _jsonOutput;
+        init => _jsonOutput = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    private readonly CommandJsonOutputOptions _jsonOutput = CommandJsonOutputOptions.Default;
+
     /// <summary>Gets the observer for private presentation failures. Observer failures do not change the exit code.</summary>
     public Action<Exception>? ExceptionObserver { get; init; }
 
@@ -67,6 +80,9 @@ public sealed class CommandPresentation
     {
         var textContext = new CommandTextContext(culture, TextResolver);
         CommandOutputMode mode = FrameworkOutputMode(parsed.OutputClassification);
+        // DocumentEveryOutcome: help and version are the payload-shape document of a string result, an error the envelope.
+        bool payloadDocument = mode == CommandOutputMode.Json && parsed.OutputClassification is { Shape: JsonOutputShape.Payload };
+        if (JsonOutput.QuietFor(mode)) console = new StandardErrorDiscardingConsole(console);
         if (parsed.Kind == ParseOutcomeKind.Help && mode == CommandOutputMode.Human && HelpPresenter is not null)
         {
             await HelpPresenter.WriteAsync(catalog, Name, parsed.HelpRequest!.Path, textContext, console, cancellationToken).ConfigureAwait(false);
@@ -80,7 +96,7 @@ public sealed class CommandPresentation
             int exitCode = ExitCodePolicy.GetExitCode(CommandExitCategory.Usage);
             response = CommandResponse.Failure<string>(requestId, diagnostic.Path.Count > 0 ? diagnostic.Path.ToString() : "root", exitCode,
                 new CommandFault(diagnostic.Code, diagnostic.Message), parsed.Diagnostics);
-            if (mode == CommandOutputMode.Human) usageHint = new CommandUsageHint(catalog, Name).Format(diagnostic.Path, textContext, console);
+            if (mode == CommandOutputMode.Human || payloadDocument) usageHint = new CommandUsageHint(catalog, Name).Format(diagnostic.Path, textContext, console);
         }
         else
         {
@@ -89,14 +105,31 @@ public sealed class CommandPresentation
                     HelpWidth(console, mode));
             response = CommandResponse.Success(requestId, parsed.Kind == ParseOutcomeKind.Version ? "version" : "help", CommandResultCodecs.String.PayloadType, text);
         }
+        if (payloadDocument && response.Succeeded)
+        {
+            await CommandOutputDispatcher.WritePayloadDocumentAsync(console, response.Payload!, CommandResultCodecs.String.TypeInfo,
+                JsonOutput.Escaping, cancellationToken).ConfigureAwait(false);
+            return response.ExitCode;
+        }
+
         await CommandOutputDispatcher.DispatchAsync(mode,
-            console, culture, response, CommandResultCodecs.String, textContext, usageHint, cancellationToken).ConfigureAwait(false);
+            console, culture, response, CommandResultCodecs.String, textContext, usageHint, JsonOutput.Escaping, cancellationToken).ConfigureAwait(false);
+        if (payloadDocument)
+        {
+            // As for a command's failure, the payload shape keeps its human text on standard error unless it is quiet.
+            await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human,
+                console, culture, response, CommandResultCodecs.String, textContext, usageHint, JsonOutput.Escaping, cancellationToken).ConfigureAwait(false);
+        }
+
         return response.ExitCode;
     }
 
-    // A payload-shaped JSON alias keeps a legacy contract that has no envelope for help, version or usage errors.
-    private static CommandOutputMode FrameworkOutputMode(CommandOutputClassification? classification) =>
-        classification is { Shape: JsonOutputShape.Payload } ? CommandOutputMode.Human : classification?.Mode ?? CommandOutputMode.Human;
+    // A payload-shaped JSON alias keeps a legacy contract that has no envelope for help, version or usage errors,
+    // unless the application asked for a document for every outcome.
+    private CommandOutputMode FrameworkOutputMode(CommandOutputClassification? classification) =>
+        classification is { Shape: JsonOutputShape.Payload } && !JsonOutput.DocumentEveryOutcome
+            ? CommandOutputMode.Human
+            : classification?.Mode ?? CommandOutputMode.Human;
 
     // Human help on the process terminal follows its width, one column short so a full line never triggers the
     // legacy Windows console's automatic wrap. Redirected, test and machine output use the fixed default.

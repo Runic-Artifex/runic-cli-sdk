@@ -94,11 +94,7 @@ public static class CommandJsonEnvelopeReader
             var diagnostics = ReadDiagnostics(diagnosticsElement);
             if (success)
             {
-                if (exitCode != 0)
-                {
-                    throw Error("outcome-invariant", "A successful response must use exit code zero.");
-                }
-
+                // A nonzero exit code on success is an informational success code, such as 3010.
                 if (payloadType is null)
                 {
                     throw Error("missing-payload-type", "A successful response must declare a payload type.");

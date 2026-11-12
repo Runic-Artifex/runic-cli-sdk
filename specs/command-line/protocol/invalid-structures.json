@@ -28,11 +28,6 @@
       "expected": { "kind": "protocol-error", "reason": "invalid-command" }
     },
     {
-      "id": "invalid.success-nonzero-exit",
-      "document": { "protocol": "runic.commandline/1", "requestId": "req-6", "command": "status", "success": true, "exitCode": 10, "payloadType": "sample.status/1", "payload": {}, "fault": null, "diagnostics": [] },
-      "expected": { "kind": "protocol-error", "reason": "outcome-invariant" }
-    },
-    {
       "id": "invalid.success-with-fault",
       "document": { "protocol": "runic.commandline/1", "requestId": "req-7", "command": "status", "success": true, "exitCode": 0, "payloadType": "sample.status/1", "payload": {}, "fault": { "code": "RCLI3001", "message": "Failed.", "details": {}, "retryable": false }, "diagnostics": [] },
       "expected": { "kind": "protocol-error", "reason": "outcome-invariant" }

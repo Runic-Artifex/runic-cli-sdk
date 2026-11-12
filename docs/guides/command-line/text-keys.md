@@ -61,6 +61,7 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `help.json-payload-output-alias` | | Write the result as JSON |
 | `help.response-files` | | Read more arguments from a file |
 | `help.examples` | | Examples |
+| `help.exit-codes` | | Exit codes |
 | `help.required` | | required |
 | `help.default` | | default |
 | `help.choices` | | choices |

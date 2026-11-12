@@ -199,6 +199,7 @@ public sealed class CommandLineHostingAdapter
             PromptsDisabled = CommandPrompts.IsDisabledBy(name =>
                 input.Decision.LaunchInput.EnvironmentVariables.TryGetValue(name, out string? value) ? value : null),
             Continuation = continuation,
+            QuietStandardError = Presentation.JsonOutput.QuietStandardError,
         };
         CommandExecutor executor = _executor ?? _app!.CreateExecutor(invocation);
         CommandExecutionResult result = await executor.ExecuteAsync(
@@ -234,6 +235,7 @@ public sealed class CommandLineHostingAdapter
         ICommandOutcomeSink sink = _app?.OutcomeSink ?? new CommandOutputDispatcher
         {
             TextResolver = Presentation.TextResolver, UsageHint = new CommandUsageHint(_catalog, Presentation.Name),
+            JsonOutput = Presentation.JsonOutput,
         };
         HostedCommandLineExecutionResult result = await ExecuteAsync(
             new HostedCommandLineExecutionInput(decision, console, culture, correlationId, sink) { ExceptionObserver = Presentation.ExceptionObserver },

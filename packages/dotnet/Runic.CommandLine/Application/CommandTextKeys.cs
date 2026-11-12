@@ -65,6 +65,8 @@ public static class CommandTextKeys
     public const string HelpResponseFiles = "help.response-files";
     /// <summary>The examples section heading (<c>Examples</c>).</summary>
     public const string HelpExamples = "help.examples";
+    /// <summary>The heading of the exit codes a command documents (<c>Exit codes</c>).</summary>
+    public const string HelpExitCodes = "help.exit-codes";
     /// <summary>The note for a required option or argument (<c>required</c>).</summary>
     public const string HelpRequired = "help.required";
     /// <summary>The label of a default value note (<c>default</c>).</summary>
@@ -230,7 +232,7 @@ public static class CommandTextKeys
         new(HelpUsage), new(HelpCommandPlaceholder), new(HelpOptionsPlaceholder), new(HelpDefaultCommand), new(HelpCompletion),
         new(HelpCommands), new(HelpArguments), new(HelpOptions), new(HelpShowHelp), new(HelpShowVersion), new(HelpOutputFormat), new(HelpJsonOutputAlias, "option"), new(HelpJsonPayloadOutputAlias),
         new(HelpResponseFiles),
-        new(HelpExamples), new(HelpRequired), new(HelpDefault), new(HelpChoices), new(HelpEnvironment), new(HelpExisting),
+        new(HelpExamples), new(HelpExitCodes), new(HelpRequired), new(HelpDefault), new(HelpChoices), new(HelpEnvironment), new(HelpExisting),
         new(HelpPathKindFile), new(HelpPathKindDirectory), new(HelpMinimum), new(HelpMaximum), new(HelpRequires), new(HelpConflicts),
         new(CompletionInvalidShell),
         new(PromptSelectHint), new(PromptMultiSelectHint), new(PromptYes), new(PromptNo), new(PromptChooseOne, "count"),

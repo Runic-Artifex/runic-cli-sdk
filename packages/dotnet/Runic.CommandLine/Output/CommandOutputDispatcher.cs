@@ -16,6 +16,19 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
     /// <summary>Gets optional text resolution for execution diagnostics. Culture comes from the invocation context.</summary>
     public ICommandTextResolver? TextResolver { get; init; }
 
+    /// <summary>
+    /// Gets how JSON output treats outcomes without a document, standard error and non-ASCII text.
+    /// <see cref="CommandApp"/> sets it from <see cref="CommandApp.JsonOutput"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The value is null.</exception>
+    public CommandJsonOutputOptions JsonOutput
+    {
+        get => _jsonOutput;
+        init => _jsonOutput = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    private readonly CommandJsonOutputOptions _jsonOutput = CommandJsonOutputOptions.Default;
+
     // Set by CommandApp when nothing observes exceptions: the human RCLI5000 line then says how to see them.
     internal bool ShowHostFailureHint { get; init; }
 
@@ -50,6 +63,8 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
 
         var textContext = new CommandTextContext(context.Culture, TextResolver);
         response = textContext.Localize(response);
+        CommandJsonOutputOptions json = JsonOutput;
+        ICommandConsole console = json.QuietFor(context.OutputMode) ? new StandardErrorDiscardingConsole(context.Console) : context.Console;
         string? usageHint = UsageHint is not null && outcome.ExitCategory == CommandExitCategory.Usage &&
             (context.OutputMode == CommandOutputMode.Human || context.OutputShape == JsonOutputShape.Payload)
             ? UsageHint.Format(context.Path, textContext, context.Console)
@@ -59,7 +74,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             string? payloadHint = ShowHostFailureHint && response.Fault?.Code == "RCLI5000"
                 ? textContext.Resolve(CommandDebugOutput.HostFailureHintKey, CommandDebugOutput.HostFailureHint)
                 : null;
-            return WritePayloadAsync(context.Console, context.Culture, response, codec, outcome.HumanOutput, payloadHint, usageHint, cancellationToken);
+            return WritePayloadAsync(console, context.Culture, response, codec, outcome.HumanOutput, payloadHint, usageHint, json, cancellationToken);
         }
 
         if (ShowHostFailureHint && context.OutputMode == CommandOutputMode.Human && response.Fault?.Code == "RCLI5000")
@@ -80,17 +95,19 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 cancellationToken)
             : DispatchCoreAsync(
                 context.OutputMode,
-                context.Console,
+                console,
                 context.Culture,
                 response,
                 codec,
                 cancellationToken,
-                usageHint);
+                usageHint,
+                json.Escaping);
     }
 
     // A JSON output alias of payload shape: standard output receives the bare document, standard error the human
     // diagnostics and fault, or the command's own failure text in place of the fault line. The document is
-    // serialized before anything is written, so a serialization failure leaves both streams untouched.
+    // serialized before anything is written, so a serialization failure leaves both streams untouched. With
+    // DocumentEveryOutcome, a failure without declared data writes the envelope in place of no document.
     private static async ValueTask WritePayloadAsync<T>(
         ICommandConsole console,
         CultureInfo culture,
@@ -99,13 +116,15 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         string? humanOutput,
         string? faultHint,
         string? usageHint,
+        CommandJsonOutputOptions json,
         CancellationToken cancellationToken)
     {
         if (response.Succeeded)
         {
-            byte[]? document = string.Equals(codec.PayloadType, CommandResultCodecs.Unit.PayloadType, StringComparison.Ordinal)
+            byte[]? document = !json.DocumentEveryOutcome &&
+                string.Equals(codec.PayloadType, CommandResultCodecs.Unit.PayloadType, StringComparison.Ordinal)
                 ? null
-                : SerializePayload(response.Payload!, codec.TypeInfo);
+                : SerializePayload(response.Payload!, codec.TypeInfo, json.Escaping);
             await WriteDiagnosticsAsync(console, response.Diagnostics, cancellationToken).ConfigureAwait(false);
             if (document is not null)
             {
@@ -117,7 +136,11 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
 
         if (response.FailureData is { } failureData)
         {
-            await console.WriteOutBytesAsync(failureData.PayloadDocument(), cancellationToken).ConfigureAwait(false);
+            await console.WriteOutBytesAsync(Escape(failureData.PayloadDocument(), json.Escaping), cancellationToken).ConfigureAwait(false);
+        }
+        else if (json.DocumentEveryOutcome)
+        {
+            await CommandJsonEnvelopeWriter.WriteAsync(console, response, codec, json.Escaping, cancellationToken).ConfigureAwait(false);
         }
 
         // Standard output belongs to the document, so the command's human failure text, which replaces the
@@ -131,7 +154,19 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         await WriteHumanAsync(console, culture, response, codec, cancellationToken, faultHint, usageHint).ConfigureAwait(false);
     }
 
-    private static byte[] SerializePayload<T>(T payload, JsonTypeInfo<T> typeInfo)
+    // A payload-shape document for a successful framework request (help or version text) under DocumentEveryOutcome.
+    internal static ValueTask WritePayloadDocumentAsync<T>(
+        ICommandConsole console,
+        T payload,
+        JsonTypeInfo<T> typeInfo,
+        CommandJsonEscaping escaping,
+        CancellationToken cancellationToken) =>
+        console.WriteOutBytesAsync(SerializePayload(payload, typeInfo, escaping), cancellationToken);
+
+    internal static byte[] Escape(byte[] json, CommandJsonEscaping escaping) =>
+        escaping == CommandJsonEscaping.Ascii ? CommandJsonAscii.Escape(json) : json;
+
+    private static byte[] SerializePayload<T>(T payload, JsonTypeInfo<T> typeInfo, CommandJsonEscaping escaping)
     {
         var buffer = new ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Encoder = CommandJsonEncoding.Encoder }))
@@ -140,7 +175,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         }
 
         buffer.Write("\n"u8);
-        return buffer.WrittenSpan.ToArray();
+        return Escape(buffer.WrittenSpan.ToArray(), escaping);
     }
 
     private static async ValueTask DispatchFailureHumanOutputAsync<T>(
@@ -185,7 +220,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         return DispatchCoreAsync(mode, console, culture, textContext is null ? response : textContext.Localize(response), codec, cancellationToken);
     }
 
-    // As DispatchAsync, with the lines a usage error ends with in human output.
+    // As DispatchAsync, with the lines a usage error ends with in human output and the escaping of JSON output.
     internal static ValueTask DispatchAsync<T>(
         CommandOutputMode mode,
         ICommandConsole console,
@@ -194,8 +229,9 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         ICommandResultCodec<T> codec,
         CommandTextContext textContext,
         string? usageHint,
+        CommandJsonEscaping escaping,
         CancellationToken cancellationToken) =>
-        DispatchCoreAsync(mode, console, culture, textContext.Localize(response), codec, cancellationToken, usageHint);
+        DispatchCoreAsync(mode, console, culture, textContext.Localize(response), codec, cancellationToken, usageHint, escaping);
 
     private static ValueTask DispatchCoreAsync<T>(
         CommandOutputMode mode,
@@ -204,7 +240,8 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
         CancellationToken cancellationToken,
-        string? usageHint = null)
+        string? usageHint = null,
+        CommandJsonEscaping escaping = CommandJsonEscaping.Unicode)
     {
         ArgumentNullException.ThrowIfNull(console);
         ArgumentNullException.ThrowIfNull(culture);
@@ -217,6 +254,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 console,
                 response,
                 codec,
+                escaping,
                 cancellationToken),
             CommandOutputMode.Human => WriteHumanAsync(
                 console,

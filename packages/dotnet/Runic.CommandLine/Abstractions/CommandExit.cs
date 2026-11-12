@@ -76,7 +76,8 @@ public enum CommandExitCategory
 /// These are the codes every Runic tool reports: the dotnet CLI's 1 for failures, 2 for usage, and the shell's 130
 /// for an interrupted command. The categories stay distinct in <see cref="CommandExitCategory"/>, the fault code
 /// and observers. Handlers select a category with <see cref="CommandOutcome"/>; an <see cref="IExitCodePolicy"/>
-/// may give categories distinct codes, but zero always means success.
+/// may give categories distinct codes, but zero always means success. One outcome can exit with its own documented
+/// code through <see cref="CommandOutcome{T}.WithExitCode"/>, without changing the policy for other commands.
 /// </remarks>
 public static class CommandExitCodes
 {
@@ -123,6 +124,9 @@ public static class CommandExitCodes
         CommandExitCategory.HostFailure => HostFailure,
         _ => throw new ArgumentOutOfRangeException(nameof(category)),
     };
+
+    // Linux and macOS keep only the low 8 bits of an exit code, so a multiple of 256 would read as success there.
+    internal static bool IsFailureCode(int exitCode) => (exitCode & 0xFF) != 0;
 }
 
 /// <summary>
@@ -130,7 +134,8 @@ public static class CommandExitCodes
 /// </summary>
 /// <remarks>
 /// Implementations may remap failures but must return zero only for
-/// <see cref="CommandExitCategory.Success"/>.
+/// <see cref="CommandExitCategory.Success"/>. The policy applies to every command of the application; an outcome that
+/// selects its own code with <see cref="CommandOutcome{T}.WithExitCode"/> exits with that code instead.
 /// </remarks>
 public interface IExitCodePolicy
 {

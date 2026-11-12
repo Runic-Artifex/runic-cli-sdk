@@ -78,6 +78,11 @@ public static class CommandHelpFormatter
         if (path.Count == 0 && catalog.CompletionOption is { } completionOption)
             rows.Add(new(CommandDialect.Option(catalog, completionOption) + " <shell>", context.Resolve(CommandTextKeys.HelpCompletion, "Generate bash, zsh, fish or PowerShell completions")));
         AppendSection(text, context.Resolve(CommandTextKeys.HelpOptions, "Options"), rows, width);
+        rows.Clear();
+        foreach (CommandExitCodeHelp exitCode in command?.Help.ExitCodes ?? [])
+            rows.Add(new(exitCode.ExitCode.ToString(CultureInfo.InvariantCulture),
+                context.Resolve(exitCode.DescriptionKey, exitCode.Description)));
+        AppendSection(text, context.Resolve(CommandTextKeys.HelpExitCodes, "Exit codes"), rows, width);
         if (command?.Help.Examples.Count > 0)
         {
             // Examples are copied into a shell, so they are never wrapped.

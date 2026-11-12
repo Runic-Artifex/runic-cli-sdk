@@ -61,6 +61,13 @@ Release `0.8.0` spells the output selector `--format`; the earlier `0.7.0-previe
 spelled it `--output` (see the [release notes](eng/release/notes/0.8.0.md)).
 The built-in string codec supplies both formats; no JSON context is needed here.
 
+JSON output is UTF-8. Windows PowerShell 5.1 decodes a native program's output
+with the console's OEM code page unless the caller sets
+`[Console]::OutputEncoding`, so `Räume` arrives as `RÃ¤ume`; a tool that such
+callers run sets `JsonOutput = new CommandJsonOutputOptions { Escaping = CommandJsonEscaping.Ascii }`
+on its `CommandApp` to write pure ASCII. The [package README](packages/dotnet/Runic.CommandLine/README.md#one-json-document-for-every-outcome)
+also covers a JSON document for every outcome and an empty standard error.
+
 For another published release, choose a version listed on
 [NuGet](https://www.nuget.org/packages/Runic.CommandLine) and consult that
 package's README for its supported API. Optional packages must use the same

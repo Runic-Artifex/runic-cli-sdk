@@ -37,8 +37,16 @@ public sealed class CommandApp
     /// <summary>Gets the exit policy, including parser errors.</summary>
     public IExitCodePolicy ExitCodePolicy { get; init; } = DefaultExitCodePolicy.Instance;
     /// <summary>Gets the outcome presenter.</summary>
-    public ICommandOutcomeSink OutcomeSink { get => _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver, UsageHint = new CommandUsageHint(_catalog, Name) }; init => _outcomeSink = value; }
+    public ICommandOutcomeSink OutcomeSink { get => _outcomeSink ?? new CommandOutputDispatcher { TextResolver = TextResolver, UsageHint = new CommandUsageHint(_catalog, Name), JsonOutput = JsonOutput }; init => _outcomeSink = value; }
     private readonly ICommandOutcomeSink? _outcomeSink;
+    /// <summary>
+    /// Gets how JSON output treats outcomes without a document, standard error and non-ASCII text: a document for every
+    /// outcome of a payload-shaped JSON alias, an empty standard error, and pure ASCII output. The default writes what
+    /// earlier releases wrote. A custom <see cref="OutcomeSink"/> applies its own options to command outcomes.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The value is null.</exception>
+    public CommandJsonOutputOptions JsonOutput { get => _jsonOutput; init => _jsonOutput = value ?? throw new ArgumentNullException(nameof(value)); }
+    private readonly CommandJsonOutputOptions _jsonOutput = CommandJsonOutputOptions.Default;
     /// <summary>
     /// Gets the invocation culture for help, diagnostics and handler formatting. Otherwise
     /// <see cref="CultureInfo.CurrentUICulture"/>, the user's display language, is captured at invocation time.
@@ -140,6 +148,7 @@ public sealed class CommandApp
                 ICommandOutcomeSink sink = _outcomeSink ?? new CommandOutputDispatcher
                 {
                     TextResolver = TextResolver, ShowHostFailureHint = debug is null && ExceptionObserver is null, UsageHint = new CommandUsageHint(_catalog, Name),
+                    JsonOutput = JsonOutput,
                 };
                 CommandExecutionResult result = await executor.ExecuteAsync(
                     new CommandExecutionRequest(parsed.Invocation!, Console, culture, requestId)
@@ -148,6 +157,7 @@ public sealed class CommandApp
                         PromptsDisabled = CommandPrompts.IsDisabledBy(settings.GetEnvironmentVariable),
                         Continuation = continuation,
                         ShutdownProtection = signals?.Protection,
+                        QuietStandardError = JsonOutput.QuietStandardError,
                     },
                     debug is null ? sink : new CommandDebugOutput.FlushingSink(sink, debug), cancellation.Token).ConfigureAwait(false);
                 // Only a successful invocation that nobody asked to stop hands its continuation back.
@@ -175,6 +185,7 @@ public sealed class CommandApp
     {
         Name = Name, Version = Version, CompletionExecutableName = CompletionExecutableName,
         TextResolver = TextResolver, HelpPresenter = HelpPresenter, ExitCodePolicy = ExitCodePolicy, ExceptionObserver = exceptionObserver,
+        JsonOutput = JsonOutput,
     };
 
     internal CommandExecutor CreateExecutor(ParsedInvocation invocation)

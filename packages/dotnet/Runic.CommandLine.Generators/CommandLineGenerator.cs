@@ -550,7 +550,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
 
         AttributeData commandAttribute = FindAttribute(method, "Runic.CommandLine.CommandAttribute")!;
         if (commandAttribute.NamedArguments.Any(static p => p.Key == "DescriptionKey" && p.Value.Value is string)) registration.Append(".Describe(").Append(NamedString(commandAttribute, "DescriptionKey")).Append(')');
-        registration.Append(".WithHelp(new global::Runic.CommandLine.CommandHelp(description: ").Append(NamedString(commandAttribute, "Description")).Append(", examples: ").Append(NamedArray(commandAttribute, "Examples")).Append(") { Hidden = ").Append(NamedBool(commandAttribute, "Hidden")).Append(", LongDescription = ").Append(NamedString(commandAttribute, "LongDescription")).Append(" })");
+        registration.Append(".WithHelp(new global::Runic.CommandLine.CommandHelp(description: ").Append(NamedString(commandAttribute, "Description")).Append(", examples: ").Append(NamedArray(commandAttribute, "Examples")).Append(") { Hidden = ").Append(NamedBool(commandAttribute, "Hidden")).Append(", LongDescription = ").Append(NamedString(commandAttribute, "LongDescription")).Append(ExitCodeHelp(method)).Append(" })");
         foreach (ParameterModel parameter in parameters.Where(static p => p.Kind is ParameterKind.Option or ParameterKind.Argument))
         {
             AttributeData metadata = (parameter.Kind == ParameterKind.Option ? FindAttribute(parameter.Symbol, "Runic.CommandLine.OptionAttribute") : ArgumentMetadata(parameter.Symbol))!;
@@ -858,6 +858,25 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         return valid;
     }
     private static bool IsNullable(IParameterSymbol parameter) => parameter.NullableAnnotation == NullableAnnotation.Annotated;
+    // [CommandExitCode(code, description)] in declaration order, as the initializer of CommandHelp.ExitCodes.
+    private static string ExitCodeHelp(IMethodSymbol method)
+    {
+        var entries = new List<string>();
+        foreach (AttributeData attribute in method.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString() != "Runic.CommandLine.CommandExitCodeAttribute" ||
+                attribute.ConstructorArguments.Length != 2 || attribute.ConstructorArguments[0].Value is not int code ||
+                attribute.ConstructorArguments[1].Value is not string description)
+            {
+                continue;
+            }
+
+            entries.Add("new global::Runic.CommandLine.CommandExitCodeHelp(" + code.ToString(System.Globalization.CultureInfo.InvariantCulture) + ", " +
+                Literal(description) + ", " + NamedString(attribute, "DescriptionKey") + ")");
+        }
+
+        return entries.Count == 0 ? "" : ", ExitCodes = [" + string.Join(", ", entries) + "]";
+    }
     private static string NamedString(AttributeData data, string name) => data.NamedArguments.FirstOrDefault(p => p.Key == name).Value.Value is string value ? Literal(value) : "null";
     private static IEnumerable<string> NamedStrings(AttributeData data, string name)
     {

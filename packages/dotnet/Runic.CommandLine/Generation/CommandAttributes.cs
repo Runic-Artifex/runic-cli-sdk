@@ -32,6 +32,31 @@ public sealed class CommandAttribute : Attribute
 }
 
 /// <summary>
+/// Documents one exit code of a generated command, listed in its help under "Exit codes", such as
+/// <c>[CommandExitCode(3, "The container does not exist.")]</c> for a failure whose outcome selects 3 with
+/// <see cref="CommandOutcome{T}.WithExitCode"/>. Apply it once per code, in the order help lists them.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
+public sealed class CommandExitCodeAttribute : Attribute
+{
+    /// <summary>Initializes a documented exit code.</summary>
+    /// <param name="exitCode">The process exit code.</param>
+    /// <param name="description">What the code means.</param>
+    public CommandExitCodeAttribute(int exitCode, string description)
+    {
+        ExitCode = exitCode;
+        Description = description ?? throw new ArgumentNullException(nameof(description));
+    }
+
+    /// <summary>Gets the process exit code.</summary>
+    public int ExitCode { get; }
+    /// <summary>Gets what the code means; the fallback of <see cref="DescriptionKey"/>.</summary>
+    public string Description { get; }
+    /// <summary>Gets or sets the localization key for the description.</summary>
+    public string? DescriptionKey { get; set; }
+}
+
+/// <summary>
 /// Describes a help-only group that the generator creates for nested command names, such as <c>config</c>
 /// for <c>[Command("config show")]</c>. Apply it to any class that declares commands.
 /// </summary>
