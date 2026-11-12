@@ -64,12 +64,50 @@ prompts {
 faults {
   RCLI4000 = The command was cancelled.
   RCLI5000 = The command could not be completed.
+  # The faults of Runic.CommandLine.Processes (ProcessTextKeys), shown when a command returns one.
+  # A process request rejected by the executable policy (the executable).
+  RCLI6001 = The process request is not permitted by the configured policy.
+  # A process request rejected by the executable policy (the working directory). Same text as RCLI6001.
+  RCLI6002 = The process request is not permitted by the configured policy.
+  # The application's executable policy returned no decision, or a rejection without a fault.
+  RCLI6003 = The executable policy returned an invalid decision.
+  # The application's executable policy threw.
+  RCLI6004 = The executable policy could not evaluate the request.
+  # The operating system could not start the child process, e.g. the executable does not exist.
+  RCLI6005 = The process could not be started.
+  # The runner lost track of a started child process.
+  RCLI6006 = The process lifecycle could not be observed safely.
+  # Windows only. AllowWindowsBatchFiles is an option name and stays as written.
+  RCLI6007 = Windows batch files run through cmd.exe and require AllowWindowsBatchFiles.
+  # Windows only. A batch file path or argument contains % ! ^ & | < > " ( ) or a line break.
+  RCLI6008 = The batch file path or an argument contains characters that cmd.exe would interpret.
+  # The application's output handler threw; the child was terminated.
+  RCLI6009 = The output handler failed.
+  # The request's timeout elapsed; the child was terminated.
+  RCLI6010 = The process did not exit before its timeout.
+  # Captured output was truncated at its limit, or cut off because a child of the process kept the pipe open.
+  RCLI6011 = The captured output is incomplete: it exceeded its capture limit, or a descendant process held the output pipe open.
 }
 hints {
   RCLI5000 = Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr.
   usage =
     .input {$command :string}
     {{Run "{$command}" for more information.}}
+  # The line after an error that has a help link. The text must contain the link exactly once.
+  # @param code The error code, such as RCLI6001 or an application code.
+  # @param link The https address of the error's documentation.
+  helpLink =
+    .input {$code :string}
+    .input {$link :string}
+    {{Help for {$code}: {$link}}}
+}
+redaction {
+  # Shown in place of an error message that contained a path or other technical details.
+  diagnosticContent = The diagnostic content was redacted.
+  # Shown in place of an error message or hint that was empty after unsafe characters were removed.
+  diagnosticMessage = The diagnostic message was redacted.
+  # Shown in place of a failure message that contained technical details, when the error code has no text of its own.
+  fault = The command failed; details were redacted.
 }
 diagnostics {
   unknownOption =
@@ -86,6 +124,8 @@ diagnostics {
     .input {$command :string}
     .input {$suggestion :string}
     {{The command '{$command}' is not recognized. Did you mean '{$suggestion}'?}}
+  # The command line names no command, and the application has no default command.
+  missingCommand = No command was given.
   missingOptionValue =
     .input {$option :string}
     {{The {$option} option requires a value.}}

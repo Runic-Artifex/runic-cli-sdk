@@ -52,3 +52,8 @@ Runic.CommandLine.CommandOutputDispatcher.JsonOutput.init -> void
 Runic.CommandLine.CommandPresentation.JsonOutput.get -> Runic.CommandLine.CommandJsonOutputOptions!
 Runic.CommandLine.CommandPresentation.JsonOutput.init -> void
 static Runic.CommandLine.CommandJsonOutputOptions.Default.get -> Runic.CommandLine.CommandJsonOutputOptions!
+const Runic.CommandLine.CommandTextKeys.DiagnosticMissingCommand = "diagnostics.missing-command" -> string!
+const Runic.CommandLine.CommandTextKeys.HintHelpLink = "hints.help-link" -> string!
+const Runic.CommandLine.CommandTextKeys.RedactionDiagnosticContent = "redaction.diagnostic-content" -> string!
+const Runic.CommandLine.CommandTextKeys.RedactionDiagnosticMessage = "redaction.diagnostic-message" -> string!
+const Runic.CommandLine.CommandTextKeys.RedactionFault = "redaction.fault" -> string!

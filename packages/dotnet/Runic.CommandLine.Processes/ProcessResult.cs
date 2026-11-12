@@ -109,7 +109,7 @@ public sealed class ProcessResult
             null,
             null,
             null,
-            fault ?? new CommandFault(ProcessFaultCodes.ExecutableRejected, PolicyRejectionMessage),
+            fault ?? new CommandFault(ProcessFaultCodes.ExecutableRejected, ProcessFaultMessages.PolicyRejected),
             startedAt,
             duration);
 
@@ -173,20 +173,16 @@ public sealed class ProcessResult
             standardOutput,
             standardError,
             null,
-            fault ?? new CommandFault(ProcessFaultCodes.ExecutionFailed, ExecutionFailedMessage),
+            fault ?? new CommandFault(ProcessFaultCodes.ExecutionFailed, ProcessFaultMessages.ExecutionFailed),
             startedAt,
             duration);
-
-    internal const string PolicyRejectionMessage = "The process request is not permitted by the configured policy.";
-
-    internal const string ExecutionFailedMessage = "The process lifecycle could not be observed safely.";
 
     internal static ProcessOutput Empty => EmptyOutput;
 
     internal static CommandFault CreateStartFault(ProcessStartFailureCategory category) =>
         new(
             ProcessFaultCodes.StartFailed,
-            "The process could not be started.",
+            ProcessFaultMessages.StartFailed,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["category"] = category.ToString(),
@@ -270,11 +266,11 @@ public sealed class ProcessResult
             case ProcessState.TimedOut:
                 throw new ProcessException(this, new CommandFault(
                     ProcessFaultCodes.TimedOut,
-                    "The process did not exit before its timeout."));
+                    ProcessFaultMessages.TimedOut));
             default:
                 throw new ProcessException(this, Fault ?? new CommandFault(
                     ProcessFaultCodes.ExecutionFailed,
-                    "The process request did not complete."));
+                    ProcessFaultMessages.ExecutionFailed));
         }
     }
 
@@ -287,9 +283,7 @@ public sealed class ProcessResult
 
         throw new ProcessException(this, new CommandFault(
             ProcessFaultCodes.OutputIncomplete,
-            output.IsTruncated
-                ? "The process wrote more output than its capture limit."
-                : "A descendant process held the output pipe open after the process exited.",
+            ProcessFaultMessages.OutputIncomplete,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["stream"] = stream,

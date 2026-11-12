@@ -74,13 +74,13 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             string? payloadHint = ShowHostFailureHint && response.Fault?.Code == "RCLI5000"
                 ? textContext.Resolve(CommandDebugOutput.HostFailureHintKey, CommandDebugOutput.HostFailureHint)
                 : null;
-            return WritePayloadAsync(console, context.Culture, response, codec, outcome.HumanOutput, payloadHint, usageHint, json, cancellationToken);
+            return WritePayloadAsync(console, context.Culture, response, codec, textContext, outcome.HumanOutput, payloadHint, usageHint, json, cancellationToken);
         }
 
         if (ShowHostFailureHint && context.OutputMode == CommandOutputMode.Human && response.Fault?.Code == "RCLI5000")
         {
             string hint = textContext.Resolve(CommandDebugOutput.HostFailureHintKey, CommandDebugOutput.HostFailureHint);
-            return WriteHumanAsync(context.Console, context.Culture, response, codec, cancellationToken, hint);
+            return WriteHumanAsync(context.Console, context.Culture, response, codec, textContext, cancellationToken, hint);
         }
 
         return context.OutputMode == CommandOutputMode.Human &&
@@ -91,6 +91,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 context.Culture,
                 response,
                 codec,
+                textContext,
                 humanOutput,
                 cancellationToken)
             : DispatchCoreAsync(
@@ -99,6 +100,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 context.Culture,
                 response,
                 codec,
+                textContext,
                 cancellationToken,
                 usageHint,
                 json.Escaping);
@@ -113,6 +115,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CultureInfo culture,
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
+        CommandTextContext text,
         string? humanOutput,
         string? faultHint,
         string? usageHint,
@@ -125,7 +128,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 string.Equals(codec.PayloadType, CommandResultCodecs.Unit.PayloadType, StringComparison.Ordinal)
                 ? null
                 : SerializePayload(response.Payload!, codec.TypeInfo, json.Escaping);
-            await WriteDiagnosticsAsync(console, response.Diagnostics, cancellationToken).ConfigureAwait(false);
+            await WriteDiagnosticsAsync(console, response.Diagnostics, text, cancellationToken).ConfigureAwait(false);
             if (document is not null)
             {
                 await console.WriteOutBytesAsync(document, cancellationToken).ConfigureAwait(false);
@@ -140,18 +143,18 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         }
         else if (json.DocumentEveryOutcome)
         {
-            await CommandJsonEnvelopeWriter.WriteAsync(console, response, codec, json.Escaping, cancellationToken).ConfigureAwait(false);
+            await CommandJsonEnvelopeWriter.WriteAsync(console, response, codec, json.Escaping, cancellationToken, text).ConfigureAwait(false);
         }
 
         // Standard output belongs to the document, so the command's human failure text, which replaces the
         // fault line as a legacy contract's own error text, goes to standard error after the diagnostics.
         if (humanOutput is { Length: > 0 })
         {
-            await console.WriteErrorAsync((BuildDiagnostics(response.Diagnostics) + humanOutput).AsMemory(), cancellationToken).ConfigureAwait(false);
+            await console.WriteErrorAsync((BuildDiagnostics(response.Diagnostics, text) + humanOutput).AsMemory(), cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        await WriteHumanAsync(console, culture, response, codec, cancellationToken, faultHint, usageHint).ConfigureAwait(false);
+        await WriteHumanAsync(console, culture, response, codec, text, cancellationToken, faultHint, usageHint).ConfigureAwait(false);
     }
 
     // A payload-shape document for a successful framework request (help or version text) under DocumentEveryOutcome.
@@ -183,6 +186,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CultureInfo culture,
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
+        CommandTextContext text,
         string humanOutput,
         CancellationToken cancellationToken)
     {
@@ -193,6 +197,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             culture,
             response,
             codec,
+            text,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -217,7 +222,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(response);
-        return DispatchCoreAsync(mode, console, culture, textContext is null ? response : textContext.Localize(response), codec, cancellationToken);
+        return DispatchCoreAsync(mode, console, culture, textContext is null ? response : textContext.Localize(response), codec, textContext, cancellationToken);
     }
 
     // As DispatchAsync, with the lines a usage error ends with in human output and the escaping of JSON output.
@@ -231,7 +236,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         string? usageHint,
         CommandJsonEscaping escaping,
         CancellationToken cancellationToken) =>
-        DispatchCoreAsync(mode, console, culture, textContext.Localize(response), codec, cancellationToken, usageHint, escaping);
+        DispatchCoreAsync(mode, console, culture, textContext.Localize(response), codec, textContext, cancellationToken, usageHint, escaping);
 
     private static ValueTask DispatchCoreAsync<T>(
         CommandOutputMode mode,
@@ -239,6 +244,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CultureInfo culture,
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
+        CommandTextContext? text,
         CancellationToken cancellationToken,
         string? usageHint = null,
         CommandJsonEscaping escaping = CommandJsonEscaping.Unicode)
@@ -255,12 +261,14 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
                 response,
                 codec,
                 escaping,
-                cancellationToken),
+                cancellationToken,
+                text),
             CommandOutputMode.Human => WriteHumanAsync(
                 console,
                 culture,
                 response,
                 codec,
+                text,
                 cancellationToken,
                 usageHint: usageHint),
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
@@ -272,48 +280,50 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
         CultureInfo culture,
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
+        CommandTextContext? text,
         CancellationToken cancellationToken,
         string? faultHint = null,
         string? usageHint = null)
     {
         if (response.Succeeded)
         {
-            await WriteDiagnosticsAsync(console, response.Diagnostics, cancellationToken).ConfigureAwait(false);
+            await WriteDiagnosticsAsync(console, response.Diagnostics, text, cancellationToken).ConfigureAwait(false);
             await codec.WriteHumanAsync(response.Payload!, console, culture, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        var text = new StringBuilder(BuildDiagnostics(response.Diagnostics));
+        var output = new StringBuilder(BuildDiagnostics(response.Diagnostics, text));
 
-        CommandFault fault = CommandFaultSanitizer.Sanitize(response.Fault!);
-        if (!ContainsFaultDiagnostic(response.Diagnostics, fault))
+        CommandFault fault = CommandFaultSanitizer.Sanitize(response.Fault!, text);
+        if (!ContainsFaultDiagnostic(response.Diagnostics, fault, text))
         {
-            text.Append(response.HumanFaultMessage ?? fault.Message);
+            output.Append(response.HumanFaultMessage ?? fault.Message);
             if (faultHint is not null && !CommandFaultSanitizer.ContainsTechnicalContent(faultHint))
             {
-                text.Append(' ');
-                text.Append(CommandFaultSanitizer.SanitizeRequiredText(faultHint));
+                output.Append(' ');
+                output.Append(CommandFaultSanitizer.SanitizeRequiredText(faultHint, text));
             }
 
-            text.Append('\n');
+            output.Append('\n');
         }
 
         // A diagnostic that describes the fault may already have written the same link.
         if (fault.HelpUri is { } helpUri && !HasHelpLink(response.Diagnostics, fault.Code, helpUri))
         {
-            AppendHelpLink(text, fault.Code, helpUri);
+            AppendHelpLink(output, fault.Code, helpUri, text);
         }
 
-        text.Append(usageHint);
-        await console.WriteErrorAsync(text.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
+        output.Append(usageHint);
+        await console.WriteErrorAsync(output.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
     }
 
     private static ValueTask WriteDiagnosticsAsync(
         ICommandConsole console,
         IReadOnlyList<CommandDiagnostic> diagnostics,
+        CommandTextContext? textContext,
         CancellationToken cancellationToken)
     {
-        string text = BuildDiagnostics(diagnostics);
+        string text = BuildDiagnostics(diagnostics, textContext);
         return text.Length == 0
             ? ValueTask.CompletedTask
             : console.WriteErrorAsync(text.AsMemory(), cancellationToken);
@@ -322,18 +332,16 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
     // Human output writes each diagnostic and the fault as its message alone, with the line breaks the author wrote.
     // The code is for programs, which read it from JSON output; people read the message, and a code they can look up
     // comes with its help link.
-    private static string BuildDiagnostics(IReadOnlyList<CommandDiagnostic> diagnostics)
+    private static string BuildDiagnostics(IReadOnlyList<CommandDiagnostic> diagnostics, CommandTextContext? textContext)
     {
         var text = new StringBuilder();
         foreach (CommandDiagnostic diagnostic in diagnostics)
         {
-            text.Append(CommandFaultSanitizer.ContainsTechnicalContent(diagnostic.Message)
-                ? "The diagnostic content was redacted."
-                : CommandFaultSanitizer.SanitizeRequiredHumanText(diagnostic.Message));
+            text.Append(CommandFaultSanitizer.DiagnosticMessage(diagnostic.Message, textContext, human: true));
             text.Append('\n');
             if (diagnostic.HelpUri is { } helpUri)
             {
-                AppendHelpLink(text, diagnostic.Code, helpUri);
+                AppendHelpLink(text, diagnostic.Code, helpUri, textContext);
             }
         }
 
@@ -341,9 +349,29 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
     }
 
     // The link follows the line it documents, as the Runic SDK tools write it. It is the author's
-    // validated https address, so it is written without the redaction that messages receive.
-    private static void AppendHelpLink(StringBuilder text, string code, Uri helpUri) =>
-        text.Append("Help for ").Append(code).Append(": ").Append(helpUri.AbsoluteUri).Append('\n');
+    // validated https address, so it is written without the redaction that messages receive; the text
+    // around it (hints.help-link) is sanitized like other resolved text and must keep the link.
+    private static void AppendHelpLink(StringBuilder text, string code, Uri helpUri, CommandTextContext? textContext)
+    {
+        string link = helpUri.AbsoluteUri;
+        string line = "Help for " + code + ": " + link;
+        if (textContext?.Resolver is not null)
+        {
+            string resolved = textContext.Resolve(CommandTextKeys.HintHelpLink, line, [code, link]);
+            int at = resolved.IndexOf(link, StringComparison.Ordinal);
+            if (at >= 0 && resolved.IndexOf(link, at + link.Length, StringComparison.Ordinal) < 0)
+            {
+                string before = resolved[..at];
+                string after = resolved[(at + link.Length)..];
+                if (!CommandFaultSanitizer.ContainsTechnicalContent(before) && !CommandFaultSanitizer.ContainsTechnicalContent(after))
+                {
+                    line = CommandFaultSanitizer.SanitizeText(before) + link + CommandFaultSanitizer.SanitizeText(after);
+                }
+            }
+        }
+
+        text.Append(line).Append('\n');
+    }
 
     private static bool HasHelpLink(IReadOnlyList<CommandDiagnostic> diagnostics, string code, Uri helpUri)
     {
@@ -362,14 +390,16 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
 
     private static bool ContainsFaultDiagnostic(
         IReadOnlyList<CommandDiagnostic> diagnostics,
-        CommandFault fault)
+        CommandFault fault,
+        CommandTextContext? text)
     {
         // The fault was sanitized when the response was created, so its raw
         // message is gone. A redacted fault message and a redacted diagnostic
         // message with the same code describe the same failure; the redacted
         // diagnostic line already reports it.
-        bool faultRedacted = string.Equals(
-            fault.Message, CommandFaultSanitizer.RedactedFaultMessage, StringComparison.Ordinal);
+        bool faultRedacted = string.Equals(fault.Message, CommandFaultSanitizer.RedactedFaultMessage, StringComparison.Ordinal) ||
+            (text is not null && string.Equals(fault.Message,
+                text.RedactionNote(CommandTextKeys.RedactionFault, CommandFaultSanitizer.RedactedFaultMessage), StringComparison.Ordinal));
         foreach (CommandDiagnostic diagnostic in diagnostics)
         {
             if (!string.Equals(diagnostic.Code, fault.Code, StringComparison.Ordinal))
@@ -378,9 +408,7 @@ public sealed class CommandOutputDispatcher : ICommandOutcomeSink
             }
 
             bool diagnosticRedacted = CommandFaultSanitizer.ContainsTechnicalContent(diagnostic.Message);
-            string message = diagnosticRedacted
-                ? "The diagnostic content was redacted."
-                : CommandFaultSanitizer.SanitizeRequiredText(diagnostic.Message);
+            string message = CommandFaultSanitizer.DiagnosticMessage(diagnostic.Message, text);
             diagnosticRedacted |= string.IsNullOrWhiteSpace(CommandFaultSanitizer.SanitizeText(diagnostic.Message));
             if (string.Equals(message, fault.Message, StringComparison.Ordinal) ||
                 (faultRedacted && diagnosticRedacted))

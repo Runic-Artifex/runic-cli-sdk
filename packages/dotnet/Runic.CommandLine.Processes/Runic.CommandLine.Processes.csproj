@@ -16,6 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Runic.CommandLine\Runic.CommandLine.csproj" />
     <InternalsVisibleTo Include="Runic.CommandLine.Processes.Tests" />
+    <!-- The catalog coverage test compares each fault's English message with the catalog. -->
+    <InternalsVisibleTo Include="Runic.CommandLine.TextCatalog.Tests" />
   </ItemGroup>
 
   <ItemGroup>

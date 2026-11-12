@@ -35,6 +35,15 @@ public sealed class CommandTextContext
         string? value = Resolver.Resolve(key, Culture, arguments ?? Array.Empty<string>());
         return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
+    // A redaction note (redaction.* keys) in this culture. It replaces unsafe text, so a translation that is itself
+    // unsafe, or empty after sanitizing, gives way to the English note.
+    internal string RedactionNote(string key, string english)
+    {
+        if (Resolver is null) return english;
+        string note = Resolve(key, english);
+        string sanitized = CommandFaultSanitizer.SanitizeText(note);
+        return string.IsNullOrWhiteSpace(sanitized) || CommandFaultSanitizer.ContainsTechnicalContent(note) ? english : sanitized;
+    }
     /// <summary>Resolves a description using its literal help text as fallback; keys are never displayed as prose.</summary>
     public string Description(CommandHelp help, string? descriptionKey)
     {
@@ -102,6 +111,10 @@ public sealed class CommandTextContext
         }
         if (fault is not null && ReferenceEquals(fault, response.Fault))
             fault = new CommandFault(fault.Code, Resolve(CommandTextKeys.Fault(fault.Code), fault.Message), fault.Details, fault.Retryable) { HelpUri = fault.HelpUri };
+        // A fault message the response redacted, which faults.{code} did not replace, shows the redaction note of this culture.
+        if (fault is not null && string.Equals(fault.Message, CommandFaultSanitizer.RedactedFaultMessage, StringComparison.Ordinal))
+            fault = new CommandFault(fault.Code, RedactionNote(CommandTextKeys.RedactionFault, CommandFaultSanitizer.RedactedFaultMessage), fault.Details,
+                fault.Retryable) { HelpUri = fault.HelpUri };
         // Untranslated, the fault keeps the line breaks human output writes; a translation brings its own.
         string? humanFaultMessage = fault is not null && fault.Message == response.Fault?.Message ? response.HumanFaultMessage : null;
         return CommandResponse<T>.Read(response.RequestId, response.Command, response.Succeeded, response.ExitCode,

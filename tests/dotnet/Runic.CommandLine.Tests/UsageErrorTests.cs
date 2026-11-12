@@ -162,6 +162,10 @@ internal sealed class UsageErrorTests
         AssertEx.Equal("RCLI1002", none.Diagnostics.Single().Code);
         AssertEx.Equal(0, none.Diagnostics.Single().Arguments.Count);
         AssertEx.Equal("No command was given.", none.Diagnostics.Single().Message);
+        // The kind and code stay those of an unknown command; the text has its own key.
+        AssertEx.Equal("unknown-command", none.Diagnostics.Single().Kind);
+        AssertEx.Equal(CommandTextKeys.DiagnosticMissingCommand, none.Diagnostics.Single().MessageKey);
+        AssertEx.Equal(CommandTextKeys.DiagnosticUnknownCommand, typed.Diagnostics.Single().MessageKey);
         return ValueTask.CompletedTask;
     }
 

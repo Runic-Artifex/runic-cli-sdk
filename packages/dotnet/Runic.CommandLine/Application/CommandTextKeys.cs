@@ -129,15 +129,36 @@ public static class CommandTextKeys
     /// </summary>
     /// <remarks>The usage line before it uses the <c>help.</c> keys of the help usage line.</remarks>
     public const string HintUsage = "hints.usage";
+    /// <summary>
+    /// The line after a diagnostic or fault with a help link in human output (<c>Help for {code}: {link}</c>); arguments:
+    /// <c>code</c>, <c>link</c>.
+    /// </summary>
+    /// <remarks>The text must contain the link exactly once; otherwise the English line is shown.</remarks>
+    public const string HintHelpLink = "hints.help-link";
+
+    /// <summary>The message shown in place of a diagnostic message that contains technical content such as a path.</summary>
+    public const string RedactionDiagnosticContent = "redaction.diagnostic-content";
+    /// <summary>The message shown in place of a diagnostic message or hint that is empty after sanitizing.</summary>
+    public const string RedactionDiagnosticMessage = "redaction.diagnostic-message";
+    /// <summary>
+    /// The fault message shown in place of a fault message that contains technical content or is empty, when
+    /// <c>faults.{code}</c> has no text of its own.
+    /// </summary>
+    public const string RedactionFault = "redaction.fault";
 
     /// <summary>An unrecognized option; argument: <c>option</c>.</summary>
     public const string DiagnosticUnknownOption = "diagnostics.unknown-option";
     /// <summary>An unrecognized option with a close match; arguments: <c>option</c>, <c>suggestion</c>.</summary>
     public const string DiagnosticUnknownOptionSuggestion = "diagnostics.unknown-option-suggestion";
-    /// <summary>An unrecognized command; argument: <c>command</c>, absent when no command was typed.</summary>
+    /// <summary>An unrecognized command; argument: <c>command</c>.</summary>
     public const string DiagnosticUnknownCommand = "diagnostics.unknown-command";
     /// <summary>An unrecognized command with a close match; arguments: <c>command</c>, <c>suggestion</c>.</summary>
     public const string DiagnosticUnknownCommandSuggestion = "diagnostics.unknown-command-suggestion";
+    /// <summary>
+    /// A command line without a command, where the catalog has no default command; no arguments. Its diagnostic kind and
+    /// code stay those of <see cref="DiagnosticUnknownCommand"/>.
+    /// </summary>
+    public const string DiagnosticMissingCommand = "diagnostics.missing-command";
     /// <summary>An option without its value; argument: <c>option</c>.</summary>
     public const string DiagnosticMissingOptionValue = "diagnostics.missing-option-value";
     /// <summary>A flag given a value; argument: <c>option</c>.</summary>
@@ -237,11 +258,18 @@ public static class CommandTextKeys
         new(CompletionInvalidShell),
         new(PromptSelectHint), new(PromptMultiSelectHint), new(PromptYes), new(PromptNo), new(PromptChooseOne, "count"),
         new(PromptChooseMany, "count"), new(PromptAnswerYesNo, "yes", "no"), new(PromptRequired), new(PromptCancelled), new(PromptDone),
-        new(FaultCancelled), new(FaultPromptUnavailable), new(FaultHostFailure), new(FaultHostFailureHint), new(HintUsage, "command"),
+        new(FaultCancelled), new(FaultPromptUnavailable), new(FaultHostFailure),
+        // The faults of Runic.CommandLine.Processes (ProcessTextKeys there), whose text ships in this package's catalog.
+        new(FaultPrefix + "RCLI6001"), new(FaultPrefix + "RCLI6002"), new(FaultPrefix + "RCLI6003"), new(FaultPrefix + "RCLI6004"),
+        new(FaultPrefix + "RCLI6005"), new(FaultPrefix + "RCLI6006"), new(FaultPrefix + "RCLI6007"), new(FaultPrefix + "RCLI6008"),
+        new(FaultPrefix + "RCLI6009"), new(FaultPrefix + "RCLI6010"), new(FaultPrefix + "RCLI6011"),
+        new(FaultHostFailureHint), new(HintUsage, "command"), new(HintHelpLink, "code", "link"),
+        new(RedactionDiagnosticContent), new(RedactionDiagnosticMessage), new(RedactionFault),
         new(DiagnosticUnknownOption, "option"),
         new(DiagnosticUnknownOptionSuggestion, "option", "suggestion"),
         new(DiagnosticUnknownCommand, "command"),
         new(DiagnosticUnknownCommandSuggestion, "command", "suggestion"),
+        new(DiagnosticMissingCommand),
         new(DiagnosticMissingOptionValue, "option"),
         new(DiagnosticUnexpectedOptionValue, "option"),
         new(DiagnosticMissingArgument, "argument"),

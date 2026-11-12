@@ -93,6 +93,12 @@
       "runic.commandline": {
         "type": "Project"
       },
+      "runic.commandline.processes": {
+        "type": "Project",
+        "dependencies": {
+          "Runic.CommandLine": "[1.0.0-rc.1, )"
+        }
+      },
       "runic.commandline.testing": {
         "type": "Project",
         "dependencies": {

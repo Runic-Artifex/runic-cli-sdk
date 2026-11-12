@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Runic.CommandLine.Generated;
+using Runic.CommandLine.Processes;
 using Runic.CommandLine.Testing;
 using Runic.Translations;
 using Runic.Translations.CommandLine.Translations;
@@ -35,7 +37,9 @@ internal sealed partial class TextCatalogTests
         ["ask"], ["ask", "--json"], ["fail"], ["tag"], ["tag", "--json"],
         ["pick", "--mode", "medium"], ["pick", "--source", "missing-file.txt"], ["pick", "--target", "missing-directory"],
         ["pick", "--id", "x"], ["pick", "--ratio", "x"], ["pick", "--apply"], ["pick", "--apply", "--confirm", "--dry-run"],
-        ["pick", "--confirm=maybe"], ["completion", "tcsh"],
+        ["pick", "--confirm=maybe"], ["completion", "tcsh"], ["--format", "human"], ["--format", "json"], ["--json"],
+        ["linked"], ["leak"], ["leak", "--json"],
+        .. ProcessFaultMessages.ByCode.Keys.Select(static code => new[] { "process", code }),
     ];
 
     [Test, DisplayName("text-keys/json-lists-every-command-text-key-with-its-arguments")]
@@ -146,6 +150,35 @@ internal sealed partial class TextCatalogTests
         }
 
         Assert.Empty(problems, "German catalog text");
+    }
+
+    [Test, DisplayName("catalog/every-process-fault-has-a-key-and-its-english-text")]
+    public void ProcessFaults()
+    {
+        string[] codes = typeof(ProcessFaultCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(static field => field.IsLiteral).Select(static field => (string)field.GetRawConstantValue()!).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(11, codes.Length, "ProcessFaultCodes");
+        Assert.Equal(string.Join(",", codes.Select(CommandTextKeys.Fault)), string.Join(",", ProcessTextKeys.All.Select(static key => key.Key)),
+            "ProcessTextKeys.All against ProcessFaultCodes");
+        string[] constants = typeof(ProcessTextKeys).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(static field => field.IsLiteral).Select(static field => (string)field.GetRawConstantValue()!).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(string.Join(",", codes.Select(CommandTextKeys.Fault)), string.Join(",", constants), "ProcessTextKeys constants");
+        Assert.Equal(string.Join(",", codes), string.Join(",", ProcessFaultMessages.ByCode.Keys), "ProcessFaultMessages");
+
+        IReadOnlyDictionary<string, SourceMessage> english = CatalogSource.Load("en");
+        var problems = new List<string>();
+        foreach (CommandTextKey key in ProcessTextKeys.All)
+        {
+            // The same key object as CommandTextKeys.All, so the adapter needs only Runic.CommandLine to translate it.
+            if (!ReferenceEquals(key, CommandTextKeys.Find(key.Key))) problems.Add(key.Key + " is not the CommandTextKeys.All entry.");
+            if (key.Arguments.Count != 0) problems.Add(key.Key + " has arguments; fault keys have none.");
+            string code = key.Key["faults.".Length..];
+            if (!english.TryGetValue(MessageName(key.Key), out SourceMessage? message)) problems.Add("en.rmf2 has no message for " + key.Key + ".");
+            else if (message.Text != ProcessFaultMessages.ByCode[code])
+                problems.Add($"en.rmf2:{message.Line} {message.Name} is '{message.Text}'; the fault message is '{ProcessFaultMessages.ByCode[code]}'.");
+        }
+
+        Assert.Empty(problems, "Process fault keys");
     }
 
     [Test, DisplayName("catalog/english-matches-the-framework-text")]

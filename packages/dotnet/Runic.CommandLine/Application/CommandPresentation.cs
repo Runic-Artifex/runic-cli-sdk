@@ -66,8 +66,9 @@ public sealed class CommandPresentation
         try { script = CommandCompletion.Generate(catalog, CompletionExecutableName ?? Name, shell ?? ""); }
         catch (ArgumentException)
         {
-            string message = new CommandTextContext(culture, TextResolver).Resolve(CommandTextKeys.CompletionInvalidShell, "Choose a completion shell: bash, zsh, fish or powershell.");
-            message = CommandFaultSanitizer.ContainsTechnicalContent(message) ? "The diagnostic content was redacted." : CommandFaultSanitizer.SanitizeRequiredText(message);
+            var text = new CommandTextContext(culture, TextResolver);
+            string message = CommandFaultSanitizer.DiagnosticMessage(
+                text.Resolve(CommandTextKeys.CompletionInvalidShell, "Choose a completion shell: bash, zsh, fish or powershell."), text);
             await console.WriteErrorAsync((message + "\n").AsMemory(), cancellationToken).ConfigureAwait(false);
             return ExitCodePolicy.GetExitCode(CommandExitCategory.Usage);
         }

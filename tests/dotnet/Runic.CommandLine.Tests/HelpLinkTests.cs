@@ -174,8 +174,42 @@ internal sealed class HelpLinkTests
         AssertEx.Equal("Übersetzt.\nHelp for RAS1001: https://docs.example.com/errors#ras1001\n", console.StandardError);
     }
 
+    [Test, DisplayName("help-links/the-help-line-is-translatable")]
+    public async ValueTask HelpLineIsTranslatable()
+    {
+        var console = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, console, CultureInfo.InvariantCulture,
+            CommandResponse.Failure<TestResult>("req-help", "pack", 10, Fault(), [Diagnostic()]), new TestCodec(),
+            new CommandTextContext(CultureInfo.GetCultureInfo("de-DE"), new LinkResolver(static (code, link) => "Hilfe zu " + code + ": " + link)));
+        AssertEx.Equal(
+            "The archive index is missing.\nHilfe zu RCLI8002: https://docs.example.com/errors#ras1002\n" +
+            "The archive could not be read.\nHilfe zu RAS1001: https://docs.example.com/errors#ras1001\n",
+            console.StandardError);
+
+        // A line without the link, with the link twice, or with technical content around it is shown in English.
+        foreach (Func<string, string, string> template in new Func<string, string, string>[]
+        {
+            static (code, _) => "Hilfe zu " + code,
+            static (code, link) => link + " " + link,
+            static (code, link) => "Hilfe in /home/ada: " + link,
+        })
+        {
+            var fallback = new MemoryCommandConsole();
+            await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, fallback, CultureInfo.InvariantCulture,
+                CommandResponse.Failure<TestResult>("req-help", "pack", 10, Fault()), new TestCodec(),
+                new CommandTextContext(CultureInfo.GetCultureInfo("de-DE"), new LinkResolver(template)));
+            AssertEx.Equal("The archive could not be read.\nHelp for RAS1001: https://docs.example.com/errors#ras1001\n", fallback.StandardError);
+        }
+    }
+
     private sealed class Resolver : ICommandTextResolver
     {
         public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) => "Übersetzt.";
+    }
+
+    private sealed class LinkResolver(Func<string, string, string> template) : ICommandTextResolver
+    {
+        public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) =>
+            key == CommandTextKeys.HintHelpLink ? template(arguments[0], arguments[1]) : null;
     }
 }

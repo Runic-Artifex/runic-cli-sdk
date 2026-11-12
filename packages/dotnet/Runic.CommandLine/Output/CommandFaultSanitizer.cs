@@ -13,9 +13,17 @@ internal static class CommandFaultSanitizer
     private const int MaximumDetailKeyLength = 64;
     private const int MaximumDetailValueLength = 1_024;
 
+    // The English redaction notes (keys redaction.*). A CommandTextContext resolves them in its culture; see
+    // CommandTextContext.RedactionNote.
     internal const string RedactedFaultMessage = "The command failed; details were redacted.";
+    internal const string RedactedDiagnosticContent = "The diagnostic content was redacted.";
+    internal const string RedactedDiagnosticMessage = "The diagnostic message was redacted.";
 
-    internal static CommandFault Sanitize(CommandFault fault)
+    // Fault details are machine data for programs, which read them from JSON output, so the marker of a redacted value
+    // is not translated.
+    private const string RedactedDetailValue = "[redacted]";
+
+    internal static CommandFault Sanitize(CommandFault fault, CommandTextContext? text = null)
     {
         ArgumentNullException.ThrowIfNull(fault);
 
@@ -31,7 +39,7 @@ internal static class CommandFaultSanitizer
         string message = SanitizeScalar(fault.Message, MaximumMessageLength);
         if (string.IsNullOrWhiteSpace(message) || ContainsTechnicalContent(fault.Message))
         {
-            message = RedactedFaultMessage;
+            message = text?.RedactionNote(CommandTextKeys.RedactionFault, RedactedFaultMessage) ?? RedactedFaultMessage;
         }
 
         var details = new SortedDictionary<string, string>(StringComparer.Ordinal);
@@ -52,7 +60,7 @@ internal static class CommandFaultSanitizer
             }
 
             string value = ContainsTechnicalContent(detail.Value)
-                ? "[redacted]"
+                ? RedactedDetailValue
                 : SanitizeScalar(detail.Value, MaximumDetailValueLength);
             details.Add(key, value);
         }
@@ -68,13 +76,24 @@ internal static class CommandFaultSanitizer
         return SanitizeScalar(value, MaximumMessageLength);
     }
 
-    internal static string SanitizeRequiredText(string value)
+    internal static string SanitizeRequiredText(string value, CommandTextContext? text = null)
     {
         string sanitized = SanitizeText(value);
-        return string.IsNullOrWhiteSpace(sanitized)
-            ? "The diagnostic message was redacted."
-            : sanitized;
+        return string.IsNullOrWhiteSpace(sanitized) ? EmptyMessageNote(text) : sanitized;
     }
+
+    // A diagnostic message as output writes it: the redaction note when it has technical content, otherwise sanitized,
+    // single-line for JSON output and with its line breaks for human output.
+    internal static string DiagnosticMessage(string message, CommandTextContext? text, bool human = false) =>
+        ContainsTechnicalContent(message)
+            ? RedactedContentNote(text)
+            : human ? SanitizeRequiredHumanText(message, text) : SanitizeRequiredText(message, text);
+
+    internal static string RedactedContentNote(CommandTextContext? text) =>
+        text?.RedactionNote(CommandTextKeys.RedactionDiagnosticContent, RedactedDiagnosticContent) ?? RedactedDiagnosticContent;
+
+    private static string EmptyMessageNote(CommandTextContext? text) =>
+        text?.RedactionNote(CommandTextKeys.RedactionDiagnosticMessage, RedactedDiagnosticMessage) ?? RedactedDiagnosticMessage;
 
     // Human output keeps the line breaks of a message, so that a message the author wrote on several lines reads as
     // written: \n and \r\n become \n, and leading and trailing line breaks are dropped because the writer ends the
@@ -86,12 +105,10 @@ internal static class CommandFaultSanitizer
         return SanitizeScalar(value, MaximumMessageLength, keepLineBreaks: true).Trim('\n');
     }
 
-    internal static string SanitizeRequiredHumanText(string value)
+    internal static string SanitizeRequiredHumanText(string value, CommandTextContext? text = null)
     {
         string sanitized = SanitizeHumanText(value);
-        return string.IsNullOrWhiteSpace(sanitized)
-            ? "The diagnostic message was redacted."
-            : sanitized;
+        return string.IsNullOrWhiteSpace(sanitized) ? EmptyMessageNote(text) : sanitized;
     }
 
     internal static string SanitizeArgument(string value)

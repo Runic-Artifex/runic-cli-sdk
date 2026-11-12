@@ -12,6 +12,11 @@ return await new CommandApp(GeneratedCommandCatalog.Create())
 }.RunAsync(args);
 ```
 
+`SpectreHelpPresenter` styles the usage line and the section headings of help. It
+finds them by the text the help formatter resolved for them through the invocation's
+`ICommandTextResolver` (`help.usage`, `help.commands`, `help.options` and the other
+heading keys), so translated help such as `Aufruf:` and `Optionen:` is styled too.
+
 Use `WriteAsync` for Spectre tables, trees and panels. Text is always treated as literal
 text, never markup. Redirected output and `NO_COLOR` disable ANSI automatically. Terminal width is detected automatically. Explicit
 width, color and Unicode overrides make tests deterministic. Byte output passes through
