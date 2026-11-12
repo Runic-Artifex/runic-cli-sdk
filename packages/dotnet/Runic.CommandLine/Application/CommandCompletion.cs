@@ -95,6 +95,12 @@ public static class CommandCompletion
     /// Generates a bash, zsh, fish, or PowerShell completion script. It completes the catalog's output selector,
     /// not its hidden aliases, and a file name after <c>@</c> when the catalog reads response files.
     /// </summary>
+    /// <remarks>
+    /// Completion covers the portable grammar: command names, aliases and display spellings, and options in their
+    /// declared spellings. A catalog that declares <see cref="CommandSyntaxDialect.WindowsSlash"/> also accepts
+    /// those spellings, so its completions work, but they do not offer the slash spellings (<c>/policy</c>,
+    /// <c>/name</c>). Candidates match in the case typed, also under <see cref="CommandCatalogBuilder.CaseInsensitive"/>.
+    /// </remarks>
     public static string Generate(CommandCatalog catalog, string executable, string shell)
     {
         ArgumentNullException.ThrowIfNull(catalog);
@@ -122,6 +128,7 @@ public static class CommandCompletion
     internal static bool IsRequest(CommandCatalog catalog, IReadOnlyList<string> args, out string? shell)
     {
         shell = null;
+        if (CommandDialect.Normalizes(catalog)) args = CommandDialect.Normalize(catalog, args);
         if (catalog.CompletionOption is { } option)
         {
             if (args.Count == 0) return false;
@@ -196,6 +203,7 @@ public static class CommandCompletion
                     {
                         Nodes[parent].Children.Add(command.Name, id);
                         foreach (string alias in command.Aliases) Nodes[parent].Children.Add(alias, id);
+                        Nodes[parent].Children.TryAdd(command.Spelling, id);
                     }
                     if (ReferenceEquals(command, catalog.DefaultCommand)) DefaultNode = id;
                     AddOptions(node, command.Options, output);

@@ -131,7 +131,8 @@ diagnostics {
     {{{$parameter} muss einer dieser Werte sein: {$choices}.}}
   invalidChoiceHidden =
     .input {$parameter :string}
-    {{{$parameter} muss einer der in --help gezeigten Werte sein.}}
+    .input {$help :string}
+    {{{$parameter} muss einer der in {$help} gezeigten Werte sein.}}
   invalidInteger =
     .input {$parameter :string}
     {{{$parameter} erfordert eine ganze Zahl.}}

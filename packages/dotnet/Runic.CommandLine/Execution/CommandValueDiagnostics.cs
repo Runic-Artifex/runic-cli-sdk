@@ -24,11 +24,13 @@ internal static class CommandValueDiagnostics
     internal static IReadOnlyList<CommandDiagnostic> Diagnostics(ParsedInvocation invocation, string code, string id, string kind, params string[] details)
     {
         string name = DisplayName(invocation.Command, id);
-        string[] arguments = [name, .. details];
+        // Choices that are not listed are named by the help request that shows them, in the catalog's dialect.
+        bool hiddenChoices = kind == "invalid-choice" && details.Length == 0;
+        string[] arguments = hiddenChoices ? [name, CommandDialect.Help(invocation.Command.Syntax)] : [name, .. details];
         var diagnostics = new List<CommandDiagnostic>(2)
         {
-            new(code, kind, Format(kind, arguments), CommandDiagnosticPhase.Binding, CommandDiagnosticSeverity.Error, arguments: arguments, path: invocation.Path,
-                messageKey: MessageKey(kind, arguments)),
+            new(code, kind, Format(kind, arguments, hiddenChoices), CommandDiagnosticPhase.Binding, CommandDiagnosticSeverity.Error, arguments: arguments, path: invocation.Path,
+                messageKey: MessageKey(hiddenChoices)),
         };
         // A value from an environment fallback is invisible on the command line, so name its source.
         if (invocation.EnvironmentOptionIds.Contains(id) && FindOption(invocation.Command, id) is { Help.EnvironmentVariable: { } variable })
@@ -41,7 +43,7 @@ internal static class CommandValueDiagnostics
 
     internal static string DisplayName(CommandDescriptor command, string id)
     {
-        if (FindOption(command, id) is { } option) return option.Name;
+        if (FindOption(command, id) is { } option) return option.DisplayName;
         foreach (CommandArgumentDescriptor argument in command.Arguments)
         {
             if (argument.Id == id) return "<" + (argument.Help.ValueName ?? argument.Name) + ">";
@@ -58,9 +60,8 @@ internal static class CommandValueDiagnostics
         return null;
     }
 
-    // A sensitive choice list is withheld, so its message has one argument and its own key.
-    internal static string? MessageKey(string kind, IReadOnlyList<string> arguments) =>
-        kind == "invalid-choice" && arguments.Count == 1 ? CommandTextKeys.DiagnosticInvalidChoiceHidden : null;
+    // A sensitive or long choice list is withheld, so its message names the help request instead and has its own key.
+    internal static string? MessageKey(bool hiddenChoices) => hiddenChoices ? CommandTextKeys.DiagnosticInvalidChoiceHidden : null;
 
     // Lists declared choices unless the value is sensitive or the list is too long for one diagnostic argument.
     internal static string? Choices(IReadOnlyList<string> choices, bool sensitive)
@@ -70,16 +71,16 @@ internal static class CommandValueDiagnostics
         return list.Length > MaximumChoicesLength ? null : list;
     }
 
-    internal static string Format(string kind, IReadOnlyList<string> arguments)
+    internal static string Format(string kind, IReadOnlyList<string> arguments, bool hiddenChoices = false)
     {
-        string template = kind switch
+        string template = hiddenChoices ? "{0} must be one of the choices shown in {1}." : kind switch
         {
             "invalid-integer" => "{0} requires a whole number.",
             "invalid-number" => "{0} requires a number.",
             "invalid-guid" => "{0} requires a GUID such as 0f8fad5b-d9cb-469f-a165-70867728950e.",
             "invalid-boolean" => "{0} requires true or false.",
             "invalid-choice" when arguments.Count > 1 => "{0} must be one of: {1}.",
-            "invalid-choice" => "{0} must be one of the choices shown in --help.",
+            "invalid-choice" => "{0} has a value that is not one of its choices.",
             "invalid-value" => "{0} has an invalid value.",
             "validation-failed" => "{0} has a value that failed validation.",
             "missing-value" => "{0} requires a value.",

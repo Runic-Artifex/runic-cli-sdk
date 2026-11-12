@@ -36,7 +36,10 @@ list; see [Built-in catalog](#built-in-catalog).
 - A usage error in human output ends with the usage line of its command, built
   from the `help.usage`, `help.command-placeholder` and
   `help.options-placeholder` keys as in help, and the `hints.usage` line, whose
-  `command` argument is the help command line, such as `tool copy --help`.
+  `command` argument is the help command line, such as `tool copy --help`, or
+  `tool /copy /?` in a catalog that declares the Windows slash dialect. Help,
+  hints and diagnostics write commands and options in the catalog's dialect
+  through their arguments, so the dialect adds no keys.
 
 ## Built-in catalog
 
@@ -156,7 +159,7 @@ it then fails with `RTR0103`.
 | `diagnostics.response-file-cycle` | `file` | The response file '{file}' includes itself. | 0.9.0 |
 | `diagnostics.invalid-environment-value` | `option`, `variable` | {variable} must be true/false, yes/no or 1/0 for {option}. | 0.6.0-preview.4 |
 | `diagnostics.invalid-choice` | `parameter`, `choices` | {parameter} must be one of: {choices}. | 0.6.0-preview.4 |
-| `diagnostics.invalid-choice-hidden` | `parameter` | {parameter} must be one of the choices shown in --help. | 0.6.0-preview.4 |
+| `diagnostics.invalid-choice-hidden` | `parameter`, `help` (since 0.12.0) | {parameter} must be one of the choices shown in {help}. | 0.6.0-preview.4 |
 | `diagnostics.invalid-integer` | `parameter` | {parameter} requires a whole number. | 0.6.0-preview.4 |
 | `diagnostics.invalid-number` | `parameter` | {parameter} requires a number. | 0.6.0-preview.4 |
 | `diagnostics.invalid-guid` | `parameter` | {parameter} requires a GUID such as 0f8fad5b-d9cb-469f-a165-70867728950e. | 0.6.0-preview.4 |

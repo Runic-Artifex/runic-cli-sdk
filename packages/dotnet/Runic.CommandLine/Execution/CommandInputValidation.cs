@@ -32,7 +32,7 @@ internal static class CommandInputValidation
             if (fault is not null) return fault;
         }
         return null;
-        string Name(string id) => invocation.Command.Options.First(option => option.Id == id).Name;
+        string Name(string id) => invocation.Command.Options.First(option => option.Id == id).DisplayName;
     }
 
     internal static CommandOutcome<T>? ValidateRanges<T>(ParsedInvocation invocation)

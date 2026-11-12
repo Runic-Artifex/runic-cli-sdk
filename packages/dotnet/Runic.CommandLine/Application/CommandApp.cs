@@ -69,6 +69,13 @@ public sealed class CommandApp
     public bool HandleTerminationSignals { get; init; } = true;
     /// <summary>Gets a renderer for human catalog help.</summary>
     public ICommandHelpPresenter? HelpPresenter { get; init; }
+    /// <summary>
+    /// Gets the adapter that parses the command line, for an application with its own dialect; the catalog's declared
+    /// grammar (<see cref="PortableCommandSyntaxAdapter"/>) when null. <see cref="Hosting.CommandLineHostingAdapter"/>
+    /// created from this app uses it as well. Response files, completion requests and help presentation still follow
+    /// the catalog.
+    /// </summary>
+    public ICommandSyntaxAdapter? SyntaxAdapter { get; init; }
 
     /// <summary>Parses, presents framework requests, or executes one invocation, returning its process exit code.</summary>
     public Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default) =>
@@ -133,7 +140,7 @@ public sealed class CommandApp
             {
                 return await presentation.GuardAsync(() => presentation.WriteCompletionAsync(_catalog, shell, Console, culture, cancellation.Token), cancellation.Token).ConfigureAwait(false);
             }
-            ParseOutcome parsed = responseFileError ?? PortableCommandSyntaxAdapter.Instance.Parse(_catalog, args.Length == 0 && _catalog.DefaultCommand is null ? ["--help"] : args, settings);
+            ParseOutcome parsed = responseFileError ?? (SyntaxAdapter ?? PortableCommandSyntaxAdapter.Instance).Parse(_catalog, args.Length == 0 && _catalog.DefaultCommand is null ? ["--help"] : args, settings);
             string requestId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
             if (parsed.Kind == ParseOutcomeKind.Invocation)
             {
