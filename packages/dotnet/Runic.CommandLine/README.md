@@ -161,6 +161,49 @@ tells a handler or a custom outcome sink which shape was selected. Failure data
 keeps its 65,536-byte bound, because the same outcome can also be written as an
 envelope; a success payload is not bound by the protocol's frame limit.
 
+### One JSON document for every outcome
+
+A program that runs a tool with `--json` wants to read one document from standard
+output, whatever happened. The envelope already answers every outcome: usage,
+validation and domain failures, cancellation and unexpected exceptions each write
+one `runic.commandline/1` envelope with the fault code, and standard error gets
+only the text a command writes to its own console. `CommandApp.JsonOutput` covers
+the payload shape and the rest:
+
+```csharp
+return await new CommandApp(catalog)
+{
+    Name = "tool",
+    JsonOutput = new CommandJsonOutputOptions
+    {
+        DocumentEveryOutcome = true,
+        QuietStandardError = true,
+        Escaping = CommandJsonEscaping.Ascii,
+    },
+}.RunAsync(args);
+```
+
+| Option | Default | Effect in JSON mode |
+| --- | --- | --- |
+| `DocumentEveryOutcome` | `false` | The payload shape writes a document where it would write none: a usage error (`tool policy link onlyOneArgument --json`), a binding or validation failure, a domain failure without declared failure data, cancellation and a host failure write the `runic.commandline/1` envelope, which callers tell from the command's own documents by its `protocol` member; help and version write their text as a JSON string, and a command without a result writes `{}`. Declared failure data stays the bare document. |
+| `QuietStandardError` | `false` | Nothing is written to standard error: no diagnostics, fault line, failure text, usage line or hint, and no text the command writes to its console. The envelope carries the diagnostics; the payload shape has no place for them, so pair it with `DocumentEveryOutcome` or declared failure data. `RUNIC_COMMANDLINE_DEBUG` output is still written. |
+| `Escaping` | `Unicode` | `Ascii` writes every character outside ASCII as a `\uXXXX` escape, so `Räume` is `R\u00E4ume` and standard output is pure ASCII in the envelope, the payload and failure data. `Unicode` writes letters from every script as UTF-8. |
+
+The options are independent and apply to every JSON invocation, whether the
+output selector, the environment or the alias chose it; human output is
+unchanged. The hosting adapter created from the app uses them too; a host that
+builds `CommandPresentation` and `CommandOutputDispatcher` itself sets their
+`JsonOutput`. Without them the output is what earlier releases wrote.
+
+**Windows PowerShell 5.1.** It decodes a native program's standard output with
+`[Console]::OutputEncoding`, by default the OEM code page (850 or 437), not UTF-8,
+so raw UTF-8 such as `Räume` arrives as `RÃ¤ume` or `R├ñume` unless every
+caller first sets `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
+PowerShell 7.4 and later and most other callers decode UTF-8. A tool that Windows
+PowerShell 5.1 scripts, scheduled tasks or deployment systems run with `--json`
+should set `Escaping = CommandJsonEscaping.Ascii`: ASCII reads the same in every
+code page, and `ConvertFrom-Json` turns `\u00E4` back into `ä`.
+
 ### Read arguments from response files
 
 An application whose command lines grow long can read arguments from response
@@ -676,6 +719,52 @@ categories stay distinct in `CommandExitCategory`, the JSON fault and observers.
 A handler selects a failure category with `CommandOutcome.Failure<T>(category,
 fault)`. A custom `IExitCodePolicy` may give categories distinct codes, for
 example the former 3, 4, 5, 10 and 70, but zero always means success.
+
+### A documented exit code per outcome
+
+A policy maps a category for every command of the application. When one command
+documents its own codes, for example a tool that returns 2 when the policy object
+does not exist, 3 when the container does not exist and 4 when the directory cannot
+be reached, its outcomes select them with `WithExitCode`, and `[CommandExitCode]`
+lists them in the command's help:
+
+```csharp
+[Command("policy link", Description = "Link a policy object with a container.")]
+[CommandExitCode(2, "The policy object does not exist.")]
+[CommandExitCode(3, "The container does not exist.")]
+[CommandExitCode(4, "The directory cannot be reached.")]
+internal static CommandOutcome<LinkResult> Link([Argument] string policy, [Argument] string container)
+{
+    if (!directory.IsReachable)
+        return CommandOutcome.Failure<LinkResult>(CommandExitCategory.Unavailable,
+            new CommandFault("DIRECTORY_UNREACHABLE", "The directory cannot be reached.")).WithExitCode(4);
+    // ...
+}
+```
+
+The code applies to this invocation only. The category stays the semantic
+classification: `success` in JSON output, the fault, observers and
+`CommandExecutionResult.Succeeded` follow it. The JSON envelope's `exitCode`,
+`CommandExecutionResult.ExitCode`, `HostedCommandLineExecutionResult.ExitCode`,
+`CommandOutcomePresentation<T>.ExitCode` and observers report the code the process
+returns, and `Run`, `RunAsync`, the hosting adapter and `CommandAppTester` return
+it. Other commands, usage errors, cancellation and host failures keep the policy's
+codes, so the default and custom policies behave as before.
+
+A failure needs a code that no platform reads as success: `WithExitCode` refuses
+zero and multiples of 256, which Linux and macOS truncate to zero. Those systems
+report only the low 8 bits, so a tool that runs on them uses codes from 1 to 255.
+A success may select an informational code that its callers document, such as
+Windows Installer's 3010 ("success, restart required") or 1641 ("restart started")
+for a tool that deployment systems such as Intune or Configuration Manager run:
+`CommandOutcome.Success(result).WithExitCode(3010)`. Its envelope reports
+`success: true` with that `exitCode`; readers before Runic Command Line 0.12 reject
+such an envelope, and callers that do not know the code read it as a failure.
+
+Help lists the documented codes under "Exit codes" (text key `help.exit-codes`);
+`DescriptionKey` translates a description through the text resolver. Commands
+registered without the generator set `CommandHelp.ExitCodes`, for example
+`new CommandHelp("Link a policy object.") { ExitCodes = [new CommandExitCodeHelp(2, "The policy object does not exist.")] }`.
 
 Set `HelpUri` on a `CommandFault` or `CommandDiagnostic` to link its code to
 your documentation, for example `new CommandFault("RAS1001", "The archive could

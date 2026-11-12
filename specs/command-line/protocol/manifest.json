@@ -33,7 +33,8 @@
     { "id": "protocol.cancelled", "class": "valid", "path": "examples/cancelled.json", "outcome": "cancelled" },
     { "id": "protocol.redacted-fault", "class": "valid", "path": "examples/redacted-fault.json", "outcome": "command-failure" },
     { "id": "protocol.declared-failure", "class": "valid", "path": "examples/declared-failure.json", "outcome": "cancelled" },
-    { "id": "protocol.invalid-structures", "class": "semantic-corpus", "path": "invalid-structures.json", "caseCount": 32 },
+    { "id": "protocol.informational-success", "class": "valid", "path": "examples/informational-success.json", "outcome": "success" },
+    { "id": "protocol.invalid-structures", "class": "semantic-corpus", "path": "invalid-structures.json", "caseCount": 31 },
     { "id": "protocol.wire-inputs", "class": "malformed-or-hostile", "path": "wire-inputs.json", "caseCount": 17 }
   ]
 }

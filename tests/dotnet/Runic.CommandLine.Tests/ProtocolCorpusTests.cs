@@ -11,7 +11,7 @@ internal sealed class ProtocolCorpusTests
         "invalid-structures.json",
         CorpusJsonContext.Default.SemanticProtocolCorpus);
     private static readonly string[] ExampleNames =
-        ["success", "command-fault", "validation", "host-fault", "cancelled", "redacted-fault", "declared-failure"];
+        ["success", "command-fault", "validation", "host-fault", "cancelled", "redacted-fault", "declared-failure", "informational-success"];
 
     public static IEnumerable<string> WireCaseIds()
     {
@@ -21,7 +21,7 @@ internal sealed class ProtocolCorpusTests
 
     public static IEnumerable<string> SemanticCaseIds()
     {
-        AssertEx.Equal(32, Semantic.Cases.Length, "The frozen semantic protocol corpus row count changed.");
+        AssertEx.Equal(31, Semantic.Cases.Length, "The frozen semantic protocol corpus row count changed.");
         return Semantic.Cases.Select(static test => test.Id);
     }
 
@@ -55,7 +55,7 @@ internal sealed class ProtocolCorpusTests
         AssertEx.Equal(CommandFailureData.MaximumPayloadBytes, manifest.Limits.FailureDataPayloadBytes);
         AssertEx.Equal(CommandFailureData.MaximumPayloadDepth, manifest.Limits.FailureDataPayloadDepth);
         AssertEx.Equal(17, manifest.Fixtures.Single(static fixture => fixture.Id == "protocol.wire-inputs").CaseCount);
-        AssertEx.Equal(32, manifest.Fixtures.Single(static fixture => fixture.Id == "protocol.invalid-structures").CaseCount);
+        AssertEx.Equal(31, manifest.Fixtures.Single(static fixture => fixture.Id == "protocol.invalid-structures").CaseCount);
         return ValueTask.CompletedTask;
     }
 
@@ -159,15 +159,25 @@ internal sealed class ProtocolCorpusTests
                     new CommandFault("RCLI4000", "The clone was cancelled."),
                     failureData: CommandFailureData.Create("sample.clone-recovery/1", new RecoveryReport("/tmp/Project copy", "feature/tmp/fix", true),
                         RecoveryJsonContext.Default.RecoveryReport)), CorpusJsonContext.Default.ExportPayload),
+            // A success that selected an informational exit code, such as Windows Installer's 3010.
+            "informational-success" => CommandJsonEnvelopeWriter.Serialize(
+                CommandResponse.FromOutcome(
+                    "req-install-0007",
+                    "install",
+                    3010,
+                    "sample.export-result/1",
+                    CommandOutcome.Success(new ExportPayload(42, "result.json")).WithExitCode(3010)),
+                CorpusJsonContext.Default.ExportPayload),
             _ => throw new InvalidOperationException($"Unknown protocol example '{name}'."),
         };
 
         AssertEx.SequenceEqual(expected, actual, $"Canonical example '{name}' differs from stable writer output.");
         CommandResponse<ExportPayload> roundTrip = CommandJsonEnvelopeReader.Read(
             expected,
-            name == "success" ? "sample.export-result/1" : "sample.unused/1",
+            name is "success" or "informational-success" ? "sample.export-result/1" : "sample.unused/1",
             CorpusJsonContext.Default.ExportPayload);
-        AssertEx.Equal(name == "success", roundTrip.Succeeded);
+        AssertEx.Equal(name is "success" or "informational-success", roundTrip.Succeeded);
+        AssertEx.Equal(name == "informational-success" ? 3010 : name == "success" ? 0 : roundTrip.ExitCode, roundTrip.ExitCode);
         return ValueTask.CompletedTask;
     }
 

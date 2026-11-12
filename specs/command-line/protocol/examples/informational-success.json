@@ -1,0 +1,1 @@
+{"protocol":"runic.commandline/1","requestId":"req-install-0007","command":"install","success":true,"exitCode":3010,"payloadType":"sample.export-result/1","payload":{"written":42,"outputPath":"result.json"},"fault":null,"diagnostics":[]}
