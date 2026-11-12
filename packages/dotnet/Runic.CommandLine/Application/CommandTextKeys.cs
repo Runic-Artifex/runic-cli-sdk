@@ -175,7 +175,10 @@ public static class CommandTextKeys
     public const string DiagnosticInvalidEnvironmentValue = "diagnostics.invalid-environment-value";
     /// <summary>A value outside the declared choices; arguments: <c>parameter</c>, <c>choices</c>.</summary>
     public const string DiagnosticInvalidChoice = "diagnostics.invalid-choice";
-    /// <summary>A value outside sensitive or very long choices that are not listed; argument: <c>parameter</c>.</summary>
+    /// <summary>
+    /// A value outside sensitive or very long choices that are not listed; arguments: <c>parameter</c>, <c>help</c>, the
+    /// help request that lists them in the catalog's dialect (<c>--help</c>, or <c>/?</c> under the Windows slash dialect).
+    /// </summary>
     public const string DiagnosticInvalidChoiceHidden = "diagnostics.invalid-choice-hidden";
     /// <summary>A value that is not a whole number; argument: <c>parameter</c>.</summary>
     public const string DiagnosticInvalidInteger = "diagnostics.invalid-integer";
@@ -255,7 +258,7 @@ public static class CommandTextKeys
         new(DiagnosticResponseFileCycle, "file"),
         new(DiagnosticInvalidEnvironmentValue, "option", "variable"),
         new(DiagnosticInvalidChoice, "parameter", "choices"),
-        new(DiagnosticInvalidChoiceHidden, "parameter"),
+        new(DiagnosticInvalidChoiceHidden, "parameter", "help"),
         new(DiagnosticInvalidInteger, "parameter"),
         new(DiagnosticInvalidNumber, "parameter"),
         new(DiagnosticInvalidGuid, "parameter"),

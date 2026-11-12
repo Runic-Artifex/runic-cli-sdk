@@ -29,7 +29,8 @@ internal sealed class SyntaxDialectTests
             public static string Alias([Option("-R")] string? rename = null) => "alias:" + rename;
 
             [Command("selftest", Description = "Run the self test.")]
-            public static string Selftest([Option("--count", Minimum = 1)] int count = 1) => "selftest:" + count;
+            public static string Selftest([Option("--count", Minimum = 1)] int count = 1,
+                [Option("--token", Choices = ["alpha", "beta"], Sensitive = true)] string? token = null) => "selftest:" + count;
         }
         """;
 
@@ -169,6 +170,18 @@ internal sealed class SyntaxDialectTests
 
             ParseOutcome conflict = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["/selftest", "/json", "/format", "human"], ParseSettings.Default);
             AssertEx.SequenceEqual(["/format", "/json"], conflict.Diagnostics.Single().Arguments);
+
+            // Choices that are not listed are named by the dialect's help request.
+            string hidden = (await RunApp(catalog, CommandExitCodes.Usage, "/selftest", "/token", "nope")).Error;
+            AssertEx.True(hidden.StartsWith("/token must be one of the choices shown in /?.\n", StringComparison.Ordinal), hidden);
+            CommandDiagnostic choice = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["/selftest", "/token=nope"], ParseSettings.Default).Diagnostics.Single();
+            AssertEx.SequenceEqual(["/token", "/?"], choice.Arguments);
+            AssertEx.Equal(CommandTextKeys.DiagnosticInvalidChoiceHidden, choice.MessageKey);
+
+            // -h is help, which the dialect spells /?.
+            CommandDiagnostic option = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["/selftest", "-j"], ParseSettings.Default).Diagnostics.Single();
+            AssertEx.SequenceEqual(["-j", "/?"], option.Arguments);
+            AssertEx.Equal("The option '-j' is not recognized. Did you mean '/?'?", option.Message);
         });
     }
 
@@ -204,6 +217,9 @@ internal sealed class SyntaxDialectTests
             AssertEx.True((await RunApp(catalog, 0, "policy", "--help")).Out.Contains("  resetAll", StringComparison.Ordinal));
             AssertEx.Equal("reset-all", await ArgumentTests.Run(catalog, 0, "policy", "resetAll"));
             await ArgumentTests.Run(catalog, CommandExitCodes.Usage, "policy", "resetall");
+            CommandDiagnostic choice = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["selftest", "--token", "nope"], ParseSettings.Default).Diagnostics.Single();
+            AssertEx.SequenceEqual(["--token", "--help"], choice.Arguments);
+            AssertEx.Equal("--token must be one of the choices shown in --help.", choice.Message);
         });
 
         // Case-insensitive matching without the slash dialect.

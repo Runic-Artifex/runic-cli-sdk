@@ -26,6 +26,7 @@ public sealed class CommandDescriptor
     {
         Name = name;
         Spelling = spelling ?? name;
+        Syntax = syntax;
         DeclarationRank = declarationRank;
         comparer ??= StringComparer.Ordinal;
         Aliases = aliases;
@@ -80,6 +81,9 @@ public sealed class CommandDescriptor
     /// in <see cref="ParsedInvocation.Path"/>, JSON output and diagnostics.
     /// </summary>
     public string Spelling { get; }
+
+    // The catalog's dialect, so diagnostics outside the parser spell framework requests as the user does.
+    internal CommandSyntaxDialect Syntax { get; }
 
     // The position among its siblings when help lists commands in declaration order.
     internal int DeclarationRank { get; }

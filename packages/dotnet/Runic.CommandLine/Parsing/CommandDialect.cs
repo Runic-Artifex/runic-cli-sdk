@@ -44,7 +44,9 @@ internal static class CommandDialect
         return text.ToString();
     }
 
-    internal static string Help(CommandCatalog catalog) => IsSlash(catalog) ? "/?" : "--help";
+    internal static string Help(CommandCatalog catalog) => Help(catalog.Syntax);
+
+    internal static string Help(CommandSyntaxDialect syntax) => syntax == CommandSyntaxDialect.WindowsSlash ? "/?" : "--help";
 
     internal static string HelpTerm(CommandCatalog catalog) => IsSlash(catalog) ? "/?, /help" : "-h, --help";
 
@@ -255,7 +257,8 @@ internal static class CommandDialect
                 for (int index = 0; index < arguments.Length; index++) arguments[index] = Option(catalog, arguments[index]);
                 break;
             case "unknown-option":
-                if (suggestion is not null) suggestion = Option(catalog, suggestion);
+                // -h is help, which the dialect writes /?; /h would name an option.
+                if (suggestion is not null) suggestion = suggestion == "-h" ? Help(catalog) : Option(catalog, suggestion);
                 break;
             case "unknown-command":
                 // The former output selector is suggested as an option; any other suggestion is a command, matched
@@ -268,8 +271,10 @@ internal static class CommandDialect
                 return diagnostic;
         }
 
-        string message = PortableCommandSyntaxAdapter.MessageText(diagnostic.Kind, arguments, suggestion);
-        string? messageKey = diagnostic.Kind == "environment-value-source" ? null : CommandValueDiagnostics.MessageKey(diagnostic.Kind, arguments);
+        // The help argument of hidden choices is already in the dialect's spelling.
+        bool hiddenChoices = string.Equals(diagnostic.MessageKey, CommandTextKeys.DiagnosticInvalidChoiceHidden, StringComparison.Ordinal);
+        string message = PortableCommandSyntaxAdapter.MessageText(diagnostic.Kind, arguments, suggestion, hiddenChoices);
+        string? messageKey = CommandValueDiagnostics.MessageKey(hiddenChoices);
         if (suggestion is not null)
         {
             arguments = [.. arguments, suggestion];

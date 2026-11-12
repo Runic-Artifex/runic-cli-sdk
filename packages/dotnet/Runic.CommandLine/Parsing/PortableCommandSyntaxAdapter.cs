@@ -472,8 +472,9 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             foreach (CommandOptionDescriptor candidate in resolved.Command.Options) if (candidate.Id == binding.Id) descriptor = candidate;
             string[]? canonical = null;
             if (descriptor is not null && !TryCanonicalizeChoices(binding.Values, descriptor.Help, out canonical))
-                return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path, ChoiceArguments(descriptor.Name, descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification(),
-                    environmentVariable: environmentOptionIds.Contains(descriptor.Id) ? descriptor.Help.EnvironmentVariable : null);
+                return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path, ChoiceArguments(catalog, descriptor.Name, descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification(),
+                    environmentVariable: environmentOptionIds.Contains(descriptor.Id) ? descriptor.Help.EnvironmentVariable : null,
+                    hiddenChoices: HidesChoices(descriptor.Help, descriptor.IsSensitive));
             if (canonical is not null)
             {
                 binding.Values.Clear();
@@ -492,7 +493,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 if (descriptor.Id != binding.Id) continue;
                 if (!TryCanonicalizeChoices(binding.Values, descriptor.Help, out string[]? canonical))
                     return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path,
-                        ChoiceArguments("<" + (descriptor.Help.ValueName ?? descriptor.Name) + ">", descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification());
+                        ChoiceArguments(catalog, "<" + (descriptor.Help.ValueName ?? descriptor.Name) + ">", descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification(),
+                        hiddenChoices: HidesChoices(descriptor.Help, descriptor.IsSensitive));
                 if (canonical is not null) canonicalArguments[argumentIndex] = new CommandValueBinding(binding.Id, canonical);
             }
         }
@@ -534,8 +536,11 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         return null;
     }
 
-    private static string[] ChoiceArguments(string name, CommandHelp help, bool sensitive) =>
-        CommandValueDiagnostics.Choices(help.Choices, sensitive) is { } choices ? [name, choices] : [name];
+    // Choices that are not listed are named by the help request that shows them: --help, or /? under the slash dialect.
+    private static bool HidesChoices(CommandHelp help, bool sensitive) => CommandValueDiagnostics.Choices(help.Choices, sensitive) is null;
+
+    private static string[] ChoiceArguments(CommandCatalog catalog, string name, CommandHelp help, bool sensitive) =>
+        CommandValueDiagnostics.Choices(help.Choices, sensitive) is { } choices ? [name, choices] : [name, CommandDialect.Help(catalog)];
 
     // Choices match case-insensitively, so handlers receive the declared spelling rather than the user's casing.
     // An exact match wins when declared choices differ only by case. canonical is null when nothing changes.
@@ -1171,11 +1176,11 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         IReadOnlyList<string>? arguments = null,
         CommandOutputClassification? outputClassification = null,
         string? suggestion = null,
-        string? environmentVariable = null)
+        string? environmentVariable = null,
+        bool hiddenChoices = false)
     {
-        string message = (FormattedMessage(kind, arguments) ?? MessageFor(kind)) +
-            (suggestion is not null ? " Did you mean '" + suggestion + "'?" : "");
-        string? messageKey = CommandValueDiagnostics.MessageKey(kind, arguments ?? []);
+        string message = MessageText(kind, arguments ?? [], suggestion, hiddenChoices);
+        string? messageKey = CommandValueDiagnostics.MessageKey(hiddenChoices);
         // A suggestion is a trailing argument with its own key, so a translation can still offer it.
         if (suggestion is not null)
         {
@@ -1225,8 +1230,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     // Messages name their subject in the sentence: a declared option or argument as declared, a token the user
     // typed in quotes. A kind without its argument falls back to MessageFor.
     // The English message of a parse diagnostic, followed by its suggestion.
-    internal static string MessageText(string kind, IReadOnlyList<string> arguments, string? suggestion) =>
-        (kind == "environment-value-source" ? CommandValueDiagnostics.Format(kind, arguments) : FormattedMessage(kind, arguments) ?? MessageFor(kind)) +
+    internal static string MessageText(string kind, IReadOnlyList<string> arguments, string? suggestion, bool hiddenChoices = false) =>
+        (kind == "environment-value-source" || hiddenChoices ? CommandValueDiagnostics.Format(kind, arguments, hiddenChoices) : FormattedMessage(kind, arguments) ?? MessageFor(kind)) +
         (suggestion is not null ? " Did you mean '" + suggestion + "'?" : "");
 
     private static string? FormattedMessage(string kind, IReadOnlyList<string>? arguments) => (kind, arguments) switch
@@ -1272,7 +1277,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     private static string MessageFor(string kind) => kind switch
     {
         "invalid-environment-value" => "The environment fallback is not valid for this option.",
-        "invalid-choice" => "The value must be one of the choices shown in --help.",
+        "invalid-choice" => "The value is not one of the allowed choices.",
         "unknown-option" => "The option is not recognized.",
         "unknown-command" => "No command was given.",
         "missing-option-value" => "An option requires a value.",

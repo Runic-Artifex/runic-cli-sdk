@@ -426,7 +426,7 @@ internal sealed class ErrorCauseTests
             AssertEx.Equal("--token must be one of the choices shown in --help.\n" + Hint("cause-values"), human);
             JsonElement diagnostic = json.RootElement.GetProperty("diagnostics")[0];
             AssertEx.Equal("diagnostics.invalid-choice-hidden", diagnostic.GetProperty("messageKey").GetString());
-            AssertEx.SequenceEqual(["--token"], diagnostic.GetProperty("arguments").EnumerateArray().Select(static item => item.GetString()!));
+            AssertEx.SequenceEqual(["--token", "--help"], diagnostic.GetProperty("arguments").EnumerateArray().Select(static item => item.GetString()!));
             AssertEx.True(!json.RootElement.GetRawText().Contains("alpha", StringComparison.Ordinal));
         }
     }

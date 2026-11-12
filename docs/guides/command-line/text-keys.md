@@ -110,7 +110,7 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `diagnostics.response-file-cycle` | `file` | The response file '{file}' includes itself. |
 | `diagnostics.invalid-environment-value` | `option`, `variable` | {variable} must be true/false, yes/no or 1/0 for {option}. |
 | `diagnostics.invalid-choice` | `parameter`, `choices` | {parameter} must be one of: {choices}. |
-| `diagnostics.invalid-choice-hidden` | `parameter` | {parameter} must be one of the choices shown in --help. |
+| `diagnostics.invalid-choice-hidden` | `parameter`, `help` | {parameter} must be one of the choices shown in {help}. |
 | `diagnostics.invalid-integer` | `parameter` | {parameter} requires a whole number. |
 | `diagnostics.invalid-number` | `parameter` | {parameter} requires a number. |
 | `diagnostics.invalid-guid` | `parameter` | {parameter} requires a GUID such as 0f8fad5b-d9cb-469f-a165-70867728950e. |
