@@ -206,6 +206,13 @@ internal sealed class LocalizationTests
                 .Select(cell => cell.Trim()).Where(cell => cell.StartsWith('`')).Select(cell => cell[1..cell.IndexOf('`', 1)]))))
             .ToArray();
         AssertEx.SequenceEqual(CommandTextKeys.All.Select(key => key.Key + ":" + string.Join(",", key.Arguments)), rows.Select(row => row.Key + ":" + row.Arguments));
+        // Every key names the release that introduced it.
+        foreach (string line in File.ReadAllLines(Path.Combine(root, "docs", "guides", "command-line", "text-keys.md")).Where(line => line.StartsWith("| `", StringComparison.Ordinal)))
+        {
+            string[] cells = line.Split('|');
+            AssertEx.True(cells.Length == 6 && System.Text.RegularExpressions.Regex.IsMatch(cells[4].Trim(), @"^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$"),
+                "The key row needs a Since version: " + line);
+        }
         return ValueTask.CompletedTask;
     }
     [Test, DisplayName("localization/suggestions-are-translatable-arguments")]

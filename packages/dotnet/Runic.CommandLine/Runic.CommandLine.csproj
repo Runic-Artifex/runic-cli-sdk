@@ -27,5 +27,52 @@
           Pack="true"
           PackagePath="analyzers/dotnet/cs" />
   </ItemGroup>
+
+  <!-- Framework text catalog. translations/ holds the sources of the runic-command-line catalog (en, de), which the
+       Runic.Translations.CommandLine adapter compiles from this package, and text-keys.json, written from
+       CommandTextKeys.All after each build. The package carries them as plain data under translations/: no contentFiles
+       and no props, so nothing flows into a consuming project, and this package does not reference Runic.Translations.
+       tests/dotnet/Runic.CommandLine.TextCatalog.Tests checks that every key has en and de text. -->
+  <ItemGroup>
+    <None Update="translations/runic.json;translations/*.rmf2" Pack="true" PackagePath="translations/%(Filename)%(Extension)" />
+    <!-- Keys the built-in catalog deliberately leaves to the framework's own text; text-keys.json gives them
+         "message": null. RCLI4001 shows its diagnostics.prompt-* text, which a catalog message would replace. -->
+    <RunicTextKeyWithoutCatalogMessage Include="faults.RCLI4001" />
+    <ProjectReference Include="../../../eng/tools/text-keys/TextKeysWriter.csproj"
+                      PrivateAssets="all"
+                      ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot;PublishTrimmed;IlcTreatWarningsAsErrors" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_RunicPackTextKeys</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="_RunicTextKeysPaths">
+    <PropertyGroup>
+      <RunicTextKeysFile>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)text-keys.json'))</RunicTextKeysFile>
+      <_RunicTextKeysWriter>$(RunicCommandLineRoot)eng/tools/text-keys/bin/$(Configuration)/$(RunicTargetFramework)/Runic.CommandLine.TextKeysWriter.dll</_RunicTextKeysWriter>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="_RunicWriteTextKeys"
+          AfterTargets="CopyFilesToOutputDirectory"
+          DependsOnTargets="_RunicTextKeysPaths"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <!-- Not incremental: a pack passes PackageVersion without recompiling, and the file records it. It takes ~0.1 s. -->
+    <Exec Command="&quot;$([MSBuild]::ValueOrDefault('$(DOTNET_HOST_PATH)', 'dotnet'))&quot; &quot;$(_RunicTextKeysWriter)&quot; &quot;@(IntermediateAssembly->'%(FullPath)')&quot; &quot;$(RunicTextKeysFile)&quot; &quot;$(PackageVersion)&quot; @(RunicTextKeyWithoutCatalogMessage->'&quot;%(Identity)&quot;', ' ')" />
+    <ItemGroup>
+      <FileWrites Include="$(RunicTextKeysFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- The path of the generated text-keys.json, for the catalog coverage test. -->
+  <Target Name="GetRunicTextKeysFile" DependsOnTargets="_RunicTextKeysPaths" Returns="$(RunicTextKeysFile)" />
+
+  <Target Name="_RunicPackTextKeys" DependsOnTargets="_RunicTextKeysPaths">
+    <Error Condition="!Exists('$(RunicTextKeysFile)')" Text="$(RunicTextKeysFile) is missing; build Runic.CommandLine before packing it." />
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(RunicTextKeysFile)" PackagePath="translations/text-keys.json" />
+    </ItemGroup>
+  </Target>
   <Import Project="../../../eng/build/command-line.targets" />
 </Project>

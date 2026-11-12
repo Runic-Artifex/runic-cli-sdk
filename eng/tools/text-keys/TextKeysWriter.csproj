@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../build/command-line.props" />
+  <PropertyGroup>
+    <!-- Writes translations/text-keys.json from CommandTextKeys.All of a built Runic.CommandLine assembly.
+         Runic.CommandLine runs it after each build (see its project file) and packs the result. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(RunicTargetFramework)</TargetFramework>
+    <AssemblyName>Runic.CommandLine.TextKeysWriter</AssemblyName>
+    <RootNamespace>Runic.CommandLine.TextKeysWriter</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <Import Project="../../build/command-line.targets" />
+</Project>

@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../../eng/build/command-line.props" />
+  <PropertyGroup>
+    <!-- A TUnit test application on Microsoft.Testing.Platform: run it with dotnet run or the built executable.
+         It compiles the runic-command-line catalog sources of Runic.CommandLine with the last released
+         Runic.Translations.Build and checks them against CommandTextKeys.All and the generated text-keys.json. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Runic.CommandLine.TextCatalog.Tests</AssemblyName>
+    <RootNamespace>Runic.CommandLine.TextCatalog.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <TUnitImplicitUsings>false</TUnitImplicitUsings>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit.Core" />
+    <PackageReference Include="TUnit.Engine" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <!-- Test-only: Runic.CommandLine itself never references Runic.Translations. -->
+    <PackageReference Include="Runic.Translations" />
+    <PackageReference Include="Runic.Translations.Build" PrivateAssets="all" />
+    <ProjectReference Include="../../../packages/dotnet/Runic.CommandLine/Runic.CommandLine.csproj" />
+    <ProjectReference Include="../../../packages/dotnet/Runic.CommandLine.Testing/Runic.CommandLine.Testing.csproj" />
+    <ProjectReference Include="../../../packages/dotnet/Runic.CommandLine.Generators/Runic.CommandLine.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <!-- The catalog the adapter compiles, from the Runic.CommandLine project. -->
+    <RunicTranslationProject Include="../../../packages/dotnet/Runic.CommandLine/translations/runic.json" />
+  </ItemGroup>
+
+  <!-- The sources and the text-keys.json that Runic.CommandLine packs, beside the test executable. -->
+  <ItemGroup>
+    <None Include="../../../packages/dotnet/Runic.CommandLine/translations/runic.json;../../../packages/dotnet/Runic.CommandLine/translations/*.rmf2"
+          Link="catalog/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="_CopyRunicTextKeys" AfterTargets="ResolveProjectReferences" BeforeTargets="AssignTargetPaths">
+    <MSBuild Projects="../../../packages/dotnet/Runic.CommandLine/Runic.CommandLine.csproj" Targets="GetRunicTextKeysFile">
+      <Output TaskParameter="TargetOutputs" PropertyName="_RunicTextKeysFile" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="$(_RunicTextKeysFile)" Link="catalog/text-keys.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+  <Import Project="../../../eng/build/command-line.targets" />
+</Project>

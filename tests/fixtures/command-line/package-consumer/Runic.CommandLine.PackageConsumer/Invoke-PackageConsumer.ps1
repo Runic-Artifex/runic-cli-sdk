@@ -57,6 +57,31 @@ foreach ($package in @('Runic.CommandLine', 'Runic.CommandLine.Processes', 'Runi
         throw "The packed $package README does not link to the diagnostics catalog at v$PackageVersion."
     }
 }
+# Runic.CommandLine carries the runic-command-line catalog sources and text-keys.json as plain data under
+# translations/, for Runic.Translations.CommandLine; nothing there is contentFiles or build logic, so nothing flows
+# into a consuming project. text-keys.json lists the keys of the documented key table, in its order.
+$archive = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $feed "Runic.CommandLine.$PackageVersion.nupkg"))
+try {
+    $entries = @($archive.Entries | ForEach-Object { $_.FullName })
+    foreach ($name in @('translations/runic.json', 'translations/en.rmf2', 'translations/de.rmf2', 'translations/text-keys.json')) {
+        if ($entries -notcontains $name) { throw "Candidate package Runic.CommandLine has no $name." }
+    }
+    $flowing = @($entries | Where-Object { $_.StartsWith('contentFiles/') -or $_.StartsWith('content/') -or $_ -match '^build(Transitive|MultiTargeting)?/.*translations' })
+    if ($flowing.Count -gt 0) { throw "Candidate package Runic.CommandLine passes catalog files to consumers: $($flowing -join ', ')." }
+    $reader = [System.IO.StreamReader]::new($archive.GetEntry('translations/text-keys.json').Open())
+    try { $textKeys = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+} finally {
+    $archive.Dispose()
+}
+if ($textKeys.package -ne 'Runic.CommandLine' -or $textKeys.catalog -ne 'runic-command-line' -or $textKeys.version.Split('+')[0] -ne $PackageVersion) {
+    throw "The packed text-keys.json names $($textKeys.package) $($textKeys.version), catalog $($textKeys.catalog)."
+}
+$documentedKeys = @(Get-Content -LiteralPath (Join-Path $repositoryRoot 'docs/guides/command-line/text-keys.md') |
+    Where-Object { $_.StartsWith('| `') } | ForEach-Object { $_.Split('|')[1].Trim().Trim('`') })
+$packedKeys = @($textKeys.keys | ForEach-Object { $_.key })
+if (($packedKeys -join "`n") -ne ($documentedKeys -join "`n")) {
+    throw "The packed text-keys.json lists $($packedKeys.Count) keys; docs/guides/command-line/text-keys.md documents $($documentedKeys.Count)."
+}
 $runRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
     'runic-cli-consumer-' + [Guid]::NewGuid().ToString('N'))
 $consumerDirectory = Join-Path $runRoot 'consumer'

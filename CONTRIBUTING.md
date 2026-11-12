@@ -6,7 +6,7 @@ Build and verify through the pinned environment described in [README.md](README.
 
 ## Tests
 
-The managed suites under `tests/dotnet` (Contracts, Hosting, Processes and the main `Runic.CommandLine.Tests`) use
+The managed suites under `tests/dotnet` (Contracts, Hosting, Processes, TextCatalog and the main `Runic.CommandLine.Tests`) use
 [TUnit](https://tunit.dev) on Microsoft.Testing.Platform (MTP). They are executables run with
 `dotnet run --project <suite> --configuration Release`. A new suite of independent cases follows the same pattern:
 
@@ -34,7 +34,7 @@ The managed suites under `tests/dotnet` (Contracts, Hosting, Processes and the m
   all selected cases pass, 2 when one fails and 8 when none ran.
 - **`dotnet test`.** `global.json` opts in to the Microsoft.Testing.Platform mode of `dotnet test` (`"test": { "runner":
   "Microsoft.Testing.Platform" }`), so `dotnet test -c Release` in the repository root builds the solution and runs the
-  four managed suites; the probe programs and the example suites are not test applications and are skipped. Select one
+  five managed suites; the probe programs and the example suites are not test applications and are skipped. Select one
   suite with `--project <suite>`. In this mode the test application options follow directly, without `--`, for
   example `dotnet test --project tests/dotnet/Runic.CommandLine.Tests -c Release --treenode-filter
   "/*/*/*/*[CaseId=grammar.option.long-flag]"`. Without `--results-directory` the reports go to `TestResults` in the
@@ -46,7 +46,7 @@ The managed suites under `tests/dotnet` (Contracts, Hosting, Processes and the m
   `--results-directory`, TUnit writes its HTML and JSON reports to `bin/<configuration>/net10.0/TestResults`.
 - **Parallelism.** TUnit runs cases in parallel, and in the directory of the test executable. Before you allow
   parallelism for a suite, make sure no case shares mutable static state, the current directory, environment variables,
-  ports or files with another case. The Contracts, Hosting and main suites limit themselves to one case per processor
+  ports or files with another case. The Contracts, Hosting, TextCatalog and main suites limit themselves to one case per processor
   with `ParallelLimiter<ProcessorCountParallelLimit>` in `AssemblyInfo.cs`. A case or class that cannot run alongside
   others is `[NotInParallel]`: the Hosting case that sets `HOST_VALUE`, the main suite's signal, prompt terminal and
   native shell completion cases, which start processes with fixed deadlines, and its two cases that count calls in
@@ -56,6 +56,15 @@ The managed suites under `tests/dotnet` (Contracts, Hosting, Processes and the m
   a whole. Pass `--maximum-parallel-tests 1` to run cases one at a time while debugging.
 - **IDE.** Visual Studio, Rider and the C# Dev Kit discover MTP test projects when their Microsoft.Testing.Platform
   support is enabled. See [running TUnit tests](https://tunit.dev/docs/getting-started/running-your-tests/).
+
+### Framework text
+
+Every key in `CommandTextKeys.All` needs English and German text in the `runic-command-line` catalog sources,
+`packages/dotnet/Runic.CommandLine/translations/en.rmf2` and `de.rmf2`, and a row in
+`docs/guides/command-line/text-keys.md`. The TextCatalog suite fails otherwise, and when a message's inputs are not
+its key's arguments or its English differs from the framework's. A change that adds a key or changes its arguments or
+English text updates all three in the same pull request; see
+[Adding or changing a key](docs/guides/command-line/text-keys.md#adding-or-changing-a-key).
 
 ### Probe programs
 

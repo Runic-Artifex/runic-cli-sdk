@@ -6,11 +6,15 @@
     <Project Path="packages/dotnet/Runic.CommandLine.Spectre/Runic.CommandLine.Spectre.csproj" />
     <Project Path="packages/dotnet/Runic.CommandLine.Testing/Runic.CommandLine.Testing.csproj" />
   </Folder>
+  <Folder Name="/eng/">
+    <Project Path="eng/tools/text-keys/TextKeysWriter.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/dotnet/Runic.CommandLine.Contracts.Tests/Runic.CommandLine.Contracts.Tests.csproj" />
     <Project Path="tests/dotnet/Runic.CommandLine.Hosting.Tests/Runic.CommandLine.Hosting.Tests.csproj" />
     <Project Path="tests/dotnet/Runic.CommandLine.Processes.Tests/Runic.CommandLine.Processes.Tests.csproj" />
     <Project Path="tests/dotnet/Runic.CommandLine.Tests/Runic.CommandLine.Tests.csproj" />
+    <Project Path="tests/dotnet/Runic.CommandLine.TextCatalog.Tests/Runic.CommandLine.TextCatalog.Tests.csproj" />
     <Project Path="tests/native/Runic.CommandLine.AotSmoke/Runic.CommandLine.AotSmoke.csproj" />
     <Project Path="examples/command-line/Tests/HelloCli.ExampleTests.csproj" />
     <Project Path="examples/command-line/wpf/Tests/ReportApp.Tests.csproj" />
