@@ -276,6 +276,10 @@ public sealed class ParseOutcome
         return new(ParseOutcomeKind.Error, null, null, new[] { diagnostic }, outputClassification);
     }
 
+    // The same error with its diagnostics rewritten, such as into a dialect's spellings.
+    internal ParseOutcome WithDiagnostics(IReadOnlyList<CommandDiagnostic> diagnostics) =>
+        new(Kind, Invocation, HelpRequest, diagnostics, OutputClassification);
+
     // An error followed by informational notes, such as the environment variable a value came from.
     internal static ParseOutcome FromErrors(CommandDiagnostic[] diagnostics, CommandOutputClassification outputClassification)
     {

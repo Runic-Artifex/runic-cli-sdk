@@ -37,7 +37,10 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 - A usage error in human output ends with the usage line of its command, built
   from the `help.usage`, `help.command-placeholder` and
   `help.options-placeholder` keys as in help, and the `hints.usage` line, whose
-  `command` argument is the help command line, such as `tool copy --help`.
+  `command` argument is the help command line, such as `tool copy --help`, or
+  `tool /copy /?` in a catalog that declares the Windows slash dialect. Help,
+  hints and diagnostics write commands and options in the catalog's dialect
+  through their arguments, so the dialect adds no keys.
 
 ## Keys
 
@@ -108,7 +111,7 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
 | `diagnostics.response-file-cycle` | `file` | The response file '{file}' includes itself. |
 | `diagnostics.invalid-environment-value` | `option`, `variable` | {variable} must be true/false, yes/no or 1/0 for {option}. |
 | `diagnostics.invalid-choice` | `parameter`, `choices` | {parameter} must be one of: {choices}. |
-| `diagnostics.invalid-choice-hidden` | `parameter` | {parameter} must be one of the choices shown in --help. |
+| `diagnostics.invalid-choice-hidden` | `parameter`, `help` | {parameter} must be one of the choices shown in {help}. |
 | `diagnostics.invalid-integer` | `parameter` | {parameter} requires a whole number. |
 | `diagnostics.invalid-number` | `parameter` | {parameter} requires a number. |
 | `diagnostics.invalid-guid` | `parameter` | {parameter} requires a GUID such as 0f8fad5b-d9cb-469f-a165-70867728950e. |

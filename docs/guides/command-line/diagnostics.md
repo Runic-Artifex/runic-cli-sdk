@@ -8,7 +8,7 @@ tag of the package you use, so the page always matches your version.
 
 | Codes | Reported by | Where it appears |
 |---|---|---|
-| `RCLI0002`–`RCLI0026` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
+| `RCLI0002`–`RCLI0027` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
 | `RCLI1001`–`RCLI1021` | Parser and response files | Usage diagnostics (exit code 2) |
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
@@ -102,6 +102,9 @@ lowercase letters, digits and hyphens. `help`, `version`, `output` and `root`
 are reserved: the JSON envelope's `command` value is `root` for root-level
 responses and `help` or `version` for framework responses (see the
 [protocol](../../../specs/command-line/protocol/README.md#reserved-command-values)).
+A display spelling (`CommandBuilder.Spelling`, `[Command(Spelling = ...)]`)
+must start with an ASCII letter and contain only ASCII letters, digits and
+hyphens, and may not be one of the reserved words in any case.
 
 ### RCLI0003
 
@@ -110,8 +113,10 @@ either omitted (`null`) or a nonempty localization key.
 
 ### RCLI0004
 
-Duplicate command spelling. A command name or alias is registered more than
-once in a command group, or in two catalogs passed to `CommandCatalog.Combine`.
+Duplicate command spelling. A command name, alias or display spelling is
+registered more than once in a command group, or in two catalogs passed to
+`CommandCatalog.Combine`. Under `CommandCatalogBuilder.CaseInsensitive`,
+spellings that differ only by case, such as `status` and `STATUS`, are the same.
 Rename one of the commands or remove the alias.
 
 ### RCLI0005
@@ -129,12 +134,19 @@ its own ID.
 
 Invalid or reserved option spelling. Long options are `--name`, short options
 are one ASCII letter such as `-v`, and slash aliases such as `/verbose` are
-registered explicitly. `--help`, `-h` and `--version` are reserved.
+registered explicitly. `--help`, `-h` and `--version` are reserved, under
+`CommandCatalogBuilder.CaseInsensitive` in any case (`-H`), and under the
+`WindowsSlash` syntax so are `/help` and `/version`, including options such as
+`--help` that the dialect writes that way.
 
 ### RCLI0008
 
 Duplicate option spelling. One spelling, such as `-v`, names two options of a
-command, possibly through an alias or a global option. Remove one of them.
+command, possibly through an alias or a global option. Under the `WindowsSlash`
+syntax two spellings that the dialect writes alike conflict too: `--n` and `-n`
+are both `/n`, and `--verbose` and `/verbose` are both `/verbose`. Under
+`CommandCatalogBuilder.CaseInsensitive`, `-n` and `-N` conflict. Remove one of
+them.
 
 ### RCLI0009
 
@@ -189,7 +201,7 @@ Invalid result payload identity. A result codec's `PayloadType` must be
 Unknown default command. The default command must name a registered
 single-segment root command. The generator reports this as `RCLI9040`. A root
 command selected with `CommandCatalogBuilder.RootCommand` or `[RootCommand]` has
-no spelling, so it also cannot have aliases or subcommands.
+no spelling, so it also cannot have aliases, a display spelling or subcommands.
 
 ### RCLI0019
 
@@ -248,7 +260,11 @@ an alias of a command option, or catalogs combined with
 `CommandCatalog.Combine` declare different aliases or the same alias with
 different output shapes (`JsonOutputShape`). The alias is recognized
 before any command option, so remove the option, or keep it and do not declare
-the alias.
+the alias. Under the `WindowsSlash` syntax an option `/json` conflicts with the
+alias `--json`, because the dialect writes both as `/json`. A slash alias such
+as `/json` is recognized only by the `WindowsSlash` syntax, so a catalog that
+declares one without `Syntax(CommandSyntaxDialect.WindowsSlash)` reports this
+code too.
 
 ### RCLI0025
 
@@ -270,6 +286,16 @@ name or different hidden aliases). The selector is `--format` unless
 option, so rename the option, or declare another selector, for example
 `OutputSelector("--output")`. A catalog that declares no selector takes the
 selector of the catalogs it is combined with.
+
+### RCLI0027
+
+Different command-line grammars. Catalogs combined with
+`CommandCatalog.Combine` declare a different syntax dialect
+(`CommandCatalogBuilder.Syntax`), case sensitivity
+(`CommandCatalogBuilder.CaseInsensitive`) or help order
+(`CommandCatalogBuilder.HelpOrder`). Each catalog's commands match by the rules
+it was built with, so declare the same ones on every part, for example in a
+shared configuration callback.
 
 ## Parsing
 
@@ -596,8 +622,9 @@ Invalid generated command metadata. The message names the invalid item: a
 parameter ID, option spelling or alias (including the reserved `--help`, `-h`
 and `--version`), duplicate IDs or spellings within a command, a numeric range
 or a default outside it, a result payload type, a second `[TrailingArguments]`
-parameter of the same command, or a description key that is empty, longer than
-128 characters or contains control characters.
+parameter of the same command, a command display spelling (`Spelling`) that
+`CommandBuilder.Spelling` would reject, or a description key that is empty,
+longer than 128 characters or contains control characters.
 
 ### RCLI9020
 

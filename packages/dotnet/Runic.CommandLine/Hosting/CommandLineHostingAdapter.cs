@@ -35,7 +35,7 @@ public sealed class CommandLineHostingAdapter
 
     /// <summary>
     /// Initializes the bridge from the application's <see cref="CommandApp"/>, so the hosted path reuses its
-    /// catalog, scope factory, exit policy, observers, outcome sink and console, and its presentation
+    /// catalog, syntax adapter, scope factory, exit policy, observers, outcome sink and console, and its presentation
     /// (<see cref="CommandApp.Name"/>, <see cref="CommandApp.Version"/>, <see cref="CommandApp.TextResolver"/>
     /// and help settings). The app's process signal handling and environment reads are not used: the host
     /// supplies cancellation and captured launch input.
@@ -45,7 +45,7 @@ public sealed class CommandLineHostingAdapter
         ArgumentNullException.ThrowIfNull(app);
         _app = app;
         _catalog = app.Catalog;
-        _syntaxAdapter = PortableCommandSyntaxAdapter.Instance;
+        _syntaxAdapter = app.SyntaxAdapter ?? PortableCommandSyntaxAdapter.Instance;
         Presentation = app.CreatePresentation(app.ExceptionObserver);
     }
 

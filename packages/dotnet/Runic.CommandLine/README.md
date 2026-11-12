@@ -249,6 +249,66 @@ generated completions complete a file name after `@`.
 as given. Without the declaration, `@greet.rsp` is an ordinary
 argument.
 
+### Keep a Windows command line
+
+A Windows tool whose scripts call `installer.exe /policy /link "<name>" "<path>" /json`
+or `installer.exe /?` can keep those command lines byte for byte by declaring the
+Windows slash dialect on its catalog. Every runner (`CommandApp.Run`, `RunAsync`,
+`CommandLineHostingAdapter`), help, usage hint and suggestion follows it:
+
+```csharp
+CommandCatalog catalog = GeneratedCommandCatalog.Create(builder => builder
+    .Syntax(CommandSyntaxDialect.WindowsSlash)          // "/word" for commands and options, "/?" for help
+    .CaseInsensitive()                                  // commands, aliases and options; values unchanged
+    .JsonOutputAlias("/json", JsonOutputShape.Payload)  // a slash spelling is allowed under the dialect
+    .HelpOrder(CommandHelpOrder.Declaration));          // help keeps the order commands were declared in
+
+internal static class Commands
+{
+    [Command("policy link", Description = "Link a policy.")]
+    internal static string Link([Argument] string name, [Argument] string path) => name + " -> " + path;
+
+    [Command("policy reset-all", Spelling = "resetAll", Description = "Reset every policy.")]
+    internal static string ResetAll() => "reset";
+}
+```
+
+`/POLICY /Link a b /json` then runs `policy link`, and so do `policy link a b`
+and `Policy LINK a b`. Under the dialect:
+
+- `/word` or `word` where a command belongs is that command; the first token
+  that names no command ends the command path.
+- `/?` and `/help` show help, `/version` the version, and `/format json` selects
+  the output. An option declared as `--name`, `-n` or `/name` is `/name` or `/n`,
+  with `/name value` or `/name=value`; the portable spellings keep working.
+- Any other token is data. `/weird-name`, `/tmp/file` or an LDAP path after the
+  command path reaches the handler unchanged. A data value that spells an option
+  or `/?` must be given inline (`/name=/?`) or after `--`, which still ends options.
+- Help and diagnostics use the dialect's spelling:
+  `Usage: tool /policy /link <name> <path> [options]` and
+  `Run "tool /policy /link /?" for more information.`
+
+A display spelling (`[Command(..., Spelling = "resetAll")]`, or
+`CommandBuilder.Spelling` when registering by hand) is what help shows and what
+the command line matches besides the name and aliases, case-insensitively when
+declared. The canonical name, such as `reset-all`, stays the command's identity
+in `ParsedInvocation.Path`, JSON output and diagnostics. `CaseInsensitive()` and
+display spellings also work with the portable grammar.
+
+`HelpOrder(CommandHelpOrder.Declaration)` lists commands in the order they were
+declared: source order for generated commands (the generator records it with
+`DeclarationOrder`), then registration order. `CommandCatalog.Commands`,
+completion and JSON output keep registration order. The generated shell
+completions complete the portable spellings, which the dialect accepts too, not
+the slash spellings.
+
+An application with a dialect of its own sets `CommandApp.SyntaxAdapter` to its
+`ICommandSyntaxAdapter`; a `CommandLineHostingAdapter` created from the app uses
+it as well. `CommandTestInvocation.Parse` and `CommandAppTester` accept dialect
+catalogs as they are. See the
+[grammar](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/specs/command-line/grammar.md#windows-slash-dialect) for the
+rules for ambiguous tokens.
+
 ## Method-first inputs and results
 
 - Scalars: strings, integers, long integers, decimals, doubles, GUIDs, enums and

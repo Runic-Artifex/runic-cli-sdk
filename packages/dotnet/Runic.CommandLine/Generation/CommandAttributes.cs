@@ -12,6 +12,13 @@ public sealed class CommandAttribute : Attribute
 
     /// <summary>Gets the canonical command name.</summary>
     public string Name { get; }
+    /// <summary>
+    /// Gets or sets the display spelling of the command's last name segment, such as <c>resetAll</c> for
+    /// <c>[Command("policy reset-all", Spelling = "resetAll")]</c>: help shows it and the command line matches it as
+    /// well as the name. The canonical name stays the command's identity. See
+    /// <see cref="CommandBuilder{TOptions, THandler, TResult}.Spelling"/>.
+    /// </summary>
+    public string? Spelling { get; set; }
     /// <summary>Gets or sets whether this entry is hidden from discovery.</summary>
     public bool Hidden { get; set; }
     /// <summary>Gets or sets the localization key for descriptive help; Description supplies its fallback.</summary>

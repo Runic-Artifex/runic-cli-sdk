@@ -33,7 +33,7 @@ public static class CommandHelpFormatter
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(path);
         context ??= new CommandTextContext(CultureInfo.GetCultureInfo("en"));
-        string outputOptionName = catalog.OutputSelector;
+        string outputOptionName = CommandDialect.Option(catalog, catalog.OutputSelector);
         ArgumentOutOfRangeException.ThrowIfLessThan(width, MinimumWidth);
         CommandDescriptor? command = Find(catalog, path);
         IEnumerable<CommandDescriptor> otherCommands = OtherCommands(catalog, path, command);
@@ -51,8 +51,8 @@ public static class CommandHelpFormatter
         }
         var rows = new List<Row>();
         foreach (CommandDescriptor child in otherCommands)
-            rows.Add(new(child.Name + (ReferenceEquals(child, catalog.DefaultCommand) ? " (" + context.Resolve(CommandTextKeys.HelpDefaultCommand, "default") + ")" : "") +
-                (child.Aliases.Count > 0 ? " (" + string.Join(", ", child.Aliases) + ")" : ""), context.Description(child.Help, child.DescriptionKey)));
+            rows.Add(new(CommandDialect.Command(catalog, child) + (ReferenceEquals(child, catalog.DefaultCommand) ? " (" + context.Resolve(CommandTextKeys.HelpDefaultCommand, "default") + ")" : "") +
+                (child.Aliases.Count > 0 ? " (" + string.Join(", ", child.Aliases.Select(alias => CommandDialect.Word(catalog, alias))) + ")" : ""), context.Description(child.Help, child.DescriptionKey)));
         if (path.Count == 0 && catalog.HasCompletionCommand)
             rows.Add(new("completion <shell>", context.Resolve(CommandTextKeys.HelpCompletion, "Generate bash, zsh, fish or PowerShell completions")));
         AppendSection(text, context.Resolve(CommandTextKeys.HelpCommands, "Commands"), rows, width);
@@ -63,20 +63,20 @@ public static class CommandHelpFormatter
         AppendSection(text, context.Resolve(CommandTextKeys.HelpArguments, "Arguments"), rows, width);
         rows.Clear();
         foreach (CommandOptionDescriptor option in (command?.Options ?? CommandCompletion.GlobalOptions(catalog)).Where(option => !option.Help.Hidden))
-            rows.Add(new(string.Join(", ", new[] { option.Name }.ConcatAliases(option.Aliases)) +
+            rows.Add(new(string.Join(", ", new[] { option.Name }.ConcatAliases(option.Aliases).Select(spelling => CommandDialect.Option(catalog, spelling))) +
                 (option.Arity.Maximum != 0 ? " <" + (option.Help.ValueName ?? option.Id) + (option.Arity.Maximum != 1 ? "..." : "") + ">" : ""),
                 context.Description(option.Help, option.DescriptionKey), Notes(option.Help, option.IsSensitive, option.IsRequired, context)));
-        rows.Add(new("-h, --help", context.Resolve(CommandTextKeys.HelpShowHelp, "Show help")));
-        rows.Add(new("--version", context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
+        rows.Add(new(CommandDialect.HelpTerm(catalog), context.Resolve(CommandTextKeys.HelpShowHelp, "Show help")));
+        rows.Add(new(CommandDialect.Version(catalog), context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
         rows.Add(new(outputOptionName + " <human|json>", context.Resolve(CommandTextKeys.HelpOutputFormat, "Select output format")));
         if (catalog.JsonOutputAlias is { } jsonAlias)
-            rows.Add(new(jsonAlias, catalog.JsonOutputAliasShape == JsonOutputShape.Payload
+            rows.Add(new(CommandDialect.Option(catalog, jsonAlias), catalog.JsonOutputAliasShape == JsonOutputShape.Payload
                 ? context.Resolve(CommandTextKeys.HelpJsonPayloadOutputAlias, "Write the result as JSON")
                 : context.Resolve(CommandTextKeys.HelpJsonOutputAlias, "Same as " + outputOptionName + " json", [outputOptionName])));
         if (catalog.ResponseFiles)
             rows.Add(new("@<file>", context.Resolve(CommandTextKeys.HelpResponseFiles, "Read more arguments from a file")));
         if (path.Count == 0 && catalog.CompletionOption is { } completionOption)
-            rows.Add(new(completionOption + " <shell>", context.Resolve(CommandTextKeys.HelpCompletion, "Generate bash, zsh, fish or PowerShell completions")));
+            rows.Add(new(CommandDialect.Option(catalog, completionOption) + " <shell>", context.Resolve(CommandTextKeys.HelpCompletion, "Generate bash, zsh, fish or PowerShell completions")));
         AppendSection(text, context.Resolve(CommandTextKeys.HelpOptions, "Options"), rows, width);
         rows.Clear();
         foreach (CommandExitCodeHelp exitCode in command?.Help.ExitCodes ?? [])
@@ -116,7 +116,7 @@ public static class CommandHelpFormatter
     }
 
     private static IEnumerable<CommandDescriptor> OtherCommands(CommandCatalog catalog, CommandPath path, CommandDescriptor? command) =>
-        (path.Count == 0 || command is null ? catalog.Commands : command.Subcommands)
+        catalog.InHelpOrder(path.Count == 0 || command is null ? catalog.Commands : command.Subcommands)
             .Where(child => !child.Help.Hidden && !ReferenceEquals(child, catalog.RootCommand));
 
     private static void AppendUsage(StringBuilder text, CommandCatalog catalog, string applicationName, CommandPath path, CommandDescriptor? command,
@@ -124,7 +124,7 @@ public static class CommandHelpFormatter
     {
         string usagePrefix = context.Resolve(CommandTextKeys.HelpUsage, "Usage") + ": ";
         var usage = new StringBuilder(applicationName);
-        if (path.Count > 0) usage.Append(' ').Append(path);
+        if (path.Count > 0) usage.Append(' ').Append(CommandDialect.Path(catalog, path));
         else if (catalog.RootCommand is not null) { if (OtherCommands(catalog, path, command).Any()) usage.Append(" [").Append(context.Resolve(CommandTextKeys.HelpCommandPlaceholder, "command")).Append(']'); }
         else if (catalog.Commands.Count > 0) usage.Append(" <").Append(context.Resolve(CommandTextKeys.HelpCommandPlaceholder, "command")).Append('>');
         if (command is not null)

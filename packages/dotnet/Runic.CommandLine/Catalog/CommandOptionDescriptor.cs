@@ -27,8 +27,9 @@ public sealed class CommandOptionDescriptor
         bool isRequired,
         bool isSensitive,
         string? descriptionKey,
-        CommandHelp? help = null, bool isGlobal = false)
+        CommandHelp? help = null, bool isGlobal = false, CommandSyntaxDialect syntax = CommandSyntaxDialect.Portable)
     {
+        Syntax = syntax;
         IsGlobal = isGlobal;
         Id = id;
         Name = name;
@@ -73,6 +74,12 @@ public sealed class CommandOptionDescriptor
 
     /// <summary>Gets the optional localization key for help text.</summary>
     public string? DescriptionKey { get; }
+
+    // The catalog's dialect, so diagnostics outside the parser name the option as the user spells it.
+    internal CommandSyntaxDialect Syntax { get; }
+
+    // The option's name as the catalog's dialect spells it, such as /count for --count under the slash dialect.
+    internal string DisplayName => CommandDialect.Option(Syntax, Name);
 
     internal static IReadOnlyList<string> Freeze(IEnumerable<string> values) =>
         new ReadOnlyCollection<string>([.. values]);
