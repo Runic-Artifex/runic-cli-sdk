@@ -140,7 +140,8 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
                         binding.Fault!,
                         binding.Diagnostics,
                         binding.HumanOutput,
-                        binding.FailureData);
+                        binding.FailureData,
+                        binding.ExitCode);
                     diagnostics = outcome.Diagnostics;
                 }
                 else
@@ -230,7 +231,8 @@ internal sealed class CommandRegistration<TOptions, THandler, TResult> : Command
             outcome = HostFailure();
             diagnostics = NoDiagnostics;
         }
-        int exitCode = exitCodePolicy.GetExitCode(outcome.ExitCategory);
+        // An outcome's own code overrides the policy for this invocation only.
+        int exitCode = outcome.ExitCode ?? exitCodePolicy.GetExitCode(outcome.ExitCategory);
         // A handler may intentionally complete successfully after a graceful stop.
         // Do not replace its settled outcome by cancelling the final response.
         CancellationToken presentationToken = cancellationToken.IsCancellationRequested || outcome.ExitCategory == CommandExitCategory.Cancelled

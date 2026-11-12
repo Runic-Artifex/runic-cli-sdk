@@ -36,7 +36,8 @@ public enum JsonOutputShape
 
     /// <summary>
     /// The command's own JSON document without the envelope: the success payload, or the declared failure data on
-    /// failure. Framework help, version and usage errors are human text.
+    /// failure. Framework help, version and usage errors are human text, unless
+    /// <see cref="CommandJsonOutputOptions.DocumentEveryOutcome"/> asks for a document for every outcome.
     /// </summary>
     Payload = 1,
 }

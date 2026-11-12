@@ -51,8 +51,52 @@ public sealed class CommandHelp
     public IReadOnlyList<string> Requires { get => _requires; init => _requires = CommandDescriptor.Freeze(value); }
     /// <summary>Gets option IDs forbidden when this option is supplied.</summary>
     public IReadOnlyList<string> ConflictsWith { get => _conflictsWith; init => _conflictsWith = CommandDescriptor.Freeze(value); }
+    private IReadOnlyList<CommandExitCodeHelp> _exitCodes = Array.Empty<CommandExitCodeHelp>();
+    /// <summary>
+    /// Gets the exit codes a command documents, such as those its outcomes select with
+    /// <see cref="CommandOutcome{T}.WithExitCode"/>. Command help lists them in this order under "Exit codes"; option
+    /// and argument help ignores them. Generated commands declare them with <see cref="CommandExitCodeAttribute"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The value or one of its entries is null.</exception>
+    public IReadOnlyList<CommandExitCodeHelp> ExitCodes
+    {
+        get => _exitCodes;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            IReadOnlyList<CommandExitCodeHelp> frozen = CommandDescriptor.Freeze(value);
+            foreach (CommandExitCodeHelp exitCode in frozen) ArgumentNullException.ThrowIfNull(exitCode, nameof(value));
+            _exitCodes = frozen;
+        }
+    }
     /// <summary>Gets empty metadata.</summary>
     public static CommandHelp Empty { get; } = new();
+}
+
+/// <summary>One exit code a command documents in its help, such as <c>3  The container does not exist.</c></summary>
+public sealed class CommandExitCodeHelp
+{
+    /// <summary>Initializes a documented exit code.</summary>
+    /// <param name="exitCode">The process exit code.</param>
+    /// <param name="description">What the code means, in the application's own language; the fallback of <paramref name="descriptionKey"/>.</param>
+    /// <param name="descriptionKey">An optional application text key that the text resolver translates.</param>
+    /// <exception cref="ArgumentException"><paramref name="description"/> is null, empty or white space.</exception>
+    public CommandExitCodeHelp(int exitCode, string description, string? descriptionKey = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        ExitCode = exitCode;
+        Description = description;
+        DescriptionKey = descriptionKey;
+    }
+
+    /// <summary>Gets the process exit code.</summary>
+    public int ExitCode { get; }
+
+    /// <summary>Gets the description shown when <see cref="DescriptionKey"/> is null or not translated.</summary>
+    public string Description { get; }
+
+    /// <summary>Gets the application text key of the description, or null.</summary>
+    public string? DescriptionKey { get; }
 }
 
 /// <summary>Describes filesystem completion and validation without selecting a UI toolkit.</summary>

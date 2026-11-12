@@ -13,7 +13,10 @@ public sealed class CommandExecutionResult
     /// <summary>Gets the semantic exit category.</summary>
     public CommandExitCategory ExitCategory { get; }
 
-    /// <summary>Gets the policy-selected process exit code.</summary>
+    /// <summary>
+    /// Gets the process exit code: the one the outcome selected with <see cref="CommandOutcome{T}.WithExitCode"/>,
+    /// otherwise the one the exit-code policy maps the category to.
+    /// </summary>
     public int ExitCode { get; }
 
     /// <summary>Gets the safe fault for an unsuccessful result.</summary>

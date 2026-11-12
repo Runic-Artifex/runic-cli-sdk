@@ -92,8 +92,11 @@ public sealed class CommandExecutionRequest
     // Set by CommandApp when it handles termination signals; see CommandExecutionContext.ProtectShutdown.
     internal ShutdownProtection? ShutdownProtection { get; init; }
 
+    // Set by CommandApp and the hosting adapter from CommandJsonOutputOptions.QuietStandardError.
+    internal bool QuietStandardError { get; init; }
+
     internal ICommandConsole HandlerConsole => Invocation.OutputClassification.Mode == CommandOutputMode.Json
-        ? new MachineHandlerConsole(Console) : Console;
+        ? new MachineHandlerConsole(QuietStandardError ? new StandardErrorDiscardingConsole(Console) : Console) : Console;
 
     internal void ObserveException(Exception exception)
     {

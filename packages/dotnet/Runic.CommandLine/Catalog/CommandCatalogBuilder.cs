@@ -159,6 +159,8 @@ public sealed class CommandCatalogBuilder
     /// when it supplied one and by the fault message otherwise. The exit code is the one
     /// the envelope reports. Help, version and usage errors, including a usage error on a command line that gives
     /// the flag, are presented as human text, so <c>tool --bogus --json</c> writes its error to standard error.
+    /// <see cref="CommandJsonOutputOptions.DocumentEveryOutcome"/> writes a JSON document for those outcomes too, and
+    /// <see cref="CommandJsonOutputOptions.QuietStandardError"/> keeps standard error empty.
     /// </para>
     /// <para>
     /// The output selector (<c>--format json</c>) and <c>RUNIC_COMMANDLINE_OUTPUT=json</c> still write the

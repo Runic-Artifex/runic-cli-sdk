@@ -52,13 +52,33 @@ public static class CommandJsonEnvelopeWriter
         ICommandConsole console,
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        WriteAsync(console, response, codec, CommandJsonEscaping.Unicode, cancellationToken);
+
+    internal static ValueTask WriteAsync<T>(
+        ICommandConsole console,
+        CommandResponse<T> response,
+        ICommandResultCodec<T> codec,
+        CommandJsonEscaping escaping,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(console);
         ArgumentNullException.ThrowIfNull(codec);
         EnsurePayloadIdentity(response, codec.PayloadType);
 
         byte[] bytes = Serialize(response, codec.TypeInfo);
+        if (escaping == CommandJsonEscaping.Ascii)
+        {
+            // Escapes are longer than the UTF-8 they replace; the frame must still fit a reader's default limit.
+            bytes = CommandJsonAscii.Escape(bytes);
+            if (bytes.Length > CommandJsonEnvelopeReader.DefaultMaximumFrameBytes)
+            {
+                throw new CommandProtocolException(
+                    "frame-too-large",
+                    "The serialized command response exceeds the maximum frame size.");
+            }
+        }
+
         return console.WriteOutBytesAsync(bytes.AsMemory(), cancellationToken);
     }
 

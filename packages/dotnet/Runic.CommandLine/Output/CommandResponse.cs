@@ -29,11 +29,8 @@ public sealed class CommandResponse<T>
 
         if (success)
         {
-            if (exitCode != 0)
-            {
-                throw new ArgumentException("A successful response must use exit code zero.", nameof(exitCode));
-            }
-
+            // A success normally exits with zero; a nonzero code is an informational success code that the outcome
+            // selected (CommandOutcome<T>.WithExitCode), such as 3010.
             CommandResponseValidation.ValidatePayloadType(payloadType, nameof(payloadType));
             if (fault is not null)
             {
@@ -79,7 +76,10 @@ public sealed class CommandResponse<T>
     /// <summary>Gets whether command execution succeeded.</summary>
     public bool Succeeded { get; }
 
-    /// <summary>Gets the mapped process exit code.</summary>
+    /// <summary>
+    /// Gets the process exit code: nonzero on failure; on success zero, or an informational success code such as 3010
+    /// that the outcome selected with <see cref="CommandOutcome{T}.WithExitCode"/>.
+    /// </summary>
     public int ExitCode { get; }
 
     /// <summary>Gets the independently versioned payload identity for a successful response.</summary>
@@ -118,8 +118,9 @@ public sealed class CommandResponse<T>
         string command,
         string payloadType,
         T? payload,
-        IReadOnlyList<CommandDiagnostic>? diagnostics = null) =>
-        new(requestId, command, true, 0, payloadType, payload, null, diagnostics);
+        IReadOnlyList<CommandDiagnostic>? diagnostics = null,
+        int exitCode = 0) =>
+        new(requestId, command, true, exitCode, payloadType, payload, null, diagnostics);
 
     internal static CommandResponse<T> CreateFailure(
         string requestId,
@@ -140,9 +141,11 @@ public sealed class CommandResponse<T>
     {
         ArgumentNullException.ThrowIfNull(outcome);
         CommandResponseValidation.ValidatePayloadType(payloadType, nameof(payloadType));
-        if (outcome.Succeeded && exitCode != 0)
+        if (outcome.Succeeded && exitCode != (outcome.ExitCode ?? 0))
         {
-            throw new ArgumentException("A successful outcome must map to exit code zero.", nameof(exitCode));
+            throw new ArgumentException(
+                "A successful outcome must map to exit code zero, or to the informational code it selected.",
+                nameof(exitCode));
         }
 
         if (!outcome.Succeeded && exitCode == 0)
@@ -151,7 +154,7 @@ public sealed class CommandResponse<T>
         }
 
         return outcome.Succeeded
-            ? CreateSuccess(requestId, command, payloadType, outcome.Value, diagnostics)
+            ? CreateSuccess(requestId, command, payloadType, outcome.Value, diagnostics, exitCode)
             : CreateFailure(requestId, command, exitCode, outcome.Fault!, diagnostics, outcome.FailureData);
     }
 

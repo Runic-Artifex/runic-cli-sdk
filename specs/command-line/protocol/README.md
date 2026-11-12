@@ -42,14 +42,18 @@ output; consumers MUST NOT depend on property order.
 | `requestId` | string | Valid opaque request identifier, as defined below. |
 | `command` | string | Non-null canonical command path separated by one ASCII space. |
 | `success` | Boolean | True only for the success outcome category. |
-| `exitCode` | integer | Signed 32-bit process exit code; zero exactly when `success` is true. |
+| `exitCode` | integer | Signed 32-bit process exit code; nonzero when `success` is false, zero or an informational success code when it is true. |
 | `payloadType` | string or null | Required and non-null on success; null on failure. |
 | `payload` | any JSON value | Typed result on success, including JSON null when its type permits null; null on failure. |
 | `fault` | object or null | Null on success; required and non-null on failure. |
 | `diagnostics` | array | Zero to 64 safe diagnostic objects. |
 
 Success has `success: true`, `exitCode: 0`, a supported non-null
-`payloadType`, a payload value, and `fault: null`. Failure has
+`payloadType`, a payload value, and `fault: null`. A command may select an
+informational success code instead of 0, such as Windows Installer's 3010
+("success, restart required"); the envelope then reports that code with
+`success: true` (see [`examples/informational-success.json`](examples/informational-success.json)).
+Readers before Runic Command Line 0.12 reject such an envelope. Failure has
 `success: false`, a nonzero `exitCode`, `payloadType: null`, `payload: null`,
 and a fault. The default failure exit codes are 1 expected command failure and
 unavailable resource, 2 usage/parse and validation, 3 unexpected host/software
@@ -57,8 +61,11 @@ failure, and 130 cancelled. Exit code 2 means the command line itself is wrong
 (input-shaped: parse and binding errors, and input a handler rejects whatever
 state it works on); exit code 1 means a well-formed command failed on that state
 (domain failures, including "not found"). A host policy may select another nonzero signed
-32-bit value, for example distinct codes per category, without changing the
-semantic fault.
+32-bit value, for example distinct codes per category, and one outcome may
+select its own documented nonzero code, for example 2, 3 and 4 for three
+failures of one command, without changing the semantic fault. A failure should
+not report a multiple of 256, which Linux and macOS truncate to zero; Runic
+Command Line refuses such a code for an outcome.
 
 The `payload` key being JSON null is not evidence of failure. Clients use
 `success`, `payloadType`, and `fault` together and validate all invariants.
@@ -253,7 +260,7 @@ responsible for keeping such text out of faults.
   limits applied.
 
 Sanitization never changes `exitCode`, which comes from the command's exit
-category rather than from the fault code.
+category, or from the code its outcome selected, rather than from the fault code.
 
 ## Help links
 
