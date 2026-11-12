@@ -899,11 +899,53 @@ Translations change presentation text, including JSON messages, while command
 spellings, canonical paths, diagnostic codes/keys and protocol/payload identities
 remain unchanged. The existing sanitizers still apply to resolved text.
 
-With Runic Translations, set `TextResolver = new TranslationCommandTextResolver(snapshot)`
-from the `Runic.Translations.CommandLine` package: it looks up each key in your
-catalog by name, falls back to its built-in English and German framework text,
-and needs no key mapping. The [`Runic.Translations.CommandLine`](https://www.nuget.org/packages/Runic.Translations.CommandLine) package README shows an English/German setup.
-Both are optional; this package does not reference Translations.
+### German framework text with Runic Translations
+
+The [`Runic.Translations.CommandLine`](https://www.nuget.org/packages/Runic.Translations.CommandLine)
+package translates every framework key with Runic Translations, with English
+and German text and no key mapping. That text, the `runic-command-line`
+catalog, is maintained in this repository next to `CommandTextKeys` and ships
+in this package as data: `translations/` holds `runic.json`, `en.rmf2`,
+`de.rmf2` and `text-keys.json`, which lists each key with its argument names.
+The adapter compiles the catalog from the Runic.CommandLine package it depends
+on; see the [built-in catalog](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/text-keys.md#built-in-catalog).
+This package does not reference Runic Translations, and nothing under
+`translations/` reaches your project.
+
+Register the framework catalog in the translation context of your own catalog,
+so one locale switch moves both and your build-time overrides of
+`runic-command-line` (`AppTextCatalog.Overlays`) apply:
+
+```csharp
+TranslationContext translations = TranslationContext.CreateBuilder()
+    .Add(AppTextCatalog.Registration)
+    .Add(TranslationCommandTextResolver.CatalogRegistration)
+    .AddOverlays(AppTextCatalog.Overlays)
+    .Build("de");
+
+var app = new CommandApp(GeneratedCommandCatalog.Create())
+{
+    Culture = CultureInfo.GetCultureInfo("de"),
+    TextResolver = new TranslationCommandTextResolver(translations, AppTextCatalog.CatalogId),
+};
+```
+
+The resolver constructors that take an `ITranslationSnapshot` or an
+`ITranslationManager` use the adapter's built-in catalog without the context's
+overlays, so a build-time override of `runic-command-line` is ignored there.
+
+**Versions.** Each Runic.CommandLine minor release has one
+Runic.Translations.CommandLine release line that covers all its keys and
+patches. The adapter carries the Runic Translations version, depends on
+Runic.CommandLine up to the next minor, and is released in the same release
+train, right after the Command Line release. Use the pair from this table; a
+mismatched pair fails restore with `NU1608` or shows English for newer keys.
+
+| Runic.CommandLine | Runic.Translations.CommandLine |
+| --- | --- |
+| 0.12.x | 0.10.x (Runic.CommandLine `[0.12.0, 0.13.0)`) |
+| 0.10.x, 0.11.x | none; 0.9.1 does not accept them (`NU1608`) |
+| 0.9.x | 0.9.1 (`[0.9.1, 0.10.0)`); 0.8.0 (`[0.9.0, 0.10.0)`) |
 
 ## Commands inside a Runic application
 

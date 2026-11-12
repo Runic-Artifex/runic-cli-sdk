@@ -21,6 +21,7 @@ for project in \
   tests/dotnet/Runic.CommandLine.Contracts.Tests/Runic.CommandLine.Contracts.Tests.csproj \
   tests/dotnet/Runic.CommandLine.Hosting.Tests/Runic.CommandLine.Hosting.Tests.csproj \
   tests/dotnet/Runic.CommandLine.Processes.Tests/Runic.CommandLine.Processes.Tests.csproj \
+  tests/dotnet/Runic.CommandLine.TextCatalog.Tests/Runic.CommandLine.TextCatalog.Tests.csproj \
   tests/dotnet/Runic.CommandLine.Tests/Runic.CommandLine.Tests.csproj; do
   suite="$(basename "$project" .csproj)"
   results="$root/artifacts/test-results/$suite"

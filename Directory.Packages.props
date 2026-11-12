@@ -6,8 +6,8 @@
     <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Runic.Translations" Version="0.6.0-preview.1" />
-    <PackageVersion Include="Runic.Translations.Build" Version="0.6.0-preview.1" />
+    <PackageVersion Include="Runic.Translations" Version="0.9.1" />
+    <PackageVersion Include="Runic.Translations.Build" Version="0.9.1" />
     <!-- Spectre.Console types are public API of Runic.CommandLine.Spectre, and Spectre.Console is pre-1.0, so the
          range stops before its next minor. Move it in a Command Line minor after testing; see eng/release/README.md. -->
     <PackageVersion Include="Spectre.Console" Version="[0.57.2, 0.58)" />

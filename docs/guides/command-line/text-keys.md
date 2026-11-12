@@ -9,9 +9,8 @@ constant such as `CommandTextKeys.HelpUsage`.
 
 For Runic Translations, the `Runic.Translations.CommandLine` package supplies a
 ready-made resolver with English and German text for every key below, so you
-do not map keys by hand. Its catalogs name each message after the key with the
-hyphens removed and the next letter capitalized (`help.show-help` becomes
-`help.showHelp`) and name each input after the argument (`{$parameter}`).
+do not map keys by hand. That text lives in this repository, next to the key
+list; see [Built-in catalog](#built-in-catalog).
 
 ## Rules
 
@@ -39,95 +38,150 @@ hyphens removed and the next letter capitalized (`help.show-help` becomes
   `help.options-placeholder` keys as in help, and the `hints.usage` line, whose
   `command` argument is the help command line, such as `tool copy --help`.
 
+## Built-in catalog
+
+The English and German text of every key is the `runic-command-line` catalog
+in [`packages/dotnet/Runic.CommandLine/translations`](../../../packages/dotnet/Runic.CommandLine/translations):
+`runic.json`, `en.rmf2` and `de.rmf2`.
+
+- Each message is named after its key with the hyphens removed and the next
+  letter capitalized (`help.show-help` becomes `help.showHelp`, written as
+  `showHelp` in the `help` group), and each input is named after the key's
+  argument (`{$parameter}`). A message may leave out an argument it does not
+  show.
+- `en.rmf2` is exactly the English that Runic.CommandLine writes without a
+  resolver. `faults.RCLI4001` has no message: the framework shows the text of
+  its `diagnostics.prompt-*` diagnostic instead.
+- German uses the formal *Sie*, *Verzeichnis* for directories, and ASCII quotes
+  (`'...'`, `"..."`), which every terminal shows and copies.
+- The `Runic.CommandLine` package carries these files as plain data under
+  `translations/`, together with `translations/text-keys.json`, which the build
+  writes from `CommandTextKeys.All`: each key, its argument names in order, and
+  its message name (`null` for `faults.RCLI4001`). Nothing under
+  `translations/` flows into a consuming project, and Runic.CommandLine does
+  not reference Runic Translations. `Runic.Translations.CommandLine` compiles
+  the catalog from the Runic.CommandLine package it depends on, so its text
+  always belongs to that Command Line release.
+- `tests/dotnet/Runic.CommandLine.TextCatalog.Tests` compiles the catalog with
+  Runic.Translations.Build and fails when a key has no `en` or `de` message, a
+  message declares or uses an input that is not one of its key's arguments, a
+  message has no key, `en` differs from the framework's English, or German
+  output still shows an English framework sentence.
+
+### Adding or changing a key
+
+A pull request that adds a key to `CommandTextKeys.All`, or changes its
+arguments or English text, in the same change:
+
+1. adds or updates its row in the table below, with the release that
+   introduces the key under "Since";
+2. adds or updates its message in `en.rmf2` with the framework's English and in
+   `de.rmf2` with the German, in the key's group, declaring each argument the
+   text shows as `.input {$name :string}`;
+3. runs `dotnet run --project tests/dotnet/Runic.CommandLine.TextCatalog.Tests -c Release`.
+
+Keys and their arguments are API. A changed meaning gets a new key. Keys are
+added in minor releases only, never in patches, so the
+`Runic.Translations.CommandLine` release for a minor covers all its patches. A
+removed key is named in the release notes and listed under
+[Removed keys](#removed-keys), because an application's build-time override of
+it then fails with `RTR0103`.
+
 ## Keys
 
-| Key | Arguments (in order) | English text |
-| --- | --- | --- |
-| `help.usage` | | Usage |
-| `help.command-placeholder` | | command |
-| `help.options-placeholder` | | options |
-| `help.default-command` | | default |
-| `help.completion` | | Generate bash, zsh, fish or PowerShell completions |
-| `help.commands` | | Commands |
-| `help.arguments` | | Arguments |
-| `help.options` | | Options |
-| `help.show-help` | | Show help |
-| `help.show-version` | | Show version |
-| `help.output-format` | | Select output format |
-| `help.json-output-alias` | `option` | Same as {option} json |
-| `help.json-payload-output-alias` | | Write the result as JSON |
-| `help.response-files` | | Read more arguments from a file |
-| `help.examples` | | Examples |
-| `help.required` | | required |
-| `help.default` | | default |
-| `help.choices` | | choices |
-| `help.environment` | | env |
-| `help.existing` | | existing |
-| `help.path-kind.file` | | file |
-| `help.path-kind.directory` | | directory |
-| `help.minimum` | | min |
-| `help.maximum` | | max |
-| `help.requires` | | requires |
-| `help.conflicts` | | conflicts |
-| `completion.invalid-shell` | | Choose a completion shell: bash, zsh, fish or powershell. |
-| `prompts.select-hint` | | Arrow keys to move, Enter to confirm |
-| `prompts.multi-select-hint` | | Arrow keys to move, Space to select, A for all, Enter to confirm |
-| `prompts.yes` | | Yes |
-| `prompts.no` | | No |
-| `prompts.choose-one` | `count` | Enter a number from 1 to {count} |
-| `prompts.choose-many` | `count` | Enter numbers from 1 to {count}, separated by commas |
-| `prompts.answer-yes-no` | `yes`, `no` | Answer {yes} or {no}. |
-| `prompts.required` | | An answer is required. |
-| `prompts.cancelled` | | Cancelled |
-| `prompts.done` | | Done |
-| `faults.RCLI4000` | | The command was cancelled. |
-| `faults.RCLI4001` | | The message of its `diagnostics.prompt-*` diagnostic, below. |
-| `faults.RCLI5000` | | The command could not be completed. |
-| `hints.RCLI5000` | | Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr. |
-| `hints.usage` | `command` | Run "{command}" for more information. |
-| `diagnostics.unknown-option` | `option` | The option '{option}' is not recognized. |
-| `diagnostics.unknown-option-suggestion` | `option`, `suggestion` | The option '{option}' is not recognized. Did you mean '{suggestion}'? |
-| `diagnostics.unknown-command` | `command` (absent when no command was typed) | The command '{command}' is not recognized. Without `command`: No command was given. |
-| `diagnostics.unknown-command-suggestion` | `command`, `suggestion` | The command '{command}' is not recognized. Did you mean '{suggestion}'? |
-| `diagnostics.missing-option-value` | `option` | The {option} option requires a value. |
-| `diagnostics.unexpected-option-value` | `option` | The {option} option does not take a value. |
-| `diagnostics.missing-argument` | `argument` | The {argument} argument is missing. |
-| `diagnostics.unexpected-argument` | | Too many arguments were given. |
-| `diagnostics.duplicate-option` | `option` | The {option} option was given more than once. |
-| `diagnostics.unsupported-short-bundle` | | Short options cannot be combined; give each one separately. |
-| `diagnostics.invalid-output-mode` | `option` | {option} must be human or json. |
-| `diagnostics.conflicting-output-selector` | `option`, `conflict` | {option} and {conflict} both select the output format. Use one of them. |
-| `diagnostics.transport-output-option-collision` | | The command line is invalid. |
-| `diagnostics.missing-required-option` | `option`, `command` | The {option} option is required. |
-| `diagnostics.unexpected-root-help-argument` | | The application's help takes no other arguments. |
-| `diagnostics.response-file-unreadable` | `file` | The response file '{file}' could not be read. |
-| `diagnostics.response-file-invalid-utf8` | `file` | The response file '{file}' is not valid UTF-8. |
-| `diagnostics.response-file-unterminated-quote` | `file` | The response file '{file}' has an unterminated quote. |
-| `diagnostics.response-file-too-deep` | `file` | The response file '{file}' is nested more than 16 levels deep. |
-| `diagnostics.response-file-cycle` | `file` | The response file '{file}' includes itself. |
-| `diagnostics.invalid-environment-value` | `option`, `variable` | {variable} must be true/false, yes/no or 1/0 for {option}. |
-| `diagnostics.invalid-choice` | `parameter`, `choices` | {parameter} must be one of: {choices}. |
-| `diagnostics.invalid-choice-hidden` | `parameter` | {parameter} must be one of the choices shown in --help. |
-| `diagnostics.invalid-integer` | `parameter` | {parameter} requires a whole number. |
-| `diagnostics.invalid-number` | `parameter` | {parameter} requires a number. |
-| `diagnostics.invalid-guid` | `parameter` | {parameter} requires a GUID such as 0f8fad5b-d9cb-469f-a165-70867728950e. |
-| `diagnostics.invalid-boolean` | `parameter` | {parameter} requires true or false. |
-| `diagnostics.invalid-value` | `parameter` | {parameter} has an invalid value. |
-| `diagnostics.validation-failed` | `parameter` | {parameter} has a value that failed validation. |
-| `diagnostics.missing-value` | `parameter` | {parameter} requires a value. |
-| `diagnostics.out-of-range` | `parameter`, `minimum`, `maximum` | {parameter} requires a number between {minimum} and {maximum}. |
-| `diagnostics.below-minimum` | `parameter`, `minimum` | {parameter} requires a number of at least {minimum}. |
-| `diagnostics.above-maximum` | `parameter`, `maximum` | {parameter} requires a number of at most {maximum}. |
-| `diagnostics.option-requires` | `option`, `required` | {option} requires {required}. |
-| `diagnostics.option-conflict` | `option`, `conflict` | {option} cannot be combined with {conflict}. |
-| `diagnostics.invalid-file-path` | `parameter` | {parameter} requires a valid file path. |
-| `diagnostics.invalid-directory-path` | `parameter` | {parameter} requires a valid directory path. |
-| `diagnostics.file-not-found` | `parameter` | {parameter} requires an existing file; check the path and permissions. |
-| `diagnostics.directory-not-found` | `parameter` | {parameter} requires an existing directory; check the path and permissions. |
-| `diagnostics.environment-value-source` | `parameter`, `variable` | The value for {parameter} came from environment variable {variable}. |
-| `diagnostics.prompt-requires-terminal` | `prompt` | {prompt} needs an answer, but the command is not running in an interactive terminal. Pass the value on the command line. |
-| `diagnostics.prompt-json-output` | `prompt` | {prompt} needs an answer, but JSON output never prompts. Pass the value on the command line. |
-| `diagnostics.prompt-disabled` | `prompt` | {prompt} needs an answer, but prompts are disabled. Pass the value on the command line. |
+| Key | Arguments (in order) | English text | Since |
+| --- | --- | --- | --- |
+| `help.usage` | | Usage | 0.6.0-preview.4 |
+| `help.command-placeholder` | | command | 0.6.0-preview.4 |
+| `help.options-placeholder` | | options | 0.6.0-preview.4 |
+| `help.default-command` | | default | 0.6.0-preview.4 |
+| `help.completion` | | Generate bash, zsh, fish or PowerShell completions | 0.6.0-preview.4 |
+| `help.commands` | | Commands | 0.6.0-preview.4 |
+| `help.arguments` | | Arguments | 0.6.0-preview.4 |
+| `help.options` | | Options | 0.6.0-preview.4 |
+| `help.show-help` | | Show help | 0.6.0-preview.4 |
+| `help.show-version` | | Show version | 0.6.0-preview.4 |
+| `help.output-format` | | Select output format | 0.6.0-preview.4 |
+| `help.json-output-alias` | `option` | Same as {option} json | 0.7.0-preview.1 |
+| `help.json-payload-output-alias` | | Write the result as JSON | 0.7.0-preview.2 |
+| `help.response-files` | | Read more arguments from a file | 0.9.0 |
+| `help.examples` | | Examples | 0.6.0-preview.4 |
+| `help.required` | | required | 0.6.0-preview.4 |
+| `help.default` | | default | 0.6.0-preview.4 |
+| `help.choices` | | choices | 0.6.0-preview.4 |
+| `help.environment` | | env | 0.6.0-preview.4 |
+| `help.existing` | | existing | 0.6.0-preview.4 |
+| `help.path-kind.file` | | file | 0.6.0-preview.4 |
+| `help.path-kind.directory` | | directory | 0.6.0-preview.4 |
+| `help.minimum` | | min | 0.6.0-preview.4 |
+| `help.maximum` | | max | 0.6.0-preview.4 |
+| `help.requires` | | requires | 0.6.0-preview.4 |
+| `help.conflicts` | | conflicts | 0.6.0-preview.4 |
+| `completion.invalid-shell` | | Choose a completion shell: bash, zsh, fish or powershell. | 0.6.0-preview.4 |
+| `prompts.select-hint` | | Arrow keys to move, Enter to confirm | 0.7.0-preview.1 |
+| `prompts.multi-select-hint` | | Arrow keys to move, Space to select, A for all, Enter to confirm | 0.7.0-preview.1 |
+| `prompts.yes` | | Yes | 0.7.0-preview.1 |
+| `prompts.no` | | No | 0.7.0-preview.1 |
+| `prompts.choose-one` | `count` | Enter a number from 1 to {count} | 0.7.0-preview.1 |
+| `prompts.choose-many` | `count` | Enter numbers from 1 to {count}, separated by commas | 0.7.0-preview.1 |
+| `prompts.answer-yes-no` | `yes`, `no` | Answer {yes} or {no}. | 0.7.0-preview.1 |
+| `prompts.required` | | An answer is required. | 0.7.0-preview.1 |
+| `prompts.cancelled` | | Cancelled | 0.7.0-preview.1 |
+| `prompts.done` | | Done | 0.7.0-preview.1 |
+| `faults.RCLI4000` | | The command was cancelled. | 0.6.0-preview.4 |
+| `faults.RCLI4001` | | The message of its `diagnostics.prompt-*` diagnostic, below. | 0.7.0-preview.1 |
+| `faults.RCLI5000` | | The command could not be completed. | 0.6.0-preview.4 |
+| `hints.RCLI5000` | | Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr. | 0.6.0-preview.4 |
+| `hints.usage` | `command` | Run "{command}" for more information. | 0.10.0 |
+| `diagnostics.unknown-option` | `option` | The option '{option}' is not recognized. | 0.6.0-preview.4 |
+| `diagnostics.unknown-option-suggestion` | `option`, `suggestion` | The option '{option}' is not recognized. Did you mean '{suggestion}'? | 0.6.0-preview.4 |
+| `diagnostics.unknown-command` | `command` (absent when no command was typed) | The command '{command}' is not recognized. Without `command`: No command was given. | 0.6.0-preview.4 |
+| `diagnostics.unknown-command-suggestion` | `command`, `suggestion` | The command '{command}' is not recognized. Did you mean '{suggestion}'? | 0.6.0-preview.4 |
+| `diagnostics.missing-option-value` | `option` | The {option} option requires a value. | 0.6.0-preview.4 |
+| `diagnostics.unexpected-option-value` | `option` | The {option} option does not take a value. | 0.6.0-preview.4 |
+| `diagnostics.missing-argument` | `argument` | The {argument} argument is missing. | 0.6.0-preview.4 |
+| `diagnostics.unexpected-argument` | | Too many arguments were given. | 0.6.0-preview.4 |
+| `diagnostics.duplicate-option` | `option` | The {option} option was given more than once. | 0.6.0-preview.4 |
+| `diagnostics.unsupported-short-bundle` | | Short options cannot be combined; give each one separately. | 0.6.0-preview.4 |
+| `diagnostics.invalid-output-mode` | `option` | {option} must be human or json. | 0.6.0-preview.4 |
+| `diagnostics.conflicting-output-selector` | `option`, `conflict` | {option} and {conflict} both select the output format. Use one of them. | 0.7.0-preview.1 |
+| `diagnostics.transport-output-option-collision` | | The command line is invalid. | 0.6.0-preview.4 |
+| `diagnostics.missing-required-option` | `option`, `command` | The {option} option is required. | 0.6.0-preview.4 |
+| `diagnostics.unexpected-root-help-argument` | | The application's help takes no other arguments. | 0.6.0-preview.4 |
+| `diagnostics.response-file-unreadable` | `file` | The response file '{file}' could not be read. | 0.9.0 |
+| `diagnostics.response-file-invalid-utf8` | `file` | The response file '{file}' is not valid UTF-8. | 0.9.0 |
+| `diagnostics.response-file-unterminated-quote` | `file` | The response file '{file}' has an unterminated quote. | 0.9.0 |
+| `diagnostics.response-file-too-deep` | `file` | The response file '{file}' is nested more than 16 levels deep. | 0.9.0 |
+| `diagnostics.response-file-cycle` | `file` | The response file '{file}' includes itself. | 0.9.0 |
+| `diagnostics.invalid-environment-value` | `option`, `variable` | {variable} must be true/false, yes/no or 1/0 for {option}. | 0.6.0-preview.4 |
+| `diagnostics.invalid-choice` | `parameter`, `choices` | {parameter} must be one of: {choices}. | 0.6.0-preview.4 |
+| `diagnostics.invalid-choice-hidden` | `parameter` | {parameter} must be one of the choices shown in --help. | 0.6.0-preview.4 |
+| `diagnostics.invalid-integer` | `parameter` | {parameter} requires a whole number. | 0.6.0-preview.4 |
+| `diagnostics.invalid-number` | `parameter` | {parameter} requires a number. | 0.6.0-preview.4 |
+| `diagnostics.invalid-guid` | `parameter` | {parameter} requires a GUID such as 0f8fad5b-d9cb-469f-a165-70867728950e. | 0.6.0-preview.4 |
+| `diagnostics.invalid-boolean` | `parameter` | {parameter} requires true or false. | 0.6.0-preview.4 |
+| `diagnostics.invalid-value` | `parameter` | {parameter} has an invalid value. | 0.6.0-preview.4 |
+| `diagnostics.validation-failed` | `parameter` | {parameter} has a value that failed validation. | 0.6.0-preview.4 |
+| `diagnostics.missing-value` | `parameter` | {parameter} requires a value. | 0.6.0-preview.4 |
+| `diagnostics.out-of-range` | `parameter`, `minimum`, `maximum` | {parameter} requires a number between {minimum} and {maximum}. | 0.6.0-preview.4 |
+| `diagnostics.below-minimum` | `parameter`, `minimum` | {parameter} requires a number of at least {minimum}. | 0.6.0-preview.4 |
+| `diagnostics.above-maximum` | `parameter`, `maximum` | {parameter} requires a number of at most {maximum}. | 0.6.0-preview.4 |
+| `diagnostics.option-requires` | `option`, `required` | {option} requires {required}. | 0.6.0-preview.4 |
+| `diagnostics.option-conflict` | `option`, `conflict` | {option} cannot be combined with {conflict}. | 0.6.0-preview.4 |
+| `diagnostics.invalid-file-path` | `parameter` | {parameter} requires a valid file path. | 0.6.0-preview.4 |
+| `diagnostics.invalid-directory-path` | `parameter` | {parameter} requires a valid directory path. | 0.6.0-preview.4 |
+| `diagnostics.file-not-found` | `parameter` | {parameter} requires an existing file; check the path and permissions. | 0.6.0-preview.4 |
+| `diagnostics.directory-not-found` | `parameter` | {parameter} requires an existing directory; check the path and permissions. | 0.6.0-preview.4 |
+| `diagnostics.environment-value-source` | `parameter`, `variable` | The value for {parameter} came from environment variable {variable}. | 0.6.0-preview.4 |
+| `diagnostics.prompt-requires-terminal` | `prompt` | {prompt} needs an answer, but the command is not running in an interactive terminal. Pass the value on the command line. | 0.7.0-preview.1 |
+| `diagnostics.prompt-json-output` | `prompt` | {prompt} needs an answer, but JSON output never prompts. Pass the value on the command line. | 0.7.0-preview.1 |
+| `diagnostics.prompt-disabled` | `prompt` | {prompt} needs an answer, but prompts are disabled. Pass the value on the command line. | 0.7.0-preview.1 |
+
+## Removed keys
+
+None so far. A key removed in a minor release is listed here, with the release
+and its replacement, until the next minor, so an application that overrides it
+can find what to use instead.
 
 `CommandTextContext.ValidateDescriptionKeys(catalog)` reports application
 `DescriptionKey` values a resolver does not resolve (`RCLI0023`).
