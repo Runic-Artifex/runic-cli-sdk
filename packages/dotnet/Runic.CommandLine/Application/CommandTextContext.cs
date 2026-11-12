@@ -62,6 +62,8 @@ public sealed class CommandTextContext
             foreach (CommandOptionDescriptor option in command.Options)
                 if (!option.IsGlobal || globals.Add(option.Id)) Check(option.DescriptionKey, path, "option '" + option.Name + "'");
             foreach (CommandArgumentDescriptor argument in command.Arguments) Check(argument.DescriptionKey, path, "argument '" + argument.Name + "'");
+            foreach (CommandExitCodeHelp exitCode in command.Help.ExitCodes)
+                Check(exitCode.DescriptionKey, path, "exit code " + exitCode.ExitCode.ToString(CultureInfo.InvariantCulture));
             foreach (CommandDescriptor child in command.Subcommands) Visit(child, path + " " + child.Name);
         }
 

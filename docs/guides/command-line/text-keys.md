@@ -106,6 +106,7 @@ it then fails with `RTR0103`.
 | `help.json-payload-output-alias` | | Write the result as JSON | 0.7.0-preview.2 |
 | `help.response-files` | | Read more arguments from a file | 0.9.0 |
 | `help.examples` | | Examples | 0.6.0-preview.4 |
+| `help.exit-codes` | | Exit codes | 0.12.0 |
 | `help.required` | | required | 0.6.0-preview.4 |
 | `help.default` | | default | 0.6.0-preview.4 |
 | `help.choices` | | choices | 0.6.0-preview.4 |

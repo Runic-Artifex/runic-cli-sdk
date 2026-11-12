@@ -18,6 +18,7 @@ help {
   jsonPayloadOutputAlias = Ergebnis als JSON ausgeben
   responseFiles = Weitere Argumente aus einer Datei lesen
   examples = Beispiele
+  exitCodes = Exit-Codes
   required = erforderlich
   default = Standard
   choices = Auswahl

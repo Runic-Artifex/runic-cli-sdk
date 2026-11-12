@@ -11,8 +11,9 @@ namespace Runic.CommandLine;
 /// <typeparam name="T">The command result type.</typeparam>
 /// <remarks>
 /// This contract deliberately contains no parser or serializer types. A host
-/// maps <see cref="ExitCategory"/> through an <see cref="IExitCodePolicy"/>
-/// and presents either <see cref="Value"/> or <see cref="Fault"/>.
+/// maps <see cref="ExitCategory"/> through an <see cref="IExitCodePolicy"/>,
+/// unless the outcome selects its own <see cref="ExitCode"/>, and presents
+/// either <see cref="Value"/> or <see cref="Fault"/>.
 /// </remarks>
 public sealed class CommandOutcome<T>
 {
@@ -28,7 +29,8 @@ public sealed class CommandOutcome<T>
         CommandFault? fault,
         IReadOnlyList<CommandDiagnostic>? diagnostics,
         string? humanOutput,
-        CommandFailureData? failureData = null)
+        CommandFailureData? failureData = null,
+        int? exitCode = null)
     {
         Succeeded = isSuccess;
         ExitCategory = exitCategory;
@@ -37,6 +39,7 @@ public sealed class CommandOutcome<T>
         Diagnostics = CopyDiagnostics(diagnostics, isSuccess);
         HumanOutput = CopyHumanOutput(humanOutput, isSuccess);
         FailureData = failureData;
+        ExitCode = exitCode;
     }
 
     /// <summary>Gets a value indicating whether the command succeeded.</summary>
@@ -53,6 +56,55 @@ public sealed class CommandOutcome<T>
 
     /// <summary>Gets the optional, explicitly declared domain failure data snapshot.</summary>
     public CommandFailureData? FailureData { get; }
+
+    /// <summary>
+    /// Gets the process exit code this outcome selects with <see cref="WithExitCode"/>, or null when the
+    /// <see cref="IExitCodePolicy"/> maps <see cref="ExitCategory"/> to the code.
+    /// </summary>
+    public int? ExitCode { get; }
+
+    /// <summary>
+    /// Returns a copy of this outcome that exits with <paramref name="exitCode"/> instead of the code the
+    /// <see cref="IExitCodePolicy"/> maps its category to, for example 2, 3 and 4 for three documented failures of
+    /// one command, or 3010 for a success that needs a restart.
+    /// </summary>
+    /// <param name="exitCode">
+    /// The process exit code. A failure needs a code that no platform reads as success: not zero, and not a
+    /// multiple of 256, which Linux and macOS truncate to zero. A success may use zero or an informational code.
+    /// </param>
+    /// <returns>An outcome with the same category, value, fault, diagnostics and data, and the given exit code.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The outcome is a failure and <paramref name="exitCode"/> would read as success.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// The category stays the semantic classification: the fault code, observers, <c>success</c> in JSON output and
+    /// <see cref="CommandExecutionResult.Succeeded"/> follow it, and the exit code changes only for this invocation.
+    /// The JSON envelope, <see cref="CommandExecutionResult.ExitCode"/>, <see cref="CommandOutcomePresentation{T}.ExitCode"/>
+    /// and observers report the code the process returns. Other commands of the catalog, and the outcomes the framework
+    /// creates itself (usage errors, cancellation, host failures), keep the policy's codes.
+    /// </para>
+    /// <para>
+    /// Linux and macOS report only the low 8 bits of an exit code, so 3010 reads as 194 there; a tool that runs on them
+    /// uses codes from 1 to 255. A success with a nonzero code is an informational success for callers that document
+    /// it, such as Windows Installer's 3010 ("restart required") or 1641 ("restart started"); other callers read any
+    /// nonzero code as failure. Readers of the <c>runic.commandline/1</c> envelope before Runic Command Line 0.12
+    /// reject a successful envelope with a nonzero <c>exitCode</c>. Document the codes in help with
+    /// <see cref="CommandHelp.ExitCodes"/> or <see cref="CommandExitCodeAttribute"/>.
+    /// </para>
+    /// </remarks>
+    public CommandOutcome<T> WithExitCode(int exitCode)
+    {
+        if (!Succeeded && !CommandExitCodes.IsFailureCode(exitCode))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(exitCode),
+                exitCode,
+                "A failed outcome needs an exit code that is not zero and not a multiple of 256.");
+        }
+
+        return new CommandOutcome<T>(Succeeded, ExitCategory, Value, Fault, Diagnostics, HumanOutput, FailureData, exitCode);
+    }
 
     /// <summary>
     /// Gets the ordered, immutable diagnostics produced while binding or

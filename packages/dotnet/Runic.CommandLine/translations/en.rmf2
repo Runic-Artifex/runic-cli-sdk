@@ -24,6 +24,7 @@ help {
   jsonPayloadOutputAlias = Write the result as JSON
   responseFiles = Read more arguments from a file
   examples = Examples
+  exitCodes = Exit codes
   required = required
   default = default
   choices = choices
