@@ -119,7 +119,9 @@ Changes reach `main` through pull requests. The `verify` job in
 [CI](.github/workflows/ci.yml) always reports and passes only when every other CI
 job passed; it is the check to require before merging. CI also lints workflows
 with actionlint and requires remote actions pinned to a full commit SHA followed by
-a `# vX.Y.Z` comment; update both together from the tag's commit. Report
+a `# vX.Y.Z` comment; update both together from the tag's commit. A first-party
+reusable workflow (runic-sdk's train gate) is pinned to a full commit SHA with a
+comment that names that commit. Report
 vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Releases
@@ -127,8 +129,10 @@ vulnerabilities as described in [SECURITY.md](SECURITY.md).
 The four NuGet package identities release together, independently from the
 Runic SDK. See [the release guide](eng/release/README.md). The latest published
 release is `0.11.0`; see its [upgrade notes](eng/release/notes/0.11.0.md).
-The next release is `1.0.0-rc.1`, the first release candidate: release candidates
-take only fixes, and 1.0.0 follows the last one. Until 1.0 releases use plain
+The next release is `0.12.0` (its [upgrade notes](eng/release/notes/0.12.0.md)),
+part of the 0.18 release train with Runic Translations 0.10.0 and Runic SDK 0.18.0.
+After it come the `1.0.0-rc.N` release candidates, which take only fixes, and
+1.0.0 follows the last one. Until 1.0 releases use plain
 `0.y.z` versions, where a new minor may break and a patch only fixes or adds, and
 are still marked as prereleases on GitHub, as the release candidates are.
 The first standalone release was `0.6.0-preview.2`; consumers on earlier SDK

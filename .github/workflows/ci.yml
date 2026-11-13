@@ -26,9 +26,13 @@ jobs:
           echo "$ACTIONLINT_SHA256  $archive" | sha256sum --check --strict
           tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
           "$RUNNER_TEMP/actionlint" -color
+      # A first-party reusable workflow (the runic-sdk train gate) is pinned to a full commit SHA that may have no
+      # tag; its comment names that commit instead of a version.
       - name: Require pinned remote actions
         run: |
-          if grep -rnE '^\s*(- )?uses:\s*[^.][^@]*@' .github/workflows | grep -vE '@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+$'; then
+          if grep -rnE '^\s*(- )?uses:\s*[^.][^@]*@' .github/workflows \
+            | grep -vE '@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | grep -vE 'uses:\s*Runic-Artifex/[A-Za-z0-9._-]+/\.github/workflows/[A-Za-z0-9._-]+\.ya?ml@[0-9a-f]{40} # \S'; then
             echo "Pin every remote action to a full commit SHA followed by '# vX.Y.Z'."
             exit 1
           fi
