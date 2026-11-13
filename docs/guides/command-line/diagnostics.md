@@ -330,7 +330,8 @@ followed by another option or `--`.
 
 `missing-argument`: a required positional argument is missing. Arguments bind
 left to right, so the diagnostic names the first argument the given tokens do
-not reach: `copy a.txt` for `copy <source> <destination>` names `destination`.
+not reach, as the usage line shows it: `copy a.txt` for
+`copy <source> <destination>` reports "The <destination> argument is missing."
 
 ### RCLI1006
 

@@ -59,13 +59,15 @@ public static class CommandHelpFormatter
         rows.Clear();
         if (command is not null)
             foreach (CommandArgumentDescriptor argument in command.Arguments.Where(argument => !argument.Help.Hidden))
-                rows.Add(new(argument.Name, context.Description(argument.Help, argument.DescriptionKey), Notes(argument.Help, argument.IsSensitive, argument.Arity.Minimum > 0, context)));
+                rows.Add(new(argument.DisplayName, context.Description(argument.Help, argument.DescriptionKey),
+                    Notes(argument.Help, argument.IsSensitive, argument.Arity.Minimum > 0, context, command.Options)));
         AppendSection(text, context.Resolve(CommandTextKeys.HelpArguments, "Arguments"), rows, width);
         rows.Clear();
-        foreach (CommandOptionDescriptor option in (command?.Options ?? CommandCompletion.GlobalOptions(catalog)).Where(option => !option.Help.Hidden))
+        IReadOnlyList<CommandOptionDescriptor> options = command?.Options ?? CommandCompletion.GlobalOptions(catalog);
+        foreach (CommandOptionDescriptor option in options.Where(option => !option.Help.Hidden))
             rows.Add(new(string.Join(", ", new[] { option.Name }.ConcatAliases(option.Aliases).Select(spelling => CommandDialect.Option(catalog, spelling))) +
                 (option.Arity.Maximum != 0 ? " <" + (option.Help.ValueName ?? option.Id) + (option.Arity.Maximum != 1 ? "..." : "") + ">" : ""),
-                context.Description(option.Help, option.DescriptionKey), Notes(option.Help, option.IsSensitive, option.IsRequired, context)));
+                context.Description(option.Help, option.DescriptionKey), Notes(option.Help, option.IsSensitive, option.IsRequired, context, options)));
         rows.Add(new(CommandDialect.HelpTerm(catalog), context.Resolve(CommandTextKeys.HelpShowHelp, "Show help")));
         rows.Add(new(CommandDialect.Version(catalog), context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
         rows.Add(new(outputOptionName + " <human|json>", context.Resolve(CommandTextKeys.HelpOutputFormat, "Select output format")));
@@ -140,8 +142,11 @@ public static class CommandHelpFormatter
 
     private sealed record Row(string Term, string Description, IReadOnlyList<string>? Notes = null);
 
-    private static List<string> Notes(CommandHelp help, bool sensitive, bool required, CommandTextContext context)
+    // Requires and ConflictsWith hold option IDs; help names each option by its primary spelling in the catalog's
+    // dialect, as the usage error for the same relation does (--factor, or /factor under the slash dialect).
+    private static List<string> Notes(CommandHelp help, bool sensitive, bool required, CommandTextContext context, IReadOnlyList<CommandOptionDescriptor> options)
     {
+        string OptionName(string id) => options.FirstOrDefault(option => option.Id == id)?.DisplayName ?? id;
         var notes = new List<string>();
         void Note(string label, string? value = null) => notes.Add("[" + label + (value is null ? "" : ": " + value) + "]");
         if (required) Note(context.Resolve(CommandTextKeys.HelpRequired, "required"));
@@ -156,8 +161,8 @@ public static class CommandHelpFormatter
         }
         if (help.Minimum is { } min) Note(context.Resolve(CommandTextKeys.HelpMinimum, "min"), min.ToString(CultureInfo.InvariantCulture));
         if (help.Maximum is { } max) Note(context.Resolve(CommandTextKeys.HelpMaximum, "max"), max.ToString(CultureInfo.InvariantCulture));
-        if (help.Requires.Count > 0) Note(context.Resolve(CommandTextKeys.HelpRequires, "requires"), string.Join(", ", help.Requires));
-        if (help.ConflictsWith.Count > 0) Note(context.Resolve(CommandTextKeys.HelpConflicts, "conflicts"), string.Join(", ", help.ConflictsWith));
+        if (help.Requires.Count > 0) Note(context.Resolve(CommandTextKeys.HelpRequires, "requires"), string.Join(", ", help.Requires.Select(OptionName)));
+        if (help.ConflictsWith.Count > 0) Note(context.Resolve(CommandTextKeys.HelpConflicts, "conflicts"), string.Join(", ", help.ConflictsWith.Select(OptionName)));
         return notes;
     }
 

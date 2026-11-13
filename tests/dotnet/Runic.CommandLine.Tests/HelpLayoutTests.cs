@@ -47,7 +47,7 @@ internal sealed class HelpLayoutTests
             supported formats, replacing any previous export.
 
             Arguments:
-              source  Record source. [required]
+              <source>  Record source. [required]
 
             Options:
               --name <name>          Archive name.

@@ -45,4 +45,8 @@ public sealed class CommandArgumentDescriptor
     /// arguments then receive no token after <c>--</c>.
     /// </summary>
     public bool IsTrailing { get; }
+
+    // The argument as help, usage errors and value errors name it: its value name, or else its name, in angle
+    // brackets, such as <Container-Path>. The usage line shows the same name.
+    internal string DisplayName => "<" + (Help.ValueName ?? Name) + ">";
 }

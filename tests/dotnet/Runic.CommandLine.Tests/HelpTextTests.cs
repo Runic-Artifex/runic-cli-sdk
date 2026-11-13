@@ -8,7 +8,8 @@ using Runic.CommandLine.Testing;
 
 namespace Runic.CommandLine.Tests;
 
-// Help and usage texts as users read them: extended help through a text key (#97).
+// Help and usage texts as users read them: extended help through a text key (#97), arguments and options named as the
+// usage line shows them (#98).
 internal sealed class HelpTextTests
 {
     private static CommandApp App(TestCommandConsole console, ICommandTextResolver? resolver = null) =>
@@ -109,6 +110,85 @@ internal sealed class HelpTextTests
         AssertEx.True(generated.Contains("LongDescription = \"Group notes.\", LongDescriptionKey = \"groups.tools.details\"", StringComparison.Ordinal), generated);
         AssertEx.True(generated.Contains("LongDescription = \"Notes.\", LongDescriptionKey = \"commands.tools-show.details\"", StringComparison.Ordinal), generated);
         return ValueTask.CompletedTask;
+    }
+
+    // The commands of #98: arguments with value names, and options related by ID.
+    private static CommandCatalog PolicyCatalog(CommandSyntaxDialect syntax)
+    {
+        var builder = new CommandCatalogBuilder().Syntax(syntax);
+        CatalogTests.ValidCommand(builder, "link")
+            .Argument("policy-name", "policy-name", CommandArity.ExactlyOne)
+            .Argument("container-path", "container-path", CommandArity.ExactlyOne)
+            .ParameterHelp("policy-name", new CommandHelp(valueName: "Richtlinie"))
+            .ParameterHelp("container-path", new CommandHelp("Pfad des Containers.", valueName: "Container-Pfad"));
+        CatalogTests.ValidCommand(builder, "alias")
+            .Option("list", "-l", CommandArity.Zero)
+            .Option("remove", "-r", CommandArity.ExactlyOne)
+            .ParameterHelp("list", new CommandHelp("Listet die Aliasse auf"))
+            .ParameterHelp("remove", new CommandHelp("Entfernt die Einträge für <AltName>", valueName: "AltName") { ConflictsWith = ["list"] });
+        CatalogTests.ValidCommand(builder, "wait")
+            .Option("factor", "--factor", CommandArity.ExactlyOne)
+            .Option("limit", "--limit", CommandArity.ExactlyOne)
+            .ParameterHelp("factor", new CommandHelp("Faktor", defaultValue: "1.5"))
+            .ParameterHelp("limit", new CommandHelp("Obergrenze", defaultValue: "10000") { Requires = ["factor"] });
+        return builder.Build();
+    }
+
+    private static async ValueTask<TestCommandConsole> Run(CommandCatalog catalog, int exitCode, params string[] args)
+    {
+        var console = new TestCommandConsole();
+        var app = new CommandApp(catalog) { Name = "tool", Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default };
+        AssertEx.Equal(exitCode, await app.RunAsync(args), console.StandardError);
+        return console;
+    }
+
+    [Test, DisplayName("help-texts/missing-argument-names-the-value-name")]
+    public async ValueTask MissingArgumentNamesTheValueName()
+    {
+        foreach ((CommandSyntaxDialect syntax, string link, string help) in new[]
+        {
+            (CommandSyntaxDialect.Portable, "link", "--help"), (CommandSyntaxDialect.WindowsSlash, "/link", "/?"),
+        })
+        {
+            TestCommandConsole console = await Run(PolicyCatalog(syntax), CommandExitCodes.Usage, link, "one");
+            AssertEx.Equal(
+                "The <Container-Pfad> argument is missing.\n" +
+                "Usage: tool " + link + " <Richtlinie> <Container-Pfad> [options]\n" +
+                "Run \"tool " + link + " " + help + "\" for more information.\n",
+                console.StandardError);
+        }
+
+        // An argument without a value name is named as the usage line shows it, by its name.
+        var builder = new CommandCatalogBuilder();
+        CatalogTests.ValidCommand(builder, "copy").Argument("source", "source", CommandArity.ExactlyOne);
+        ParseOutcome outcome = PortableCommandSyntaxAdapter.Instance.Parse(builder.Build(), ["copy"], ParseSettings.Default);
+        AssertEx.SequenceEqual(["<source>"], outcome.Diagnostics.Single().Arguments);
+        AssertEx.Equal("The <source> argument is missing.", outcome.Diagnostics.Single().Message);
+    }
+
+    [Test, DisplayName("help-texts/help-names-arguments-and-related-options-as-users-see-them")]
+    public async ValueTask HelpNamesWhatUsersSee()
+    {
+        TestCommandConsole console = await Run(PolicyCatalog(CommandSyntaxDialect.WindowsSlash), 0, "/link", "/?");
+        AssertEx.True(console.StandardOutput.StartsWith(
+            "Usage: tool /link <Richtlinie> <Container-Pfad> [options]\n\n" +
+            "Arguments:\n" +
+            "  <Richtlinie>      [required]\n" +
+            "  <Container-Pfad>  Pfad des Containers. [required]\n", StringComparison.Ordinal), console.StandardOutput);
+
+        console = await Run(PolicyCatalog(CommandSyntaxDialect.WindowsSlash), 0, "/alias", "/?");
+        AssertEx.True(console.StandardOutput.Contains("Entfernt die Einträge für <AltName> [conflicts: /l]\n", StringComparison.Ordinal), console.StandardOutput);
+        console = await Run(PolicyCatalog(CommandSyntaxDialect.WindowsSlash), 0, "/wait", "/?");
+        AssertEx.True(console.StandardOutput.Contains("Obergrenze [default: 10000] [requires: /factor]\n", StringComparison.Ordinal), console.StandardOutput);
+
+        console = await Run(PolicyCatalog(CommandSyntaxDialect.Portable), 0, "alias", "--help");
+        AssertEx.True(console.StandardOutput.Contains("Entfernt die Einträge für <AltName> [conflicts: -l]\n", StringComparison.Ordinal), console.StandardOutput);
+        console = await Run(PolicyCatalog(CommandSyntaxDialect.Portable), 0, "wait", "--help");
+        AssertEx.True(console.StandardOutput.Contains("Obergrenze [default: 10000] [requires: --factor]\n", StringComparison.Ordinal), console.StandardOutput);
+
+        // The usage error for the same conflict names the options the same way.
+        console = await Run(PolicyCatalog(CommandSyntaxDialect.WindowsSlash), CommandExitCodes.Usage, "/alias", "/l", "/r", "x");
+        AssertEx.True(console.StandardError.StartsWith("/r cannot be combined with /l.\n", StringComparison.Ordinal), console.StandardError);
     }
 
     internal sealed class TextResolver(Dictionary<string, string> texts) : ICommandTextResolver

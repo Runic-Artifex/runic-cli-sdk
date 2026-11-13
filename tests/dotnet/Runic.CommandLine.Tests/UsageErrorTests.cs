@@ -45,8 +45,9 @@ internal sealed class UsageErrorTests
         AssertEx.Equal("RCLI1005", diagnostic.Code, line);
         AssertEx.Equal("missing-argument", diagnostic.Kind, line);
         AssertEx.Equal(args.Length, diagnostic.TokenIndex, line);
-        AssertEx.SequenceEqual([argument], diagnostic.Arguments, line);
-        AssertEx.Equal("The " + argument + " argument is missing.", diagnostic.Message, line);
+        // The argument is named as the usage line shows it.
+        AssertEx.SequenceEqual(["<" + argument + ">"], diagnostic.Arguments, line);
+        AssertEx.Equal("The <" + argument + "> argument is missing.", diagnostic.Message, line);
     }
 
     private static void AssertBound(string[] args, params (string Id, string[] Values)[] expected)
@@ -110,7 +111,7 @@ internal sealed class UsageErrorTests
         AssertEx.Equal(CommandExitCodes.Usage, await App(console).RunAsync(["bind", "w.storyline"]));
         AssertEx.Equal("", console.StandardOutput);
         AssertEx.Equal(
-            "The binding argument is missing.\n" +
+            "The <binding> argument is missing.\n" +
             "Usage: storyline bind <world> <binding> [options]\n" +
             "Run \"storyline bind --help\" for more information.\n",
             console.StandardError);
@@ -141,12 +142,12 @@ internal sealed class UsageErrorTests
         using JsonDocument frame = CommandTestEnvelope.Parse(console.StandardOutput);
         JsonElement fault = frame.RootElement.GetProperty("fault");
         AssertEx.Equal("RCLI1005", fault.GetProperty("code").GetString());
-        AssertEx.Equal("The binding argument is missing.", fault.GetProperty("message").GetString());
+        AssertEx.Equal("The <binding> argument is missing.", fault.GetProperty("message").GetString());
         JsonElement diagnostic = frame.RootElement.GetProperty("diagnostics").EnumerateArray().Single();
         AssertEx.Equal("RCLI1005", diagnostic.GetProperty("code").GetString());
         AssertEx.Equal("missing-argument", diagnostic.GetProperty("kind").GetString());
         AssertEx.Equal("diagnostics.missing-argument", diagnostic.GetProperty("messageKey").GetString());
-        AssertEx.SequenceEqual(["binding"], diagnostic.GetProperty("arguments").EnumerateArray().Select(static item => item.GetString()!));
+        AssertEx.SequenceEqual(["<binding>"], diagnostic.GetProperty("arguments").EnumerateArray().Select(static item => item.GetString()!));
         AssertEx.True(!console.StandardOutput.Contains("--help", StringComparison.Ordinal), console.StandardOutput);
     }
 
@@ -175,7 +176,7 @@ internal sealed class UsageErrorTests
         var console = new TestCommandConsole();
         AssertEx.Equal(CommandExitCodes.Usage, await App(console, new HintResolver()).RunAsync(["bind", "w.storyline"]));
         AssertEx.Equal(
-            "Das Argument binding fehlt.\n" +
+            "Das Argument <binding> fehlt.\n" +
             "Aufruf: storyline bind <world> <binding> [Optionen]\n" +
             "Hilfe: storyline bind --help\n",
             console.StandardError);

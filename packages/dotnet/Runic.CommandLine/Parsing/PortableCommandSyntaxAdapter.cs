@@ -493,7 +493,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 if (descriptor.Id != binding.Id) continue;
                 if (!TryCanonicalizeChoices(binding.Values, descriptor.Help, out string[]? canonical))
                     return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path,
-                        ChoiceArguments(catalog, "<" + (descriptor.Help.ValueName ?? descriptor.Name) + ">", descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification(),
+                        ChoiceArguments(catalog, descriptor.DisplayName, descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification(),
                         hiddenChoices: HidesChoices(descriptor.Help, descriptor.IsSensitive));
                 if (canonical is not null) canonicalArguments[argumentIndex] = new CommandValueBinding(binding.Id, canonical);
             }
@@ -653,7 +653,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                     "missing-argument",
                     endTokenIndex,
                     path,
-                    [descriptor.Name],
+                    [descriptor.DisplayName],
                     outputClassification: outputClassification);
             }
         }

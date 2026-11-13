@@ -48,7 +48,17 @@ list; see [Built-in catalog](#built-in-catalog).
   `new CommandTextContext(context.Culture, context.TextResolver)`.
 - Arguments arrive in the order listed. The names describe each position; an
   argument named `parameter` is an option spelling such as `--limit` or an
-  argument placeholder such as `<name>`.
+  argument placeholder such as `<name>`, one named `option` is an option
+  spelling, and one named `argument` is an argument placeholder: its value name,
+  or else its name, in angle brackets, as the usage line shows it (before
+  0.13.0, `diagnostics.missing-argument` received the bare name, such as `name`).
+  Option spellings follow the catalog's dialect (`/limit` under the Windows
+  slash dialect).
+- Help names options in its `help.requires` and `help.conflicts` notes by their
+  spelling in the catalog's dialect, such as `[conflicts: --list]` or
+  `[conflicts: /l]`, and lists arguments under `help.arguments` as the usage
+  line shows them, such as `<name>` (before 0.13.0: option IDs and argument
+  names).
 - Resolved text passes through the same sanitizers as the English text.
 - A usage error in human output ends with the usage line of its command, built
   from the `help.usage`, `help.command-placeholder` and

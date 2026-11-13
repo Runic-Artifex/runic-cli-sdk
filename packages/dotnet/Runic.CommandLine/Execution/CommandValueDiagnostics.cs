@@ -46,7 +46,7 @@ internal static class CommandValueDiagnostics
         if (FindOption(command, id) is { } option) return option.DisplayName;
         foreach (CommandArgumentDescriptor argument in command.Arguments)
         {
-            if (argument.Id == id) return "<" + (argument.Help.ValueName ?? argument.Name) + ">";
+            if (argument.Id == id) return argument.DisplayName;
         }
         return id;
     }
