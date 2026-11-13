@@ -332,7 +332,9 @@ rules for ambiguous tokens.
   EnvironmentVariable = "APP_VALUE", Sensitive = true)]` supplies shared metadata.
   Explicit input wins over the environment, then C# defaults. A flag's
   environment value may be `true`/`false`, `yes`/`no` or `1`/`0` in any case.
-  Choices match case-insensitively and bind the declared spelling. Sensitive
+  Choices match case-insensitively and bind the declared spelling. Help shows a
+  C# default as `[default: …]`, except for flags: a Boolean option is off unless
+  given, so it shows no default, whether or not it declares `= false`. Sensitive
   defaults and choices are excluded from help and completion.
 - Generated numeric metadata permits separated negative numbers. Other
   option-looking data still requires `--` or an equals value. Unknown options and

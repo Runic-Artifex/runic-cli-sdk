@@ -9,7 +9,7 @@ using Runic.CommandLine.Testing;
 namespace Runic.CommandLine.Tests;
 
 // Help and usage texts as users read them: extended help through a text key (#97), arguments and options named as the
-// usage line shows them (#98).
+// usage line shows them (#98), and no default for flags (#99).
 internal sealed class HelpTextTests
 {
     private static CommandApp App(TestCommandConsole console, ICommandTextResolver? resolver = null) =>
@@ -191,6 +191,34 @@ internal sealed class HelpTextTests
         AssertEx.True(console.StandardError.StartsWith("/r cannot be combined with /l.\n", StringComparison.Ordinal), console.StandardError);
     }
 
+    [Test, DisplayName("help-texts/boolean-options-show-no-default")]
+    public async ValueTask BooleanOptionsShowNoDefault()
+    {
+        var console = new TestCommandConsole();
+        AssertEx.Equal(0, await App(console).RunAsync(["flags-default", "--help"]), console.StandardError);
+        string help = console.StandardOutput;
+        AssertEx.True(!help.Contains("False", StringComparison.Ordinal) && !help.Contains("false", StringComparison.Ordinal), help);
+        AssertEx.True(help.Contains("Listet die Aliasse auf\n", StringComparison.Ordinal), help);
+        AssertEx.True(help.Contains("Ohne Ausgabe\n", StringComparison.Ordinal), help);
+        AssertEx.True(help.Contains("Faktor [default: 1.5]\n", StringComparison.Ordinal), help);
+
+        // The generated catalog carries no display default for a Boolean option, declared '= false' or not.
+        CommandDescriptor command = GeneratedCommandCatalog.Create().Commands.Single(static command => command.Name == "flags-default");
+        AssertEx.Equal(null, command.Options.Single(static option => option.Id == "list").Help.DefaultValue);
+        AssertEx.Equal(null, command.Options.Single(static option => option.Id == "quiet").Help.DefaultValue);
+        AssertEx.Equal("1.5", command.Options.Single(static option => option.Id == "factor").Help.DefaultValue);
+
+        // A hand-written flag with a display default shows none either; a value option keeps its default.
+        var builder = new CommandCatalogBuilder();
+        CatalogTests.ValidCommand(builder, "manual")
+            .Option("force", "--force", CommandArity.Zero)
+            .Option("mode", "--mode", CommandArity.ExactlyOne)
+            .ParameterHelp("force", new CommandHelp("Force.", defaultValue: "False"))
+            .ParameterHelp("mode", new CommandHelp("Mode.", defaultValue: "fast"));
+        help = CommandHelpFormatter.Format(builder.Build(), "tool", new CommandPath(["manual"]));
+        AssertEx.True(help.Contains("Force.\n", StringComparison.Ordinal) && help.Contains("Mode. [default: fast]\n", StringComparison.Ordinal), help);
+    }
+
     internal sealed class TextResolver(Dictionary<string, string> texts) : ICommandTextResolver
     {
         public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) =>
@@ -204,4 +232,9 @@ internal static class HelpTextCommands
 {
     [Command("ldk show", Hidden = true, Description = "Show.", LongDescription = "Restart afterwards.", LongDescriptionKey = "commands.ldk-show.details")]
     internal static string Show() => "ok";
+
+    [Command("flags-default", Hidden = true, Description = "Wartet.")]
+    internal static string FlagsDefault([Option("--quiet", Description = "Ohne Ausgabe")] bool quiet,
+        [Option("-l", Description = "Listet die Aliasse auf")] bool list = false,
+        [Option("--factor", Description = "Faktor")] double factor = 1.5) => "ok";
 }

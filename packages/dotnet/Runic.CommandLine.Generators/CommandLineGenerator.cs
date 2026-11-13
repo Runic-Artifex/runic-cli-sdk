@@ -562,9 +562,11 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             ITypeSymbol scalar = Scalar(parameter.Symbol.Type);
             bool numeric = IsNumeric(scalar);
             string choices = NamedArray(metadata, "Choices");
+            // A Boolean option is a presence flag that can only default to false (RCLI9024), so help shows no default.
+            bool showsDefault = parameter.HasDefault && parameter.DefaultValue is not null && !(parameter.Kind == ParameterKind.Option && IsBoolean(parameter.Symbol.Type));
             if (choices == "[]" && scalar.TypeKind == TypeKind.Enum) choices = "[" + string.Join(", ", scalar.GetMembers().OfType<IFieldSymbol>().Where(static f => f.HasConstantValue).Select(static f => Literal(f.Name))) + "]";
             registration.Append(".ParameterHelp(").Append(Literal(parameter.Id)).Append(", new global::Runic.CommandLine.CommandHelp(description: ").Append(NamedString(metadata, "Description"))
-                .Append(", valueName: ").Append(NamedString(metadata, "ValueName")).Append(", defaultValue: ").Append(parameter.HasDefault && parameter.DefaultValue is not null ? Literal(DefaultText(scalar, parameter.DefaultValue)) : "null")
+                .Append(", valueName: ").Append(NamedString(metadata, "ValueName")).Append(", defaultValue: ").Append(showsDefault ? Literal(DefaultText(scalar, parameter.DefaultValue!)) : "null")
                 .Append(", environmentVariable: ").Append(NamedString(metadata, "EnvironmentVariable")).Append(", choices: ").Append(choices).Append(", acceptsNegativeNumbers: ").Append(numeric ? "true" : "false").Append(") { Hidden = ").Append(NamedBool(metadata, "Hidden"))
                 .Append(", PathKind = (global::Runic.CommandLine.CommandPathKind)").Append(PathKind(metadata, scalar))
                 .Append(", MustExist = ").Append(NamedBool(metadata, "MustExist"))

@@ -67,7 +67,7 @@ public static class CommandHelpFormatter
         foreach (CommandOptionDescriptor option in options.Where(option => !option.Help.Hidden))
             rows.Add(new(string.Join(", ", new[] { option.Name }.ConcatAliases(option.Aliases).Select(spelling => CommandDialect.Option(catalog, spelling))) +
                 (option.Arity.Maximum != 0 ? " <" + (option.Help.ValueName ?? option.Id) + (option.Arity.Maximum != 1 ? "..." : "") + ">" : ""),
-                context.Description(option.Help, option.DescriptionKey), Notes(option.Help, option.IsSensitive, option.IsRequired, context, options)));
+                context.Description(option.Help, option.DescriptionKey), Notes(option.Help, option.IsSensitive, option.IsRequired, context, options, flag: option.Arity.Maximum == 0)));
         rows.Add(new(CommandDialect.HelpTerm(catalog), context.Resolve(CommandTextKeys.HelpShowHelp, "Show help")));
         rows.Add(new(CommandDialect.Version(catalog), context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
         rows.Add(new(outputOptionName + " <human|json>", context.Resolve(CommandTextKeys.HelpOutputFormat, "Select output format")));
@@ -144,13 +144,15 @@ public static class CommandHelpFormatter
 
     // Requires and ConflictsWith hold option IDs; help names each option by its primary spelling in the catalog's
     // dialect, as the usage error for the same relation does (--factor, or /factor under the slash dialect).
-    private static List<string> Notes(CommandHelp help, bool sensitive, bool required, CommandTextContext context, IReadOnlyList<CommandOptionDescriptor> options)
+    // A flag (an option that takes no value) shows no default: it is off unless given, whatever its DefaultValue says.
+    private static List<string> Notes(CommandHelp help, bool sensitive, bool required, CommandTextContext context, IReadOnlyList<CommandOptionDescriptor> options,
+        bool flag = false)
     {
         string OptionName(string id) => options.FirstOrDefault(option => option.Id == id)?.DisplayName ?? id;
         var notes = new List<string>();
         void Note(string label, string? value = null) => notes.Add("[" + label + (value is null ? "" : ": " + value) + "]");
         if (required) Note(context.Resolve(CommandTextKeys.HelpRequired, "required"));
-        if (!sensitive && !string.IsNullOrEmpty(help.DefaultValue)) Note(context.Resolve(CommandTextKeys.HelpDefault, "default"), help.DefaultValue);
+        if (!sensitive && !flag && !string.IsNullOrEmpty(help.DefaultValue)) Note(context.Resolve(CommandTextKeys.HelpDefault, "default"), help.DefaultValue);
         if (!sensitive && help.Choices.Count > 0) Note(context.Resolve(CommandTextKeys.HelpChoices, "choices"), string.Join(", ", help.Choices));
         if (help.EnvironmentVariable is { } environment) Note(context.Resolve(CommandTextKeys.HelpEnvironment, "env"), environment);
         if (help.PathKind != CommandPathKind.None)

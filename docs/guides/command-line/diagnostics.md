@@ -656,7 +656,8 @@ an `[Argument]` and a C# default contradict each other. Remove one of them.
 
 Flag defaults to true. A Boolean option is a presence flag, so a `true` default
 could never be turned off. Default to `false` and invert the name (for example
-`--no-cache`), or use `bool?` to accept an explicit value.
+`--no-cache`), or use `bool?` to accept an explicit value. `= false` is optional,
+and help shows no default for a flag either way.
 
 ### RCLI9025
 

@@ -218,12 +218,13 @@ internal sealed class HelpLayoutTests
         for (int width = CommandHelpFormatter.MinimumWidth; width < 40; width++)
         {
             // A term exactly as wide as the column cap and a note half the line wide: the note must still fit.
+            // The option takes a value, because a flag shows no default.
             int cap = Math.Min(32, Math.Max(8, width * 2 / 5));
             string value = new('v', Math.Max(1, width / 2 - "[default: ]".Length));
             var builder = new CommandCatalogBuilder();
             CatalogTests.ValidCommand(builder, "run")
-                .Option("wide", "--" + new string('w', cap - 2), CommandArity.Zero)
-                .ParameterHelp("wide", new CommandHelp(defaultValue: value));
+                .Option("wide", "--" + new string('w', cap - 2 - " <x>".Length), CommandArity.ExactlyOne)
+                .ParameterHelp("wide", new CommandHelp(valueName: "x", defaultValue: value));
             string help = CommandHelpFormatter.Format(builder.Build(), "fixture", new CommandPath(["run"]), CommandTextContext.English, width);
             foreach (string line in help.Split('\n'))
             {
