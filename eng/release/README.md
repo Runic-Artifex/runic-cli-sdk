@@ -155,6 +155,9 @@ these rules:
   section below).
 4. Set `RunicCommandLineVersion` to the next candidate and update the candidate
    and published versions named in `README.md` and `examples/command-line/README.md`.
+   Until the release candidates are scheduled, the next candidate is the next minor
+   (`0.(y+1).0`); `main` moves to `1.0.0-rc.1` only in the pull request that
+   schedules the first release candidate, not after every release.
 
 Then update the documentation catalog in `runic-site`: set the Command Line
 product's `version` and `releaseNotes` in `docs/src/lib/docs-data.ts` (see
