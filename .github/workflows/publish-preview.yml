@@ -97,8 +97,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 eng/release/release.py release-check "$VERSION"
 
-  publish:
+  # The train compatibility gate (runic-sdk eng/train/README.md, "Publish workflows", row T): restores, builds and
+  # runs consumers of exactly these Command Line candidates (the CI run the candidate job found) with the newest main
+  # runs of runic-translations-sdk and runic-sdk, with warnings as errors. Publishing needs it; a dry run runs it too.
+  train:
     needs: candidate
+    permissions:
+      contents: read
+      actions: read
+    uses: Runic-Artifex/runic-sdk/.github/workflows/train-compat.yml@ba58f3a805e80122d3f28f5f704a5fd45312d7a2 # runic-sdk main after #884
+    with:
+      row: T
+      cli: run:${{ needs.candidate.outputs.ci-run-id }}
+      translations: run
+      sdk: run
+      gate-ref: ba58f3a805e80122d3f28f5f704a5fd45312d7a2
+    secrets:
+      # Only if GitHub refuses this job's token for the other repositories' artifacts (D061.12).
+      RUNIC_TRAIN_TOKEN: ${{ secrets.RUNIC_TRAIN_TOKEN }}
+
+  publish:
+    needs: [candidate, train]
     if: ${{ !inputs.dry-run }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20

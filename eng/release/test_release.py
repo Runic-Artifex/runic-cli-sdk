@@ -332,6 +332,20 @@ class PublishWorkflow(unittest.TestCase):
         self.assertLess(publish.index('name: release-candidate-'), publish.index('sha256sum --check --strict'))
         self.assertIn('release.py release "$VERSION" artifacts/packages "artifacts/release/$SBOM"', publish)
 
+    def test_train_gate_checks_exactly_these_candidates_before_publishing(self):
+        train, publish = job(self.text, 'train'), job(self.text, 'publish')
+        gate = re.search(r'uses: Runic-Artifex/runic-sdk/\.github/workflows/train-compat\.yml@([0-9a-f]{40}) # ', train)
+        self.assertTrue(gate)
+        self.assertIn('    needs: candidate\n', train)
+        self.assertIn('    permissions:\n      contents: read\n      actions: read\n', train)
+        self.assertNotIn('write', train)
+        self.assertNotIn('if:', train)  # the dry run runs the gate too
+        self.assertIn('      row: T\n', train)
+        self.assertIn('      cli: run:${{ needs.candidate.outputs.ci-run-id }}\n', train)
+        self.assertIn('      translations: run\n      sdk: run\n', train)
+        self.assertIn(f'      gate-ref: {gate.group(1)}\n', train)
+        self.assertIn('    needs: [candidate, train]\n', publish)
+
     def test_release_uploads_the_sbom_with_the_packages(self):
         with tempfile.TemporaryDirectory() as directory:
             for name in ['B.1.2.3.nupkg', 'A.1.2.3.nupkg']:

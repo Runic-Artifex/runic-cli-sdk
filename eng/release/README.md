@@ -35,8 +35,25 @@ The workflow does not test or pack again. Its `candidate` job (`contents: read`,
   an existing GitHub release points at another commit, or a lookup fails for any
   reason other than not found. A release or draft of this exact commit is kept.
 
-A dry run ends there, without OIDC, an attestation, a NuGet push, a tag or a
-release. Otherwise the `publish` job, the only one in the `preview` environment
+The `train` job then runs the release train's compatibility gate, row T
+(runic-sdk `eng/train/README.md`, D060/D061): it calls runic-sdk's reusable
+`train-compat.yml`, pinned to a runic-sdk commit (`gate-ref` names the same SHA),
+with `contents: read` and `actions: read`. Its inputs are `cli: run:<the CI run
+the candidate job found>`, `translations: run` and `sdk: run`: exactly these
+Command Line candidates with the newest successful `main` runs of
+runic-translations-sdk and runic-sdk. It restores, builds and runs real consumers
+of the three package sets with warnings as errors, including German text through
+`Runic.Translations.CommandLine` with NativeAOT, key coverage against the packed
+`text-keys.json`, the templates, the tool pins and every cross-repository version
+range. The reusable workflow is first-party and has no tag at that commit, so its
+`uses:` line ends in a comment that names the commit instead of `# vX.Y.Z`; CI's
+pin check allows that for `Runic-Artifex/*/.github/workflows/*` only. If GitHub
+refuses the job's token for the other repositories' artifacts, the gate exits 3,
+and the optional `RUNIC_TRAIN_TOKEN` secret (read-only `actions: read`) is passed
+through. Move the pin to a newer runic-sdk commit when the gate changes.
+
+A dry run ends after `candidate` and `train`, without OIDC, an attestation, a
+NuGet push, a tag or a release. Otherwise the `publish` job, which needs both, the only one in the `preview` environment
 and the only one with `id-token: write`, `attestations: write` and
 `contents: write`, downloads the same artifact and candidate files, checks the
 files against `release-sha256` and the packages against the candidate inventory,
@@ -231,7 +248,10 @@ same policy. For Command Line:
   review; 0.9.0 only adds (the NativeAOT RIDs below, opt-in `@file` response
   files, a per-command outcome presenter and a strict
   `CommandTestEnvelope.Read<T>`); 0.10.0 and 0.11.0 take the gaps the Runic
-  consumer applications found (0.11.0 only adds API); then
+  consumer applications found (0.11.0 only adds API); 0.12.0 takes the issues
+  of the 0.18 release train (the Windows slash dialect, per-outcome exit codes,
+  `--json` for every outcome, and the framework text catalog with a key for
+  every text); then
   `1.0.0-rc.N` takes fixes only, and 1.0.0 follows the last release candidate.
 - Command Line depends on no other Runic SDK and ships first in the 1.0 release
   train, before Runic Translations and Runic SDK. After 1.0 it releases minors

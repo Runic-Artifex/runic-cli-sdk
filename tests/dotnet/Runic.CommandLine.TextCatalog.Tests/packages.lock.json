@@ -96,13 +96,13 @@
       "runic.commandline.processes": {
         "type": "Project",
         "dependencies": {
-          "Runic.CommandLine": "[1.0.0-rc.1, )"
+          "Runic.CommandLine": "[0.12.0, )"
         }
       },
       "runic.commandline.testing": {
         "type": "Project",
         "dependencies": {
-          "Runic.CommandLine": "[1.0.0-rc.1, )"
+          "Runic.CommandLine": "[0.12.0, )"
         }
       }
     }
