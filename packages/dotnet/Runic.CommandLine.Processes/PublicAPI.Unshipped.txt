@@ -1,14 +1,1 @@
 #nullable enable
-Runic.CommandLine.Processes.ProcessTextKeys
-const Runic.CommandLine.Processes.ProcessTextKeys.BatchFileArgumentRejected = "faults.RCLI6008" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.BatchFileRejected = "faults.RCLI6007" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.ExecutableRejected = "faults.RCLI6001" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.ExecutionFailed = "faults.RCLI6006" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.InvalidPolicyDecision = "faults.RCLI6003" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.OutputHandlerFailed = "faults.RCLI6009" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.OutputIncomplete = "faults.RCLI6011" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.PolicyEvaluationFailed = "faults.RCLI6004" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.StartFailed = "faults.RCLI6005" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.TimedOut = "faults.RCLI6010" -> string!
-const Runic.CommandLine.Processes.ProcessTextKeys.WorkingDirectoryRejected = "faults.RCLI6002" -> string!
-static Runic.CommandLine.Processes.ProcessTextKeys.All.get -> System.Collections.Generic.IReadOnlyList<Runic.CommandLine.CommandTextKey!>!
