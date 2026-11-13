@@ -1181,6 +1181,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
     {
         string message = MessageText(kind, arguments ?? [], suggestion, hiddenChoices);
         string? messageKey = CommandValueDiagnostics.MessageKey(hiddenChoices);
+        // An empty command line is an unknown command without a token to name; its text has its own key.
+        if (kind == "unknown-command" && arguments is not { Count: > 0 }) messageKey = CommandTextKeys.DiagnosticMissingCommand;
         // A suggestion is a trailing argument with its own key, so a translation can still offer it.
         if (suggestion is not null)
         {

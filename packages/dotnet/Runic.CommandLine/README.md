@@ -1052,7 +1052,12 @@ remain unchanged. The existing sanitizers still apply to resolved text.
 
 The [`Runic.Translations.CommandLine`](https://www.nuget.org/packages/Runic.Translations.CommandLine)
 package translates every framework key with Runic Translations, with English
-and German text and no key mapping. That text, the `runic-command-line`
+and German text and no key mapping. The catalog covers all framework text of
+the Command Line packages: help and its headings (also as
+`Runic.CommandLine.Spectre` styles them), usage errors and their hint lines,
+prompts, the framework faults including those of `Runic.CommandLine.Processes`
+(`faults.RCLI6001` to `faults.RCLI6011`, listed by `ProcessTextKeys`), help-link
+lines, and the notes that replace redacted messages. That text, the `runic-command-line`
 catalog, is maintained in this repository next to `CommandTextKeys` and ships
 in this package as data: `translations/` holds `runic.json`, `en.rmf2`,
 `de.rmf2` and `text-keys.json`, which lists each key with its argument names.

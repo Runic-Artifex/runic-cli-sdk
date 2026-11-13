@@ -64,7 +64,9 @@ Every key in `CommandTextKeys.All` needs English and German text in the `runic-c
 `docs/guides/command-line/text-keys.md`. The TextCatalog suite fails otherwise, and when a message's inputs are not
 its key's arguments or its English differs from the framework's. A change that adds a key or changes its arguments or
 English text updates all three in the same pull request; see
-[Adding or changing a key](docs/guides/command-line/text-keys.md#adding-or-changing-a-key).
+[Adding or changing a key](docs/guides/command-line/text-keys.md#adding-or-changing-a-key). The same holds for a new
+`ProcessFaultCodes` code of Runic.CommandLine.Processes: its one English message goes into `ProcessFaultMessages`, its
+`faults.{code}` key into `CommandTextKeys.All` and `ProcessTextKeys`, and its text into the same catalog.
 
 ### Probe programs
 

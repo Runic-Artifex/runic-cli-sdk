@@ -97,9 +97,8 @@ internal sealed class HelpLayoutTests
         var console = new SpectreCommandConsole(inner, width: 60, color: false);
         await new SpectreHelpPresenter().WriteAsync(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, console, CancellationToken.None);
         string expected = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, 60);
-        // Spectre may still style headings when it detects a CI terminal; compare the visible text.
-        string visible = System.Text.RegularExpressions.Regex.Replace(inner.StandardOutput, "\u001b\\[[0-9;]*m", "");
-        AssertEx.Equal(expected, visible.Replace("\r\n", "\n", StringComparison.Ordinal));
+        // Without colour the text is plain, also where Spectre detects a CI service such as GitHub Actions.
+        AssertEx.Equal(expected, inner.StandardOutput.Replace("\r\n", "\n", StringComparison.Ordinal));
     }
 
     private static string Convert(string? longDescription, string optionDescription, int width)
@@ -270,7 +269,6 @@ internal sealed class HelpLayoutTests
         var console = new SpectreCommandConsole(inner, width: 60, color: false);
         await new SpectreHelpPresenter().WriteAsync(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, console, CancellationToken.None);
         string expected = CommandHelpFormatter.Format(Catalog(), "fixture", new CommandPath(["export"]), CommandTextContext.English, 60);
-        string visible = System.Text.RegularExpressions.Regex.Replace(inner.StandardOutput, "\u001b\\[[0-9;]*m", "");
-        AssertEx.Equal(expected, visible.Replace("\r\n", "\n", StringComparison.Ordinal));
+        AssertEx.Equal(expected, inner.StandardOutput.Replace("\r\n", "\n", StringComparison.Ordinal));
     }
 }

@@ -16,7 +16,11 @@ public static class CommandJsonEnvelopeWriter
     /// Payload serialization is possible only through caller-supplied source-generated metadata.
     /// The returned byte array never contains a BOM or raw ANSI control sequence.
     /// </remarks>
-    public static byte[] Serialize<T>(CommandResponse<T> response, JsonTypeInfo<T> payloadTypeInfo)
+    public static byte[] Serialize<T>(CommandResponse<T> response, JsonTypeInfo<T> payloadTypeInfo) =>
+        Serialize(response, payloadTypeInfo, null);
+
+    // With a text context, the redaction notes that replace unsafe messages are in its culture, like the messages.
+    internal static byte[] Serialize<T>(CommandResponse<T> response, JsonTypeInfo<T> payloadTypeInfo, CommandTextContext? text)
     {
         ArgumentNullException.ThrowIfNull(response);
         ArgumentNullException.ThrowIfNull(payloadTypeInfo);
@@ -31,7 +35,7 @@ public static class CommandJsonEnvelopeWriter
             Encoder = CommandJsonEncoding.Encoder,
         }))
         {
-            WriteEnvelope(writer, response, payloadTypeInfo);
+            WriteEnvelope(writer, response, payloadTypeInfo, text);
         }
 
         if (buffer.WrittenCount >= CommandJsonEnvelopeReader.DefaultMaximumFrameBytes)
@@ -60,13 +64,14 @@ public static class CommandJsonEnvelopeWriter
         CommandResponse<T> response,
         ICommandResultCodec<T> codec,
         CommandJsonEscaping escaping,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CommandTextContext? text = null)
     {
         ArgumentNullException.ThrowIfNull(console);
         ArgumentNullException.ThrowIfNull(codec);
         EnsurePayloadIdentity(response, codec.PayloadType);
 
-        byte[] bytes = Serialize(response, codec.TypeInfo);
+        byte[] bytes = Serialize(response, codec.TypeInfo, text);
         if (escaping == CommandJsonEscaping.Ascii)
         {
             // Escapes are longer than the UTF-8 they replace; the frame must still fit a reader's default limit.
@@ -85,7 +90,8 @@ public static class CommandJsonEnvelopeWriter
     private static void WriteEnvelope<T>(
         Utf8JsonWriter writer,
         CommandResponse<T> response,
-        JsonTypeInfo<T> payloadTypeInfo)
+        JsonTypeInfo<T> payloadTypeInfo,
+        CommandTextContext? text)
     {
         writer.WriteStartObject();
         writer.WriteString("protocol", CommandProtocol.Identity);
@@ -106,23 +112,23 @@ public static class CommandJsonEnvelopeWriter
             writer.WriteNull("payloadType");
             writer.WriteNull("payload");
             writer.WritePropertyName("fault");
-            WriteFault(writer, response.Fault!, response.FailureData);
+            WriteFault(writer, response.Fault!, response.FailureData, text);
         }
 
         writer.WritePropertyName("diagnostics");
         writer.WriteStartArray();
         foreach (CommandDiagnostic diagnostic in response.Diagnostics)
         {
-            WriteDiagnostic(writer, diagnostic);
+            WriteDiagnostic(writer, diagnostic, text);
         }
 
         writer.WriteEndArray();
         writer.WriteEndObject();
     }
 
-    private static void WriteFault(Utf8JsonWriter writer, CommandFault unsafeFault, CommandFailureData? failureData)
+    private static void WriteFault(Utf8JsonWriter writer, CommandFault unsafeFault, CommandFailureData? failureData, CommandTextContext? text)
     {
-        CommandFault fault = CommandFaultSanitizer.Sanitize(unsafeFault);
+        CommandFault fault = CommandFaultSanitizer.Sanitize(unsafeFault, text);
         writer.WriteStartObject();
         writer.WriteString("code", fault.Code);
         writer.WriteString("message", fault.Message);
@@ -147,7 +153,7 @@ public static class CommandJsonEnvelopeWriter
         writer.WriteEndObject();
     }
 
-    private static void WriteDiagnostic(Utf8JsonWriter writer, CommandDiagnostic diagnostic)
+    private static void WriteDiagnostic(Utf8JsonWriter writer, CommandDiagnostic diagnostic, CommandTextContext? text)
     {
         int pathBytes = diagnostic.Path.Count == 0 ? 0 : diagnostic.Path.Count - 1;
         foreach (string segment in diagnostic.Path.Segments)
@@ -190,8 +196,8 @@ public static class CommandJsonEnvelopeWriter
         writer.WriteString(
             "message",
             technicalContent
-                ? "The diagnostic content was redacted."
-                : CommandFaultSanitizer.SanitizeRequiredText(diagnostic.Message));
+                ? CommandFaultSanitizer.RedactedContentNote(text)
+                : CommandFaultSanitizer.SanitizeRequiredText(diagnostic.Message, text));
         writer.WriteString("phase", DiagnosticPhaseName(diagnostic.Phase));
         writer.WriteString("severity", DiagnosticSeverityName(diagnostic.Severity));
         if (diagnostic.TokenIndex is int tokenIndex)

@@ -72,7 +72,7 @@ public sealed class LocalExecutablePolicy : IExecutablePolicy
         {
             return ExecutablePolicyDecision.Reject(
                 ProcessFaultCodes.ExecutableRejected,
-                "The executable is not permitted by the configured policy.");
+                ProcessFaultMessages.PolicyRejected);
         }
 
         if (request.WorkingDirectory is not null &&
@@ -80,7 +80,7 @@ public sealed class LocalExecutablePolicy : IExecutablePolicy
         {
             return ExecutablePolicyDecision.Reject(
                 ProcessFaultCodes.WorkingDirectoryRejected,
-                "The working directory is not permitted by the configured policy.");
+                ProcessFaultMessages.PolicyRejected);
         }
 
         return ExecutablePolicyDecision.Allow();

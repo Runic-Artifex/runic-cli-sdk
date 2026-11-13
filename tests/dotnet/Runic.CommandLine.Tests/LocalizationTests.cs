@@ -116,6 +116,76 @@ internal sealed class LocalizationTests
         using var result = CommandTestEnvelope.Parse(console.StandardOutput);
         AssertEx.Equal("The diagnostic content was redacted.", result.RootElement.GetProperty("diagnostics")[0].GetProperty("message").GetString());
     }
+    [Test, DisplayName("localization/spectre-styles-translated-help-headings")]
+    public async ValueTask SpectreHeadings()
+    {
+        // The presenter finds the usage line and headings through the resolved labels, not the English words.
+        foreach ((CommandTextContext context, string usage, string options) in new[]
+        {
+            (new CommandTextContext(CultureInfo.GetCultureInfo("de-DE"), new GermanResolver()), "Aufruf: sample localized", "Optionen:"),
+            (CommandTextContext.English, "Usage: sample localized", "Options:"),
+        })
+        {
+            var inner = new TestCommandConsole();
+            await new SpectreHelpPresenter().WriteAsync(Catalog(), "sample", new CommandPath(["localized"]), context,
+                new SpectreCommandConsole(inner, width: 80, color: true), CancellationToken.None);
+            string[] lines = inner.StandardOutput.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+            string usageLine = lines.Single(line => line.Contains(usage, StringComparison.Ordinal));
+            string optionsLine = lines.Single(line => line.Contains(options, StringComparison.Ordinal));
+            AssertEx.True(usageLine.StartsWith("\u001b[", StringComparison.Ordinal), "The usage line is not styled: " + usageLine);
+            AssertEx.True(optionsLine.StartsWith("\u001b[", StringComparison.Ordinal), "The options heading is not styled: " + optionsLine);
+            string countLine = lines.Single(line => line.Contains("--count", StringComparison.Ordinal));
+            AssertEx.True(!countLine.Contains('\u001b', StringComparison.Ordinal), "An option row is styled: " + countLine);
+        }
+    }
+    [Test, DisplayName("localization/redaction-notes-are-translatable")]
+    public async ValueTask RedactionNotes()
+    {
+        var context = new CommandTextContext(CultureInfo.GetCultureInfo("de-DE"), new RedactionResolver());
+        CommandDiagnostic[] diagnostics =
+        [
+            new("RCLI8002", "index-path", "Read /tmp/ada/index.", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Warning),
+            new("RCLI8003", "index-empty", "\u0007", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Warning),
+        ];
+        CommandResponse<TestResult> response = CommandResponse.Failure<TestResult>("req-redacted", "pack", 10,
+            new CommandFault("RAS1001", "Could not read /home/ada/atlas.png."), diagnostics);
+        var human = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, human, context.Culture, response, new TestCodec(), context);
+        AssertEx.Equal("Inhalt ausgeblendet.\nMeldung ausgeblendet.\nBefehl fehlgeschlagen, Einzelheiten ausgeblendet.\n", human.StandardError);
+
+        var json = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Json, json, context.Culture, response, new TestCodec(), context);
+        using (var frame = CommandTestEnvelope.Parse(json.StandardOutput))
+        {
+            AssertEx.Equal("Befehl fehlgeschlagen, Einzelheiten ausgeblendet.", frame.RootElement.GetProperty("fault").GetProperty("message").GetString());
+            AssertEx.Equal("Inhalt ausgeblendet.", frame.RootElement.GetProperty("diagnostics")[0].GetProperty("message").GetString());
+            AssertEx.Equal("Meldung ausgeblendet.", frame.RootElement.GetProperty("diagnostics")[1].GetProperty("message").GetString());
+        }
+
+        // A redacted fault and a redacted diagnostic of the same code report one failure, in any culture.
+        var same = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, same, context.Culture,
+            CommandResponse.Failure<TestResult>("req-redacted", "pack", 10, new CommandFault("RCLI8002", "Could not read /home/ada/atlas.png."),
+                [diagnostics[0]]), new TestCodec(), context);
+        AssertEx.Equal("Inhalt ausgeblendet.\n", same.StandardError);
+
+        // A note that is itself unsafe gives way to the English note. This resolver's messages are unsafe too.
+        var unsafeNotes = new MemoryCommandConsole();
+        await CommandOutputDispatcher.DispatchAsync(CommandOutputMode.Human, unsafeNotes, CultureInfo.InvariantCulture, response, new TestCodec(),
+            new CommandTextContext(CultureInfo.InvariantCulture, new UnsafeResolver()));
+        AssertEx.Equal("The diagnostic content was redacted.\nThe diagnostic content was redacted.\nThe command failed; details were redacted.\n",
+            unsafeNotes.StandardError);
+    }
+    private sealed class RedactionResolver : ICommandTextResolver
+    {
+        public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) => key switch
+        {
+            CommandTextKeys.RedactionDiagnosticContent => "Inhalt ausgeblendet.",
+            CommandTextKeys.RedactionDiagnosticMessage => "Meldung ausgeblendet.",
+            CommandTextKeys.RedactionFault => "Befehl fehlgeschlagen, Einzelheiten ausgeblendet.",
+            _ => null,
+        };
+    }
     private sealed class UnsafeResolver : ICommandTextResolver
     {
         public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) => "System.InvalidOperationException: private-secret";
@@ -248,6 +318,7 @@ internal sealed class LocalizationTests
             return key switch
             {
                 "help.usage" => "Aufruf",
+                "help.options" => "Optionen",
                 "hints.usage" => "Mit \"" + arguments[0] + "\" erscheint die Hilfe.",
                 "completion.invalid-shell" => "Shell auswählen: bash, zsh, fish oder powershell.",
                 "commands.localized" => "Lokalisierter Befehl",

@@ -60,7 +60,7 @@ public sealed record CommandFault
     /// </summary>
     /// <remarks>
     /// JSON output writes the link as <c>helpUri</c> and human output writes a
-    /// <c>Help for {Code}: {link}</c> line after the fault. The link is presented as given:
+    /// <c>Help for {Code}: {link}</c> line (key <c>hints.help-link</c>) after the fault. The link is presented as given:
     /// unlike <see cref="Message"/> and <see cref="Details"/>, it is not checked for technical
     /// content, so it must be a fixed documentation address, never built from user input.
     /// Set it with an object initializer or a <see langword="with"/> expression.

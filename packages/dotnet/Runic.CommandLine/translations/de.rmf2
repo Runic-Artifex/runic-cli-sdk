@@ -58,12 +58,32 @@ prompts {
 faults {
   RCLI4000 = Der Befehl wurde abgebrochen.
   RCLI5000 = Der Befehl konnte nicht abgeschlossen werden.
+  RCLI6001 = Die konfigurierte Richtlinie lässt diese Prozessanforderung nicht zu.
+  RCLI6002 = Die konfigurierte Richtlinie lässt diese Prozessanforderung nicht zu.
+  RCLI6003 = Die Richtlinie für ausführbare Dateien hat eine ungültige Entscheidung zurückgegeben.
+  RCLI6004 = Die Richtlinie für ausführbare Dateien konnte die Anforderung nicht prüfen.
+  RCLI6005 = Der Prozess konnte nicht gestartet werden.
+  RCLI6006 = Der Ablauf des Prozesses konnte nicht sicher überwacht werden.
+  RCLI6007 = Windows-Batchdateien werden über cmd.exe ausgeführt und erfordern AllowWindowsBatchFiles.
+  RCLI6008 = Der Pfad der Batchdatei oder ein Argument enthält Zeichen, die cmd.exe auswerten würde.
+  RCLI6009 = Der Ausgabehandler ist fehlgeschlagen.
+  RCLI6010 = Der Prozess wurde nicht vor Ablauf seines Zeitlimits beendet.
+  RCLI6011 = Die erfasste Ausgabe ist unvollständig, weil das Erfassungslimit überschritten wurde oder ein untergeordneter Prozess die Ausgabe-Pipe offen gehalten hat.
 }
 hints {
   RCLI5000 = Mit RUNIC_COMMANDLINE_DEBUG=1 wird die Ausnahme auf stderr ausgegeben.
   usage =
     .input {$command :string}
     {{Weitere Informationen erhalten Sie mit "{$command}".}}
+  helpLink =
+    .input {$code :string}
+    .input {$link :string}
+    {{Hilfe zu {$code}: {$link}}}
+}
+redaction {
+  diagnosticContent = Der Inhalt der Diagnosemeldung wurde ausgeblendet.
+  diagnosticMessage = Die Diagnosemeldung wurde ausgeblendet.
+  fault = Der Befehl ist fehlgeschlagen; Einzelheiten wurden ausgeblendet.
 }
 diagnostics {
   unknownOption =
@@ -80,6 +100,7 @@ diagnostics {
     .input {$command :string}
     .input {$suggestion :string}
     {{Der Befehl '{$command}' ist unbekannt. Meinten Sie '{$suggestion}'?}}
+  missingCommand = Es wurde kein Befehl angegeben.
   missingOptionValue =
     .input {$option :string}
     {{Die Option {$option} erfordert einen Wert.}}

@@ -444,6 +444,14 @@ file without opt-in), `RCLI6008` (batch file argument) and `RCLI6009` (output
 handler failed). Policy messages
 and details are normalized before they reach a result to avoid leaking input.
 
+Each code has one English message, and a command that returns the fault shows
+it translated through the key `faults.{code}`: `ProcessTextKeys` names the keys
+(`ProcessTextKeys.All`), and their English and German text ships in the
+`runic-command-line` catalog of Runic.CommandLine, which
+`Runic.Translations.CommandLine` translates. The fault details, such as the
+`stream` and `reason` of `RCLI6011`, tell the cases of one code apart. See the
+[framework text keys](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/text-keys.md).
+
 ## Documentation and support
 
 Read the [Runic Command Line documentation](https://docs.runic-artifex.eu/products/runic-command-line/),

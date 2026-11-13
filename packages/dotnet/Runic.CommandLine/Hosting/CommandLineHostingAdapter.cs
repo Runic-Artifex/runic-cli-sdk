@@ -155,8 +155,9 @@ public sealed class CommandLineHostingAdapter
         if (decision.SuggestedCommand is null || decision.IsCommandLineRequest || decision.Diagnostics.Count == 0) return false;
         console ??= _app?.Console ?? new SystemCommandConsole();
         CultureInfo culture = _app?.Culture ?? CultureInfo.CurrentUICulture;
-        string message = new CommandTextContext(culture, Presentation.TextResolver).Localize(decision.Diagnostics[0]).Message;
-        message = CommandFaultSanitizer.ContainsTechnicalContent(message) ? decision.Diagnostics[0].Message : CommandFaultSanitizer.SanitizeRequiredText(message);
+        var text = new CommandTextContext(culture, Presentation.TextResolver);
+        string message = text.Localize(decision.Diagnostics[0]).Message;
+        message = CommandFaultSanitizer.ContainsTechnicalContent(message) ? decision.Diagnostics[0].Message : CommandFaultSanitizer.SanitizeRequiredText(message, text);
         await console.WriteErrorLineAsync(message, cancellationToken).ConfigureAwait(false);
         return true;
     }

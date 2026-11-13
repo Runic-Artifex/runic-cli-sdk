@@ -122,7 +122,7 @@ public sealed class ProcessRunner : IProcessRunner
                     null,
                     new CommandFault(
                         ProcessFaultCodes.InvalidPolicyDecision,
-                        "The executable policy returned an invalid decision."),
+                        ProcessFaultMessages.InvalidPolicyDecision),
                     startedAt);
             }
         }
@@ -136,7 +136,7 @@ public sealed class ProcessRunner : IProcessRunner
                 null,
                 new CommandFault(
                     ProcessFaultCodes.PolicyEvaluationFailed,
-                    "The executable policy could not evaluate the request."),
+                    ProcessFaultMessages.PolicyEvaluationFailed),
                 startedAt);
         }
 
@@ -230,7 +230,7 @@ public sealed class ProcessRunner : IProcessRunner
                 !child.HasExited)
             {
                 state = ProcessState.ExecutionFailed;
-                fault = new CommandFault(ProcessFaultCodes.OutputHandlerFailed, "The output handler failed.");
+                fault = new CommandFault(ProcessFaultCodes.OutputHandlerFailed, ProcessFaultMessages.OutputHandlerFailed);
             }
             else
             {
@@ -249,7 +249,7 @@ public sealed class ProcessRunner : IProcessRunner
         catch (Exception exception) when (!IsFatal(exception))
         {
             state = ProcessState.ExecutionFailed;
-            fault = new CommandFault(ProcessFaultCodes.ExecutionFailed, ProcessResult.ExecutionFailedMessage);
+            fault = new CommandFault(ProcessFaultCodes.ExecutionFailed, ProcessFaultMessages.ExecutionFailed);
         }
 
         // A child may exit without reading all input, or a descendant may inherit the read end.
@@ -269,7 +269,7 @@ public sealed class ProcessRunner : IProcessRunner
         if (state == ProcessState.Exited && delivery?.Failure.IsCompleted == true)
         {
             state = ProcessState.ExecutionFailed;
-            fault = new CommandFault(ProcessFaultCodes.OutputHandlerFailed, "The output handler failed.");
+            fault = new CommandFault(ProcessFaultCodes.OutputHandlerFailed, ProcessFaultMessages.OutputHandlerFailed);
         }
 
         int? exitCode = state == ProcessState.Exited ? child.ExitCode : null;
@@ -277,7 +277,7 @@ public sealed class ProcessRunner : IProcessRunner
         {
             // Another party reaped the child, for example because SIGCHLD was ignored, so its outcome is unknown.
             state = ProcessState.ExecutionFailed;
-            fault = new CommandFault(ProcessFaultCodes.ExecutionFailed, ProcessResult.ExecutionFailedMessage);
+            fault = new CommandFault(ProcessFaultCodes.ExecutionFailed, ProcessFaultMessages.ExecutionFailed);
         }
 
         return Complete(
@@ -406,14 +406,14 @@ public sealed class ProcessRunner : IProcessRunner
         {
             return new CommandFault(
                 ProcessFaultCodes.BatchFileRejected,
-                "Windows batch files run through cmd.exe and require AllowWindowsBatchFiles.");
+                ProcessFaultMessages.BatchFileRejected);
         }
 
         if (request.FileName.AsSpan().ContainsAny(BatchPathMetacharacters))
         {
             return new CommandFault(
                 ProcessFaultCodes.BatchFileArgumentRejected,
-                "The batch file path contains characters that cmd.exe would interpret.");
+                ProcessFaultMessages.BatchFileArgumentRejected);
         }
 
         for (int index = 0; index < request.Arguments.Count; index++)
@@ -422,7 +422,7 @@ public sealed class ProcessRunner : IProcessRunner
             {
                 return new CommandFault(
                     ProcessFaultCodes.BatchFileArgumentRejected,
-                    "A batch file argument contains characters that cmd.exe would interpret.",
+                    ProcessFaultMessages.BatchFileArgumentRejected,
                     new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal)
                     {
                         ["argumentIndex"] = index.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -623,7 +623,7 @@ public sealed class ProcessRunner : IProcessRunner
         string code = fault.Code == ProcessFaultCodes.WorkingDirectoryRejected
             ? ProcessFaultCodes.WorkingDirectoryRejected
             : ProcessFaultCodes.ExecutableRejected;
-        return new CommandFault(code, ProcessResult.PolicyRejectionMessage);
+        return new CommandFault(code, ProcessFaultMessages.ByCode[code]);
     }
 
 

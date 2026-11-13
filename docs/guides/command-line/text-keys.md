@@ -21,8 +21,24 @@ list; see [Built-in catalog](#built-in-catalog).
   diagnostics use their own kinds and arguments.
 - A fault whose diagnostic is not translated, or that has no diagnostic, uses
   `faults.{code}` with no arguments (`CommandTextKeys.Fault(code)`). The table
-  lists the faults the framework raises itself; any code, including
-  `Runic.CommandLine.Processes` and application codes, can be translated this way.
+  lists the faults the framework raises itself, including the `RCLI6001`–`RCLI6011`
+  faults of `Runic.CommandLine.Processes`; any application code can be
+  translated this way too. Each framework fault code has exactly one English
+  message, because a translation replaces the message by code; its details,
+  such as `stream` and `reason` of `RCLI6011`, tell the cases apart.
+- A command line without a command, where the catalog has no default command,
+  is an `unknown-command` diagnostic (`RCLI1002`) whose key is
+  `diagnostics.missing-command` (before 0.12.0: `diagnostics.unknown-command`
+  without its argument).
+- Human output writes a help link after its diagnostic or fault as the
+  `hints.help-link` line. Its text must contain the `link` argument exactly
+  once, and the text around the link passes the sanitizers; otherwise the
+  English line is shown.
+- Output replaces a message that contains technical content such as a path, or
+  that is empty after sanitizing, with a `redaction.*` note, in human and JSON
+  output alike. A note that is itself unsafe falls back to English. The
+  `[redacted]` marker that replaces an unsafe value in a fault's details is not
+  translated: details are data for programs, like codes and keys.
 - Command, option and argument descriptions use their `DescriptionKey`. Those
   keys belong to the application.
 - `CommandPrompts` resolves its own text (hints, Yes and No, errors and the
@@ -55,6 +71,14 @@ in [`packages/dotnet/Runic.CommandLine/translations`](../../../packages/dotnet/R
 - `en.rmf2` is exactly the English that Runic.CommandLine writes without a
   resolver. `faults.RCLI4001` has no message: the framework shows the text of
   its `diagnostics.prompt-*` diagnostic instead.
+- The catalog also holds the text of the `Runic.CommandLine.Processes` faults,
+  `faults.RCLI6001` to `faults.RCLI6011`. The keys are part of
+  `CommandTextKeys.All`, and `ProcessTextKeys` in that package names them with
+  constants and its own `All`. One catalog for every Command Line package keeps
+  one catalog id, registration and override file for an application, and lets
+  `Runic.Translations.CommandLine` translate process faults without referencing
+  Runic.CommandLine.Processes. The two packages are released together in the
+  same version, so the text cannot drift from the package that raises it.
 - German uses the formal *Sie*, *Verzeichnis* for directories, and ASCII quotes
   (`'...'`, `"..."`), which every terminal shows and copies.
 - The `Runic.CommandLine` package carries these files as plain data under
@@ -68,8 +92,9 @@ in [`packages/dotnet/Runic.CommandLine/translations`](../../../packages/dotnet/R
 - `tests/dotnet/Runic.CommandLine.TextCatalog.Tests` compiles the catalog with
   Runic.Translations.Build and fails when a key has no `en` or `de` message, a
   message declares or uses an input that is not one of its key's arguments, a
-  message has no key, `en` differs from the framework's English, or German
-  output still shows an English framework sentence.
+  message has no key, `en` differs from the framework's English (including the
+  process fault messages), or German output still shows an English framework
+  sentence.
 
 ### Adding or changing a key
 
@@ -82,6 +107,10 @@ arguments or English text, in the same change:
    `de.rmf2` with the German, in the key's group, declaring each argument the
    text shows as `.input {$name :string}`;
 3. runs `dotnet run --project tests/dotnet/Runic.CommandLine.TextCatalog.Tests -c Release`.
+
+A new fault code of `Runic.CommandLine.Processes` also adds its one English
+message to `ProcessFaultMessages` and its key to `ProcessTextKeys`; the suite
+fails when a `ProcessFaultCodes` code lacks either.
 
 Keys and their arguments are API. A changed meaning gets a new key. Keys are
 added in minor releases only, never in patches, so the
@@ -135,12 +164,28 @@ it then fails with `RTR0103`.
 | `faults.RCLI4000` | | The command was cancelled. | 0.6.0-preview.4 |
 | `faults.RCLI4001` | | The message of its `diagnostics.prompt-*` diagnostic, below. | 0.7.0-preview.1 |
 | `faults.RCLI5000` | | The command could not be completed. | 0.6.0-preview.4 |
+| `faults.RCLI6001` | | The process request is not permitted by the configured policy. | 0.12.0 |
+| `faults.RCLI6002` | | The process request is not permitted by the configured policy. | 0.12.0 |
+| `faults.RCLI6003` | | The executable policy returned an invalid decision. | 0.12.0 |
+| `faults.RCLI6004` | | The executable policy could not evaluate the request. | 0.12.0 |
+| `faults.RCLI6005` | | The process could not be started. | 0.12.0 |
+| `faults.RCLI6006` | | The process lifecycle could not be observed safely. | 0.12.0 |
+| `faults.RCLI6007` | | Windows batch files run through cmd.exe and require AllowWindowsBatchFiles. | 0.12.0 |
+| `faults.RCLI6008` | | The batch file path or an argument contains characters that cmd.exe would interpret. | 0.12.0 |
+| `faults.RCLI6009` | | The output handler failed. | 0.12.0 |
+| `faults.RCLI6010` | | The process did not exit before its timeout. | 0.12.0 |
+| `faults.RCLI6011` | | The captured output is incomplete: it exceeded its capture limit, or a descendant process held the output pipe open. | 0.12.0 |
 | `hints.RCLI5000` | | Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr. | 0.6.0-preview.4 |
 | `hints.usage` | `command` | Run "{command}" for more information. | 0.10.0 |
+| `hints.help-link` | `code`, `link` | Help for {code}: {link} | 0.12.0 |
+| `redaction.diagnostic-content` | | The diagnostic content was redacted. | 0.12.0 |
+| `redaction.diagnostic-message` | | The diagnostic message was redacted. | 0.12.0 |
+| `redaction.fault` | | The command failed; details were redacted. | 0.12.0 |
 | `diagnostics.unknown-option` | `option` | The option '{option}' is not recognized. | 0.6.0-preview.4 |
 | `diagnostics.unknown-option-suggestion` | `option`, `suggestion` | The option '{option}' is not recognized. Did you mean '{suggestion}'? | 0.6.0-preview.4 |
-| `diagnostics.unknown-command` | `command` (absent when no command was typed) | The command '{command}' is not recognized. Without `command`: No command was given. | 0.6.0-preview.4 |
+| `diagnostics.unknown-command` | `command` | The command '{command}' is not recognized. | 0.6.0-preview.4 |
 | `diagnostics.unknown-command-suggestion` | `command`, `suggestion` | The command '{command}' is not recognized. Did you mean '{suggestion}'? | 0.6.0-preview.4 |
+| `diagnostics.missing-command` | | No command was given. | 0.12.0 |
 | `diagnostics.missing-option-value` | `option` | The {option} option requires a value. | 0.6.0-preview.4 |
 | `diagnostics.unexpected-option-value` | `option` | The {option} option does not take a value. | 0.6.0-preview.4 |
 | `diagnostics.missing-argument` | `argument` | The {argument} argument is missing. | 0.6.0-preview.4 |

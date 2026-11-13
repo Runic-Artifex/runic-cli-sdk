@@ -106,6 +106,10 @@ public sealed class SpectreCommandConsole : ICommandConsole, ICommandTerminal
             ColorSystem = ColorSystemSupport.Standard,
             Interactive = InteractionSupport.No,
             Out = new AnsiConsoleOutput(buffer),
+            // This console has already decided colour from its own settings and the wrapped console. Spectre's default
+            // enrichers would turn ANSI back on when they detect a CI service such as GitHub Actions, even for redirected
+            // output or color: false.
+            Enrichment = new ProfileEnrichment { UseDefaultEnrichers = false },
         });
         console.Profile.Width = _width;
         console.Profile.Capabilities.Unicode = _unicode;

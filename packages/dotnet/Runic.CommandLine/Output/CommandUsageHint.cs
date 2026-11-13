@@ -21,7 +21,7 @@ internal sealed class CommandUsageHint
         string english = "Run \"" + help + "\" for more information.";
         string run = context.Resolve(CommandTextKeys.HintUsage, english, [help]);
         // Resolved text passes the sanitizer that diagnostic messages pass.
-        run = CommandFaultSanitizer.ContainsTechnicalContent(run) ? english : CommandFaultSanitizer.SanitizeRequiredText(run);
+        run = CommandFaultSanitizer.ContainsTechnicalContent(run) ? english : CommandFaultSanitizer.SanitizeRequiredText(run, context);
         return usage + run + "\n";
     }
 }
