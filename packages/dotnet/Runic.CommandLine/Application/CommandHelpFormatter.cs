@@ -44,7 +44,7 @@ public static class CommandHelpFormatter
             text.Append('\n');
             AppendParagraphs(text, description, width, preformatted: false);
         }
-        if (command?.Help.LongDescription is { } details)
+        if (command is not null && context.LongDescription(command.Help) is { } details)
         {
             text.Append('\n');
             AppendParagraphs(text, details, width, preformatted: true);

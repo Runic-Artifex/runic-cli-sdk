@@ -968,6 +968,11 @@ internal abstract class CommandBuilderNode
             issues.Add(new CommandCatalogIssue("RCLI0003", path, "The description key cannot be empty."));
         }
 
+        if (Help.LongDescriptionKey is not null && string.IsNullOrWhiteSpace(Help.LongDescriptionKey))
+        {
+            issues.Add(new CommandCatalogIssue("RCLI0003", path, "The long description key cannot be empty."));
+        }
+
         ValidateOptions(path, issues, grammar);
         ValidateArguments(path, issues);
         ValidateRegistration(path, issues);

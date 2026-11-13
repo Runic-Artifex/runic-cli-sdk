@@ -340,7 +340,7 @@ rules for ambiguous tokens.
 - `[Command("config show")]` creates a help-only `config` group automatically.
   Describe it with `[CommandGroup("config", Description = "Show and change
   settings.")]` on any class that declares commands (also `DescriptionKey`,
-  `LongDescription` and `Hidden`), or with `builder.Group("config", new
+  `LongDescription`, `LongDescriptionKey` and `Hidden`), or with `builder.Group("config", new
   CommandHelp("..."))`. `GeneratedCommandCatalog.Create(builder => builder.GlobalOption("verbose",
   "--verbose", CommandArity.Zero))` adds an option to all commands; it may precede
   the command. Read shared bindings from `ParsedInvocation.Options` in a binder.
@@ -1030,7 +1030,10 @@ a custom or hosted execution sink.
 `ICommandTextResolver.Resolve` receives a key, culture and ordered safe argument
 list, and returns null when it cannot resolve the key. Command, argument and
 option attributes accept `DescriptionKey`; `Description` remains the literal
-fallback. Diagnostic messages resolve their `MessageKey` and `Arguments`.
+fallback. `[Command]` and `[CommandGroup]` also accept `LongDescriptionKey` for
+their extended help, with `LongDescription` as its fallback
+(`CommandHelp.LongDescriptionKey` without the generator); the resolved text keeps
+its paragraphs and line breaks, as the literal does. Diagnostic messages resolve their `MessageKey` and `Arguments`.
 Faults without a matching diagnostic use `faults.{code}` with no arguments; a
 diagnostic whose own key is unresolved also falls back to `faults.{code}`.
 `CommandTextKeys` lists every framework key with constants such as
@@ -1041,7 +1044,7 @@ such as `diagnostics.invalid-integer` or `diagnostics.out-of-range`, whose first
 argument is the option spelling or argument placeholder. A typo suggestion is a
 trailing argument with its own key, such as `diagnostics.unknown-option-suggestion`.
 `CommandTextContext.ValidateDescriptionKeys(catalog)`
-reports each `DescriptionKey` the resolver does not resolve (`RCLI0023`), so a
+reports each `DescriptionKey` and `LongDescriptionKey` the resolver does not resolve (`RCLI0023`), so a
 test can catch a typo that would otherwise show the literal fallback; with
 `RUNIC_COMMANDLINE_DEBUG=1`, help also prints them to stderr as warnings.
 Translations change presentation text, including JSON messages, while command

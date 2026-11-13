@@ -39,7 +39,8 @@ list; see [Built-in catalog](#built-in-catalog).
   output alike. A note that is itself unsafe falls back to English. The
   `[redacted]` marker that replaces an unsafe value in a fault's details is not
   translated: details are data for programs, like codes and keys.
-- Command, option and argument descriptions use their `DescriptionKey`. Those
+- Command, option and argument descriptions use their `DescriptionKey`, and the
+  extended help of commands and groups uses their `LongDescriptionKey`. Those
   keys belong to the application.
 - `CommandPrompts` resolves its own text (hints, Yes and No, errors and the
   `RCLI4001` diagnostics) through these keys. Prompt questions and choice labels
@@ -233,4 +234,5 @@ and its replacement, until the next minor, so an application that overrides it
 can find what to use instead.
 
 `CommandTextContext.ValidateDescriptionKeys(catalog)` reports application
-`DescriptionKey` values a resolver does not resolve (`RCLI0023`).
+`DescriptionKey` and `LongDescriptionKey` values a resolver does not resolve
+(`RCLI0023`).

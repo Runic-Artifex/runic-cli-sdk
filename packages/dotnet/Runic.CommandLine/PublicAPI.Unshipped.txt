@@ -1,1 +1,8 @@
 #nullable enable
+Runic.CommandLine.CommandAttribute.LongDescriptionKey.get -> string?
+Runic.CommandLine.CommandAttribute.LongDescriptionKey.set -> void
+Runic.CommandLine.CommandGroupAttribute.LongDescriptionKey.get -> string?
+Runic.CommandLine.CommandGroupAttribute.LongDescriptionKey.set -> void
+Runic.CommandLine.CommandHelp.LongDescriptionKey.get -> string?
+Runic.CommandLine.CommandHelp.LongDescriptionKey.init -> void
+Runic.CommandLine.CommandTextContext.LongDescription(Runic.CommandLine.CommandHelp! help) -> string?
