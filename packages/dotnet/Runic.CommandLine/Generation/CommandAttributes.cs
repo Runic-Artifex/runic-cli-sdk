@@ -27,6 +27,11 @@ public sealed class CommandAttribute : Attribute
     public string? Description { get; set; }
     /// <summary>Gets or sets extended command help.</summary>
     public string? LongDescription { get; set; }
+    /// <summary>
+    /// Gets or sets the localization key for extended command help; <see cref="LongDescription"/> supplies its
+    /// fallback. The resolved text keeps its paragraphs and line breaks, as the literal does.
+    /// </summary>
+    public string? LongDescriptionKey { get; set; }
     /// <summary>Gets or sets runnable examples.</summary>
     public string[] Examples { get; set; } = [];
 }
@@ -76,6 +81,11 @@ public sealed class CommandGroupAttribute : Attribute
     public string? Description { get; set; }
     /// <summary>Gets or sets extended group help.</summary>
     public string? LongDescription { get; set; }
+    /// <summary>
+    /// Gets or sets the localization key for extended group help; <see cref="LongDescription"/> supplies its
+    /// fallback. The resolved text keeps its paragraphs and line breaks, as the literal does.
+    /// </summary>
+    public string? LongDescriptionKey { get; set; }
 }
 
 /// <summary>

@@ -108,8 +108,9 @@ hyphens, and may not be one of the reserved words in any case.
 
 ### RCLI0003
 
-Empty description key. A `DescriptionKey` on a command, option or argument is
-either omitted (`null`) or a nonempty localization key.
+Empty description key. A `DescriptionKey` on a command, option or argument, and
+a `CommandHelp.LongDescriptionKey` on a command or group, is either omitted
+(`null`) or a nonempty localization key.
 
 ### RCLI0004
 
@@ -245,8 +246,9 @@ spelling, not itself and not an argument. The generator reports this as
 ### RCLI0023
 
 Unresolved description key. `CommandTextContext.ValidateDescriptionKeys`
-reports each `DescriptionKey` that the text resolver does not resolve in the
-current culture; help then shows the literal description. Add the key to your
+reports each `DescriptionKey`, and each command and group `LongDescriptionKey`,
+that the text resolver does not resolve in the current culture; help then shows
+the literal description or extended help. Add the key to your
 text resources or correct its spelling. With `RUNIC_COMMANDLINE_DEBUG=1`,
 `CommandApp` writes these issues as warnings when it shows help.
 
@@ -328,7 +330,12 @@ followed by another option or `--`.
 
 `missing-argument`: a required positional argument is missing. Arguments bind
 left to right, so the diagnostic names the first argument the given tokens do
-not reach: `copy a.txt` for `copy <source> <destination>` names `destination`.
+not reach, as the usage line shows it: `copy a.txt` for
+`copy <source> <destination>` reports "The <destination> argument is missing."
+In JSON output, `arguments` holds that placeholder (`["<destination>"]`), and
+`binding` holds the argument's stable ID (`"binding": "destination"`), which does
+not change with the value name, the dialect or the culture. Scripts that read
+which argument is missing read `binding`.
 
 ### RCLI1006
 
@@ -623,8 +630,9 @@ parameter ID, option spelling or alias (including the reserved `--help`, `-h`
 and `--version`), duplicate IDs or spellings within a command, a numeric range
 or a default outside it, a result payload type, a second `[TrailingArguments]`
 parameter of the same command, a command display spelling (`Spelling`) that
-`CommandBuilder.Spelling` would reject, or a description key that is empty,
-longer than 128 characters or contains control characters.
+`CommandBuilder.Spelling` would reject, or a description key or long
+description key (`DescriptionKey`, `LongDescriptionKey`) that is empty, longer
+than 128 characters or contains control characters.
 
 ### RCLI9020
 
@@ -652,7 +660,8 @@ an `[Argument]` and a C# default contradict each other. Remove one of them.
 
 Flag defaults to true. A Boolean option is a presence flag, so a `true` default
 could never be turned off. Default to `false` and invert the name (for example
-`--no-cache`), or use `bool?` to accept an explicit value.
+`--no-cache`), or use `bool?` to accept an explicit value. `= false` is optional,
+and help shows no default for a flag either way.
 
 ### RCLI9025
 

@@ -157,6 +157,35 @@ public sealed record CommandDiagnostic
 
     private readonly Uri? _helpUri;
 
+    /// <summary>
+    /// Gets the stable ID of the one argument or option this diagnostic is about, such as <c>destination</c>, or
+    /// <see langword="null"/> when it is about none or more than one.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Arguments"/> name the binding as users see it (<c>&lt;Destination&gt;</c>, <c>--limit</c> or
+    /// <c>/limit</c>); this is the ID a binder and the <c>Requires</c> and <c>ConflictsWith</c> declarations use, and
+    /// does not change with the value name, the dialect or the culture. JSON output writes it as <c>binding</c>. The
+    /// framework sets it on its usage diagnostics that name one declared argument or option, such as
+    /// <c>missing-argument</c> (<c>RCLI1005</c>). Set it with an object initializer or a <see langword="with"/> expression.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The value does not match <c>[a-z][a-z0-9-]*</c> or exceeds 128 characters.</exception>
+    public string? Binding
+    {
+        get => _binding;
+        init => _binding = value is null || IsBinding(value) ? value
+            : throw new ArgumentException("A diagnostic binding must be an ID matching [a-z][a-z0-9-]* of at most 128 characters.", nameof(Binding));
+    }
+
+    private readonly string? _binding;
+
+    internal static bool IsBinding(string value)
+    {
+        if (value.Length is 0 or > 128 || value[0] is < 'a' or > 'z') return false;
+        foreach (char character in value)
+            if (character is not ((>= 'a' and <= 'z') or (>= '0' and <= '9') or '-')) return false;
+        return true;
+    }
+
     private static IReadOnlyList<string> CopyArguments(IEnumerable<string>? arguments)
     {
         if (arguments is null)

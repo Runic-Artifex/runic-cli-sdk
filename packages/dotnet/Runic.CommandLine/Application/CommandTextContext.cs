@@ -50,7 +50,20 @@ public sealed class CommandTextContext
         ArgumentNullException.ThrowIfNull(help);
         return Resolve(descriptionKey, help.Description ?? string.Empty);
     }
-    /// <summary>Reports each command, option and argument <c>DescriptionKey</c> the resolver does not resolve in this culture.</summary>
+    /// <summary>
+    /// Resolves extended command help through <see cref="CommandHelp.LongDescriptionKey"/>, using
+    /// <see cref="CommandHelp.LongDescription"/> as fallback; null when neither gives text.
+    /// </summary>
+    public string? LongDescription(CommandHelp help)
+    {
+        ArgumentNullException.ThrowIfNull(help);
+        string text = Resolve(help.LongDescriptionKey, help.LongDescription ?? string.Empty);
+        return text.Length == 0 ? null : text;
+    }
+    /// <summary>
+    /// Reports each command, option and argument <c>DescriptionKey</c>, and each command and group
+    /// <see cref="CommandHelp.LongDescriptionKey"/>, the resolver does not resolve in this culture.
+    /// </summary>
     /// <remarks>
     /// An unresolved key falls back to the literal description, so a typo would otherwise go unnoticed. Each issue has code
     /// <c>RCLI0023</c> and the command path as its location. Without a resolver there is nothing to check and the list is empty.
@@ -68,6 +81,7 @@ public sealed class CommandTextContext
         void Visit(CommandDescriptor command, string path)
         {
             Check(command.DescriptionKey, path, "command '" + path + "'");
+            Check(command.Help.LongDescriptionKey, path, "long description of command '" + path + "'", "Long description key", "extended help");
             foreach (CommandOptionDescriptor option in command.Options)
                 if (!option.IsGlobal || globals.Add(option.Id)) Check(option.DescriptionKey, path, "option '" + option.Name + "'");
             foreach (CommandArgumentDescriptor argument in command.Arguments) Check(argument.DescriptionKey, path, "argument '" + argument.Name + "'");
@@ -76,11 +90,11 @@ public sealed class CommandTextContext
             foreach (CommandDescriptor child in command.Subcommands) Visit(child, path + " " + child.Name);
         }
 
-        void Check(string? key, string path, string subject)
+        void Check(string? key, string path, string subject, string kind = "Description key", string fallback = "description")
         {
             if (key is null || !string.IsNullOrWhiteSpace(Resolver!.Resolve(key, Culture, Array.Empty<string>()))) return;
             issues.Add(new CommandCatalogIssue("RCLI0023", path,
-                $"Description key '{key}' for {subject} did not resolve in culture '{Culture.Name}'; the literal description is shown instead."));
+                $"{kind} '{key}' for {subject} did not resolve in culture '{Culture.Name}'; the literal {fallback} is shown instead."));
         }
     }
     /// <summary>Resolves a diagnostic message while preserving its codes, arguments, phase and canonical path.</summary>
@@ -89,7 +103,7 @@ public sealed class CommandTextContext
         ArgumentNullException.ThrowIfNull(diagnostic);
         string message = Resolve(diagnostic.MessageKey, diagnostic.Message, diagnostic.Arguments);
         return message == diagnostic.Message ? diagnostic : new CommandDiagnostic(diagnostic.Code, diagnostic.Kind, message,
-            diagnostic.Phase, diagnostic.Severity, diagnostic.TokenIndex, diagnostic.Arguments, diagnostic.Path, diagnostic.MessageKey) { HelpUri = diagnostic.HelpUri };
+            diagnostic.Phase, diagnostic.Severity, diagnostic.TokenIndex, diagnostic.Arguments, diagnostic.Path, diagnostic.MessageKey) { HelpUri = diagnostic.HelpUri, Binding = diagnostic.Binding };
     }
     internal CommandResponse<T> Localize<T>(CommandResponse<T> response)
     {
@@ -105,7 +119,7 @@ public sealed class CommandTextContext
             if (describesFault && ReferenceEquals(diagnostics[index], original) &&
                 Resolver.Resolve(CommandTextKeys.Fault(original.Code), Culture, Array.Empty<string>()) is { } faultText && !string.IsNullOrWhiteSpace(faultText))
                 diagnostics[index] = new CommandDiagnostic(original.Code, original.Kind, faultText, original.Phase, original.Severity, original.TokenIndex,
-                    original.Arguments, original.Path, original.MessageKey) { HelpUri = original.HelpUri };
+                    original.Arguments, original.Path, original.MessageKey) { HelpUri = original.HelpUri, Binding = original.Binding };
             if (describesFault && fault is not null)
                 fault = new CommandFault(fault.Code, diagnostics[index].Message, fault.Details, fault.Retryable) { HelpUri = fault.HelpUri };
         }

@@ -35,8 +35,13 @@ public sealed class CommandHelp
     public string? EnvironmentVariable { get; }
     /// <summary>Gets whether this entry is omitted from discovery, help listings and suggestions. Explicit invocation remains supported.</summary>
     public bool Hidden { get; init; }
-    /// <summary>Gets extended command help shown after the summary.</summary>
+    /// <summary>Gets extended command help shown after the summary; the fallback of <see cref="LongDescriptionKey"/>.</summary>
     public string? LongDescription { get; init; }
+    /// <summary>
+    /// Gets the optional application text key of <see cref="LongDescription"/>, which the text resolver translates.
+    /// Help shows the literal when the key is null or not translated. Option and argument help ignore it.
+    /// </summary>
+    public string? LongDescriptionKey { get; init; }
     /// <summary>Gets the path completion and validation kind.</summary>
     public CommandPathKind PathKind { get; init; }
     /// <summary>Gets whether a path must already exist. Checked during execution, not hosted classification.</summary>

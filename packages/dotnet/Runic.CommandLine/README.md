@@ -195,6 +195,14 @@ unchanged. The hosting adapter created from the app uses them too; a host that
 builds `CommandPresentation` and `CommandOutputDispatcher` itself sets their
 `JsonOutput`. Without them the output is what earlier releases wrote.
 
+A usage diagnostic about one declared argument or option carries its stable ID as
+`binding` (`CommandDiagnostic.Binding`), next to `arguments`, which name it as
+users see it and change with its value name and the dialect:
+`"arguments":["<Container-Pfad>"],"binding":"container-path"`. A script that
+needs to know which input was wrong reads `binding`. Relations between two
+options (`option-requires`, `option-conflict`) and diagnostics about no declared
+binding, such as `unknown-option`, have none.
+
 **Windows PowerShell 5.1.** It decodes a native program's standard output with
 `[Console]::OutputEncoding`, by default the OEM code page (850 or 437), not UTF-8,
 so raw UTF-8 such as `Räume` arrives as `RÃ¤ume` or `R├ñume` unless every
@@ -332,7 +340,9 @@ rules for ambiguous tokens.
   EnvironmentVariable = "APP_VALUE", Sensitive = true)]` supplies shared metadata.
   Explicit input wins over the environment, then C# defaults. A flag's
   environment value may be `true`/`false`, `yes`/`no` or `1`/`0` in any case.
-  Choices match case-insensitively and bind the declared spelling. Sensitive
+  Choices match case-insensitively and bind the declared spelling. Help shows a
+  C# default as `[default: …]`, except for flags: a Boolean option is off unless
+  given, so it shows no default, whether or not it declares `= false`. Sensitive
   defaults and choices are excluded from help and completion.
 - Generated numeric metadata permits separated negative numbers. Other
   option-looking data still requires `--` or an equals value. Unknown options and
@@ -340,7 +350,7 @@ rules for ambiguous tokens.
 - `[Command("config show")]` creates a help-only `config` group automatically.
   Describe it with `[CommandGroup("config", Description = "Show and change
   settings.")]` on any class that declares commands (also `DescriptionKey`,
-  `LongDescription` and `Hidden`), or with `builder.Group("config", new
+  `LongDescription`, `LongDescriptionKey` and `Hidden`), or with `builder.Group("config", new
   CommandHelp("..."))`. `GeneratedCommandCatalog.Create(builder => builder.GlobalOption("verbose",
   "--verbose", CommandArity.Zero))` adds an option to all commands; it may precede
   the command. Read shared bindings from `ParsedInvocation.Options` in a binder.
@@ -1030,7 +1040,10 @@ a custom or hosted execution sink.
 `ICommandTextResolver.Resolve` receives a key, culture and ordered safe argument
 list, and returns null when it cannot resolve the key. Command, argument and
 option attributes accept `DescriptionKey`; `Description` remains the literal
-fallback. Diagnostic messages resolve their `MessageKey` and `Arguments`.
+fallback. `[Command]` and `[CommandGroup]` also accept `LongDescriptionKey` for
+their extended help, with `LongDescription` as its fallback
+(`CommandHelp.LongDescriptionKey` without the generator); the resolved text keeps
+its paragraphs and line breaks, as the literal does. Diagnostic messages resolve their `MessageKey` and `Arguments`.
 Faults without a matching diagnostic use `faults.{code}` with no arguments; a
 diagnostic whose own key is unresolved also falls back to `faults.{code}`.
 `CommandTextKeys` lists every framework key with constants such as
@@ -1041,7 +1054,7 @@ such as `diagnostics.invalid-integer` or `diagnostics.out-of-range`, whose first
 argument is the option spelling or argument placeholder. A typo suggestion is a
 trailing argument with its own key, such as `diagnostics.unknown-option-suggestion`.
 `CommandTextContext.ValidateDescriptionKeys(catalog)`
-reports each `DescriptionKey` the resolver does not resolve (`RCLI0023`), so a
+reports each `DescriptionKey` and `LongDescriptionKey` the resolver does not resolve (`RCLI0023`), so a
 test can catch a typo that would otherwise show the literal fallback; with
 `RUNIC_COMMANDLINE_DEBUG=1`, help also prints them to stderr as warnings.
 Translations change presentation text, including JSON messages, while command

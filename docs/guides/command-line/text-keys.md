@@ -39,7 +39,8 @@ list; see [Built-in catalog](#built-in-catalog).
   output alike. A note that is itself unsafe falls back to English. The
   `[redacted]` marker that replaces an unsafe value in a fault's details is not
   translated: details are data for programs, like codes and keys.
-- Command, option and argument descriptions use their `DescriptionKey`. Those
+- Command, option and argument descriptions use their `DescriptionKey`, and the
+  extended help of commands and groups uses their `LongDescriptionKey`. Those
   keys belong to the application.
 - `CommandPrompts` resolves its own text (hints, Yes and No, errors and the
   `RCLI4001` diagnostics) through these keys. Prompt questions and choice labels
@@ -47,7 +48,17 @@ list; see [Built-in catalog](#built-in-catalog).
   `new CommandTextContext(context.Culture, context.TextResolver)`.
 - Arguments arrive in the order listed. The names describe each position; an
   argument named `parameter` is an option spelling such as `--limit` or an
-  argument placeholder such as `<name>`.
+  argument placeholder such as `<name>`, one named `option` is an option
+  spelling, and one named `argument` is an argument placeholder: its value name,
+  or else its name, in angle brackets, as the usage line shows it (before
+  0.13.0, `diagnostics.missing-argument` received the bare name, such as `name`).
+  Option spellings follow the catalog's dialect (`/limit` under the Windows
+  slash dialect).
+- Help names options in its `help.requires` and `help.conflicts` notes by their
+  spelling in the catalog's dialect, such as `[conflicts: --list]` or
+  `[conflicts: /l]`, and lists arguments under `help.arguments` as the usage
+  line shows them, such as `<name>` (before 0.13.0: option IDs and argument
+  names).
 - Resolved text passes through the same sanitizers as the English text.
 - A usage error in human output ends with the usage line of its command, built
   from the `help.usage`, `help.command-placeholder` and
@@ -233,4 +244,5 @@ and its replacement, until the next minor, so an application that overrides it
 can find what to use instead.
 
 `CommandTextContext.ValidateDescriptionKeys(catalog)` reports application
-`DescriptionKey` values a resolver does not resolve (`RCLI0023`).
+`DescriptionKey` and `LongDescriptionKey` values a resolver does not resolve
+(`RCLI0023`).

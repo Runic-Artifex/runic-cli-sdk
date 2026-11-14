@@ -253,6 +253,13 @@ internal sealed class CorpusContractTests
 
                 ValidateStringArray(arguments, fixtureId, "expected.diagnostics.arguments");
             }
+
+            // Optional: the ID of the one argument or option the diagnostic names; absent when it names none.
+            if (diagnostic.TryGetProperty("binding", out JsonElement binding) &&
+                (binding.ValueKind != JsonValueKind.String || !System.Text.RegularExpressions.Regex.IsMatch(binding.GetString()!, "^[a-z][a-z0-9-]{0,127}$")))
+            {
+                throw new InvalidOperationException($"Fixture '{fixtureId}' diagnostic binding must be an ID matching [a-z][a-z0-9-]*.");
+            }
         }
     }
 

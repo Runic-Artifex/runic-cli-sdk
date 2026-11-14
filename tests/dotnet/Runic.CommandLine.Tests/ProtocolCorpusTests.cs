@@ -11,7 +11,7 @@ internal sealed class ProtocolCorpusTests
         "invalid-structures.json",
         CorpusJsonContext.Default.SemanticProtocolCorpus);
     private static readonly string[] ExampleNames =
-        ["success", "command-fault", "validation", "host-fault", "cancelled", "redacted-fault", "declared-failure", "informational-success"];
+        ["success", "command-fault", "validation", "host-fault", "cancelled", "redacted-fault", "declared-failure", "informational-success", "missing-argument"];
 
     public static IEnumerable<string> WireCaseIds()
     {
@@ -168,6 +168,11 @@ internal sealed class ProtocolCorpusTests
                     "sample.export-result/1",
                     CommandOutcome.Success(new ExportPayload(42, "result.json")).WithExitCode(3010)),
                 CorpusJsonContext.Default.ExportPayload),
+            // A usage error that names one declared argument carries its ID as the optional binding member.
+            "missing-argument" => Failure(
+                "req-copy-0008", "copy", CommandExitCodes.Usage, "RCLI1005", "The <destination> argument is missing.",
+                diagnostics: [new CommandDiagnostic("RCLI1005", "missing-argument", "The <destination> argument is missing.", CommandDiagnosticPhase.Parse,
+                    CommandDiagnosticSeverity.Error, 2, ["<destination>"], new CommandPath(["copy"])) { Binding = "destination" }]),
             _ => throw new InvalidOperationException($"Unknown protocol example '{name}'."),
         };
 
@@ -178,6 +183,7 @@ internal sealed class ProtocolCorpusTests
             CorpusJsonContext.Default.ExportPayload);
         AssertEx.Equal(name is "success" or "informational-success", roundTrip.Succeeded);
         AssertEx.Equal(name == "informational-success" ? 3010 : name == "success" ? 0 : roundTrip.ExitCode, roundTrip.ExitCode);
+        AssertEx.Equal(name == "missing-argument" ? "destination" : null, roundTrip.Diagnostics.SingleOrDefault()?.Binding);
         return ValueTask.CompletedTask;
     }
 

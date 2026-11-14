@@ -176,7 +176,8 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
             if (ValidateDescriptionKey(diagnostics, attribute, type, path))
             {
                 registration = ".Group(" + Literal(path) + ", new global::Runic.CommandLine.CommandHelp(description: " + NamedString(attribute, "Description") +
-                    ") { Hidden = " + NamedBool(attribute, "Hidden") + ", LongDescription = " + NamedString(attribute, "LongDescription") + " }, " + NamedString(attribute, "DescriptionKey") + ")";
+                    ") { Hidden = " + NamedBool(attribute, "Hidden") + ", LongDescription = " + NamedString(attribute, "LongDescription") +
+                    ", LongDescriptionKey = " + NamedString(attribute, "LongDescriptionKey") + " }, " + NamedString(attribute, "DescriptionKey") + ")";
             }
             groups.Add(new GroupCandidate(type.ToDisplayString() + "#" + groups.Count.ToString(CultureInfo.InvariantCulture), path, registration, locationInfo, new EquatableArray<DiagnosticInfo>(diagnostics.ToArray())));
         }
@@ -478,13 +479,17 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         diagnostics.Add(new DiagnosticInfo(descriptor, location is null ? null : new LocationInfo(location.SourceTree!.FilePath, location.SourceSpan, location.GetLineSpan().Span), new EquatableArray<string>(arguments)));
     }
 
+    // DescriptionKey, and LongDescriptionKey where the attribute has one ([Command] and [CommandGroup]).
     private static bool ValidateDescriptionKey(List<DiagnosticInfo> diagnostics, AttributeData attribute, ISymbol symbol, string commandName)
     {
-        TypedConstant value = attribute.NamedArguments.FirstOrDefault(p => p.Key == "DescriptionKey").Value;
-        if (value.Value is string key && (string.IsNullOrWhiteSpace(key) || key.Length > 128 || key.Any(char.IsControl)))
+        foreach ((string property, string subject) in new[] { ("DescriptionKey", "description key"), ("LongDescriptionKey", "long description key") })
         {
-            Report(diagnostics, InvalidMetadata, symbol, commandName, "description key", key);
-            return false;
+            TypedConstant value = attribute.NamedArguments.FirstOrDefault(p => p.Key == property).Value;
+            if (value.Value is string key && (string.IsNullOrWhiteSpace(key) || key.Length > 128 || key.Any(char.IsControl)))
+            {
+                Report(diagnostics, InvalidMetadata, symbol, commandName, subject, key);
+                return false;
+            }
         }
         return true;
     }
@@ -550,16 +555,18 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
 
         AttributeData commandAttribute = FindAttribute(method, "Runic.CommandLine.CommandAttribute")!;
         if (commandAttribute.NamedArguments.Any(static p => p.Key == "DescriptionKey" && p.Value.Value is string)) registration.Append(".Describe(").Append(NamedString(commandAttribute, "DescriptionKey")).Append(')');
-        registration.Append(".WithHelp(new global::Runic.CommandLine.CommandHelp(description: ").Append(NamedString(commandAttribute, "Description")).Append(", examples: ").Append(NamedArray(commandAttribute, "Examples")).Append(") { Hidden = ").Append(NamedBool(commandAttribute, "Hidden")).Append(", LongDescription = ").Append(NamedString(commandAttribute, "LongDescription")).Append(ExitCodeHelp(method)).Append(" })");
+        registration.Append(".WithHelp(new global::Runic.CommandLine.CommandHelp(description: ").Append(NamedString(commandAttribute, "Description")).Append(", examples: ").Append(NamedArray(commandAttribute, "Examples")).Append(") { Hidden = ").Append(NamedBool(commandAttribute, "Hidden")).Append(", LongDescription = ").Append(NamedString(commandAttribute, "LongDescription")).Append(", LongDescriptionKey = ").Append(NamedString(commandAttribute, "LongDescriptionKey")).Append(ExitCodeHelp(method)).Append(" })");
         foreach (ParameterModel parameter in parameters.Where(static p => p.Kind is ParameterKind.Option or ParameterKind.Argument))
         {
             AttributeData metadata = (parameter.Kind == ParameterKind.Option ? FindAttribute(parameter.Symbol, "Runic.CommandLine.OptionAttribute") : ArgumentMetadata(parameter.Symbol))!;
             ITypeSymbol scalar = Scalar(parameter.Symbol.Type);
             bool numeric = IsNumeric(scalar);
             string choices = NamedArray(metadata, "Choices");
+            // A Boolean option is a presence flag that can only default to false (RCLI9024), so help shows no default.
+            bool showsDefault = parameter.HasDefault && parameter.DefaultValue is not null && !(parameter.Kind == ParameterKind.Option && IsBoolean(parameter.Symbol.Type));
             if (choices == "[]" && scalar.TypeKind == TypeKind.Enum) choices = "[" + string.Join(", ", scalar.GetMembers().OfType<IFieldSymbol>().Where(static f => f.HasConstantValue).Select(static f => Literal(f.Name))) + "]";
             registration.Append(".ParameterHelp(").Append(Literal(parameter.Id)).Append(", new global::Runic.CommandLine.CommandHelp(description: ").Append(NamedString(metadata, "Description"))
-                .Append(", valueName: ").Append(NamedString(metadata, "ValueName")).Append(", defaultValue: ").Append(parameter.HasDefault && parameter.DefaultValue is not null ? Literal(DefaultText(scalar, parameter.DefaultValue)) : "null")
+                .Append(", valueName: ").Append(NamedString(metadata, "ValueName")).Append(", defaultValue: ").Append(showsDefault ? Literal(DefaultText(scalar, parameter.DefaultValue!)) : "null")
                 .Append(", environmentVariable: ").Append(NamedString(metadata, "EnvironmentVariable")).Append(", choices: ").Append(choices).Append(", acceptsNegativeNumbers: ").Append(numeric ? "true" : "false").Append(") { Hidden = ").Append(NamedBool(metadata, "Hidden"))
                 .Append(", PathKind = (global::Runic.CommandLine.CommandPathKind)").Append(PathKind(metadata, scalar))
                 .Append(", MustExist = ").Append(NamedBool(metadata, "MustExist"))

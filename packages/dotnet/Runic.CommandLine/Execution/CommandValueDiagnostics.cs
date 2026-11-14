@@ -27,16 +27,18 @@ internal static class CommandValueDiagnostics
         // Choices that are not listed are named by the help request that shows them, in the catalog's dialect.
         bool hiddenChoices = kind == "invalid-choice" && details.Length == 0;
         string[] arguments = hiddenChoices ? [name, CommandDialect.Help(invocation.Command.Syntax)] : [name, .. details];
+        // Relations name two options, so they carry no single binding.
+        string? binding = kind is "option-requires" or "option-conflict" ? null : id;
         var diagnostics = new List<CommandDiagnostic>(2)
         {
             new(code, kind, Format(kind, arguments, hiddenChoices), CommandDiagnosticPhase.Binding, CommandDiagnosticSeverity.Error, arguments: arguments, path: invocation.Path,
-                messageKey: MessageKey(hiddenChoices)),
+                messageKey: MessageKey(hiddenChoices)) { Binding = binding },
         };
         // A value from an environment fallback is invisible on the command line, so name its source.
         if (invocation.EnvironmentOptionIds.Contains(id) && FindOption(invocation.Command, id) is { Help.EnvironmentVariable: { } variable })
         {
             diagnostics.Add(new CommandDiagnostic(EnvironmentSourceCode, "environment-value-source", Format("environment-value-source", [name, variable]),
-                CommandDiagnosticPhase.Binding, CommandDiagnosticSeverity.Information, arguments: [name, variable], path: invocation.Path));
+                CommandDiagnosticPhase.Binding, CommandDiagnosticSeverity.Information, arguments: [name, variable], path: invocation.Path) { Binding = id });
         }
         return diagnostics;
     }
@@ -46,7 +48,7 @@ internal static class CommandValueDiagnostics
         if (FindOption(command, id) is { } option) return option.DisplayName;
         foreach (CommandArgumentDescriptor argument in command.Arguments)
         {
-            if (argument.Id == id) return "<" + (argument.Help.ValueName ?? argument.Name) + ">";
+            if (argument.Id == id) return argument.DisplayName;
         }
         return id;
     }
