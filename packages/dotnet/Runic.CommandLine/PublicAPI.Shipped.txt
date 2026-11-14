@@ -946,3 +946,12 @@ const Runic.CommandLine.CommandTextKeys.HintHelpLink = "hints.help-link" -> stri
 const Runic.CommandLine.CommandTextKeys.RedactionDiagnosticContent = "redaction.diagnostic-content" -> string!
 const Runic.CommandLine.CommandTextKeys.RedactionDiagnosticMessage = "redaction.diagnostic-message" -> string!
 const Runic.CommandLine.CommandTextKeys.RedactionFault = "redaction.fault" -> string!
+Runic.CommandLine.CommandAttribute.LongDescriptionKey.get -> string?
+Runic.CommandLine.CommandAttribute.LongDescriptionKey.set -> void
+Runic.CommandLine.CommandGroupAttribute.LongDescriptionKey.get -> string?
+Runic.CommandLine.CommandGroupAttribute.LongDescriptionKey.set -> void
+Runic.CommandLine.CommandHelp.LongDescriptionKey.get -> string?
+Runic.CommandLine.CommandHelp.LongDescriptionKey.init -> void
+Runic.CommandLine.CommandTextContext.LongDescription(Runic.CommandLine.CommandHelp! help) -> string?
+Runic.CommandLine.CommandDiagnostic.Binding.get -> string?
+Runic.CommandLine.CommandDiagnostic.Binding.init -> void
