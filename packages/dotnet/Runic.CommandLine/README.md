@@ -195,6 +195,14 @@ unchanged. The hosting adapter created from the app uses them too; a host that
 builds `CommandPresentation` and `CommandOutputDispatcher` itself sets their
 `JsonOutput`. Without them the output is what earlier releases wrote.
 
+A usage diagnostic about one declared argument or option carries its stable ID as
+`binding` (`CommandDiagnostic.Binding`), next to `arguments`, which name it as
+users see it and change with its value name and the dialect:
+`"arguments":["<Container-Pfad>"],"binding":"container-path"`. A script that
+needs to know which input was wrong reads `binding`. Relations between two
+options (`option-requires`, `option-conflict`) and diagnostics about no declared
+binding, such as `unknown-option`, have none.
+
 **Windows PowerShell 5.1.** It decodes a native program's standard output with
 `[Console]::OutputEncoding`, by default the OEM code page (850 or 437), not UTF-8,
 so raw UTF-8 such as `Räume` arrives as `RÃ¤ume` or `R├ñume` unless every

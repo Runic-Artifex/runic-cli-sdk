@@ -199,7 +199,17 @@ A diagnostic contains every key below in this output order:
 - `arguments` is an ordered array of at most 16 safe strings. Each value is at
   most 1,024 UTF-8 bytes. Raw token values are excluded unless the command
   definition explicitly classifies the value as safe.
-- `helpUri` is optional and follows `arguments`; see [Help links](#help-links).
+- `binding` is optional and follows `arguments`. When present it is the stable
+  catalog ID of the one argument or option the diagnostic names, 1 to 128 ASCII
+  bytes matching `[a-z][a-z0-9-]*`, such as `destination` for
+  `"arguments":["<destination>"]`. `arguments` name the binding as users see it
+  (its value name, or its spelling in the catalog's dialect) and change with
+  those; `binding` does not change with the value name, the dialect or the
+  culture, so a client that needs to know which input was wrong reads
+  `binding`. A diagnostic that names no declared binding, or more than one,
+  omits it. Since Runic Command Line 0.13.0; earlier version-1 readers ignore
+  it. See [`examples/missing-argument.json`](examples/missing-argument.json).
+- `helpUri` is optional and follows `arguments` and `binding`; see [Help links](#help-links).
 
 Fault messages, fault details, diagnostic messages, and diagnostic arguments
 are consumer-safe surfaces. They MUST NOT contain secrets, original values of

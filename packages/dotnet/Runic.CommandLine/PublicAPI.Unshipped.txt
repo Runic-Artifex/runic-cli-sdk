@@ -6,3 +6,5 @@ Runic.CommandLine.CommandGroupAttribute.LongDescriptionKey.set -> void
 Runic.CommandLine.CommandHelp.LongDescriptionKey.get -> string?
 Runic.CommandLine.CommandHelp.LongDescriptionKey.init -> void
 Runic.CommandLine.CommandTextContext.LongDescription(Runic.CommandLine.CommandHelp! help) -> string?
+Runic.CommandLine.CommandDiagnostic.Binding.get -> string?
+Runic.CommandLine.CommandDiagnostic.Binding.init -> void

@@ -340,7 +340,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                         index,
                         resolved.Path,
                         [option.Name],
-                        CurrentOutputClassification());
+                        CurrentOutputClassification(),
+                        binding: option.Id);
                 }
 
                 if (inlineValue is not null && option.Arity.Maximum == 0)
@@ -351,7 +352,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                         index,
                         resolved.Path,
                         [option.Name],
-                        CurrentOutputClassification());
+                        CurrentOutputClassification(),
+                        binding: option.Id);
                 }
 
                 var occurrenceValues = new List<string>();
@@ -384,7 +386,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                         tokens.Length,
                         resolved.Path,
                         [option.Name],
-                        CurrentOutputClassification());
+                        CurrentOutputClassification(),
+                        binding: option.Id);
                 }
 
                 if (optionBindingIndexes.TryGetValue(option.Id, out bindingIndex))
@@ -414,7 +417,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 bool flag = option.Arity.Maximum == 0;
                 bool enabled = false;
                 if (flag && !TryParseEnvironmentFlag(environmentValue, out enabled))
-                    return Error("RCLI1014", "invalid-environment-value", tokens.Length, resolved.Path, [option.Name, variable], CurrentOutputClassification());
+                    return Error("RCLI1014", "invalid-environment-value", tokens.Length, resolved.Path, [option.Name, variable], CurrentOutputClassification(),
+                        binding: option.Id);
                 if (!flag || enabled)
                 {
                     optionBindingIndexes.Add(option.Id, optionBindings.Count);
@@ -430,7 +434,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                     tokens.Length,
                     resolved.Path,
                     [option.Name, resolved.Path.ToString()],
-                    CurrentOutputClassification());
+                    CurrentOutputClassification(),
+                    binding: option.Id);
             }
         }
 
@@ -474,7 +479,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             if (descriptor is not null && !TryCanonicalizeChoices(binding.Values, descriptor.Help, out canonical))
                 return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path, ChoiceArguments(catalog, descriptor.Name, descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification(),
                     environmentVariable: environmentOptionIds.Contains(descriptor.Id) ? descriptor.Help.EnvironmentVariable : null,
-                    hiddenChoices: HidesChoices(descriptor.Help, descriptor.IsSensitive));
+                    hiddenChoices: HidesChoices(descriptor.Help, descriptor.IsSensitive), binding: descriptor.Id);
             if (canonical is not null)
             {
                 binding.Values.Clear();
@@ -494,7 +499,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 if (!TryCanonicalizeChoices(binding.Values, descriptor.Help, out string[]? canonical))
                     return Error("RCLI1015", "invalid-choice", tokens.Length, resolved.Path,
                         ChoiceArguments(catalog, descriptor.DisplayName, descriptor.Help, descriptor.IsSensitive), CurrentOutputClassification(),
-                        hiddenChoices: HidesChoices(descriptor.Help, descriptor.IsSensitive));
+                        hiddenChoices: HidesChoices(descriptor.Help, descriptor.IsSensitive), binding: descriptor.Id);
                 if (canonical is not null) canonicalArguments[argumentIndex] = new CommandValueBinding(binding.Id, canonical);
             }
         }
@@ -607,7 +612,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                         index,
                         path,
                         [option.Name],
-                        outputClassification);
+                        outputClassification,
+                        binding: option.Id);
                 }
 
                 break;
@@ -625,7 +631,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 tokens.Length,
                 path,
                 [option.Name],
-                outputClassification);
+                outputClassification,
+                binding: option.Id);
         }
 
         return null;
@@ -654,7 +661,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                     endTokenIndex,
                     path,
                     [descriptor.DisplayName],
-                    outputClassification: outputClassification);
+                    outputClassification: outputClassification,
+                    binding: descriptor.Id);
             }
         }
 
@@ -1177,7 +1185,8 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         CommandOutputClassification? outputClassification = null,
         string? suggestion = null,
         string? environmentVariable = null,
-        bool hiddenChoices = false)
+        bool hiddenChoices = false,
+        string? binding = null)
     {
         string message = MessageText(kind, arguments ?? [], suggestion, hiddenChoices);
         string? messageKey = CommandValueDiagnostics.MessageKey(hiddenChoices);
@@ -1189,7 +1198,9 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             arguments = [.. arguments ?? [], suggestion];
             messageKey = CommandTextKeys.Diagnostic(kind + "-suggestion");
         }
-        CommandDiagnostic diagnostic = Diagnostic(code, kind, message, tokenIndex, path ?? CommandPath.Root, arguments, messageKey);
+        // The binding is the ID of the declared argument or option the diagnostic names, for programs; the arguments
+        // name it as users see it.
+        CommandDiagnostic diagnostic = Diagnostic(code, kind, message, tokenIndex, path ?? CommandPath.Root, arguments, messageKey) with { Binding = binding };
         if (outputClassification is not CommandOutputClassification classification)
         {
             return ParseOutcome.FromError(diagnostic);
@@ -1201,7 +1212,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             return ParseOutcome.FromErrors(
                 [diagnostic, new CommandDiagnostic(CommandValueDiagnostics.EnvironmentSourceCode, "environment-value-source",
                     CommandValueDiagnostics.Format("environment-value-source", noteArguments), CommandDiagnosticPhase.Parse,
-                    CommandDiagnosticSeverity.Information, tokenIndex, noteArguments, path ?? CommandPath.Root)],
+                    CommandDiagnosticSeverity.Information, tokenIndex, noteArguments, path ?? CommandPath.Root) { Binding = binding }],
                 classification);
         }
 

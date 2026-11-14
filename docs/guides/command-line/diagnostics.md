@@ -332,6 +332,10 @@ followed by another option or `--`.
 left to right, so the diagnostic names the first argument the given tokens do
 not reach, as the usage line shows it: `copy a.txt` for
 `copy <source> <destination>` reports "The <destination> argument is missing."
+In JSON output, `arguments` holds that placeholder (`["<destination>"]`), and
+`binding` holds the argument's stable ID (`"binding": "destination"`), which does
+not change with the value name, the dialect or the culture. Scripts that read
+which argument is missing read `binding`.
 
 ### RCLI1006
 

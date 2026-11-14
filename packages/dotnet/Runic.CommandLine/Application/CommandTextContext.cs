@@ -103,7 +103,7 @@ public sealed class CommandTextContext
         ArgumentNullException.ThrowIfNull(diagnostic);
         string message = Resolve(diagnostic.MessageKey, diagnostic.Message, diagnostic.Arguments);
         return message == diagnostic.Message ? diagnostic : new CommandDiagnostic(diagnostic.Code, diagnostic.Kind, message,
-            diagnostic.Phase, diagnostic.Severity, diagnostic.TokenIndex, diagnostic.Arguments, diagnostic.Path, diagnostic.MessageKey) { HelpUri = diagnostic.HelpUri };
+            diagnostic.Phase, diagnostic.Severity, diagnostic.TokenIndex, diagnostic.Arguments, diagnostic.Path, diagnostic.MessageKey) { HelpUri = diagnostic.HelpUri, Binding = diagnostic.Binding };
     }
     internal CommandResponse<T> Localize<T>(CommandResponse<T> response)
     {
@@ -119,7 +119,7 @@ public sealed class CommandTextContext
             if (describesFault && ReferenceEquals(diagnostics[index], original) &&
                 Resolver.Resolve(CommandTextKeys.Fault(original.Code), Culture, Array.Empty<string>()) is { } faultText && !string.IsNullOrWhiteSpace(faultText))
                 diagnostics[index] = new CommandDiagnostic(original.Code, original.Kind, faultText, original.Phase, original.Severity, original.TokenIndex,
-                    original.Arguments, original.Path, original.MessageKey) { HelpUri = original.HelpUri };
+                    original.Arguments, original.Path, original.MessageKey) { HelpUri = original.HelpUri, Binding = original.Binding };
             if (describesFault && fault is not null)
                 fault = new CommandFault(fault.Code, diagnostics[index].Message, fault.Details, fault.Retryable) { HelpUri = fault.HelpUri };
         }

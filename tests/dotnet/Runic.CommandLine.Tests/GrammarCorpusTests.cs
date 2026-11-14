@@ -51,6 +51,8 @@ internal sealed class GrammarCorpusTests
                     AssertEx.Equal(expected[index].TokenIndex, actual.Diagnostics[index].TokenIndex, test.Id);
                     if (expected[index].Arguments is { } arguments)
                         AssertEx.SequenceEqual(arguments, actual.Diagnostics[index].Arguments, test.Id);
+                    // Strict: a fixture without a binding expects none.
+                    AssertEx.Equal(expected[index].Binding, actual.Diagnostics[index].Binding, test.Id);
                 }
                 break;
             default:

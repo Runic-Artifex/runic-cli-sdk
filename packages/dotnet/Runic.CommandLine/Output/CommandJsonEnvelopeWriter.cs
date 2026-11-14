@@ -220,6 +220,13 @@ public static class CommandJsonEnvelopeWriter
         }
 
         writer.WriteEndArray();
+        // An optional additive member: the ID of the one argument or option the diagnostic names. IDs are
+        // [a-z][a-z0-9-]* and never carry user input, so the value is written as is. Version-1 readers ignore it.
+        if (diagnostic.Binding is { } binding)
+        {
+            writer.WriteString("binding", binding);
+        }
+
         WriteHelpUri(writer, diagnostic.HelpUri);
 
         writer.WriteEndObject();

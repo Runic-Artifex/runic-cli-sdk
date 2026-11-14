@@ -273,6 +273,21 @@ public static class CommandJsonEnvelopeReader
     }
 
     // The optional helpUri member of a fault or diagnostic: an absolute https URI in printable ASCII.
+    private static string? ReadBinding(JsonElement element)
+    {
+        if (!element.TryGetProperty("binding", out JsonElement bindingElement))
+        {
+            return null;
+        }
+
+        if (bindingElement.ValueKind != JsonValueKind.String || !CommandDiagnostic.IsBinding(bindingElement.GetString()!))
+        {
+            throw Error("invalid-diagnostic", "A diagnostic binding must be an ID matching [a-z][a-z0-9-]* of at most 128 characters.");
+        }
+
+        return bindingElement.GetString();
+    }
+
     private static Uri? ReadHelpUri(JsonElement element)
     {
         if (!element.TryGetProperty("helpUri", out JsonElement helpUriElement))
@@ -422,7 +437,7 @@ public static class CommandJsonEnvelopeReader
                     tokenIndex,
                     arguments,
                     path,
-                    messageKey) { HelpUri = ReadHelpUri(diagnosticElement) });
+                    messageKey) { HelpUri = ReadHelpUri(diagnosticElement), Binding = ReadBinding(diagnosticElement) });
             }
             catch (ArgumentException exception)
             {

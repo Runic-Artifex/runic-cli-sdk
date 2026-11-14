@@ -111,7 +111,7 @@ public static class CommandTestEnvelope
     private static readonly string[] EnvelopeMembers = ["protocol", "requestId", "command", "success", "exitCode", "payloadType", "payload", "fault", "diagnostics"];
     private static readonly string[] FaultMembers = ["code", "message", "details", "retryable", "helpUri", "data"];
     private static readonly string[] FailureDataMembers = ["type", "payload"];
-    private static readonly string[] DiagnosticMembers = ["code", "kind", "commandPath", "messageKey", "message", "phase", "severity", "tokenIndex", "arguments", "helpUri"];
+    private static readonly string[] DiagnosticMembers = ["code", "kind", "commandPath", "messageKey", "message", "phase", "severity", "tokenIndex", "arguments", "binding", "helpUri"];
 
     private static void RejectUnknownMembers(JsonElement element, string[] known, string owner)
     {

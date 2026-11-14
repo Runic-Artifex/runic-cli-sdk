@@ -282,7 +282,7 @@ internal static class CommandDialect
         }
 
         return new CommandDiagnostic(diagnostic.Code, diagnostic.Kind, message, diagnostic.Phase, diagnostic.Severity,
-            diagnostic.TokenIndex, arguments, diagnostic.Path, messageKey) { HelpUri = diagnostic.HelpUri };
+            diagnostic.TokenIndex, arguments, diagnostic.Path, messageKey) { HelpUri = diagnostic.HelpUri, Binding = diagnostic.Binding };
     }
 
     private static string? SuggestCommand(CommandCatalog catalog, CommandPath path, string token)

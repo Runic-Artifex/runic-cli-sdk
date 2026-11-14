@@ -7,12 +7,13 @@ namespace Runic.CommandLine.Tests;
 // and the help command (runic-cli-sdk#82). JSON output keeps its codes, kinds and arguments.
 internal sealed class UsageErrorTests
 {
-    private static CommandCatalog Catalog()
+    private static CommandCatalog Catalog(CommandSyntaxDialect syntax = CommandSyntaxDialect.Portable, bool valueNames = false)
     {
-        var builder = new CommandCatalogBuilder();
-        CatalogTests.ValidCommand(builder, "bind")
+        var builder = new CommandCatalogBuilder().Syntax(syntax);
+        CommandBuilder<TestOptions, TestHandler, TestResult> bind = CatalogTests.ValidCommand(builder, "bind")
             .Argument("world", "world", CommandArity.ExactlyOne)
             .Argument("binding", "binding", CommandArity.ExactlyOne);
+        if (valueNames) bind.ParameterHelp("binding", new CommandHelp(valueName: "Verknüpfung"));
         // A bounded range before a required argument: the range takes only the tokens the later minimum leaves.
         CatalogTests.ValidCommand(builder, "copy")
             .Argument("sources", "sources", new CommandArity(1, 2))
@@ -48,6 +49,8 @@ internal sealed class UsageErrorTests
         // The argument is named as the usage line shows it.
         AssertEx.SequenceEqual(["<" + argument + ">"], diagnostic.Arguments, line);
         AssertEx.Equal("The <" + argument + "> argument is missing.", diagnostic.Message, line);
+        // Programs read the argument's ID; in this catalog the IDs are the names.
+        AssertEx.Equal(argument, diagnostic.Binding, line);
     }
 
     private static void AssertBound(string[] args, params (string Id, string[] Values)[] expected)
@@ -148,6 +151,7 @@ internal sealed class UsageErrorTests
         AssertEx.Equal("missing-argument", diagnostic.GetProperty("kind").GetString());
         AssertEx.Equal("diagnostics.missing-argument", diagnostic.GetProperty("messageKey").GetString());
         AssertEx.SequenceEqual(["<binding>"], diagnostic.GetProperty("arguments").EnumerateArray().Select(static item => item.GetString()!));
+        AssertEx.Equal("binding", diagnostic.GetProperty("binding").GetString());
         AssertEx.True(!console.StandardOutput.Contains("--help", StringComparison.Ordinal), console.StandardOutput);
     }
 
@@ -180,6 +184,52 @@ internal sealed class UsageErrorTests
             "Aufruf: storyline bind <world> <binding> [Optionen]\n" +
             "Hilfe: storyline bind --help\n",
             console.StandardError);
+    }
+
+    [Test, DisplayName("usage-errors/json-binding-is-the-argument-id-in-every-dialect-and-culture")]
+    public async ValueTask JsonBinding()
+    {
+        foreach ((CommandSyntaxDialect syntax, string[] args) in new[]
+        {
+            (CommandSyntaxDialect.Portable, new[] { "bind", "w.storyline", "--format", "json" }),
+            (CommandSyntaxDialect.WindowsSlash, new[] { "/bind", "w.storyline", "/format", "json" }),
+        })
+        foreach (bool german in new[] { false, true })
+        {
+            string label = syntax + (german ? " de" : " en");
+            var console = new TestCommandConsole();
+            var app = new CommandApp(Catalog(syntax, valueNames: true))
+            {
+                Name = "storyline", Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default,
+                TextResolver = german ? new HintResolver() : null, Culture = System.Globalization.CultureInfo.GetCultureInfo(german ? "de" : "en"),
+            };
+            AssertEx.Equal(CommandExitCodes.Usage, await app.RunAsync(args), label + ": " + console.StandardError);
+            using JsonDocument frame = CommandTestEnvelope.Parse(console.StandardOutput);
+            JsonElement diagnostic = frame.RootElement.GetProperty("diagnostics").EnumerateArray().Single();
+            AssertEx.Equal(german ? "Das Argument <Verknüpfung> fehlt." : "The <Verknüpfung> argument is missing.", diagnostic.GetProperty("message").GetString(), label);
+            AssertEx.SequenceEqual(["<Verknüpfung>"], diagnostic.GetProperty("arguments").EnumerateArray().Select(static item => item.GetString()!), label);
+            // The ID does not follow the value name, the dialect or the culture.
+            AssertEx.Equal("binding", diagnostic.GetProperty("binding").GetString(), label);
+            // The fault carries no arguments, so it has no binding either; its details stay empty.
+            JsonElement fault = frame.RootElement.GetProperty("fault");
+            AssertEx.True(!fault.TryGetProperty("binding", out _) && !fault.GetProperty("details").EnumerateObject().Any(), label);
+            CommandResponse<ExportPayload> read = CommandJsonEnvelopeReader.Read(System.Text.Encoding.UTF8.GetBytes(console.StandardOutput), "sample.unused/1",
+                CorpusJsonContext.Default.ExportPayload);
+            AssertEx.Equal("binding", read.Diagnostics.Single().Binding, label);
+        }
+
+        // A diagnostic about no declared binding omits the member.
+        var unknown = new TestCommandConsole();
+        AssertEx.Equal(CommandExitCodes.Usage, await App(unknown).RunAsync(["tag", "--bogus", "s", "--format", "json"]));
+        using JsonDocument unknownFrame = CommandTestEnvelope.Parse(unknown.StandardOutput);
+        AssertEx.True(!unknownFrame.RootElement.GetProperty("diagnostics")[0].TryGetProperty("binding", out _), unknown.StandardOutput);
+        AssertEx.Throws<ArgumentException>(() => new CommandDiagnostic("RCLI8001", "custom", "Custom.", CommandDiagnosticPhase.Execution, CommandDiagnosticSeverity.Error) { Binding = "Not-An-Id" });
+        // A reader rejects a binding that is not an ID.
+        string invalid = System.IO.File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Corpus", "protocol", "examples", "missing-argument.json"))
+            .Replace("\"binding\":\"destination\"", "\"binding\":\"Destination\"", StringComparison.Ordinal);
+        CommandProtocolException rejected = AssertEx.Throws<CommandProtocolException>(() => CommandJsonEnvelopeReader.Read(
+            System.Text.Encoding.UTF8.GetBytes(invalid), "sample.unused/1", CorpusJsonContext.Default.ExportPayload));
+        AssertEx.Equal("invalid-diagnostic", rejected.Kind);
     }
 
     private static CommandApp App(TestCommandConsole console, ICommandTextResolver? resolver = null) => new(Catalog())

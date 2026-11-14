@@ -219,6 +219,33 @@ internal sealed class HelpTextTests
         AssertEx.True(help.Contains("Force.\n", StringComparison.Ordinal) && help.Contains("Mode. [default: fast]\n", StringComparison.Ordinal), help);
     }
 
+    [Test, DisplayName("help-texts/usage-errors-about-one-binding-carry-its-id")]
+    public async ValueTask UsageErrorsCarryTheBindingId()
+    {
+        static async ValueTask<CommandDiagnostic> First(CommandApp app, TestCommandConsole console, params string[] args)
+        {
+            AssertEx.Equal(CommandExitCodes.Usage, await app.RunAsync([.. args, "--format", "json"]), console.StandardOutput);
+            return CommandJsonEnvelopeReader.Read(System.Text.Encoding.UTF8.GetBytes(console.StandardOutput), "sample.unused/1",
+                CorpusJsonContext.Default.ExportPayload).Diagnostics[0];
+        }
+
+        // A value error (binding phase) and a parse error each name one option.
+        var console = new TestCommandConsole();
+        CommandDiagnostic invalid = await First(App(console), console, "flags-default", "--factor", "x");
+        AssertEx.Equal("factor", invalid.Binding, invalid.Kind);
+        console = new TestCommandConsole();
+        CommandDiagnostic duplicate = await First(App(console), console, "flags-default", "--quiet", "--quiet");
+        AssertEx.Equal("duplicate-option", duplicate.Kind);
+        AssertEx.Equal("quiet", duplicate.Binding);
+
+        // A relation names two options, so it has no single binding.
+        console = new TestCommandConsole();
+        var app = new CommandApp(PolicyCatalog(CommandSyntaxDialect.Portable)) { Name = "tool", Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default };
+        CommandDiagnostic conflict = await First(app, console, "alias", "-l", "-r", "x");
+        AssertEx.Equal("option-conflict", conflict.Kind);
+        AssertEx.Equal(null, conflict.Binding);
+    }
+
     internal sealed class TextResolver(Dictionary<string, string> texts) : ICommandTextResolver
     {
         public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) =>
