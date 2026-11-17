@@ -44,7 +44,7 @@ public sealed class CommandExecutor
 
     private static void ValidateExitPolicy(IExitCodePolicy policy)
     {
-        foreach (CommandExitCategory category in Enum.GetValues<CommandExitCategory>())
+        for (CommandExitCategory category = CommandExitCategory.Success; category <= CommandEnums.LastExitCategory; category++)
         {
             int exitCode = policy.GetExitCode(category);
             if ((category == CommandExitCategory.Success) != (exitCode == 0))

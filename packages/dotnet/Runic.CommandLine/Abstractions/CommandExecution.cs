@@ -51,7 +51,7 @@ public sealed class CommandExecutionContext
         ArgumentNullException.ThrowIfNull(culture);
         ValidateCorrelationId(correlationId);
 
-        if (!Enum.IsDefined(outputMode))
+        if (!CommandEnums.IsDefined(outputMode))
         {
             throw new ArgumentOutOfRangeException(nameof(outputMode));
         }
@@ -85,7 +85,7 @@ public sealed class CommandExecutionContext
     public JsonOutputShape OutputShape
     {
         get => _outputShape;
-        init => _outputShape = Enum.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(value));
+        init => _outputShape = CommandEnums.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(value));
     }
 
     private readonly JsonOutputShape _outputShape;

@@ -53,12 +53,12 @@ public sealed class HostedCommandLineLaunchInput
         CommandOutputMode defaultOutputMode = CommandOutputMode.Human)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        if (!Enum.IsDefined(emptyInputFallback))
+        if (!CommandEnums.IsDefined(emptyInputFallback))
         {
             throw new ArgumentOutOfRangeException(nameof(emptyInputFallback));
         }
 
-        if (!Enum.IsDefined(defaultOutputMode))
+        if (!CommandEnums.IsDefined(defaultOutputMode))
         {
             throw new ArgumentOutOfRangeException(nameof(defaultOutputMode));
         }
@@ -120,7 +120,7 @@ public sealed class HostedCommandLineDecision
         IReadOnlyList<CommandDiagnostic>? diagnostics = null,
         CommandOutputClassification? outputClassification = null)
     {
-        if (!Enum.IsDefined(kind))
+        if (!CommandEnums.IsDefined(kind))
         {
             throw new ArgumentOutOfRangeException(nameof(kind));
         }

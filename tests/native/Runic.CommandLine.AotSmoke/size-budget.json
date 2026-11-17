@@ -1,0 +1,7 @@
+{
+  "runtimeIdentifier": "linux-x64",
+  "limit": 6340786,
+  "measured": 6216456,
+  "margin": 0.02,
+  "note": "The Release NativeAOT executable of this smoke on linux-x64; the limit is the measurement plus 2 %. Other RIDs only report their size. After an intended change, publish on linux-x64 and update measured and limit."
+}

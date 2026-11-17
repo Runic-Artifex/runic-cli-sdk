@@ -49,4 +49,21 @@ if ($LASTEXITCODE -ne 0) {
     throw "Native AOT smoke executable failed with exit code $LASTEXITCODE."
 }
 
+# The size budget gates one RID (size-budget.json); the others only report, as the toolchains differ.
+$size = (Get-Item -LiteralPath $nativeExecutable).Length
+$budget = Get-Content -Raw (Join-Path $PSScriptRoot 'size-budget.json') | ConvertFrom-Json
+$gated = $Configuration -eq 'Release' -and $RuntimeIdentifier -eq $budget.runtimeIdentifier
+$sizeLine = if ($gated) {
+    "NativeAOT smoke on ${RuntimeIdentifier}: $size bytes (limit $($budget.limit), measured $($budget.measured))."
+} else {
+    "NativeAOT smoke on ${RuntimeIdentifier}: $size bytes (not gated; the budget gates $($budget.runtimeIdentifier) Release)."
+}
+Write-Host $sizeLine
+if ($env:GITHUB_STEP_SUMMARY) {
+    Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $sizeLine
+}
+if ($gated -and $size -gt [long] $budget.limit) {
+    throw "The NativeAOT smoke executable is $size bytes, over its limit of $($budget.limit) bytes in size-budget.json. Find the cause with -p:IlcGenerateMstatFile=true; raise the budget only for an intended change."
+}
+
 Write-Host "Native AOT smoke passed: $nativeExecutable"

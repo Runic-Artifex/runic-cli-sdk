@@ -68,7 +68,7 @@ public sealed class CommandJsonOutputOptions
     public CommandJsonEscaping Escaping
     {
         get => _escaping;
-        init => _escaping = Enum.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(value));
+        init => _escaping = CommandEnums.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(value));
     }
 
     private readonly CommandJsonEscaping _escaping;
