@@ -258,7 +258,7 @@ public static class CommandOutcome
         CommandFailureData? failureData = null)
     {
         ArgumentNullException.ThrowIfNull(fault);
-        if (category == CommandExitCategory.Success || !Enum.IsDefined(category))
+        if (category == CommandExitCategory.Success || !CommandEnums.IsDefined(category))
         {
             throw new ArgumentOutOfRangeException(nameof(category));
         }

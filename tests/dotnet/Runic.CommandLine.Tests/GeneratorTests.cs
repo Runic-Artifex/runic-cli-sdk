@@ -318,6 +318,7 @@ internal sealed class GeneratorTests
             var expected = await RunAsync("void");
             AssertEx.Equal(0, expected.ExitCode);
             AssertEx.Equal("runic.unit/1", expected.PayloadType);
+            AssertEx.Equal("{}", expected.Payload);
             AssertEx.Equal(string.Empty, expected.Human + expected.HumanError + expected.Alias + expected.AliasError);
             foreach (string command in new[] { "unit", "task-unit", "outcome", "task-outcome", "value-task-outcome" })
             {

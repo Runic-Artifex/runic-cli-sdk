@@ -80,12 +80,12 @@ public sealed record CommandDiagnostic
         ValidateKind(kind);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-        if (!Enum.IsDefined(phase))
+        if (!CommandEnums.IsDefined(phase))
         {
             throw new ArgumentOutOfRangeException(nameof(phase));
         }
 
-        if (!Enum.IsDefined(severity))
+        if (!CommandEnums.IsDefined(severity))
         {
             throw new ArgumentOutOfRangeException(nameof(severity));
         }

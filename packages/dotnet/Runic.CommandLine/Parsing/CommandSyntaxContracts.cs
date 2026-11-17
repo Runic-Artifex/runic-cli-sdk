@@ -42,7 +42,7 @@ public sealed class ParseSettings
         string? outputEnvironmentValue = null,
         CommandOutputMode defaultOutputMode = CommandOutputMode.Human)
     {
-        if (!Enum.IsDefined(defaultOutputMode))
+        if (!CommandEnums.IsDefined(defaultOutputMode))
         {
             throw new ArgumentOutOfRangeException(nameof(defaultOutputMode));
         }

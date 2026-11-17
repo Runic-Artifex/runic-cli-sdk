@@ -149,7 +149,7 @@ public static class CommandOutputClassifier
 
     private static void ValidateMode(CommandOutputMode mode, string parameterName)
     {
-        if (!Enum.IsDefined(mode))
+        if (!CommandEnums.IsDefined(mode))
         {
             throw new ArgumentOutOfRangeException(parameterName);
         }

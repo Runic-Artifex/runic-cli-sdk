@@ -73,7 +73,7 @@ public sealed class CommandCatalogBuilder
     /// </remarks>
     public CommandCatalogBuilder Syntax(CommandSyntaxDialect dialect)
     {
-        if (!Enum.IsDefined(dialect)) throw new ArgumentOutOfRangeException(nameof(dialect));
+        if (!CommandEnums.IsDefined(dialect)) throw new ArgumentOutOfRangeException(nameof(dialect));
         _syntax = dialect;
         return this;
     }
@@ -108,7 +108,7 @@ public sealed class CommandCatalogBuilder
     /// </remarks>
     public CommandCatalogBuilder HelpOrder(CommandHelpOrder order)
     {
-        if (!Enum.IsDefined(order)) throw new ArgumentOutOfRangeException(nameof(order));
+        if (!CommandEnums.IsDefined(order)) throw new ArgumentOutOfRangeException(nameof(order));
         _helpOrder = order;
         return this;
     }
@@ -307,7 +307,7 @@ public sealed class CommandCatalogBuilder
                 nameof(name));
         }
 
-        if (!Enum.IsDefined(shape))
+        if (!CommandEnums.IsDefined(shape))
         {
             throw new ArgumentOutOfRangeException(nameof(shape));
         }
@@ -1039,7 +1039,7 @@ internal abstract class CommandBuilderNode
         foreach (var entry in ParameterHelp)
         {
             CommandHelp help = entry.Value;
-            if (!Enum.IsDefined(help.PathKind) || (help.MustExist && help.PathKind == CommandPathKind.None) ||
+            if (!CommandEnums.IsDefined(help.PathKind) || (help.MustExist && help.PathKind == CommandPathKind.None) ||
                 (help.Minimum is { } min && !double.IsFinite(min)) || (help.Maximum is { } max && !double.IsFinite(max)) || help.Minimum > help.Maximum)
                 issues.Add(new CommandCatalogIssue("RCLI0021", path, $"Parameter '{entry.Key}' has invalid path or numeric validation metadata; MustExist needs a file or directory path kind and bounds must be finite with Minimum <= Maximum."));
             foreach (string target in System.Linq.Enumerable.Concat(help.Requires, help.ConflictsWith))
@@ -1071,7 +1071,7 @@ internal abstract class CommandBuilderNode
                 ValidateOptionSpelling(alias);
             }
 
-            if (!Enum.IsDefined(option.RepeatPolicy))
+            if (!CommandEnums.IsDefined(option.RepeatPolicy))
             {
                 issues.Add(new CommandCatalogIssue("RCLI0009", path, $"Option '{option.Name}' has an invalid repeat policy."));
             }
