@@ -116,7 +116,13 @@ public static class CommandTextKeys
 
     /// <summary>The <c>RCLI4000</c> fault message of a cancelled command.</summary>
     public const string FaultCancelled = "faults.RCLI4000";
-    /// <summary>The <c>RCLI4001</c> fault message of a prompt that needed an answer the command could not ask for.</summary>
+    /// <summary>Formerly the <c>RCLI4001</c> fault message of a prompt that needed an answer the command could not ask for.</summary>
+    /// <remarks>
+    /// Not a framework key since 0.14.0 and not part of <see cref="All"/>: the <c>RCLI4001</c> fault always shows the text of
+    /// its diagnostic, <see cref="DiagnosticPromptRequiresTerminal"/>, <see cref="DiagnosticPromptJsonOutput"/> or
+    /// <see cref="DiagnosticPromptDisabled"/>; override those keys instead.
+    /// </remarks>
+    [Obsolete("RCLI4001 shows its diagnostics.prompt-* text; override DiagnosticPromptRequiresTerminal, DiagnosticPromptJsonOutput or DiagnosticPromptDisabled instead.")]
     public const string FaultPromptUnavailable = "faults.RCLI4001";
     /// <summary>The <c>RCLI5000</c> fault message of an unexpected failure.</summary>
     public const string FaultHostFailure = "faults.RCLI5000";
@@ -258,7 +264,7 @@ public static class CommandTextKeys
         new(CompletionInvalidShell),
         new(PromptSelectHint), new(PromptMultiSelectHint), new(PromptYes), new(PromptNo), new(PromptChooseOne, "count"),
         new(PromptChooseMany, "count"), new(PromptAnswerYesNo, "yes", "no"), new(PromptRequired), new(PromptCancelled), new(PromptDone),
-        new(FaultCancelled), new(FaultPromptUnavailable), new(FaultHostFailure),
+        new(FaultCancelled), new(FaultHostFailure),
         // The faults of Runic.CommandLine.Processes (ProcessTextKeys there), whose text ships in this package's catalog.
         new(FaultPrefix + "RCLI6001"), new(FaultPrefix + "RCLI6002"), new(FaultPrefix + "RCLI6003"), new(FaultPrefix + "RCLI6004"),
         new(FaultPrefix + "RCLI6005"), new(FaultPrefix + "RCLI6006"), new(FaultPrefix + "RCLI6007"), new(FaultPrefix + "RCLI6008"),

@@ -4,8 +4,7 @@
 # hyphens are removed and the next letter is capitalized (help.show-help is help.showHelp), and
 # each input is named after the key's argument. The text matches the English the framework writes
 # without a resolver. tests/dotnet/Runic.CommandLine.TextCatalog.Tests checks all of this.
-# faults.RCLI4001 has no message: Runic.CommandLine shows its diagnostics.prompt-* text, and
-# would show a faults.RCLI4001 message instead of that text whenever it is unchanged in English.
+# There is no faults.RCLI4001 message: that fault shows its diagnostics.prompt-* text.
 help {
   usage = Usage
   commandPlaceholder = command

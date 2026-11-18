@@ -193,6 +193,43 @@ internal sealed partial class PromptTests
         }
     }
 
+    [Test, DisplayName("prompts/unavailable-fault-shows-the-prompt-diagnostic-text")]
+    public async ValueTask UnavailableFaultText()
+    {
+        // RCLI4001 has no faults.RCLI4001 text (0.14.0): its fault always shows the diagnostics.prompt-* message.
+        foreach ((ICommandTextResolver resolver, string expected) in new (ICommandTextResolver, string)[]
+        {
+            (new FaultOnlyResolver(), "Continue? needs an answer, but JSON output never prompts. Pass the value on the command line."),
+            (new PromptDiagnosticResolver(), "Keine Rückfrage bei JSON-Ausgabe: Continue?"),
+        })
+        {
+            TestCommandConsole console = Terminal();
+            AssertEx.Equal(CommandExitCodes.Usage, await App(console, async (prompts, token) =>
+                (await prompts.ConfirmAsync("Continue?", cancellationToken: token)).ToString(), resolver: resolver).RunAsync(["ask", "--format=json"]));
+            using JsonDocument failure = CommandTestEnvelope.Parse(console.StandardOutput);
+            JsonElement root = failure.RootElement;
+            AssertEx.Equal("RCLI4001", root.GetProperty("fault").GetProperty("code").GetString());
+            AssertEx.Equal(expected, root.GetProperty("fault").GetProperty("message").GetString());
+            AssertEx.Equal(expected, root.GetProperty("diagnostics")[0].GetProperty("message").GetString());
+        }
+    }
+
+    private sealed class FaultOnlyResolver : ICommandTextResolver
+    {
+        public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) =>
+            key == "faults.RCLI4001" ? "Fault text that must not appear." : null;
+    }
+
+    private sealed class PromptDiagnosticResolver : ICommandTextResolver
+    {
+        public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) => key switch
+        {
+            "diagnostics.prompt-json-output" => "Keine Rückfrage bei JSON-Ausgabe: " + arguments[0],
+            "faults.RCLI4001" => "Fault text that must not appear.",
+            _ => null,
+        };
+    }
+
     [Test, DisplayName("prompts/no-input-variable-and-interactive-false-disable-prompts")]
     public async ValueTask DisabledPrompts()
     {

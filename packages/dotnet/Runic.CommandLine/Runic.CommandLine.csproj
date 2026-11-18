@@ -35,9 +35,9 @@
        tests/dotnet/Runic.CommandLine.TextCatalog.Tests checks that every key has en and de text. -->
   <ItemGroup>
     <None Update="translations/runic.json;translations/*.rmf2" Pack="true" PackagePath="translations/%(Filename)%(Extension)" />
-    <!-- Keys the built-in catalog deliberately leaves to the framework's own text; text-keys.json gives them
-         "message": null. RCLI4001 shows its diagnostics.prompt-* text, which a catalog message would replace. -->
-    <RunicTextKeyWithoutCatalogMessage Include="faults.RCLI4001" />
+    <!-- A key the built-in catalog deliberately leaves to the framework's own text would be listed here as a
+         RunicTextKeyWithoutCatalogMessage item, and text-keys.json would give it "message": null. Since 0.14.0 every key
+         has a catalog message (RCLI4001 shows its diagnostics.prompt-* text and has no faults.RCLI4001 key). -->
     <ProjectReference Include="../../../eng/tools/text-keys/TextKeysWriter.csproj"
                       PrivateAssets="all"
                       ReferenceOutputAssembly="false"
