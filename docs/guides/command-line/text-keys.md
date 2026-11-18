@@ -26,6 +26,10 @@ list; see [Built-in catalog](#built-in-catalog).
   translated this way too. Each framework fault code has exactly one English
   message, because a translation replaces the message by code; its details,
   such as `stream` and `reason` of `RCLI6011`, tell the cases apart.
+- `RCLI4001`, a prompt that cannot ask, is the exception: its fault always
+  shows the text of its `diagnostics.prompt-*` diagnostic, so override those
+  keys. Before 0.14.0 there was a `faults.RCLI4001` key, which replaced the
+  English prompt text when the application's resolver had a message for it.
 - A command line without a command, where the catalog has no default command,
   is an `unknown-command` diagnostic (`RCLI1002`) whose key is
   `diagnostics.missing-command` (before 0.12.0: `diagnostics.unknown-command`
@@ -80,8 +84,7 @@ in [`packages/dotnet/Runic.CommandLine/translations`](../../../packages/dotnet/R
   argument (`{$parameter}`). A message may leave out an argument it does not
   show.
 - `en.rmf2` is exactly the English that Runic.CommandLine writes without a
-  resolver. `faults.RCLI4001` has no message: the framework shows the text of
-  its `diagnostics.prompt-*` diagnostic instead.
+  resolver.
 - The catalog also holds the text of the `Runic.CommandLine.Processes` faults,
   `faults.RCLI6001` to `faults.RCLI6011`. The keys are part of
   `CommandTextKeys.All`, and `ProcessTextKeys` in that package names them with
@@ -95,7 +98,7 @@ in [`packages/dotnet/Runic.CommandLine/translations`](../../../packages/dotnet/R
 - The `Runic.CommandLine` package carries these files as plain data under
   `translations/`, together with `translations/text-keys.json`, which the build
   writes from `CommandTextKeys.All`: each key, its argument names in order, and
-  its message name (`null` for `faults.RCLI4001`). Nothing under
+  its message name. Nothing under
   `translations/` flows into a consuming project, and Runic.CommandLine does
   not reference Runic Translations. `Runic.Translations.CommandLine` compiles
   the catalog from the Runic.CommandLine package it depends on, so its text
@@ -173,7 +176,6 @@ it then fails with `RTR0103`.
 | `prompts.cancelled` | | Cancelled | 0.7.0-preview.1 |
 | `prompts.done` | | Done | 0.7.0-preview.1 |
 | `faults.RCLI4000` | | The command was cancelled. | 0.6.0-preview.4 |
-| `faults.RCLI4001` | | The message of its `diagnostics.prompt-*` diagnostic, below. | 0.7.0-preview.1 |
 | `faults.RCLI5000` | | The command could not be completed. | 0.6.0-preview.4 |
 | `faults.RCLI6001` | | The process request is not permitted by the configured policy. | 0.12.0 |
 | `faults.RCLI6002` | | The process request is not permitted by the configured policy. | 0.12.0 |

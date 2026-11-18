@@ -59,9 +59,10 @@ internal sealed partial class TextCatalogTests
             "text-keys.json against CommandTextKeys.All (rebuild Runic.CommandLine)");
         foreach (TextKeyEntry entry in file.Keys.Where(static entry => entry.Message is not null))
             Assert.Equal(MessageName(entry.Key), entry.Message, entry.Key + " message name");
-        // Only RCLI4001 leaves its text to the framework (its diagnostics.prompt-* message).
-        Assert.Equal("faults.RCLI4001", string.Join(",", file.Keys.Where(static entry => entry.Message is null).Select(static entry => entry.Key)),
+        // Every key has a catalog message; RCLI4001 shows its diagnostics.prompt-* text and has no faults.RCLI4001 key (0.14.0).
+        Assert.Equal(string.Empty, string.Join(",", file.Keys.Where(static entry => entry.Message is null).Select(static entry => entry.Key)),
             "keys without a catalog message");
+        Assert.True(CommandTextKeys.Find("faults.RCLI4001") is null, "faults.RCLI4001 is a framework key again");
     }
 
     [Test, DisplayName("catalog/every-key-has-en-and-de-and-no-message-is-orphaned")]

@@ -486,7 +486,10 @@ terminal; standard output may be redirected) or `prompt-disabled`
 (`RUNIC_COMMANDLINE_NO_INPUT` is set, or the handler created the prompts with
 `interactive: false`). Its argument is the prompt's question. Pass the value
 another way, usually as an option, or give the prompt a default. The exit
-category is `Usage`, exit code 2.
+category is `Usage`, exit code 2. The fault message is the diagnostic's
+message, also when it is translated: override the `diagnostics.prompt-*` keys
+to change it (since 0.14.0; before, a `faults.RCLI4001` message replaced the
+English text).
 
 ### RCLI5000
 

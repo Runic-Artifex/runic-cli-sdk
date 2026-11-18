@@ -1045,7 +1045,8 @@ their extended help, with `LongDescription` as its fallback
 (`CommandHelp.LongDescriptionKey` without the generator); the resolved text keeps
 its paragraphs and line breaks, as the literal does. Diagnostic messages resolve their `MessageKey` and `Arguments`.
 Faults without a matching diagnostic use `faults.{code}` with no arguments; a
-diagnostic whose own key is unresolved also falls back to `faults.{code}`.
+diagnostic whose own key is unresolved also falls back to `faults.{code}`, except
+for `RCLI4001`, whose fault always shows its `diagnostics.prompt-*` text.
 `CommandTextKeys` lists every framework key with constants such as
 `CommandTextKeys.HelpUsage`, and `CommandTextKeys.All` gives each key's ordered
 argument names; the [framework text key table](https://github.com/Runic-Artifex/runic-cli-sdk/blob/main/docs/guides/command-line/text-keys.md)

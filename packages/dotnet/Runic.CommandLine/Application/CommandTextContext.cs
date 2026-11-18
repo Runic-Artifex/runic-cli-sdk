@@ -115,8 +115,9 @@ public sealed class CommandTextContext
             CommandDiagnostic original = response.Diagnostics[index];
             diagnostics[index] = Localize(original);
             bool describesFault = fault is not null && original.Code == fault.Code && original.Message == fault.Message;
-            // A translation of faults.{code} still applies when the more specific diagnostic key has none.
-            if (describesFault && ReferenceEquals(diagnostics[index], original) &&
+            // A translation of faults.{code} still applies when the more specific diagnostic key has none. RCLI4001 has no
+            // faults.{code} text: its fault always shows the diagnostics.prompt-* text, which an application overrides.
+            if (describesFault && ReferenceEquals(diagnostics[index], original) && original.Code != CommandPromptUnavailableException.Code &&
                 Resolver.Resolve(CommandTextKeys.Fault(original.Code), Culture, Array.Empty<string>()) is { } faultText && !string.IsNullOrWhiteSpace(faultText))
                 diagnostics[index] = new CommandDiagnostic(original.Code, original.Kind, faultText, original.Phase, original.Severity, original.TokenIndex,
                     original.Arguments, original.Path, original.MessageKey) { HelpUri = original.HelpUri, Binding = original.Binding };
