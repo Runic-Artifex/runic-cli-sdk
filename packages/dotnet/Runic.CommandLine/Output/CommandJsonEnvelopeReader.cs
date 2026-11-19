@@ -50,7 +50,10 @@ public static class CommandJsonEnvelopeReader
 
             JsonElement root = document.RootElement;
             RequireObject(root, "response");
-            RejectDuplicateMembers(root, "response");
+            // Protocol §Compatibility: duplicate property names are invalid rather than last-value-wins at every
+            // level, including members this reader does not know and the payload, which the serializer would
+            // otherwise read with the last value winning. One pass from the root checks them all first.
+            RejectDuplicateMembers(root, "response", isRoot: true);
 
             string protocol = RequireString(root, "protocol");
             if (!string.Equals(protocol, CommandProtocol.Identity, StringComparison.Ordinal))
@@ -119,9 +122,6 @@ public static class CommandJsonEnvelopeReader
                     throw Error("outcome-invariant", "A successful response cannot contain a fault.");
                 }
 
-                // Protocol §Compatibility: duplicate property names are invalid rather than last-value-wins, also
-                // inside the payload, which the serializer would otherwise read with the last value winning.
-                RejectDuplicatePayloadMembers(payloadElement);
                 T? payload;
                 try
                 {
@@ -231,7 +231,6 @@ public static class CommandJsonEnvelopeReader
     private static CommandFault ReadFault(JsonElement element)
     {
         RequireObject(element, "fault");
-        RejectDuplicateMembers(element, "fault");
 
         string code = RequireString(element, "code");
         string message = RequireString(element, "message");
@@ -244,7 +243,6 @@ public static class CommandJsonEnvelopeReader
         bool retryable = RequireBoolean(element, "retryable");
         JsonElement detailsElement = RequireProperty(element, "details");
         RequireObject(detailsElement, "fault.details");
-        RejectDuplicateMembers(detailsElement, "fault.details");
 
         var details = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (JsonProperty property in detailsElement.EnumerateObject())
@@ -308,7 +306,6 @@ public static class CommandJsonEnvelopeReader
     {
         if (!fault.TryGetProperty("data", out JsonElement element)) return null;
         RequireObject(element, "fault.data");
-        RejectDuplicateMembers(element, "fault.data");
         string dataType = RequireString(element, "type");
         try
         {
@@ -404,7 +401,6 @@ public static class CommandJsonEnvelopeReader
         foreach (JsonElement diagnosticElement in element.EnumerateArray())
         {
             RequireObject(diagnosticElement, "diagnostic");
-            RejectDuplicateMembers(diagnosticElement, "diagnostic");
 
             string code = RequireString(diagnosticElement, "code");
             string kind = RequireString(diagnosticElement, "kind");
@@ -631,29 +627,31 @@ public static class CommandJsonEnvelopeReader
         }
     }
 
-    private static void RejectDuplicateMembers(JsonElement element, string name)
-    {
-        var members = new HashSet<string>(StringComparer.Ordinal);
-        foreach (JsonProperty property in element.EnumerateObject())
-        {
-            if (!members.Add(property.Name))
-            {
-                throw Error("duplicate-property", $"The command response member '{name}' contains a duplicate property.");
-            }
-        }
-    }
-
-    // The frame's depth is already bounded (ValidateDepth), so the recursion is too.
-    private static void RejectDuplicatePayloadMembers(JsonElement element)
+    // Rejects a duplicate member name in every object of the frame. The message names the root member the
+    // duplicate is in when that member is a known one, and never repeats producer-chosen names. The frame's
+    // depth is already bounded (ValidateDepth), so the recursion is too.
+    private static void RejectDuplicateMembers(JsonElement element, string name, bool isRoot = false)
     {
         if (element.ValueKind == JsonValueKind.Object)
         {
-            RejectDuplicateMembers(element, "payload");
-            foreach (JsonProperty property in element.EnumerateObject()) RejectDuplicatePayloadMembers(property.Value);
+            var members = new HashSet<string>(StringComparer.Ordinal);
+            foreach (JsonProperty property in element.EnumerateObject())
+            {
+                if (!members.Add(property.Name))
+                {
+                    throw Error("duplicate-property", $"The command response member '{name}' contains a duplicate property.");
+                }
+            }
+
+            foreach (JsonProperty property in element.EnumerateObject())
+            {
+                string memberName = isRoot && property.Name is "payload" or "fault" or "diagnostics" ? property.Name : name;
+                RejectDuplicateMembers(property.Value, memberName);
+            }
         }
         else if (element.ValueKind == JsonValueKind.Array)
         {
-            foreach (JsonElement item in element.EnumerateArray()) RejectDuplicatePayloadMembers(item);
+            foreach (JsonElement item in element.EnumerateArray()) RejectDuplicateMembers(item, name);
         }
     }
 
