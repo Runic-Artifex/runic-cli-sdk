@@ -110,7 +110,7 @@ jobs:
     with:
       row: T
       cli: run:${{ needs.candidate.outputs.ci-run-id }}
-      translations: run@TRANSLATIONS_COMMIT_TBD
+      translations: run@e0b0385dec4189120f1ff839bff73184efa0da09
       sdk: run@f99707a5adeff1e393e0e14fbef768d5979cb62c
       gate-ref: f99707a5adeff1e393e0e14fbef768d5979cb62c
     secrets:
