@@ -39,9 +39,15 @@ The `train` job then runs the release train's compatibility gate, row T
 (runic-sdk `eng/train/README.md`, D060/D061): it calls runic-sdk's reusable
 `train-compat.yml`, pinned to a runic-sdk commit (`gate-ref` names the same SHA),
 with `contents: read` and `actions: read`. Its inputs are `cli: run:<the CI run
-the candidate job found>`, `translations: run` and `sdk: run`: exactly these
-Command Line candidates with the newest successful `main` runs of
-runic-translations-sdk and runic-sdk. It restores, builds and runs real consumers
+the candidate job found>`, `translations: run@<the train's Translations commit>`
+and `sdk: run@<the gate SHA>`: exactly these Command Line candidates with the
+newest successful `main` run of runic-translations-sdk at or after that commit,
+and of runic-sdk at or after the gate's commit (runic-sdk `eng/train/README.md`,
+"Run selection by commit"; the gate refuses a bare `run` for row T). The release
+pull request of a train sets both commits: the Translations `main` commit that
+pairs with this release, and a runic-sdk `main` commit with the gate the release
+needs (before runic-sdk's train candidate merges, the commit it will descend
+from). It restores, builds and runs real consumers
 of the three package sets with warnings as errors, including German text through
 `Runic.Translations.CommandLine` with NativeAOT, key coverage against the packed
 `text-keys.json`, the templates, the tool pins and every cross-repository version
@@ -254,7 +260,9 @@ same policy. For Command Line:
   consumer applications found (0.11.0 only adds API); 0.12.0 takes the issues
   of the 0.18 release train (the Windows slash dialect, per-outcome exit codes,
   `--json` for every outcome, and the framework text catalog with a key for
-  every text); then
+  every text); 0.13.0 makes help and usage texts name what users see; 0.14.0
+  retires the `faults.RCLI4001` key and makes the strict reader reject duplicate
+  member names anywhere (0.23 release train); then
   `1.0.0-rc.N` takes fixes only, and 1.0.0 follows the last release candidate.
 - Command Line depends on no other Runic SDK and ships first in the 1.0 release
   train, before Runic Translations and Runic SDK. After 1.0 it releases minors

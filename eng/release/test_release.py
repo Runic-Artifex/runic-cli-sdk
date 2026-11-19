@@ -342,7 +342,10 @@ class PublishWorkflow(unittest.TestCase):
         self.assertNotIn('if:', train)  # the dry run runs the gate too
         self.assertIn('      row: T\n', train)
         self.assertIn('      cli: run:${{ needs.candidate.outputs.ci-run-id }}\n', train)
-        self.assertIn('      translations: run\n      sdk: run\n', train)
+        # Row T names commits, never "the newest run" (runic-sdk eng/train/README.md, "Run selection by commit"):
+        # the train's Translations commit, and the gate's own runic-sdk commit.
+        self.assertRegex(train, r'\n      translations: run@[0-9a-f]{40}\n')
+        self.assertIn(f'      sdk: run@{gate.group(1)}\n', train)
         self.assertIn(f'      gate-ref: {gate.group(1)}\n', train)
         self.assertIn('    needs: [candidate, train]\n', publish)
 
