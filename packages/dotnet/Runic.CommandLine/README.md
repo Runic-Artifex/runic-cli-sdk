@@ -1111,6 +1111,8 @@ mismatched pair fails restore with `NU1608` or shows English for newer keys.
 
 | Runic.CommandLine | Runic.Translations.CommandLine |
 | --- | --- |
+| 0.14.x | 0.15.x (Runic.CommandLine `[0.14.0, 0.15.0-0.0)`) |
+| 0.13.x | 0.11.x to 0.14.x (Runic.CommandLine `[0.13.0, 0.14.0-0.0)`) |
 | 0.12.x | 0.10.x (Runic.CommandLine `[0.12.0, 0.13.0-0.0)`) |
 | 0.10.x, 0.11.x | none; 0.9.1 does not accept them (`NU1608`) |
 | 0.9.x | 0.9.1 (`[0.9.1, 0.10.0)`); 0.8.0 (`[0.9.0, 0.10.0)`) |
