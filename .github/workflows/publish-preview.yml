@@ -98,20 +98,21 @@ jobs:
         run: python3 eng/release/release.py release-check "$VERSION"
 
   # The train compatibility gate (runic-sdk eng/train/README.md, "Publish workflows", row T): restores, builds and
-  # runs consumers of exactly these Command Line candidates (the CI run the candidate job found) with the newest main
-  # runs of runic-translations-sdk and runic-sdk, with warnings as errors. Publishing needs it; a dry run runs it too.
+  # runs consumers of exactly these Command Line candidates (the CI run the candidate job found) with the newest green
+  # main runs of runic-translations-sdk at or after the train's Translations commit and of runic-sdk at or after the
+  # gate's own commit ("Run selection by commit"), with warnings as errors. Publishing needs it; a dry run runs it too.
   train:
     needs: candidate
     permissions:
       contents: read
       actions: read
-    uses: Runic-Artifex/runic-sdk/.github/workflows/train-compat.yml@6584dc3750127a8f88fa1e5e65202d374f72957d # runic-sdk main after #889 and #893
+    uses: Runic-Artifex/runic-sdk/.github/workflows/train-compat.yml@f99707a5adeff1e393e0e14fbef768d5979cb62c # runic-sdk main before the 0.23 train candidate
     with:
       row: T
       cli: run:${{ needs.candidate.outputs.ci-run-id }}
-      translations: run
-      sdk: run
-      gate-ref: 6584dc3750127a8f88fa1e5e65202d374f72957d
+      translations: run@e0b0385dec4189120f1ff839bff73184efa0da09
+      sdk: run@f99707a5adeff1e393e0e14fbef768d5979cb62c
+      gate-ref: f99707a5adeff1e393e0e14fbef768d5979cb62c
     secrets:
       # Only if GitHub refuses this job's token for the other repositories' artifacts (D061.12).
       RUNIC_TRAIN_TOKEN: ${{ secrets.RUNIC_TRAIN_TOKEN }}
