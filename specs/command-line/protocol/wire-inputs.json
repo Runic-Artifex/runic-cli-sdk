@@ -59,6 +59,21 @@
       "expected": { "kind": "protocol-error", "reason": "duplicate-property" }
     },
     {
+      "id": "wire.duplicate-unknown-member-property",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtMTgiLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6dHJ1ZSwiZXhpdENvZGUiOjAsInBheWxvYWRUeXBlIjoic2FtcGxlLnN0YXR1cy8xIiwicGF5bG9hZCI6eyJzdGF0ZSI6InJlYWR5In0sImZhdWx0IjpudWxsLCJkaWFnbm9zdGljcyI6W10sImV4dGVuc2lvbiI6eyJtb2RlIjoiYSIsIm1vZGUiOiJiIn19Cg==",
+      "expected": { "kind": "protocol-error", "reason": "duplicate-property" }
+    },
+    {
+      "id": "wire.duplicate-unknown-fault-member-property",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtMjAiLCJjb21tYW5kIjoiZXhwb3J0Iiwic3VjY2VzcyI6ZmFsc2UsImV4aXRDb2RlIjoxMCwicGF5bG9hZFR5cGUiOm51bGwsInBheWxvYWQiOm51bGwsImZhdWx0Ijp7ImNvZGUiOiJSQ0xJMzAwMSIsIm1lc3NhZ2UiOiJUaGUgZXhwb3J0IGNvdWxkIG5vdCBiZSBjb21wbGV0ZWQuIiwiZGV0YWlscyI6e30sInJldHJ5YWJsZSI6ZmFsc2UsImV4dGVuc2lvbiI6eyJyZXRyeSI6eyJhZnRlciI6MSwiYWZ0ZXIiOjJ9fX0sImRpYWdub3N0aWNzIjpbXX0K",
+      "expected": { "kind": "protocol-error", "reason": "duplicate-property" }
+    },
+    {
+      "id": "wire.duplicate-unknown-diagnostic-member-property",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtMTkiLCJjb21tYW5kIjoiZXhwb3J0Iiwic3VjY2VzcyI6ZmFsc2UsImV4aXRDb2RlIjoyLCJwYXlsb2FkVHlwZSI6bnVsbCwicGF5bG9hZCI6bnVsbCwiZmF1bHQiOnsiY29kZSI6IlJDTEkyMDAxIiwibWVzc2FnZSI6Ik9uZSBvciBtb3JlIHZhbHVlcyBhcmUgaW52YWxpZC4iLCJkZXRhaWxzIjp7fSwicmV0cnlhYmxlIjpmYWxzZX0sImRpYWdub3N0aWNzIjpbeyJjb2RlIjoiUkNMSTIwMDEiLCJraW5kIjoiaW52YWxpZC1mb3JtYXQiLCJjb21tYW5kUGF0aCI6WyJleHBvcnQiXSwibWVzc2FnZUtleSI6ImRpYWdub3N0aWNzLmludmFsaWQtZm9ybWF0IiwibWVzc2FnZSI6IlRoZSBmb3JtYXQgaXMgbm90IHN1cHBvcnRlZC4iLCJwaGFzZSI6ImJpbmRpbmciLCJzZXZlcml0eSI6ImVycm9yIiwidG9rZW5JbmRleCI6MiwiYXJndW1lbnRzIjpbImZvcm1hdCJdLCJleHRlbnNpb24iOlt7ImhpbnQiOiJqc29uIiwiaGludCI6InlhbWwifV19XX0K",
+      "expected": { "kind": "protocol-error", "reason": "duplicate-property" }
+    },
+    {
       "id": "wire.ansi-prefix",
       "wireUtf8Base64": "G1szMW17fQo=",
       "expected": { "kind": "protocol-error", "reason": "stdout-contamination" }

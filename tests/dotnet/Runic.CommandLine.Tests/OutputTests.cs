@@ -522,6 +522,33 @@ internal sealed class OutputTests
         return ValueTask.CompletedTask;
     }
 
+    // Q23 (D076.2): duplicates are also rejected inside members the reader does not know, at the root, in the
+    // fault and in a diagnostic, while the same unknown members without a duplicate stay accepted.
+    [Test, DisplayName("output/reader-rejects-duplicates-in-unknown-members")]
+    public ValueTask ReaderRejectsDuplicatesInUnknownMembers()
+    {
+        const string Validation = "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req\",\"command\":\"status\",\"success\":false,\"exitCode\":2,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI2001\",\"message\":\"bad\",\"details\":{},\"retryable\":false},\"diagnostics\":[{\"code\":\"RCLI2001\",\"kind\":\"invalid-value\",\"commandPath\":[\"status\"],\"messageKey\":\"diagnostics.invalid-value\",\"message\":\"bad\",\"phase\":\"binding\",\"severity\":\"error\",\"tokenIndex\":1,\"arguments\":[]}]}\n";
+        string success = Encoding.UTF8.GetString(SuccessFrame());
+        (string Frame, string Before)[] places =
+        [
+            (success, "\"diagnostics\":"),
+            (Validation, "\"diagnostics\":"),
+            (Validation, "\"retryable\":"),
+            (Validation, "\"arguments\":"),
+        ];
+        foreach ((string frame, string before) in places)
+        {
+            int index = frame.IndexOf(before, StringComparison.Ordinal);
+            AssertEx.True(index > 0, before);
+            byte[] unique = Encoding.UTF8.GetBytes(frame.Insert(index, "\"extension\":[{\"a\":{\"b\":1,\"c\":2}}],"));
+            _ = CommandJsonEnvelopeReader.Read(unique, TestCodec.Identity, TestJsonContext.Default.TestResult);
+            byte[] duplicated = Encoding.UTF8.GetBytes(frame.Insert(index, "\"extension\":[{\"a\":{\"b\":1,\"b\":2}}],"));
+            AssertProtocolKind(duplicated, "duplicate-property");
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
     // Storyline kept its own presenter because the default writer flattened a message written on several lines.
     [Test, DisplayName("output/human-output-keeps-the-line-breaks-of-a-message")]
     public async ValueTask HumanOutputKeepsLineBreaks()
