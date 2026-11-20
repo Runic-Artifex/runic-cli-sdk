@@ -103,8 +103,10 @@ defaults to the host runtime. `./eng/verify-candidate.sh` with the same argument
 packs and checks only the candidate packages. Packing builds the set in a staging
 directory and replaces the output directory only when every package succeeded, so a
 failed or interrupted pack keeps the previous set. CI packs once and runs source and candidate consumer
-NativeAOT checks on Linux x64 and Arm64 (glibc and musl), Windows x64 and Arm64 and
-macOS Arm64, one native job at a time.
+NativeAOT checks on Linux x64 and Arm64 (glibc and musl), Windows x64 and Arm64, one
+native job at a time, and on macOS Arm64 alongside them. Pull requests run the macOS
+jobs only when they change a path those jobs exercise; see
+[CONTRIBUTING.md](CONTRIBUTING.md#ci-triggers-and-macos-jobs).
 
 Each package tracks its public API in `PublicAPI.Shipped.txt` (the last published
 release) and `PublicAPI.Unshipped.txt` (changes since then), checked by
@@ -117,7 +119,8 @@ release, move the unshipped entries into the shipped files and advance the basel
 
 Changes reach `main` through pull requests. The `verify` job in
 [CI](.github/workflows/ci.yml) always reports and passes only when every other CI
-job passed; it is the check to require before merging. CI also lints workflows
+job passed, or a macOS job was skipped because the pull request changes none of its
+paths; it is the check to require before merging. CI also lints workflows
 with actionlint and requires remote actions pinned to a full commit SHA followed by
 a `# vX.Y.Z` comment; update both together from the tag's commit. A first-party
 reusable workflow (runic-sdk's train gate) is pinned to a full commit SHA with a

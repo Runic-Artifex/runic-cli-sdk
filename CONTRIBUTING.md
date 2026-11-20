@@ -42,7 +42,7 @@ The managed suites under `tests/dotnet` (Contracts, Hosting, Processes, TextCata
 - **Reports.** `eng/test.sh` passes `--report-trx --coverage --coverage-output-format cobertura` and writes `<suite>.trx`
   and `<suite>.cobertura.xml` to `artifacts/test-results/<suite>`, which CI uploads as `command-line-test-results`, also
   when a case failed. CI also runs the managed suites on Windows and macOS with `eng/test.sh --managed-only`, which skips
-  the examples, and uploads `command-line-test-results-Windows` and `command-line-test-results-macOS`. Without
+  the examples (macOS only where [CI triggers and macOS jobs](#ci-triggers-and-macos-jobs) says), and uploads `command-line-test-results-Windows` and `command-line-test-results-macOS`. Without
   `--results-directory`, TUnit writes its HTML and JSON reports to `bin/<configuration>/net10.0/TestResults`.
 - **Parallelism.** TUnit runs cases in parallel, and in the directory of the test executable. Before you allow
   parallelism for a suite, make sure no case shares mutable static state, the current directory, environment variables,
@@ -86,3 +86,21 @@ execution loop of its own.
 - The example suites `examples/command-line/Tests` and `examples/command-line/wpf/Tests` show application authors
   `CommandAppTester` from `Runic.CommandLine.Testing` without a test framework. `eng/test.sh` runs them as plain
   executables.
+
+## CI triggers and macOS jobs
+
+CI runs on pull requests, on pushes to `main`, nightly (03:47 UTC) and when dispatched. A pull request branch runs only
+through its pull request, not a second time as a branch push, and a newer push to it cancels the running CI. Publish
+preview takes a release's packages from the push run on `main` of the version commit, and the runic-sdk train and the
+Translations train feed from a green run on `main`; both always include every job.
+
+macOS runners are shared with runic-sdk and Runic Translations, so the macOS jobs (`managed-macos` and
+`native-aot-macos`) run on pushes to `main`, nightly and dispatched runs, and on a pull request only when it changes a
+path in [`eng/ci/macos-paths.txt`](eng/ci/macos-paths.txt): the shipping packages' sources, the tests, the build, pack
+and CI scripts, the workflow, and the toolchain and dependency pins, including the NuGet lock files. Documentation, the
+examples, specifications and the release tooling do not run them. The `Platform paths` job decides this with
+`eng/ci/macos-changes.sh` against the pull request's base; otherwise the two jobs report as skipped and `verify` accepts
+that. Check a branch locally with `bash eng/ci/macos-changes.sh "$(git merge-base origin/main HEAD)"`, and the rule's
+tests with `python3 -m unittest discover -s eng/ci`. To run the macOS jobs for a pull request that does not need them,
+dispatch CI on its branch (`gh workflow run ci.yml --ref <branch>`). Add a path to the list when a macOS job starts to
+exercise it.
