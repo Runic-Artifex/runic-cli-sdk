@@ -1,7 +1,7 @@
 # The repository's pinned .NET SDK for the development shell (global.json disables SDK roll-forward).
 #
-# The locked nixpkgs still has .NET SDK 10.0.401 (runtime 10.0.12), older than the October 2026 security release the
-# repository pins (D050). Until it catches up, the SDK comes from the official binaries through nixpkgs' own binary SDK
+# The locked nixpkgs still has .NET SDK 10.0.401 (runtime 10.0.12), older than the security release the repository
+# pins (D050; SDK 10.0.404 of 2026-11-10). Until it catches up, the SDK comes from the official binaries through nixpkgs' own binary SDK
 # builder (`dotnetCorePackages.buildDotnetSdk`, the `sdk_10_0-bin` machinery, so `.packages`, `.runtime`,
 # `.aspnetcore` and `share/dotnet` behave as for nixpkgs' SDK) with ./dotnet-10.0.nix, copied from runic-sdk.
 # Evaluation warns once nixpkgs provides the pin; then delete this directory and use
