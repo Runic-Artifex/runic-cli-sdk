@@ -10,13 +10,13 @@ Use .NET 10. Create a console project and install the core package, which includ
 the source generator. This method-first example is maintained in
 [`hello-world/Program.cs`](examples/command-line/hello-world/Program.cs).
 
-Install the latest published release, `0.13.0`, from NuGet. No source
+Install the latest published release, `0.14.0`, from NuGet. No source
 checkout or project references are needed.
 
 ```sh
 dotnet new console --framework net10.0 --name HelloCli
 cd HelloCli
-dotnet add package Runic.CommandLine --version 0.13.0
+dotnet add package Runic.CommandLine --version 0.14.0
 ```
 
 From 0.8.0, versions are plain `0.y.z` until 1.0 and install
@@ -128,10 +128,9 @@ vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 The four NuGet package identities release together, independently from the
 Runic SDK. See [the release guide](eng/release/README.md). The latest published
-release is `0.13.0`, part of the 0.19 release train with Runic Translations
-0.11.0 and Runic SDK 0.19.0; see its [upgrade notes](eng/release/notes/0.13.0.md).
-The next release is `0.14.0` (its [upgrade notes](eng/release/notes/0.14.0.md)),
-part of the 0.23 release train with Runic Translations 0.15.0 and Runic SDK 0.23.0.
+release is `0.14.0`, part of the 0.23 release train with Runic Translations
+0.15.0 and Runic SDK 0.23.0; see its [upgrade notes](eng/release/notes/0.14.0.md).
+The next release is `0.15.0`.
 The `1.0.0-rc.N` release candidates follow once a pull request schedules them;
 they take only fixes, and 1.0.0 follows the last one. The packages keep their
 `Runic.*` identities. Until 1.0 releases use plain
