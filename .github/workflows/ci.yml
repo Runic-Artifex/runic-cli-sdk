@@ -1,14 +1,53 @@
 name: CI
 
+# Pull request branches run through `pull_request` only; Publish preview and the runic-sdk train take a commit's packages
+# from a run on main. The macOS jobs run on main, nightly and manual runs, and on a pull request only when it changes a
+# path they exercise (eng/ci/macos-paths.txt; CONTRIBUTING.md, "CI triggers and macOS jobs").
 on:
   push:
+    branches: [main]
   pull_request:
+  # Nightly, every job on every platform.
+  schedule:
+    - cron: "47 3 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer push to a pull request cancels its running CI. Every other run has its own group, so no main push run is
+# cancelled or replaced while it waits.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Whether the macOS jobs run: always outside pull requests; for a pull request, when its test merge commit changes a
+  # path in eng/ci/macos-paths.txt against the base branch (the merge commit's first parent).
+  changes:
+    name: Platform paths
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      macos: ${{ steps.paths.outputs.macos }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Decide whether the macOS jobs run
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "A $EVENT run runs every job."
+            echo "macos=true" >> "$GITHUB_OUTPUT"
+          else
+            bash eng/ci/macos-changes.sh HEAD^1 HEAD
+          fi
+
   workflows:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -38,6 +77,8 @@ jobs:
           fi
       - name: Test release tooling
         run: python3 -m unittest discover -s eng/release -v
+      - name: Test the macOS path rule
+        run: python3 -m unittest discover -s eng/ci -v
 
   managed-and-pack:
     runs-on: ubuntu-24.04
@@ -70,12 +111,29 @@ jobs:
 
   # The managed suites on the other desktop platforms: console, terminal, signal and process
   # behaviour differs there. Linux runs them, the examples and the packing in managed-and-pack.
-  managed-platforms:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-2025, macos-15]
-    runs-on: ${{ matrix.os }}
+  managed-windows:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+      - run: ./eng/test.sh --managed-only
+        shell: bash
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: command-line-test-results-${{ runner.os }}
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
+  managed-macos:
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -96,7 +154,8 @@ jobs:
   # Source and candidate package NativeAOT checks on every supported RID, each compiled and run
   # on its own operating system and architecture. The musl legs run in Alpine: GitHub cannot run
   # JavaScript actions in an Alpine container on arm64 runners, so the runner checks out and
-  # downloads the candidates, and eng/ci/native-musl.sh installs the toolchain in `docker run`.
+  # downloads the candidates, and eng/ci/native-musl.sh installs the toolchain in `docker run`. osx-arm64 runs in
+  # native-aot-macos.
   native-aot:
     needs: managed-and-pack
     strategy:
@@ -120,8 +179,6 @@ jobs:
           - os: windows-11-arm
             rid: win-arm64
             msvc: Microsoft.VisualStudio.Component.VC.Tools.ARM64
-          - os: macos-15
-            rid: osx-arm64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -142,9 +199,6 @@ jobs:
       - name: Install Linux NativeAOT prerequisites
         if: ${{ runner.os == 'Linux' && !matrix.musl }}
         run: eng/ci/apt-install.sh clang zlib1g-dev
-      - name: Check macOS NativeAOT prerequisites
-        if: runner.os == 'macOS'
-        run: xcrun --find clang
       - name: Check Windows NativeAOT prerequisites
         if: runner.os == 'Windows'
         shell: pwsh
@@ -165,6 +219,28 @@ jobs:
             "$ALPINE_IMAGE" sh eng/ci/native-musl.sh "$RID"
         env:
           RID: ${{ matrix.rid }}
+
+  native-aot-macos:
+    needs: [changes, managed-and-pack]
+    if: needs.changes.outputs.macos == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: command-line-packages
+          path: artifacts/packages
+      - name: Check macOS NativeAOT prerequisites
+        run: xcrun --find clang
+      - name: Source and candidate package NativeAOT smoke
+        shell: pwsh
+        run: ./eng/ci/native-aot.ps1 -RuntimeIdentifier osx-arm64
 
   wpf-example:
     runs-on: windows-2025
@@ -194,22 +270,32 @@ jobs:
       - name: Run the example CLI tests on Windows
         run: dotnet run --project examples/command-line/wpf/Tests/ReportApp.Tests.csproj -c Release -p:RunicCommandLineBuildMode=Verification
 
-  # The single required status check: it always reports, and fails unless every job passed.
+  # The single required status check: it always reports, and fails unless every job passed. A macOS job may be skipped
+  # only when the changes job decided so for a pull request.
   verify:
     name: verify
     if: always()
-    needs: [workflows, managed-and-pack, managed-platforms, native-aot, wpf-example]
+    needs: [changes, workflows, managed-and-pack, managed-windows, managed-macos, native-aot, native-aot-macos, wpf-example]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every verification job to pass
         env:
-          RESULTS: ${{ join(needs.*.result, ',') }}
+          NEEDS: ${{ toJSON(needs) }}
+          MACOS: ${{ needs.changes.outputs.macos }}
+          MACOS_JOBS: managed-macos native-aot-macos
         run: |
-          IFS=',' read -ra results <<< "$RESULTS"
-          for result in "${results[@]}"; do
-            if [[ "$result" != success ]]; then
-              echo "Verification is incomplete: $RESULTS"
-              exit 1
+          incomplete=false
+          while IFS='=' read -r job result; do
+            if [[ "$result" == success ]]; then continue; fi
+            if [[ "$result" == skipped && "$MACOS" == false && " $MACOS_JOBS " == *" $job "* ]]; then
+              echo "$job: skipped, no macOS path changed"
+              continue
             fi
-          done
+            echo "$job: $result"
+            incomplete=true
+          done < <(jq -r 'to_entries[] | "\(.key)=\(.value.result)"' <<< "$NEEDS")
+          if [[ "$incomplete" == true ]]; then
+            echo "Verification is incomplete."
+            exit 1
+          fi
