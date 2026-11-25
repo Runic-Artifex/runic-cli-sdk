@@ -7,7 +7,7 @@ internal sealed class GrammarCorpusTests
 
     public static IEnumerable<string> CaseIds()
     {
-        AssertEx.Equal(50, Corpus.Cases.Length, "The frozen grammar corpus row count changed.");
+        AssertEx.Equal(103, Corpus.Cases.Length, "The frozen grammar corpus row count changed.");
         return Corpus.Cases.Select(static test => test.Id);
     }
 
@@ -16,10 +16,12 @@ internal sealed class GrammarCorpusTests
 
     private static ValueTask RunCase(CorpusCase test)
     {
+        // A case's environment holds the captured variables an option falls back to; absent means none is set.
+        Dictionary<string, string> environment = test.Environment ?? [];
         ParseOutcome actual = PortableCommandSyntaxAdapter.Instance.Parse(
             Catalog,
             test.Args,
-            ParseSettings.Default);
+            new ParseSettings { GetEnvironmentVariable = name => environment.TryGetValue(name, out string? value) ? value : null });
 
         switch (test.Expected.Kind)
         {

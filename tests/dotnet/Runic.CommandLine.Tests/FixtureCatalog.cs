@@ -33,8 +33,20 @@ internal static class FixtureCatalog
             builder.JsonOutputAlias(jsonOutputAlias);
         }
 
+        foreach (CorpusOption option in corpus.Catalog.GlobalOptions ?? [])
+        {
+            builder.GlobalOption(option.Id, option.LongName, ReadArity(option.Arity), null, option.Aliases);
+        }
+
         foreach (CorpusCommand root in corpus.Catalog.Commands.Where(static command => command.Path.Length == 1))
         {
+            // A help-only group: invoking it shows its help.
+            if (root.Group)
+            {
+                builder.Group(root.Path[0], new CommandHelp());
+                continue;
+            }
+
             builder.Command<TestOptions, TestHandler, TestResult>(root.Path[0], command =>
             {
                 Configure(command, root, binder, handlerFactory, codec);
@@ -78,12 +90,24 @@ internal static class FixtureCatalog
                 option.LongName,
                 ReadArity(option.Arity),
                 option.Repeat == "append" ? CommandOptionRepeatPolicy.Append : CommandOptionRepeatPolicy.Error,
+                isRequired: option.Required,
                 aliases: option.Aliases);
+            if (option.Choices is not null || option.EnvironmentVariable is not null || option.AcceptsNegativeNumbers)
+            {
+                builder.ParameterHelp(option.Id, new CommandHelp(
+                    choices: option.Choices,
+                    acceptsNegativeNumbers: option.AcceptsNegativeNumbers,
+                    environmentVariable: option.EnvironmentVariable));
+            }
         }
 
         foreach (CorpusArgument argument in definition.Arguments)
         {
             builder.Argument(argument.Id, argument.Id, ReadArity(argument.Arity));
+            if (argument.AcceptsNegativeNumbers)
+            {
+                builder.ParameterHelp(argument.Id, new CommandHelp(acceptsNegativeNumbers: true));
+            }
         }
     }
 
