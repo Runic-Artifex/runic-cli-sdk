@@ -1,0 +1,101 @@
+{
+  "formatVersion": 1,
+  "protocol": "runic.commandline/1",
+  "cases": [
+    {
+      "id": "writer.success",
+      "input": { "requestId": "req-export-0001", "command": "export", "success": true, "exitCode": 0, "payloadType": "sample.export-result/1", "payload": { "written": 42, "outputPath": "result.json" }, "diagnostics": [] },
+      "expected": { "example": "examples/success.json" }
+    },
+    {
+      "id": "writer.command-fault",
+      "input": { "requestId": "req-export-0002", "command": "export", "success": false, "exitCode": 1, "fault": { "code": "RCLI3001", "message": "The export could not be completed.", "details": [["reason", "destination-unavailable"]], "retryable": true }, "diagnostics": [] },
+      "expected": { "example": "examples/command-fault.json" }
+    },
+    {
+      "id": "writer.validation",
+      "input": { "requestId": "req-export-0003", "command": "export", "success": false, "exitCode": 2, "fault": { "code": "RCLI2001", "message": "One or more values are invalid.", "details": [], "retryable": false }, "diagnostics": [{ "code": "RCLI2001", "kind": "invalid-format", "commandPath": ["export"], "messageKey": "diagnostics.invalid-format", "message": "The format is not supported.", "phase": "binding", "severity": "error", "tokenIndex": 2, "arguments": ["format"] }] },
+      "expected": { "example": "examples/validation.json" }
+    },
+    {
+      "id": "writer.host-fault",
+      "input": { "requestId": "req-generated-0004", "command": "status", "success": false, "exitCode": 3, "fault": { "code": "RCLI5000", "message": "The command host could not complete the request.", "details": [], "retryable": false }, "diagnostics": [] },
+      "expected": { "example": "examples/host-fault.json" }
+    },
+    {
+      "id": "writer.cancelled",
+      "input": { "requestId": "req-copy-0005", "command": "copy", "success": false, "exitCode": 130, "fault": { "code": "RCLI4000", "message": "The command was cancelled.", "details": [], "retryable": true }, "diagnostics": [] },
+      "expected": { "example": "examples/cancelled.json" }
+    },
+    {
+      "id": "writer.redacted-fault",
+      "input": { "requestId": "req-pack-0006", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "Could not read /home/ada/assets/atlas.png.", "details": [["asset", "/home/ada/assets/atlas.png"], ["reason", "missing-file"], ["/home/ada/assets", "dropped"]], "retryable": false }, "diagnostics": [] },
+      "expected": { "example": "examples/redacted-fault.json" }
+    },
+    {
+      "id": "writer.declared-failure",
+      "input": { "requestId": "req-clone-0006", "command": "clone", "success": false, "exitCode": 130, "fault": { "code": "RCLI4000", "message": "The clone was cancelled.", "details": [], "retryable": false }, "failureData": { "type": "sample.clone-recovery/1", "payload": { "retainedDirectory": "/tmp/Project copy", "targetBranch": "feature/tmp/fix", "observationComplete": true } }, "diagnostics": [] },
+      "expected": { "example": "examples/declared-failure.json" }
+    },
+    {
+      "id": "writer.informational-success",
+      "input": { "requestId": "req-install-0007", "command": "install", "success": true, "exitCode": 3010, "payloadType": "sample.export-result/1", "payload": { "written": 42, "outputPath": "result.json" }, "diagnostics": [] },
+      "expected": { "example": "examples/informational-success.json" }
+    },
+    {
+      "id": "writer.missing-argument",
+      "input": { "requestId": "req-copy-0008", "command": "copy", "success": false, "exitCode": 2, "fault": { "code": "RCLI1005", "message": "The <destination> argument is missing.", "details": [], "retryable": false }, "diagnostics": [{ "code": "RCLI1005", "kind": "missing-argument", "commandPath": ["copy"], "messageKey": "diagnostics.missing-argument", "message": "The <destination> argument is missing.", "phase": "parse", "severity": "error", "tokenIndex": 2, "arguments": ["<destination>"], "binding": "destination" }] },
+      "expected": { "example": "examples/missing-argument.json" }
+    },
+    {
+      "id": "writer.fault-details",
+      "input": { "requestId": "req-pack-0009", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "Could not pack the atlas.", "details": [["asset", "atlas.png"], ["note", "line one\nline two"], ["a\u0001b", "first"], ["a b", "second"], ["C:\\assets", "dropped"], ["\u0007", "dropped"], ["path", "/home/ada/atlas.png"], ["\u00e9tat", "pr\u00eat"], ["\ue000", "private use"], ["\ud83d\ude00", "emoji"]], "retryable": false }, "diagnostics": [] },
+      "expected": { "example": "examples/fault-details.json" }
+    },
+    {
+      "id": "writer.sanitize.control-run",
+      "input": { "requestId": "req-10", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "Packing\u0001\u0002failed \u0007for\u202eatlas.", "details": [], "retryable": false }, "diagnostics": [] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-10", "command": "pack", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "Packing failed for atlas.", "details": {}, "retryable": false }, "diagnostics": [] } }
+    },
+    {
+      "id": "writer.sanitize.empty-message",
+      "input": { "requestId": "req-11", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "\u200b\u2060", "details": [["reason", "empty"]], "retryable": false }, "diagnostics": [] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-11", "command": "pack", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "The command failed; details were redacted.", "details": { "reason": "empty" }, "retryable": false }, "diagnostics": [] } }
+    },
+    {
+      "id": "writer.sanitize.technical-message",
+      "input": { "requestId": "req-12", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "Unhandled IOException in pack.", "details": [["reason", "io"]], "retryable": true }, "diagnostics": [] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-12", "command": "pack", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "The command failed; details were redacted.", "details": { "reason": "io" }, "retryable": true }, "diagnostics": [] } }
+    },
+    {
+      "id": "writer.sanitize.invalid-code",
+      "input": { "requestId": "req-13", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "pack-failed", "message": "The atlas could not be packed.", "details": [["reason", "io"]], "retryable": true, "helpUri": "https://docs.example.com/cli/pack-failed" }, "diagnostics": [] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-13", "command": "pack", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI5000", "message": "The command failed unexpectedly.", "details": {}, "retryable": false }, "diagnostics": [] } }
+    },
+    {
+      "id": "writer.sanitize.help-uri-survives-redaction",
+      "input": { "requestId": "req-14", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "See /tmp/pack.log.", "details": [], "retryable": false, "helpUri": "https://docs.example.com/cli/RCLI8001" }, "diagnostics": [] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-14", "command": "pack", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "The command failed; details were redacted.", "details": {}, "retryable": false, "helpUri": "https://docs.example.com/cli/RCLI8001" }, "diagnostics": [] } }
+    },
+    {
+      "id": "writer.sanitize.detail-truncation",
+      "input": { "requestId": "req-15", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "Failed.", "details": [["kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\u00e9\u00e9", "scalar boundary"], ["jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\u0001x", "space at the limit"]], "retryable": false }, "diagnostics": [] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-15", "command": "pack", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "Failed.", "details": { "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj ": "space at the limit", "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\u00e9": "scalar boundary" }, "retryable": false }, "diagnostics": [] } }
+    },
+    {
+      "id": "writer.sanitize.detail-count",
+      "input": { "requestId": "req-16", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "Failed.", "details": [["/tmp/build", "dropped"], ["k00", "v"], ["k01", "v"], ["k02", "v"], ["k03", "v"], ["k04", "v"], ["k05", "v"], ["k06", "v"], ["k07", "v"], ["k08", "v"], ["k09", "v"], ["k10", "v"], ["k11", "v"], ["k12", "v"], ["k13", "v"], ["k14", "v"], ["k15", "v"], ["k16", "v"], ["k17", "v"], ["k18", "v"], ["k19", "v"], ["k20", "v"], ["k21", "v"], ["k22", "v"], ["k23", "v"], ["k24", "v"], ["k25", "v"], ["k26", "v"], ["k27", "v"], ["k28", "v"], ["k29", "v"], ["k30", "v"], ["k31", "v"], ["k32", "v"], ["k33", "v"]], "retryable": false }, "diagnostics": [] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-16", "command": "pack", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "Failed.", "details": { "k00": "v", "k01": "v", "k02": "v", "k03": "v", "k04": "v", "k05": "v", "k06": "v", "k07": "v", "k08": "v", "k09": "v", "k10": "v", "k11": "v", "k12": "v", "k13": "v", "k14": "v", "k15": "v", "k16": "v", "k17": "v", "k18": "v", "k19": "v", "k20": "v", "k21": "v", "k22": "v", "k23": "v", "k24": "v", "k25": "v", "k26": "v", "k27": "v", "k28": "v", "k29": "v", "k30": "v", "k31": "v" }, "retryable": false }, "diagnostics": [] } }
+    },
+    {
+      "id": "writer.sanitize.diagnostic-technical-content",
+      "input": { "requestId": "req-17", "command": "export", "success": false, "exitCode": 1, "fault": { "code": "RCLI8002", "message": "The input could not be read.", "details": [], "retryable": false }, "diagnostics": [{ "code": "RCLI8002", "kind": "input-unreadable", "commandPath": ["export"], "messageKey": "diagnostics.input-unreadable", "message": "Could not read the input.", "phase": "execution", "severity": "error", "tokenIndex": 1, "arguments": ["C:/data/input.db", "retry"], "binding": "input", "helpUri": "https://docs.example.com/cli/RCLI8002" }] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-17", "command": "export", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8002", "message": "The input could not be read.", "details": {}, "retryable": false }, "diagnostics": [{ "code": "RCLI8002", "kind": "input-unreadable", "commandPath": ["export"], "messageKey": "diagnostics.input-unreadable", "message": "The diagnostic content was redacted.", "phase": "execution", "severity": "error", "tokenIndex": 1, "arguments": [], "binding": "input", "helpUri": "https://docs.example.com/cli/RCLI8002" }] } }
+    },
+    {
+      "id": "writer.sanitize.diagnostic-empty-message",
+      "input": { "requestId": "req-18", "command": "export", "success": false, "exitCode": 1, "fault": { "code": "RCLI8003", "message": "The input was ignored.", "details": [], "retryable": false }, "diagnostics": [{ "code": "RCLI8003", "kind": "input-ignored", "commandPath": ["export"], "messageKey": "diagnostics.input-ignored", "message": "\u0007", "phase": "execution", "severity": "warning", "tokenIndex": null, "arguments": ["a\u0007\u0007b"] }] },
+      "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-18", "command": "export", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8003", "message": "The input was ignored.", "details": {}, "retryable": false }, "diagnostics": [{ "code": "RCLI8003", "kind": "input-ignored", "commandPath": ["export"], "messageKey": "diagnostics.input-ignored", "message": "The diagnostic message was redacted.", "phase": "execution", "severity": "warning", "tokenIndex": null, "arguments": ["a b"] }] } }
+    }
+  ]
+}
