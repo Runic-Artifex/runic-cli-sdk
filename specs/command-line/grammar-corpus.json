@@ -4,6 +4,9 @@
   "tokenModel": "pre-tokenized-string-array",
   "catalog": {
     "jsonOutputAlias": "--json",
+    "globalOptions": [
+      { "id": "profile", "long": "--profile", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error" }
+    ],
     "commands": [
       {
         "path": ["status"],
@@ -64,6 +67,27 @@
           { "id": "program", "arity": { "minimum": 1, "maximum": 1 } },
           { "id": "arguments", "arity": { "minimum": 0, "maximum": "unbounded" } }
         ]
+      },
+      {
+        "path": ["deploy"],
+        "aliases": [],
+        "options": [
+          { "id": "target", "long": "--target", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error", "required": true },
+          { "id": "level", "long": "--level", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error", "choices": ["debug", "release", "gr\u00f6\u00dfe"] },
+          { "id": "offset", "long": "--offset", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error", "acceptsNegativeNumbers": true },
+          { "id": "token", "long": "--token", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error", "environmentVariable": "SAMPLE_TOKEN" },
+          { "id": "dry-run", "long": "--dry-run", "aliases": [], "arity": { "minimum": 0, "maximum": 0 }, "repeat": "error", "environmentVariable": "SAMPLE_DRY_RUN" }
+        ],
+        "arguments": [
+          { "id": "count", "arity": { "minimum": 0, "maximum": 1 }, "acceptsNegativeNumbers": true }
+        ]
+      },
+      {
+        "path": ["remote"],
+        "aliases": [],
+        "group": true,
+        "options": [],
+        "arguments": []
       }
     ]
   },
@@ -117,6 +141,59 @@
     { "id": "grammar.output-alias.before-command", "args": ["--json", "status", "-v"], "expected": { "kind": "invocation", "commandPath": ["status"], "options": [{ "id": "verbose", "values": [] }], "arguments": [] } },
     { "id": "grammar.output-alias.before-help", "args": ["--json", "--help"], "expected": { "kind": "help", "commandPath": [] } },
     { "id": "grammar.output-alias.terminator-is-data", "args": ["echo", "--", "--json"], "expected": { "kind": "invocation", "commandPath": ["echo"], "options": [], "arguments": [{ "id": "text", "values": ["--json"] }] } },
-    { "id": "grammar.output-alias.not-an-option-value", "args": ["export", "--encoding", "--json", "input.db"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 2, "binding": "encoding" }] } }
+    { "id": "grammar.output-alias.not-an-option-value", "args": ["export", "--encoding", "--json", "input.db"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 2, "binding": "encoding" }] } },
+    { "id": "grammar.option.order-first-occurrence", "args": ["export", "-t", "a", "--encoding", "json", "--tag", "b", "input.db"], "expected": { "kind": "invocation", "commandPath": ["export"], "options": [{ "id": "tag", "values": ["a", "b"] }, { "id": "encoding", "values": ["json"] }], "arguments": [{ "id": "input", "values": ["input.db"] }] } },
+    { "id": "grammar.option.environment-appended", "args": ["deploy", "--level", "debug", "--target", "prod"], "environment": { "SAMPLE_TOKEN": "secret" }, "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "level", "values": ["debug"] }, { "id": "target", "values": ["prod"] }, { "id": "token", "values": ["secret"] }], "arguments": [] } },
+    { "id": "grammar.option.command-line-overrides-environment", "args": ["deploy", "--target", "prod", "--token", "given"], "environment": { "SAMPLE_TOKEN": "secret" }, "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "token", "values": ["given"] }], "arguments": [] } },
+    { "id": "grammar.option.environment-flag-true", "args": ["deploy", "--target", "prod"], "environment": { "SAMPLE_DRY_RUN": "YES" }, "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "dry-run", "values": [] }], "arguments": [] } },
+    { "id": "grammar.option.environment-flag-false", "args": ["deploy", "--target", "prod"], "environment": { "SAMPLE_DRY_RUN": "0" }, "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }], "arguments": [] } },
+    { "id": "grammar.option.environment-flag-invalid", "args": ["deploy", "--target", "prod"], "environment": { "SAMPLE_DRY_RUN": "maybe" }, "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1014", "kind": "invalid-environment-value", "tokenIndex": 3, "arguments": ["--dry-run", "SAMPLE_DRY_RUN"], "binding": "dry-run" }] } },
+    { "id": "grammar.option.required-missing", "args": ["deploy", "--level", "debug"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1012", "kind": "missing-required-option", "tokenIndex": 3, "arguments": ["--target", "deploy"], "binding": "target" }] } },
+    { "id": "grammar.option.choice", "args": ["deploy", "--target", "prod", "--level", "release"], "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "level", "values": ["release"] }], "arguments": [] } },
+    { "id": "grammar.option.choice-ascii-case", "args": ["deploy", "--target", "prod", "--level", "DEBUG"], "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "level", "values": ["debug"] }], "arguments": [] } },
+    { "id": "grammar.option.choice-simple-case-mapping", "args": ["deploy", "--target", "prod", "--level", "GR\u00d6\u00dfE"], "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "level", "values": ["gr\u00f6\u00dfe"] }], "arguments": [] } },
+    { "id": "grammar.option.choice-no-full-case-folding", "args": ["deploy", "--target", "prod", "--level", "GR\u00d6SSE"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1015", "kind": "invalid-choice", "tokenIndex": 5, "arguments": ["--level", "debug, release, gr\u00f6\u00dfe"], "binding": "level" }] } },
+    { "id": "grammar.option.choice-invalid", "args": ["deploy", "--target", "prod", "--level", "fast"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1015", "kind": "invalid-choice", "tokenIndex": 5, "arguments": ["--level", "debug, release, gr\u00f6\u00dfe"], "binding": "level" }] } },
+    { "id": "grammar.option.choice-after-other-errors", "args": ["deploy", "--level", "fast"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1012", "kind": "missing-required-option", "tokenIndex": 3, "arguments": ["--target", "deploy"], "binding": "target" }] } },
+    { "id": "grammar.option.global-before-command", "args": ["--profile", "dev", "status"], "expected": { "kind": "invocation", "commandPath": ["status"], "options": [{ "id": "profile", "values": ["dev"] }], "arguments": [] } },
+    { "id": "grammar.option.global-after-command", "args": ["status", "--profile", "dev"], "expected": { "kind": "invocation", "commandPath": ["status"], "options": [{ "id": "profile", "values": ["dev"] }], "arguments": [] } },
+    { "id": "grammar.option.global-only", "args": ["--profile", "dev"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": [] }] } },
+    { "id": "grammar.number.negative-option-value", "args": ["deploy", "--target", "prod", "--offset", "-5"], "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "offset", "values": ["-5"] }], "arguments": [] } },
+    { "id": "grammar.number.negative-exponent", "args": ["deploy", "--target", "prod", "--offset", "-1.5e3"], "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "offset", "values": ["-1.5e3"] }], "arguments": [] } },
+    { "id": "grammar.number.negative-fraction", "args": ["deploy", "--target", "prod", "--offset", "-.5"], "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "offset", "values": ["-.5"] }], "arguments": [] } },
+    { "id": "grammar.number.negative-argument", "args": ["deploy", "--target", "prod", "-3"], "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }], "arguments": [{ "id": "count", "values": ["-3"] }] } },
+    { "id": "grammar.number.not-a-number", "args": ["deploy", "--target", "prod", "--offset", "-x"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 4, "arguments": ["--offset"], "binding": "offset" }] } },
+    { "id": "grammar.number.not-a-number-argument", "args": ["deploy", "--target", "prod", "-12x"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1008", "kind": "unsupported-short-bundle", "tokenIndex": 3, "arguments": [] }] } },
+    { "id": "grammar.number.not-accepted", "args": ["export", "--encoding", "-5", "input.db"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 2, "arguments": ["--encoding"], "binding": "encoding" }] } },
+    { "id": "grammar.diagnostics.first-error-only", "args": ["status", "--quiet", "extra", "--verbose=1"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1, "arguments": ["--quiet"] }] } },
+    { "id": "grammar.help.word-command", "args": ["help", "cache", "clear"], "expected": { "kind": "help", "commandPath": ["cache", "clear"] } },
+    { "id": "grammar.help.word-alias", "args": ["help", "stat"], "expected": { "kind": "help", "commandPath": ["status"] } },
+    { "id": "grammar.help.word-alone", "args": ["help"], "expected": { "kind": "help", "commandPath": [] } },
+    { "id": "grammar.help.word-after-output-alias", "args": ["--json", "help", "status"], "expected": { "kind": "help", "commandPath": ["status"] } },
+    { "id": "grammar.help.word-after-global-option", "args": ["--profile", "dev", "help", "status"], "expected": { "kind": "help", "commandPath": ["status"] } },
+    { "id": "grammar.help.word-unknown-path", "args": ["help", "nosuch"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1013", "kind": "unexpected-root-help-argument", "tokenIndex": 1, "arguments": [] }] } },
+    { "id": "grammar.help.word-partial-path", "args": ["help", "cache", "nosuch"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1013", "kind": "unexpected-root-help-argument", "tokenIndex": 1, "arguments": [] }] } },
+    { "id": "grammar.help.root-with-argument", "args": ["--help", "status"], "expected": { "kind": "help", "commandPath": [] } },
+    { "id": "grammar.help.group", "args": ["remote"], "expected": { "kind": "help", "commandPath": ["remote"] } },
+    { "id": "grammar.help.group-unknown-subcommand", "args": ["remote", "nosuch"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 1, "arguments": ["nosuch"] }] } },
+    { "id": "grammar.command.unknown-after-output-alias", "args": ["--json", "Status"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": ["Status", "status"] }] } },
+    { "id": "grammar.command.unknown-after-global-option", "args": ["--profile", "dev", "nosuch"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": ["nosuch"] }] } },
+    { "id": "grammar.arguments.unknown-option", "args": ["status", "--quiet=1"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1, "arguments": ["--quiet"] }] } },
+    { "id": "grammar.arguments.unknown-option-suggestion", "args": ["status", "--verbos"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1, "arguments": ["--verbos", "--verbose"] }] } },
+    { "id": "grammar.arguments.unknown-command-suggestion", "args": ["stauts"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": ["stauts", "status"] }] } },
+    { "id": "grammar.arguments.unknown-command-no-suggestion", "args": ["frobnicate"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": ["frobnicate"] }] } },
+    { "id": "grammar.arguments.empty-input", "args": [], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": [] }] } },
+    { "id": "grammar.arguments.missing-option-value", "args": ["export", "--encoding"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 2, "arguments": ["--encoding"], "binding": "encoding" }] } },
+    { "id": "grammar.option.short-with-value-is-bundle", "args": ["status", "-v=1"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1008", "kind": "unsupported-short-bundle", "tokenIndex": 1, "arguments": [] }] } },
+    { "id": "grammar.arguments.flag-with-value", "args": ["status", "--verbose=true"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1004", "kind": "unexpected-option-value", "tokenIndex": 1, "arguments": ["--verbose"], "binding": "verbose" }] } },
+    { "id": "grammar.arguments.duplicate-option", "args": ["status", "-v", "-v"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1007", "kind": "duplicate-option", "tokenIndex": 2, "arguments": ["--verbose"], "binding": "verbose" }] } },
+    { "id": "grammar.arguments.unexpected-argument", "args": ["status", "extra"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1006", "kind": "unexpected-argument", "tokenIndex": 1, "arguments": [] }] } },
+    { "id": "grammar.arguments.unsupported-short-bundle", "args": ["status", "-vh"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1008", "kind": "unsupported-short-bundle", "tokenIndex": 1, "arguments": [] }] } },
+    { "id": "grammar.arguments.echo-at-limit", "args": ["status", "--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1, "arguments": ["--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"] }] } },
+    { "id": "grammar.arguments.echo-over-limit", "args": ["status", "--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1, "arguments": ["<invalid>"] }] } },
+    { "id": "grammar.arguments.echo-control-character", "args": ["n\u0007o"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": ["<invalid>"] }] } },
+    { "id": "grammar.option.short-non-ascii", "args": ["status", "-\u00e9"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1, "arguments": ["-\u00e9", "-h"] }] } },
+    { "id": "grammar.option.short-supplementary-is-bundle", "args": ["status", "-\ud83d\ude00"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1008", "kind": "unsupported-short-bundle", "tokenIndex": 1, "arguments": [] }] } },
+    { "id": "grammar.option.single-hyphen-is-data", "args": ["echo", "-"], "expected": { "kind": "invocation", "commandPath": ["echo"], "options": [], "arguments": [{ "id": "text", "values": ["-"] }] } }
   ]
 }

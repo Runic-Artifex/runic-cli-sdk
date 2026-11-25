@@ -4,7 +4,7 @@ This directory is the language-neutral, offline contract for Runic.CommandLine
 command-line machine output. `--format json` (the output selector) or the captured
 `RUNIC_COMMANDLINE_OUTPUT=json` value selects this protocol, as does an
 application's JSON output alias such as `--json`. An alias that an application
-declares with the payload shape (`JsonOutputShape.Payload`) to keep an existing
+declares with the payload shape to keep an existing
 contract writes the bare payload or failure-data document instead, which is
 outside this protocol: stdout holds only that document and LF, and stderr holds
 the human diagnostics followed by the application's failure text or, without
@@ -250,10 +250,11 @@ are consumer-safe surfaces. They MUST NOT contain secrets, original values of
 sensitive options, stack traces, exception type names, environment-variable
 values, absolute internal paths, line breaks, terminal controls, or Unicode
 control characters (see below). Unexpected exceptions are logged only to an authorized
-diagnostic sink and map to the sanitized `RCLI5000` host fault. A developer
-opt-in, such as the .NET host's `RUNIC_COMMANDLINE_DEBUG=1` or
-`DOTNET_ENVIRONMENT=Development`, MAY make stderr such a sink; stdout, the
-frame and its fault remain unchanged.
+diagnostic sink and map to the sanitized `RCLI5000` host fault. The developer
+opt-in `RUNIC_COMMANDLINE_DEBUG=1`, which every implementation recognizes, MAY
+make stderr such a sink; an implementation may add an opt-in of its platform,
+such as the .NET host's `DOTNET_ENVIRONMENT=Development`. stdout, the frame and
+its fault remain unchanged.
 
 ### Unicode control characters
 
@@ -463,6 +464,10 @@ JSON metadata. Arbitrary object deserialization and type-name activation are
 not supported.
 
 ## Examples, writer cases and escaping profiles
+
+The codes `RCLI2001`, `RCLI3000` and `RCLI3001` in the examples and corpora are
+illustrative. Runic Command Line does not emit them, and an implementation
+should not define them as library codes.
 
 The examples are value-normative. A writer conforms when, for every case in
 `writer-cases.json`, it writes one framed response whose JSON value equals the

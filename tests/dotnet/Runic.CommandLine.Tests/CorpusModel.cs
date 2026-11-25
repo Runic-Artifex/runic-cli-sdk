@@ -9,26 +9,31 @@ internal sealed record GrammarCorpus(
     CorpusCatalog Catalog,
     CorpusCase[] Cases);
 
-internal sealed record CorpusCatalog(CorpusCommand[] Commands, string? JsonOutputAlias = null);
+internal sealed record CorpusCatalog(CorpusCommand[] Commands, string? JsonOutputAlias = null, CorpusOption[]? GlobalOptions = null);
 
 internal sealed record CorpusCommand(
     string[] Path,
     string[] Aliases,
     CorpusOption[] Options,
-    CorpusArgument[] Arguments);
+    CorpusArgument[] Arguments,
+    bool Group = false);
 
 internal sealed record CorpusOption(
     string Id,
     [property: JsonPropertyName("long")] string LongName,
     string[] Aliases,
     CorpusArity Arity,
-    string Repeat);
+    string Repeat,
+    bool Required = false,
+    string[]? Choices = null,
+    string? EnvironmentVariable = null,
+    bool AcceptsNegativeNumbers = false);
 
-internal sealed record CorpusArgument(string Id, CorpusArity Arity);
+internal sealed record CorpusArgument(string Id, CorpusArity Arity, bool AcceptsNegativeNumbers = false);
 
 internal sealed record CorpusArity(JsonElement Minimum, JsonElement Maximum);
 
-internal sealed record CorpusCase(string Id, string[] Args, CorpusExpected Expected);
+internal sealed record CorpusCase(string Id, string[] Args, CorpusExpected Expected, Dictionary<string, string>? Environment = null);
 
 internal sealed record CorpusExpected(
     string Kind,
