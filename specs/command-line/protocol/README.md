@@ -21,12 +21,17 @@ A response is exactly one compact JSON object encoded as strict UTF-8 and
 followed by exactly one byte `0A` (LF). The first byte MUST be `{`; the final
 two bytes MUST be `}` and LF. A producer MUST NOT emit a UTF-8 BOM, a leading
 or trailing space, CRLF, a second JSON value, an ANSI escape sequence, a log
-line, or progress output on stdout. JSON strings escape control characters in
-the usual JSON form. stderr MAY contain operator diagnostics, but a client
-MUST NOT need stderr to interpret the response.
+line, or progress output on stdout. JSON strings escape at least `"`, `\` and
+U+0000–U+001F, as RFC 8259 requires; which other characters a writer escapes is
+its escaping profile (see [Examples, writer cases and escaping
+profiles](#examples-writer-cases-and-escaping-profiles)). stderr MAY contain
+operator diagnostics, but a client MUST NOT need stderr to interpret the
+response.
 
 The complete framed response MUST be at most 1,048,576 bytes, including the
-terminal LF, and JSON nesting MUST be at most 32 levels. A reader rejects an
+terminal LF, and JSON nesting MUST be at most 32 levels: the root object is
+level 1 and each object or array inside a container is one level deeper, so a
+frame may hold an array at level 32 but not one at level 33. A reader rejects an
 oversized response while continuing to drain the process pipe. NDJSON and
 streaming are not `runic.commandline/1`.
 
@@ -63,9 +68,13 @@ state it works on); exit code 1 means a well-formed command failed on that state
 (domain failures, including "not found"). A host policy may select another nonzero signed
 32-bit value, for example distinct codes per category, and one outcome may
 select its own documented nonzero code, for example 2, 3 and 4 for three
-failures of one command, without changing the semantic fault. A failure should
-not report a multiple of 256, which Linux and macOS truncate to zero; Runic
-Command Line refuses such a code for an outcome.
+failures of one command, without changing the semantic fault. A failure MUST NOT
+report 0, and SHOULD NOT report another multiple of 256, which Linux and macOS
+truncate to zero in the process status. Runic Command Line refuses such a code
+when an outcome selects its own; a host exit-code policy is responsible for the
+codes it maps categories to. A reader checks only that a failure's `exitCode` is
+not 0, so it accepts 256: `exitCode` is the code the producer reports, not the
+status a parent process observes.
 
 The `payload` key being JSON null is not evidence of failure. Clients use
 `success`, `payloadType`, and `fault` together and validate all invariants.
@@ -76,10 +85,19 @@ Limits below count UTF-8 bytes after JSON decoding, not UTF-16 code units or
 escaped source characters.
 
 - `requestId` is 1 to 128 UTF-8 bytes. It is opaque, is never interpreted as
-  authorization or executable input, and MUST contain no Unicode control
-  character (see [Unicode control characters](#unicode-control-characters)),
-  whitespace, surrogate, or noncharacter scalar. A caller-supplied invalid ID
-  is rejected before execution; a dispatcher otherwise generates one.
+  authorization or executable input, and MUST NOT contain:
+  - a control character (General_Category Cc) or a protocol Unicode control
+    character (see [Unicode control characters](#unicode-control-characters));
+  - a character with the Unicode `White_Space` property: U+0009–U+000D, U+0020,
+    U+0085, U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F and
+    U+3000;
+  - a noncharacter: U+FDD0–U+FDEF and every code point whose low 16 bits are
+    FFFE or FFFF (U+FFFE, U+1FFFE, …, U+10FFFF);
+  - an unpaired surrogate.
+
+  Other format characters (General_Category Cf), such as the soft hyphen
+  U+00AD, are allowed. A caller-supplied invalid ID is rejected before
+  execution; a dispatcher otherwise generates one.
 - `command` is 1 to 512 UTF-8 bytes and matches
   `[a-z][a-z0-9-]*( [a-z][a-z0-9-]*)*`.
 - `payloadType` is an independently versioned ASCII identifier of 3 to 128
@@ -107,6 +125,17 @@ No application command, subcommand or alias may be named `root`, `help` or
 tell these responses from command responses by `command` alone. `output` is
 reserved as well.
 
+### Framework payload types
+
+Two payload types belong to the framework rather than to an application:
+
+- `runic.text/1`: a JSON string. Help and version responses are successes
+  with this type, and the help or version text as the payload.
+- `runic.unit/1`: the empty object `{}`, the payload of a command that returns
+  no value.
+
+An application SHOULD NOT declare either identity for payloads of its own.
+
 The protocol deliberately defines no JSON Schema `$id` and assigns no domain
 name. Payload owners choose their own type identifier within their documented
 application boundary.
@@ -123,7 +152,11 @@ A fault contains every key below in this output order:
 - `message` is a nonempty safe presentation string of at most 4,096 UTF-8
   bytes.
 - `details` is an object with at most 32 unique entries. Keys are 1 to 64 UTF-8
-  bytes; values are strings of at most 1,024 UTF-8 bytes.
+  bytes; values are strings of at most 1,024 UTF-8 bytes. A writer emits the
+  entries sorted by key in UTF-16 code-unit order, comparing the keys' UTF-16
+  encodings unit by unit. That order differs from code-point order for keys
+  outside the BMP: a key starting with U+1F600 (`😀`) sorts before one
+  starting with U+E000. Readers MUST NOT depend on the order.
 - `retryable` is Boolean and means retrying the same logical operation may
   succeed. It never authorizes an automatic retry.
 - `helpUri` is optional and follows `retryable`; see [Help links](#help-links).
@@ -184,10 +217,11 @@ A diagnostic contains every key below in this output order:
   application documents its own codes; a client distinguishes applications by
   `command` and `payloadType`, not by code.
 - `kind` is a stable symbolic identity of at most 128 UTF-8 bytes matching
-  `[a-z][a-z0-9-]*`, without consecutive or trailing hyphens.
+  `[a-z][a-z0-9-]*`, without consecutive or trailing hyphens. Writers MUST NOT
+  emit another kind, and a strict reader rejects one (`invalid-diagnostic`).
 - `commandPath` is the ordered canonical path. The catalog root is an empty
-  array. Each segment matches `[a-z][a-z0-9-]*`; joining the segments with one
-  ASCII space MUST be at most 512 UTF-8 bytes.
+  array. It has at most 64 segments, each matching `[a-z][a-z0-9-]*`; joining
+  the segments with one ASCII space MUST be at most 512 UTF-8 bytes.
 - `messageKey` is a stable localization key of 1 to 128 ASCII bytes. Its first
   character is an ASCII letter; remaining characters are ASCII letters,
   digits, dots, underscores, or hyphens.
@@ -234,40 +268,86 @@ In this protocol, the Unicode control characters are:
   no-break space or byte order mark U+FEFF.
 
 They can reorder or hide text on a terminal or in a viewer, as in Trojan Source.
-A writer replaces each run of them in a consumer-safe surface with one space.
-A strict reader rejects a response that carries one in a fault message or
-detail key or value (`unsafe-fault-content`), a diagnostic message or argument
-(`unsafe-diagnostic-content`), or the `requestId` (`invalid-request-id`). The
-zero-width non-joiner U+200C, the zero-width joiner U+200D, the direction marks
-U+200E (LRM) and U+200F (RLM) and the Arabic letter mark U+061C are not control
-characters: Persian, Indic and right-to-left text and emoji sequences need
-them. The .NET writer also escapes the joiners and marks, like the control
-characters, as `\uXXXX` in JSON strings, so a frame never shows them raw.
+A writer replaces them in a consumer-safe surface as [Sanitization](#sanitization)
+describes. A strict reader rejects a response that carries one in a fault
+message or detail key or value (`unsafe-fault-content`), a diagnostic message or
+argument (`unsafe-diagnostic-content`), or the `requestId`
+(`invalid-request-id`). The zero-width non-joiner U+200C, the zero-width joiner
+U+200D, the direction marks U+200E (LRM) and U+200F (RLM) and the Arabic letter
+mark U+061C are not control characters: Persian, Indic and right-to-left text
+and emoji sequences need them. Whether a frame shows them raw is a matter of
+the writer's escaping profile; the `dotnet` profile escapes them, like the
+control characters, as `\uXXXX`.
 
-### Fault sanitization
+### Sanitization
 
-A writer sanitizes each fault before output, human or JSON. Its check for
-technical content is a heuristic, not a guarantee: it matches only the
-case-sensitive substrings `Exception`, `/home/`, `/Users/`, `/root/`,
-`/tmp/` and `\\`, and an ASCII drive letter followed by `:\` or `:/` (for example
-`C:\` or `c:/`). Other absolute paths, such as `/var/folders/...`,
-`/srv/...` or `/nix/store/...`, are not redacted, so producers remain
-responsible for keeping such text out of faults.
+A writer sanitizes every fault and diagnostic before output, human or JSON. The
+steps below are exact; the writer cases in [`writer-cases.json`](writer-cases.json)
+check them.
 
-- A code that does not satisfy the identifier rule replaces the whole fault
-  with `RCLI5000` and the message `The command failed unexpectedly.`, with no
-  details and `retryable` false.
-- A well-formed code is kept, whether it is a library `RCLI` code, an
-  application-range `RCLI8xxx` code, or an application's own prefix such as
-  `RAS1001`. If the message contains technical content or is empty after
-  control characters are removed, only the message is replaced with
-  `The command failed; details were redacted.` (see
-  [`examples/redacted-fault.json`](examples/redacted-fault.json)). Details and
-  `retryable` are sanitized as usual.
-- A detail whose key contains technical content is dropped with its value.
-- Each remaining detail value with technical content becomes `[redacted]`;
-  other details are kept after control characters are removed and length
-  limits applied.
+**Technical content.** A text has technical content when it contains one of the
+case-sensitive substrings `Exception`, `/home/`, `/Users/`, `/root/`, `/tmp/`
+and `\\` (two backslashes), or an ASCII letter followed by `:\` or `:/` (a
+drive letter, for example `C:\` or `c:/`). The check looks at the original text,
+before the replacements and truncation below. It is a heuristic, not a
+guarantee: other absolute paths, such as `/var/folders/...`, `/srv/...` or
+`/nix/store/...`, are not redacted, so producers remain responsible for keeping
+such text out of faults.
+
+**Text with a limit of N UTF-8 bytes.** The text is read as Unicode scalars in
+order (a UTF-16 implementation reads an unpaired surrogate as U+FFFD), and the
+output is built as follows:
+
+1. A [Unicode control character](#unicode-control-characters) adds one space,
+   unless the output so far ends with a space (U+0020). A run of control
+   characters therefore becomes one space, and a control character after a
+   space adds nothing. Spaces in the text itself are kept as they are.
+2. Every other scalar is added unchanged.
+3. The output stops before the first scalar or space that would make it longer
+   than N bytes. Truncation never splits a scalar, and nothing is trimmed
+   afterwards.
+
+The limits are 4,096 bytes for messages, 64 for detail keys and 1,024 for detail
+values and diagnostic arguments. A text "is only whitespace" below when it is
+empty or every character has the `White_Space` property.
+
+**Faults**, in this order:
+
+1. A code that does not satisfy the identifier rule replaces the whole fault
+   with `RCLI5000`, the message `The command failed unexpectedly.`, no details,
+   `retryable` false and no help link. The steps below do not apply.
+2. A well-formed code is kept, whether it is a library `RCLI` code, an
+   application-range `RCLI8xxx` code, or an application's own prefix such as
+   `RAS1001`. The message is sanitized. If the original message has technical
+   content, or the sanitized message is only whitespace, the message becomes
+   the fault redaction note (see
+   [`examples/redacted-fault.json`](examples/redacted-fault.json)).
+3. Details are taken in the order the producer gave them until 32 are kept.
+   Each key is sanitized. A detail is dropped, with its value, when its original
+   key has technical content, its sanitized key is only whitespace, or its
+   sanitized key equals one already kept (the first one wins). A kept detail's
+   value becomes `[redacted]` when the original value has technical content,
+   and is sanitized otherwise. Dropped details do not count toward the 32.
+4. `retryable` and the help link are kept. The details are written sorted, as
+   [Fault object](#fault-object) says.
+
+**Diagnostics:**
+
+- If the original message or any original argument has technical content, the
+  message becomes the diagnostic content redaction note and `arguments` is
+  empty.
+- Otherwise the message is sanitized and becomes the diagnostic message
+  redaction note if it is only whitespace, and each argument is sanitized.
+- The other members are identifiers and are written as given.
+
+**Replacement texts.** The code `RCLI5000`, its message `The command failed
+unexpectedly.` and the detail value `[redacted]` are fixed. The three redaction
+notes are presentation text: the fault note `The command failed; details were
+redacted.`, the diagnostic content note `The diagnostic content was redacted.`
+and the diagnostic message note `The diagnostic message was redacted.` are their
+English defaults, and a writer MAY present them in the user's language like
+other messages (Runic Command Line resolves them through the `redaction.*` text
+keys). The writer cases expect the English defaults.
 
 Sanitization never changes `exitCode`, which comes from the command's exit
 category, or from the code its outcome selected, rather than from the fault code.
@@ -276,12 +356,95 @@ category, or from the code its outcome selected, rather than from the fault code
 
 A producer MAY add a `helpUri` member to a fault or diagnostic that links its
 code to documentation, and omits it otherwise. Existing version-1 readers
-ignore this additive member. Its value is an absolute `https` URI without user
-information, written as at most 2,048 printable ASCII characters. A reader that
-supports it rejects any other value, including `null`, with
-`invalid-help-uri`. The link is the producer's fixed documentation address,
-not presentation text: it is exempt from the technical-content redaction above
-and MUST NOT be built from user input or contain secrets.
+ignore this additive member. Its value is a string of 1 to 2,048 characters from
+U+0021 to U+007E that is an RFC 3986 `absolute-URI` with the scheme `https`
+(compared ignoring ASCII case), an authority with a nonempty host, and no user
+information. A reader that supports it rejects any other value, including
+`null`, with `invalid-help-uri`. The link is the producer's fixed documentation
+address, not presentation text: it is exempt from the technical-content
+redaction above and MUST NOT be built from user input or contain secrets. A
+writer writes the address it was given; the `dotnet` profile writes .NET's
+normalized absolute form (`Uri.AbsoluteUri`, which lowercases the scheme and
+host and writes an empty path as `/`), so the writer cases use addresses that
+are already in that form.
+
+## Strict reading
+
+A strict reader checks a frame in the order below and stops at the first check
+that fails. It reports that check's reason, so every conforming reader reports
+the same reason for the same frame, also when the frame breaks several rules
+(the `*.precedence.*` cases of the corpus). The manifest lists the reasons in
+`readerReasons`.
+
+**Safe text.** A strict reader rejects text that a writer would have changed: a
+fault message, detail key or value, or diagnostic message or argument is unsafe
+when it contains a [Unicode control character](#unicode-control-characters),
+exceeds its byte limit, has [technical content](#sanitization), or is empty
+where the member must not be. Fault codes must satisfy the identifier rule.
+
+**Frame.** On the raw bytes:
+
+| # | Check | Reason |
+|---|---|---|
+| 1 | The frame is empty. | `missing-envelope` |
+| 2 | The frame exceeds the reader's bound, by default 1,048,576 bytes. | `framed-byte-limit` |
+| 3 | The frame starts with EF BB BF. | `utf8-bom` |
+| 4 | The bytes before the last byte are not strict UTF-8. | `invalid-utf8` |
+| 5 | The frame is shorter than 3 bytes, its last byte is not LF, or the byte before the LF is a space, tab, CR or LF. | `invalid-framing` |
+| 6 | The first byte is not `{`: a space, tab, CR or LF there is `invalid-framing`, any other byte `stdout-contamination`. | `invalid-framing`, `stdout-contamination` |
+| 7 | A scan of the bytes before the LF, from left to right and skipping string contents, finds an object or array at level 33, or a byte other than JSON whitespace after the root object closes; the first of the two found wins. This runs before parsing, so it applies to malformed text too. | `json-depth-limit`, `multiple-json-values` |
+| 8 | The text is not one strict RFC 8259 JSON value (no comments, no trailing commas). | `malformed-json` |
+| 9 | Any object in the frame, including unknown members and the payload, has two members with the same name. Names are compared after unescaping, so `"protocol"` and `"protocol"` are the same. | `duplicate-property` |
+
+**Envelope.** A required member that is absent is `missing-required-field`; a
+member of the wrong JSON type is `invalid-envelope` unless the table says
+otherwise. Members are checked in this order:
+
+| # | Check | Reason |
+|---|---|---|
+| 10 | `protocol` is a string, equal to `runic.commandline/1`. | `unsupported-protocol` if not equal |
+| 11 | `requestId` is present and a string. | `invalid-request-id` if not a string |
+| 12 | `command` is a string. | |
+| 13 | `requestId` follows [Identifier validation](#identifier-validation). | `invalid-request-id` |
+| 14 | `command` follows Identifier validation. | `invalid-command` |
+| 15 | `success` is a Boolean, `exitCode` a signed 32-bit integer, `payloadType` a string or null, and `payload`, `fault` and `diagnostics` are present. | |
+| 16 | `diagnostics` is an array of at most 64 diagnostics, each checked in array order as below. | `invalid-envelope` |
+
+**Diagnostic**, in this order: it is an object; `code` and `kind` are strings;
+`commandPath` is an array of at most 64 strings whose joined form is at most
+512 bytes (`invalid-diagnostic`) and whose segments match their pattern
+(`invalid-diagnostic-command-path`); `messageKey` is a string that matches its
+pattern (`invalid-diagnostic-message-key`); `message` is a string, and `kind` is
+at most 128 bytes and `message` safe (`unsafe-diagnostic-content`); `phase` and
+`severity` are strings with a listed value (`invalid-diagnostic`); `tokenIndex`
+is null or a signed 32-bit integer; `arguments` is an array of at most 16
+strings (`invalid-envelope`), each safe (`unsafe-diagnostic-content`); then
+`code`, `kind` and `tokenIndex` follow [Diagnostic object](#diagnostic-object)
+and `message` is not only whitespace (`invalid-diagnostic`); then `helpUri`
+(`invalid-help-uri`) and `binding` (`invalid-diagnostic`).
+
+**Outcome.** On success:
+
+| # | Check | Reason |
+|---|---|---|
+| 17 | `payloadType` is not null. | `missing-payload-type` |
+| 18 | `payloadType` follows Identifier validation. | `invalid-payload-type` |
+| 19 | `payloadType` is a type the client supports. | `unsupported-payload-type` |
+| 20 | `fault` is null. | `outcome-invariant` |
+| 21 | The payload decodes with the client's contract for that type. | `payload-shape-mismatch` |
+
+On failure:
+
+| # | Check | Reason |
+|---|---|---|
+| 17 | `exitCode` is not 0. | `outcome-invariant` |
+| 18 | `payloadType` and `payload` are null. | `outcome-invariant` |
+| 19 | `fault` is not null. | `missing-fault` |
+| 20 | `fault` is an object; `code` and `message` are strings; the code satisfies the identifier rule and the message is safe (`unsafe-fault-content`); `retryable` is a Boolean; `details` is an object whose members, in order, number at most 32 and have string values (`invalid-envelope`) and safe keys and values (`unsafe-fault-content`); the message and every detail key are not only whitespace (`invalid-envelope`). | see the check |
+| 21 | `fault.helpUri`, when present, is valid. | `invalid-help-uri` |
+| 22 | `fault.data`, when present, is an object with a string `type` and a `payload`; `type` follows the payload type grammar (`invalid-failure-data`); the payload's compact form is at most 65,536 bytes (`failure-data-byte-limit`) and at most 24 levels deep (`failure-data-depth-limit`); its strings are valid Unicode (`invalid-failure-data`). | see the check |
+
+Unknown members are accepted at every level ([Compatibility](#compatibility)).
 
 ## Compatibility
 
@@ -299,11 +462,85 @@ MUST validate `payloadType` before invoking its pre-registered, non-reflection
 JSON metadata. Arbitrary object deserialization and type-name activation are
 not supported.
 
+## Examples, writer cases and escaping profiles
+
+The examples are value-normative. A writer conforms when, for every case in
+`writer-cases.json`, it writes one framed response whose JSON value equals the
+expected one: the example the case names, or the case's `expected.document`.
+Two JSON values are equal when they are the same literal, numbers with the same
+mathematical value, strings with the same Unicode scalars after unescaping,
+arrays with equal elements in the same order, or objects with the same member
+names and equal values in any member order.
+
+Byte identity with the examples is required only of a writer that claims an
+escaping profile. The protocol names one, `dotnet`: what Runic Command Line's
+.NET writer produces. A `dotnet` writer writes:
+
+- compact JSON with no whitespace between tokens; the envelope, fault and
+  diagnostic members in the orders given above, optional members only when
+  present; fault details sorted in UTF-16 code-unit order;
+- integers in their shortest decimal form;
+- in strings, `\` as `\\`, U+0008, U+0009, U+000A, U+000C and U+000D as `\b`,
+  `\t`, `\n`, `\f` and `\r`, and `/` unescaped; every other escaped scalar as
+  `\uXXXX` with upper-case hex digits, and a scalar above U+FFFF as its escaped
+  UTF-16 surrogate pair (`😀`);
+- help links in .NET's normalized absolute form ([Help links](#help-links)).
+
+The `dotnet` profile escapes exactly these scalars and writes every other one
+as UTF-8:
+
+- U+0000–U+001F, U+007F–U+009F, and `"` `&` `'` `+` `<` `>` `` ` `` (so `"` is
+  `"` and `<` is `<`);
+- the space separators (General_Category Zs) other than U+0020, and U+2028 and
+  U+2029;
+- U+061C, U+200B–U+200F, U+202A–U+202E, U+2060, U+2066–U+2069 and U+FEFF;
+- the private use area U+E000–U+F8FF, and every scalar above U+FFFF;
+- every BMP code point that is unassigned (General_Category Cn) in the Unicode
+  version of the .NET runtime that writes the frame, Unicode 16.0 for .NET 10.
+  These include the noncharacters U+FDD0–U+FDEF, U+FFFE and U+FFFF.
+
+Only the last rule depends on the runtime: a code point that a later Unicode
+version assigns is written raw by a runtime with that version. The examples
+contain no such code point, so their bytes do not change with the runtime, and a
+writer that implements the profile with another Unicode version still matches
+every example byte for byte. Another writer may escape differently and still
+conform. Runic Command Line's ASCII escaping option writes the `dotnet` profile
+with every remaining non-ASCII scalar escaped as well; it is value-equal to the
+profile.
+
 ## Corpus layout
 
-`manifest.json` records the fixture inventory and all machine-readable limits.
-Files in `examples/` are complete valid envelopes. `invalid-structures.json`
-contains parseable JSON documents that violate envelope semantics.
-`wire-inputs.json` represents malformed or hostile stdout bytes as base64 so
-every checked-in `.json` file remains strict, valid JSON and can be validated
-offline without executing a process.
+`manifest.json` records the fixture inventory, all machine-readable limits, the
+reader reasons in check order (`readerReasons`), the escaping profiles and the
+sample payload types. Files in `examples/` are complete valid envelopes.
+`invalid-structures.json` contains parseable JSON documents that violate
+envelope semantics, or that a reader accepts (`expected.kind` `accepted`); a
+runner writes each document as compact JSON followed by LF, and no expected
+reason depends on how it escapes strings. `wire-inputs.json` represents
+malformed or hostile stdout bytes as base64, so every checked-in `.json` file
+remains strict, valid JSON and can be validated offline without executing a
+process. A wire case may instead give a `wireRecipe` of kind `repeat-utf8`: the
+UTF-8 encoding of `prefix`, then `value` repeated `count` times, then `suffix`,
+whose length is `expectedWireBytes` when that is given.
+
+`writer-cases.json` gives a writer's inputs and the output each must produce.
+`input` holds `requestId`, `command`, `success` and `exitCode`; on success
+`payloadType` and `payload`; on failure `fault` and optionally `failureData`
+(`type` and `payload`); and `diagnostics`. The fault and the diagnostics are the
+producer's raw values, before sanitization: a fault has `code`, `message`,
+`details` as an ordered array of `[key, value]` pairs (order matters, since the
+first of two keys that sanitize alike wins), `retryable` and optionally
+`helpUri`; a diagnostic has every member of the diagnostic object.
+`expected.example` names an example file, and `expected.document` gives the
+expected envelope inline.
+
+**Client context.** Every semantic case names `clientContext`, and the wire
+cases share the file's `clientContext`. `supportedPayloadTypes` lists the one
+payload type the reading client supports. `expectedPayloadJsonKind`, when given,
+is the JSON kind that type decodes from. `expected.payloadDeserializationAttempted`
+tells whether the client must have tried to decode the payload before the
+failure. The manifest's `samplePayloads` give each sample type's contract: a
+payload decodes when it is null and the type is `nullable`, or when it has the
+type's `jsonKind` and each listed member that is present has the listed JSON
+type (`string`, or `integer` for a number without fraction or exponent). Other
+members are unknown and ignored.

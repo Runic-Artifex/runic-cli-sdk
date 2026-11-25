@@ -2,6 +2,7 @@
   "formatVersion": 1,
   "protocol": "runic.commandline/1",
   "representation": "base64-encoded-wire-bytes-or-deterministic-wire-recipe",
+  "clientContext": { "supportedPayloadTypes": ["sample.status/1"] },
   "cases": [
     {
       "id": "wire.empty",
@@ -109,6 +110,77 @@
       },
       "expectedWireBytes": 1048624,
       "expected": { "kind": "protocol-error", "reason": "framed-byte-limit" }
+    },
+    {
+      "id": "wire.precedence.bom-before-invalid-utf8",
+      "wireUtf8Base64": "77u//3t9Cg==",
+      "expected": { "kind": "protocol-error", "reason": "utf8-bom" }
+    },
+    {
+      "id": "wire.precedence.invalid-utf8-before-framing",
+      "wireUtf8Base64": "/3t9",
+      "expected": { "kind": "protocol-error", "reason": "invalid-utf8" }
+    },
+    {
+      "id": "wire.precedence.framing-before-contamination",
+      "wireUtf8Base64": "eHt9",
+      "expected": { "kind": "protocol-error", "reason": "invalid-framing" }
+    },
+    {
+      "id": "wire.precedence.depth-before-malformed",
+      "wireUtf8Base64": "eyJ4IjpbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbCg==",
+      "expected": { "kind": "protocol-error", "reason": "json-depth-limit" }
+    },
+    {
+      "id": "wire.precedence.duplicate-before-protocol",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzIiLCJhIjoxLCJhIjoyfQo=",
+      "expected": { "kind": "protocol-error", "reason": "duplicate-property" }
+    },
+    {
+      "id": "wire.precedence.oversized-before-bom",
+      "wireRecipe": { "kind": "repeat-utf8", "prefix": "\ufeff{\"protocol\":\"runic.commandline/1\",\"padding\":\"", "value": "a", "count": 1048576, "suffix": "\"}\n" },
+      "expectedWireBytes": 1048627,
+      "expected": { "kind": "protocol-error", "reason": "framed-byte-limit" }
+    },
+    {
+      "id": "wire.trailing-content",
+      "wireUtf8Base64": "e314Cg==",
+      "expected": { "kind": "protocol-error", "reason": "multiple-json-values" }
+    },
+    {
+      "id": "wire.duplicate-after-unescaping",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtdzEiLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6dHJ1ZSwiZXhpdENvZGUiOjAsInBheWxvYWRUeXBlIjoic2FtcGxlLnN0YXR1cy8xIiwicGF5bG9hZCI6e30sImZhdWx0IjpudWxsLCJkaWFnbm9zdGljcyI6W10sIlx1MDA3MHJvdG9jb2wiOiJydW5pYy5jb21tYW5kbGluZS8xIn0K",
+      "expected": { "kind": "protocol-error", "reason": "duplicate-property" }
+    },
+    {
+      "id": "wire.depth-at-limit-is-accepted",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtdzEiLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6dHJ1ZSwiZXhpdENvZGUiOjAsInBheWxvYWRUeXBlIjoic2FtcGxlLnN0YXR1cy8xIiwicGF5bG9hZCI6e30sImZhdWx0IjpudWxsLCJkaWFnbm9zdGljcyI6W10sIngiOltbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tdXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dfQo=",
+      "expected": { "kind": "accepted", "reason": "json-depth-at-limit" }
+    },
+    {
+      "id": "wire.depth-over-limit",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtdzEiLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6dHJ1ZSwiZXhpdENvZGUiOjAsInBheWxvYWRUeXBlIjoic2FtcGxlLnN0YXR1cy8xIiwicGF5bG9hZCI6e30sImZhdWx0IjpudWxsLCJkaWFnbm9zdGljcyI6W10sIngiOltbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV19Cg==",
+      "expected": { "kind": "protocol-error", "reason": "json-depth-limit" }
+    },
+    {
+      "id": "wire.fault-message-too-long",
+      "wireRecipe": { "kind": "repeat-utf8", "prefix": "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req-w2\",\"command\":\"status\",\"success\":false,\"exitCode\":1,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI8001\",\"message\":\"", "value": "\u00e9", "count": 2049, "suffix": "\",\"details\":{},\"retryable\":false},\"diagnostics\":[]}\n" },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
+    },
+    {
+      "id": "wire.failure-data-escapes-count",
+      "wireRecipe": { "kind": "repeat-utf8", "prefix": "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req-w3\",\"command\":\"status\",\"success\":false,\"exitCode\":1,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI8001\",\"message\":\"Failed.\",\"details\":{},\"retryable\":false,\"data\":{\"type\":\"sample.recovery/1\",\"payload\":\"", "value": "\\u0041", "count": 11000, "suffix": "\"}},\"diagnostics\":[]}\n" },
+      "expected": { "kind": "protocol-error", "reason": "failure-data-byte-limit" }
+    },
+    {
+      "id": "wire.failure-data-whitespace-not-counted",
+      "wireRecipe": { "kind": "repeat-utf8", "prefix": "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req-w4\",\"command\":\"status\",\"success\":false,\"exitCode\":1,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI8001\",\"message\":\"Failed.\",\"details\":{},\"retryable\":false,\"data\":{\"type\":\"sample.recovery/1\",\"payload\":[          \"", "value": "a", "count": 65532, "suffix": "\"          ]}},\"diagnostics\":[]}\n" },
+      "expected": { "kind": "accepted", "reason": "failure-data-compact-at-limit" }
+    },
+    {
+      "id": "wire.failure-data-over-limit",
+      "wireRecipe": { "kind": "repeat-utf8", "prefix": "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req-w5\",\"command\":\"status\",\"success\":false,\"exitCode\":1,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI8001\",\"message\":\"Failed.\",\"details\":{},\"retryable\":false,\"data\":{\"type\":\"sample.recovery/1\",\"payload\":\"", "value": "a", "count": 65535, "suffix": "\"}},\"diagnostics\":[]}\n" },
+      "expected": { "kind": "protocol-error", "reason": "failure-data-byte-limit" }
     }
   ]
 }

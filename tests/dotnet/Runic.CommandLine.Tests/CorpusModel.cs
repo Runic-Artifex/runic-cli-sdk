@@ -67,7 +67,13 @@ internal sealed record ProtocolManifest(
     string Encoding,
     string Framing,
     ProtocolLimits Limits,
+    string[] EscapingProfiles,
+    string[] ReaderReasons,
+    Dictionary<string, SamplePayloadSchema> SamplePayloads,
     ProtocolFixture[] Fixtures);
+
+// The JSON shape a sample payload type decodes from (protocol README, "Sample payload types").
+internal sealed record SamplePayloadSchema(string JsonKind, bool Nullable, Dictionary<string, string> Members);
 
 internal sealed record ProtocolLimits(
     int FramedBytes,
@@ -87,11 +93,18 @@ internal sealed record ProtocolLimits(
     int DiagnosticKindBytes,
     int DiagnosticCommandPathBytes,
     int DiagnosticMessageKeyBytes,
-    int DiagnosticArgumentBytes);
+    int DiagnosticArgumentBytes,
+    int DiagnosticCommandPathSegments,
+    int HelpUriCharacters);
 
 internal sealed record ProtocolFixture(string Id, string Class, string Path, string? Outcome, int? CaseCount);
 
-internal sealed record WireCorpus(int FormatVersion, string Protocol, string Representation, WireCase[] Cases);
+internal sealed record WireCorpus(
+    int FormatVersion,
+    string Protocol,
+    string Representation,
+    ProtocolClientContext ClientContext,
+    WireCase[] Cases);
 
 internal sealed record WireCase(
     string Id,
@@ -117,11 +130,43 @@ internal sealed record ProtocolExpected(
     string Reason,
     bool? PayloadDeserializationAttempted);
 
-internal sealed record ProtocolPayload(
-    string? State,
-    int? FuturePayloadField,
-    int? Written,
-    string? OutputPath);
+// sample.status/1 and sample.optional-status/1 as the manifest declares them: only `state`, so any other member is
+// unknown, as in invalid.unknown-field-is-accepted.
+internal sealed record StatusPayload(string? State);
+
+internal sealed record WriterCorpus(int FormatVersion, string Protocol, WriterCase[] Cases);
+
+internal sealed record WriterCase(string Id, WriterInput Input, WriterExpected Expected);
+
+internal sealed record WriterInput(
+    string RequestId,
+    string Command,
+    bool Success,
+    int ExitCode,
+    string? PayloadType,
+    JsonElement Payload,
+    WriterFault? Fault,
+    WriterFailureData? FailureData,
+    WriterDiagnostic[] Diagnostics);
+
+internal sealed record WriterFault(string Code, string Message, string[][] Details, bool Retryable, string? HelpUri);
+
+internal sealed record WriterFailureData(string Type, JsonElement Payload);
+
+internal sealed record WriterDiagnostic(
+    string Code,
+    string Kind,
+    string[] CommandPath,
+    string MessageKey,
+    string Message,
+    string Phase,
+    string Severity,
+    int? TokenIndex,
+    string[] Arguments,
+    string? Binding,
+    string? HelpUri);
+
+internal sealed record WriterExpected(string? Example, JsonElement? Document);
 
 internal sealed record ExportPayload(int Written, string OutputPath);
 
@@ -131,6 +176,8 @@ internal sealed record ExportPayload(int Written, string OutputPath);
 [JsonSerializable(typeof(ProtocolManifest))]
 [JsonSerializable(typeof(WireCorpus))]
 [JsonSerializable(typeof(SemanticProtocolCorpus))]
-[JsonSerializable(typeof(ProtocolPayload))]
+[JsonSerializable(typeof(WriterCorpus))]
+[JsonSerializable(typeof(StatusPayload))]
+[JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(ExportPayload))]
 internal sealed partial class CorpusJsonContext : JsonSerializerContext;

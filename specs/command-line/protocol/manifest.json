@@ -23,7 +23,24 @@
     "diagnosticKindBytes": 128,
     "diagnosticCommandPathBytes": 512,
     "diagnosticMessageKeyBytes": 128,
-    "diagnosticArgumentBytes": 1024
+    "diagnosticArgumentBytes": 1024,
+    "diagnosticCommandPathSegments": 64,
+    "helpUriCharacters": 2048
+  },
+  "escapingProfiles": ["dotnet"],
+  "readerReasons": [
+    "missing-envelope", "framed-byte-limit", "utf8-bom", "invalid-utf8", "invalid-framing", "stdout-contamination",
+    "json-depth-limit", "multiple-json-values", "malformed-json", "duplicate-property", "missing-required-field",
+    "invalid-envelope", "unsupported-protocol", "invalid-request-id", "invalid-command", "invalid-diagnostic",
+    "invalid-diagnostic-command-path", "invalid-diagnostic-message-key", "unsafe-diagnostic-content", "invalid-help-uri",
+    "missing-payload-type", "invalid-payload-type", "unsupported-payload-type", "outcome-invariant",
+    "payload-shape-mismatch", "missing-fault", "unsafe-fault-content", "invalid-failure-data",
+    "failure-data-byte-limit", "failure-data-depth-limit"
+  ],
+  "samplePayloads": {
+    "sample.status/1": { "jsonKind": "object", "nullable": true, "members": { "state": "string" } },
+    "sample.optional-status/1": { "jsonKind": "object", "nullable": true, "members": { "state": "string" } },
+    "sample.export-result/1": { "jsonKind": "object", "nullable": false, "members": { "written": "integer", "outputPath": "string" } }
   },
   "fixtures": [
     { "id": "protocol.success", "class": "valid", "path": "examples/success.json", "outcome": "success" },
@@ -35,7 +52,9 @@
     { "id": "protocol.declared-failure", "class": "valid", "path": "examples/declared-failure.json", "outcome": "cancelled" },
     { "id": "protocol.informational-success", "class": "valid", "path": "examples/informational-success.json", "outcome": "success" },
     { "id": "protocol.missing-argument", "class": "valid", "path": "examples/missing-argument.json", "outcome": "validation" },
-    { "id": "protocol.invalid-structures", "class": "semantic-corpus", "path": "invalid-structures.json", "caseCount": 31 },
-    { "id": "protocol.wire-inputs", "class": "malformed-or-hostile", "path": "wire-inputs.json", "caseCount": 20 }
+    { "id": "protocol.fault-details", "class": "valid", "path": "examples/fault-details.json", "outcome": "command-failure" },
+    { "id": "protocol.invalid-structures", "class": "semantic-corpus", "path": "invalid-structures.json", "caseCount": 77 },
+    { "id": "protocol.wire-inputs", "class": "malformed-or-hostile", "path": "wire-inputs.json", "caseCount": 34 },
+    { "id": "protocol.writer-cases", "class": "writer-corpus", "path": "writer-cases.json", "caseCount": 19 }
   ]
 }
