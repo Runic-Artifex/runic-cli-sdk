@@ -88,6 +88,8 @@ internal sealed class TestingEnvelopeTests
         AssertKind("{\"protocol\":", "invalid-framing");
         AssertKind("{\"protocol\":\n", "malformed-json");
         AssertKind(Success.Replace("\"ok\"", "\"\ud800\"", StringComparison.Ordinal), "invalid-utf8");
+        AssertKind(Success.Replace("\"ok\"", "\"\\ud800\"", StringComparison.Ordinal), "malformed-json");
+        AssertKind(Success.Replace("\"requestId\":\"req\"", "\"requestId\":\"\\udc00\"", StringComparison.Ordinal), "malformed-json");
         AssertEx.Throws<ArgumentException>(() => CommandTestEnvelope.Read(" ", TestCodec.Identity, TestJsonContext.Default.TestResult));
         AssertEx.Throws<ArgumentNullException>(() => CommandTestEnvelope.Read<TestResult>(Success, TestCodec.Identity, null!));
         AssertEx.Throws<ArgumentException>(() => CommandTestEnvelope.Read(Success, " ", TestJsonContext.Default.TestResult));

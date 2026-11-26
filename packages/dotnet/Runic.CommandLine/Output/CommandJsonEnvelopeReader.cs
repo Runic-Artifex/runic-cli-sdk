@@ -32,6 +32,12 @@ public static class CommandJsonEnvelopeReader
 
         ValidateFrame(frame, maximumFrameBytes);
         ValidateDepth(frame[..^1]);
+        // Protocol §Strict reading, check 8: an escape that decodes to an unpaired surrogate is not strict JSON, in a
+        // value or a member name, anywhere in the frame. Utf8JsonReader accepts one and GetString then throws.
+        if (HasUnpairedSurrogateEscape(frame[..^1]))
+        {
+            throw Error("malformed-json", "The command response contains an unpaired surrogate escape.");
+        }
 
         try
         {
@@ -371,6 +377,94 @@ public static class CommandJsonEnvelopeReader
             }
         }
     }
+
+    // Finds a \uXXXX escape of a high surrogate that the next six bytes do not complete with a \uXXXX escape of a low
+    // surrogate, or a low surrogate escape that does not complete one. Strict UTF-8 (ValidateFrame) already rules out
+    // a raw surrogate, so only escapes can produce one. Malformed text may be misread here; it is malformed-json either way.
+    private static bool HasUnpairedSurrogateEscape(ReadOnlySpan<byte> json)
+    {
+        bool inString = false;
+        for (int index = 0; index < json.Length; index++)
+        {
+            byte value = json[index];
+            if (!inString)
+            {
+                inString = value == (byte)'"';
+                continue;
+            }
+
+            if (value == (byte)'"')
+            {
+                inString = false;
+                continue;
+            }
+
+            if (value != (byte)'\\')
+            {
+                continue;
+            }
+
+            index++;
+            if (index >= json.Length || json[index] != (byte)'u')
+            {
+                continue;
+            }
+
+            if (!TryReadEscapedCodeUnit(json, index + 1, out int codeUnit))
+            {
+                return true;
+            }
+
+            index += 4;
+            if (codeUnit is >= 0xDC00 and <= 0xDFFF)
+            {
+                return true;
+            }
+
+            if (codeUnit is >= 0xD800 and <= 0xDBFF)
+            {
+                if (index + 2 >= json.Length || json[index + 1] != (byte)'\\' || json[index + 2] != (byte)'u' ||
+                    !TryReadEscapedCodeUnit(json, index + 3, out int low) || low is < 0xDC00 or > 0xDFFF)
+                {
+                    return true;
+                }
+
+                index += 6;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryReadEscapedCodeUnit(ReadOnlySpan<byte> json, int start, out int codeUnit)
+    {
+        codeUnit = 0;
+        if (start + 4 > json.Length)
+        {
+            return false;
+        }
+
+        for (int offset = 0; offset < 4; offset++)
+        {
+            int digit = HexDigit(json[start + offset]);
+            if (digit < 0)
+            {
+                return false;
+            }
+
+            codeUnit = (codeUnit << 4) | digit;
+        }
+
+        return true;
+    }
+
+    private static int HexDigit(byte value) => value switch
+    {
+        >= (byte)'0' and <= (byte)'9' => value - '0',
+        >= (byte)'a' and <= (byte)'f' => value - 'a' + 10,
+        >= (byte)'A' and <= (byte)'F' => value - 'A' + 10,
+        _ => -1,
+    };
 
     private static bool HasNonWhitespace(ReadOnlySpan<byte> value)
     {

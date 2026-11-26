@@ -86,7 +86,8 @@ escaped source characters.
     U+3000;
   - a noncharacter: U+FDD0–U+FDEF and every code point whose low 16 bits are
     FFFE or FFFF (U+FFFE, U+1FFFE, …, U+10FFFF);
-  - an unpaired surrogate.
+  - an unpaired surrogate (which a writer checks; on the wire, a strict reader
+    rejects its escape earlier, as `malformed-json`).
 
   Other format characters (General_Category Cf), such as the soft hyphen
   U+00AD, are allowed. A caller-supplied invalid ID is rejected before
@@ -396,7 +397,7 @@ whitespace therefore see only nonempty text.
 | 5 | The frame is shorter than 3 bytes, its last byte is not LF, or the byte before the LF is a space, tab, CR or LF. | `invalid-framing` |
 | 6 | The first byte is not `{`: a space, tab, CR or LF there is `invalid-framing`, any other byte `stdout-contamination`. | `invalid-framing`, `stdout-contamination` |
 | 7 | A scan of the bytes before the LF, from left to right and skipping string contents, finds an object or array at level 33, or a byte other than JSON whitespace after the root object closes; the first of the two found wins. This runs before parsing, so it applies to malformed text too. | `json-depth-limit`, `multiple-json-values` |
-| 8 | The text is not one strict RFC 8259 JSON value (no comments, no trailing commas). | `malformed-json` |
+| 8 | The text is not one strict RFC 8259 JSON value (no comments, no trailing commas), or a string or member name anywhere in it, including unknown members and the payload, has an escape that decodes to an unpaired surrogate (a `\uD800`–`\uDBFF` escape not directly followed by a `\uDC00`–`\uDFFF` escape, or a `\uDC00`–`\uDFFF` escape not directly preceded by one; the I-JSON rule of RFC 7493). | `malformed-json` |
 | 9 | Any object in the frame, including unknown members and the payload, has two members with the same name. Names are compared after unescaping, so `"protocol"` and `"protocol"` are the same. | `duplicate-property` |
 
 **Envelope.** A required member that is absent is `missing-required-field`; a
@@ -445,7 +446,7 @@ On failure:
 | 19 | `fault` is not null. | `missing-fault` |
 | 20 | `fault` is an object; `code` and `message` are strings; the code satisfies the identifier rule and the message is safe (`unsafe-fault-content`); `retryable` is a Boolean; `details` is an object whose members, in order, number at most 32 and have string values (`invalid-envelope`) and safe keys and values (`unsafe-fault-content`); the message and every detail key are not only whitespace (`invalid-envelope`). | see the check |
 | 21 | `fault.helpUri`, when present, is valid. | `invalid-help-uri` |
-| 22 | `fault.data`, when present, is an object with a string `type` and a `payload`; `type` follows the payload type grammar (`invalid-failure-data`); the payload's compact form is at most 65,536 bytes (`failure-data-byte-limit`) and at most 24 levels deep (`failure-data-depth-limit`); its strings are valid Unicode (`invalid-failure-data`). | see the check |
+| 22 | `fault.data`, when present, is an object with a string `type` and a `payload`; `type` follows the payload type grammar (`invalid-failure-data`); the payload's compact form is at most 65,536 bytes (`failure-data-byte-limit`) and at most 24 levels deep (`failure-data-depth-limit`). | see the check |
 
 Unknown members are accepted at every level ([Compatibility](#compatibility)).
 

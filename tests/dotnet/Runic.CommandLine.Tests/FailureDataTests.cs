@@ -105,7 +105,8 @@ internal sealed class FailureDataTests
         // Unpaired surrogates are refused wherever they occur (raw converter output,
         // string values, dictionary keys) rather than being replaced with U+FFFD.
         AssertCreateKind(new LoneSurrogateValue(), RecoveryJsonContext.Default.LoneSurrogateValue, "invalid-failure-data");
-        AssertKind(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":\"\\ud800\"}"), "invalid-failure-data");
+        // On the wire, the reader rejects the escape before it reads the failure data (protocol check 8).
+        AssertKind(ExtensionFrame("{\"type\":\"" + Identity + "\",\"payload\":\"\\ud800\"}"), "malformed-json");
         foreach (string text in new[] { "\ud800", "path\ud800", "\udc00tail", "a\ude00\ud83d" })
         {
             CommandProtocolException exception = AssertCreateKind(text, RecoveryJsonContext.Default.String, "invalid-failure-data");

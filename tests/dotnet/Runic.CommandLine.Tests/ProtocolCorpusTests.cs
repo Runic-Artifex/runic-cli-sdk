@@ -15,7 +15,7 @@ internal sealed class ProtocolCorpusTests
 
     public static IEnumerable<string> WireCaseIds()
     {
-        AssertEx.Equal(34, Wire.Cases.Length, "The frozen wire corpus row count changed.");
+        AssertEx.Equal(41, Wire.Cases.Length, "The frozen wire corpus row count changed.");
         return Wire.Cases.Select(static test => test.Id);
     }
 
