@@ -59,11 +59,13 @@ foreach ($package in @('Runic.CommandLine', 'Runic.CommandLine.Processes', 'Runi
 }
 # Runic.CommandLine carries the runic-command-line catalog sources and text-keys.json as plain data under
 # translations/, for Runic.Translations.CommandLine; nothing there is contentFiles or build logic, so nothing flows
-# into a consuming project. text-keys.json lists the keys of the documented key table, in its order.
+# into a consuming project. text-keys.json lists the keys of the documented key table, in its order. Its only build
+# logic is the old-name guards (D079.11) under buildTransitive/, which this consumer's build imports.
 $archive = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $feed "Runic.CommandLine.$PackageVersion.nupkg"))
 try {
     $entries = @($archive.Entries | ForEach-Object { $_.FullName })
-    foreach ($name in @('translations/runic.json', 'translations/en.rmf2', 'translations/de.rmf2', 'translations/text-keys.json')) {
+    foreach ($name in @('translations/runic.json', 'translations/en.rmf2', 'translations/de.rmf2', 'translations/text-keys.json',
+            'buildTransitive/Runic.CommandLine.targets', 'buildTransitive/Runic.CommandLine.RenamedNames.targets', 'buildTransitive/Runic.CommandLine.props')) {
         if ($entries -notcontains $name) { throw "Candidate package Runic.CommandLine has no $name." }
     }
     $flowing = @($entries | Where-Object { $_.StartsWith('contentFiles/') -or $_.StartsWith('content/') -or $_ -match '^build(Transitive|MultiTargeting)?/.*translations' })

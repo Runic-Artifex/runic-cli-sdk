@@ -56,6 +56,9 @@ internal sealed partial class DiagnosticCodeRangeTests
     [GeneratedRegex(@"^### (RCLI[0-9]{4})$", RegexOptions.Multiline)]
     private static partial Regex CatalogEntryPattern();
 
+    [GeneratedRegex(@"\bCode=""(RCLI[0-9]{4})""")]
+    private static partial Regex TargetsCodePattern();
+
     private static SortedSet<string> ShippedCodes()
     {
         var codes = new SortedSet<string>(StringComparer.Ordinal);
@@ -68,6 +71,14 @@ internal sealed partial class DiagnosticCodeRangeTests
                 foreach (Match match in CodePattern().Matches(reader.GetUserString(handle)))
                     codes.Add(match.Value);
         }
+
+        // The build targets that the packages ship under buildTransitive/ (the old-name guards, D079.11) report their codes
+        // from Error tasks.
+        string separator = Path.DirectorySeparatorChar.ToString();
+        foreach (string targets in Directory.EnumerateFiles(Path.Combine(RepositoryRoot(), "packages", "dotnet"), "*.targets", SearchOption.AllDirectories)
+                     .Where(path => path.Contains(separator + "buildTransitive" + separator, StringComparison.Ordinal)))
+            foreach (Match match in TargetsCodePattern().Matches(File.ReadAllText(targets)))
+                codes.Add(match.Groups[1].Value);
 
         // Guard the scan itself: parser, process, generated-binding and generator codes must all be visible.
         foreach (string known in new[] { "RCLI1001", "RCLI2005", "RCLI5000", "RCLI6001", "RCLI9001", "RCLI9034" })

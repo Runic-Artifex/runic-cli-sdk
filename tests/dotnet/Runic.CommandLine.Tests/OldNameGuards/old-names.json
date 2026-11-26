@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "decision": "A test-only list for tests/dotnet/Runic.CommandLine.Tests/OldNameGuardsTests.cs: names no package uses. eng/rename/old-names.test.mjs checks that the guard file beside it is current.",
+  "family": {
+    "token": "RunicCommandLine",
+    "buildName": "Runic Command Line",
+    "helpLinkBase": "$(RunicDiagnosticsHelpLinkBase)",
+    "diagnostics": {
+      "packages": "RCLI7001",
+      "msbuild": "RCLI7002",
+      "environment": "RCLI7003"
+    },
+    "skipCondition": "'$(_TargetAssemblyProjectName)' == '' and !$(MSBuildProjectName.EndsWith('_wpftmp'))",
+    "root": "../../../..",
+    "generator": "eng/rename/old-names.mjs",
+    "input": "tests/dotnet/Runic.CommandLine.Tests/OldNameGuards/old-names.json",
+    "outputs": [
+      "tests/dotnet/Runic.CommandLine.Tests/OldNameGuards/Runic.CommandLine.RenamedNames.targets"
+    ]
+  },
+  "packages": [
+    {
+      "old": "Runic.Example.Direct",
+      "new": "RunicArtifex.Example.Direct"
+    },
+    {
+      "old": "Runic.Example.Transitive",
+      "new": "RunicArtifex.Example.Transitive"
+    },
+    {
+      "old": "Runic.Example.Absent",
+      "new": "RunicArtifex.Example.Absent"
+    }
+  ],
+  "msbuild": [
+    {
+      "old": "RunicExampleProperty",
+      "new": "RaxExampleProperty",
+      "kind": "property"
+    },
+    {
+      "old": "RunicExampleItem",
+      "new": "RaxExampleItem",
+      "kind": "item"
+    },
+    {
+      "old": "RunicExampleKept",
+      "new": "RaxExampleKept",
+      "kind": "property",
+      "whenNewUnset": true
+    },
+    {
+      "old": "RunicExampleUnset",
+      "new": "RaxExampleUnset",
+      "kind": "property"
+    }
+  ],
+  "environment": [
+    {
+      "old": "RUNIC_EXAMPLE_SET",
+      "new": "RAX_EXAMPLE_SET"
+    },
+    {
+      "old": "RUNIC_EXAMPLE_UNSET",
+      "new": "RAX_EXAMPLE_UNSET"
+    }
+  ]
+}

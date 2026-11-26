@@ -89,6 +89,10 @@ jobs:
       # stamp changes, as the Cargo.lock checks run only on lock changes (runic-sdk R1 section 7).
       - name: Test the vendored conformance driver core
         run: bun test eng/conformance/vendor.test.mjs
+      # The old-name guards (eng/rename/README.md): the generated guard files match their inputs. The managed suites run
+      # them in MSBuild (OldNameGuardsTests).
+      - name: Test the old-name guards' generated files
+        run: bun test eng/rename/old-names.test.mjs
       - name: Compare the vendored conformance driver core with runic-sdk
         run: |
           if git diff --quiet HEAD^1 HEAD -- eng/conformance/core eng/conformance/core.vendor.json; then

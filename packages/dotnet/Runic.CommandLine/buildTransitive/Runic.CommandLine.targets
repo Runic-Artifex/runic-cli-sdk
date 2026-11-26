@@ -1,0 +1,6 @@
+<Project>
+  <!-- The old-name guards of the Runic Artifex rename (D079.11), generated from eng/rename/old-names.json: an old package
+       ID in the graph (RCLI7001), an old MSBuild name (RCLI7002) and an old environment variable (RCLI7003). Every
+       Runic.CommandLine package depends on Runic.CommandLine, so its consumers get them too. -->
+  <Import Project="$(MSBuildThisFileDirectory)Runic.CommandLine.RenamedNames.targets" Condition="'$(_RunicCommandLineRenamedNamesImported)' != 'true'" />
+</Project>
