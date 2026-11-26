@@ -17,8 +17,8 @@ internal sealed class CatalogFactory
     private static readonly HashSet<string> CatalogMembers = ["jsonOutputAlias", "globalOptions", "commands"];
     private static readonly HashSet<string> CommandMembers = ["path", "aliases", "options", "arguments", "group"];
     private static readonly HashSet<string> OptionMembers =
-        ["id", "long", "aliases", "arity", "repeat", "required", "choices", "environmentVariable", "acceptsNegativeNumbers"];
-    private static readonly HashSet<string> ArgumentMembers = ["id", "arity", "acceptsNegativeNumbers"];
+        ["id", "long", "aliases", "arity", "repeat", "required", "choices", "environmentVariable", "acceptsNegativeNumbers", "sensitive"];
+    private static readonly HashSet<string> ArgumentMembers = ["id", "arity", "choices", "acceptsNegativeNumbers", "sensitive"];
 
     private readonly Dictionary<string, CommandCatalog> _built = new(StringComparer.Ordinal);
 
@@ -49,14 +49,14 @@ internal sealed class CatalogFactory
             foreach (JsonElement option in globals.EnumerateArray())
             {
                 RequireKnown(option, OptionMembers, "global option");
-                if (option.TryGetProperty("required", out _) || option.TryGetProperty("choices", out _)
-                    || option.TryGetProperty("environmentVariable", out _) || option.TryGetProperty("acceptsNegativeNumbers", out _)
-                    || Text(option, "repeat") != "error")
+                // grammar.md "Global options": never repeated, required or sensitive; a catalog that says otherwise is
+                // not one the grammar defines.
+                if (Flag(option, "required") || Flag(option, "sensitive") || Text(option, "repeat") != "error")
                 {
-                    throw new UnsupportedException("a global option with more than an id, spelling, aliases and arity");
+                    throw new UnsupportedException("a global option that is repeated, required or sensitive");
                 }
 
-                builder.GlobalOption(Text(option, "id"), Text(option, "long"), Arity(option), null, Texts(option, "aliases"));
+                builder.GlobalOption(Text(option, "id"), Text(option, "long"), Arity(option), Help(option), Texts(option, "aliases"));
             }
         }
 
@@ -114,14 +114,12 @@ internal sealed class CatalogFactory
                     "error" => CommandOptionRepeatPolicy.Error,
                     _ => throw new UnsupportedException($"the repeat policy {repeat}"),
                 },
+                isSensitive: Flag(option, "sensitive"),
                 isRequired: Flag(option, "required"),
                 aliases: Texts(option, "aliases"));
-            string[]? choices = option.TryGetProperty("choices", out JsonElement value) ? Texts(option, "choices") : null;
-            string? variable = option.TryGetProperty("environmentVariable", out JsonElement name) ? name.GetString() : null;
-            bool negative = Flag(option, "acceptsNegativeNumbers");
-            if (choices is not null || variable is not null || negative)
+            if (Help(option) is { } help)
             {
-                builder.ParameterHelp(id, new CommandHelp(choices: choices, acceptsNegativeNumbers: negative, environmentVariable: variable));
+                builder.ParameterHelp(id, help);
             }
         }
 
@@ -129,10 +127,10 @@ internal sealed class CatalogFactory
         {
             RequireKnown(argument, ArgumentMembers, "argument");
             string id = Text(argument, "id");
-            builder.Argument(id, id, Arity(argument));
-            if (Flag(argument, "acceptsNegativeNumbers"))
+            builder.Argument(id, id, Arity(argument), isSensitive: Flag(argument, "sensitive"));
+            if (Help(argument) is { } help)
             {
-                builder.ParameterHelp(id, new CommandHelp(acceptsNegativeNumbers: true));
+                builder.ParameterHelp(id, help);
             }
         }
 
@@ -147,6 +145,18 @@ internal sealed class CatalogFactory
 
             builder.Subcommand<AdapterOptions, AdapterHandler, AdapterResult>(Path(child)[^1], command => Configure(command, child, commands));
         }
+    }
+
+    // Choices, an environment fallback and negative numbers are declared as an option's or argument's help, or null when
+    // it declares none of them.
+    private static CommandHelp? Help(JsonElement definition)
+    {
+        string[]? choices = definition.TryGetProperty("choices", out _) ? Texts(definition, "choices") : null;
+        string? variable = definition.TryGetProperty("environmentVariable", out JsonElement name) ? name.GetString() : null;
+        bool negative = Flag(definition, "acceptsNegativeNumbers");
+        return choices is null && variable is null && !negative
+            ? null
+            : new CommandHelp(choices: choices, acceptsNegativeNumbers: negative, environmentVariable: variable);
     }
 
     private static void RequireKnown(JsonElement element, HashSet<string> known, string what)
