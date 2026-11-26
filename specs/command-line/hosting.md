@@ -31,11 +31,11 @@ If writing help, version, a completion script or a usage error throws, the invoc
 
 ### Exit-code policy
 
-An application may install an exit-code policy that maps each category to a code, for example a distinct code per category. It applies to every command of the application. A policy must map success to 0 and every other category to a nonzero code; .NET rejects any other policy when it creates the executor. Nothing else is checked: the policy is responsible for the codes it chooses.
+An application may install an exit-code policy that maps each category to a code, for example a distinct code per category. It applies to every command of the application. A policy must map success to 0, and only success: every other category must map to a nonzero code. .NET rejects any other policy when it creates the executor, before any command runs. Nothing else is checked. In particular, a policy that maps a failure to a multiple of 256 is accepted, and the policy is responsible for the codes it chooses.
 
 One outcome may select its own code instead of the policy's, for that invocation only, for example 2, 3 and 4 for three documented failures of one command:
 
-- A **failure** code must not be 0 and must not be a multiple of 256. Linux and macOS keep only the low 8 bits of an exit status, so 256 reads as 0, which is success. .NET refuses such a code when the outcome selects it. A policy is not checked this way, so a policy should also avoid multiples of 256.
+- A **failure** code must not be 0 and must not be a multiple of 256. Linux and macOS keep only the low 8 bits of an exit status, so 256 reads as 0, which is success. .NET refuses such a code: selecting it throws an argument error. When a handler selects it, that is an unexpected exception, so the invocation ends as a host failure, `RCLI5000` (exit code 3 by default). A policy is not checked this way, so a policy should also avoid multiples of 256.
 - A **success** may use 0 or an informational nonzero code that its callers document, such as Windows Installer's 3010 ("success, restart required"). Other callers read any nonzero code as failure. Linux and macOS report 3010 as 194, so a tool that runs on them uses codes from 1 to 255.
 
 The outcomes the framework creates itself (usage errors, cancellation and host failures) always take the policy's code. The process returns the selected code, if any, and otherwise the policy's code. The envelope's `exitCode` is that code ([Envelope](protocol/README.md#envelope)), not the status a parent process observes.
@@ -44,7 +44,12 @@ The forced-exit codes 130, 131 and 143 under [Termination signals](#termination-
 
 ### Empty command line
 
-The standalone runner shows root help, exit code 0, when it is started without arguments and the catalog has no default command. This differs from the grammar, where empty input is `unknown-command`. The embedding host lets the application choose: by default it parses the empty input (`unknown-command`, exit code 2), or it hands the launch to the application's own user interface without parsing.
+The grammar and the hosts answer different questions. The grammar defines the parser's result for a token array: empty input is `unknown-command` at 0 without arguments, unless the catalog has a default command ([Parse order](grammar.md#parse-order), step 2). The corpus checks that parser result. A host decides what to parse:
+
+- The **standalone runner**, started without arguments for a catalog without a default command, does not parse the empty array. It parses `["--help"]` in its place, so it shows root help and exits 0.
+- The **embedding host** lets the application choose. By default it parses the empty array, which is `unknown-command` (exit code 2). Otherwise it hands the launch to the application's own user interface without parsing.
+
+With a default command, both hosts parse the empty array, and the default command runs.
 
 ## Termination signals
 
@@ -64,7 +69,17 @@ The standalone runner handles three signals by default: SIGINT (Ctrl+C), SIGQUIT
 
 - **Linux.** As above. The .NET test suite sends real signals on Linux only (`signals/*` cases).
 - **macOS.** The same three POSIX signals through the same runtime registration, with the same exit codes. No test exercises them.
-- **Windows.** The .NET runtime maps the console control events to the same three signals: Ctrl+C to SIGINT, Ctrl+Break to SIGQUIT, and the system shutdown event to SIGTERM. The forced-exit codes are the same values, 130, 131 and 143. Closing the console window raises the close event. .NET maps that event to SIGHUP, so the runner does not handle it, and Windows ends the process. Windows may also end the process as soon as the shutdown handler returns, so cleanup after SIGTERM is not guaranteed to finish there. These mappings and the timing of Windows termination are implementation-defined.
+- **Windows.** The .NET runtime maps console control events to signals (`PosixSignalRegistration.Windows.cs` in dotnet/runtime):
+
+  | Event | Signal | Handled by the runner |
+  |---|---|---|
+  | Ctrl+C (`CTRL_C_EVENT`) | SIGINT | yes |
+  | Ctrl+Break (`CTRL_BREAK_EVENT`) | SIGQUIT | yes |
+  | System shutdown (`CTRL_SHUTDOWN_EVENT`) | SIGTERM | yes |
+  | Console window closed (`CTRL_CLOSE_EVENT`) | SIGHUP | no: Windows' default handling ends the process |
+  | User logoff (`CTRL_LOGOFF_EVENT`) | none | no |
+
+  The forced-exit codes are the same values, 130, 131 and 143. Windows may end the process as soon as the shutdown handler returns, so cleanup after SIGTERM is not guaranteed to finish there. These mappings and the timing of Windows termination are implementation-defined.
 - **Elsewhere.** Where the runtime cannot register a signal handler, the runner registers none and the runtime's default applies (implementation-defined).
 
 ### Embedding host
@@ -75,32 +90,54 @@ The embedding host never subscribes to process signals. The application passes i
 
 Each invocation has one cancellation token. The standalone runner links it to the caller's token and to the signals above. The embedding host uses the application's token. The binder and the handler receive the token, and so do prompts.
 
-- **Cancelled before the handler.** If the token is cancelled before binding starts, neither the binder nor the handler runs, and the invocation is cancelled.
+- **Cancelled before the handler.** If the token is cancelled before binding starts, neither the binder nor the handler runs. The outcome is cancelled, with the fault `RCLI4000` and no diagnostics.
 - **The handler stops.** The handler throws the runtime's cancellation exception (`OperationCanceledException` in .NET) while the token is cancelled. The outcome is cancelled, with the fault `RCLI4000` (English message "The command was cancelled.") and no diagnostics. The same exception while the token is *not* cancelled is an unexpected exception: a host failure, `RCLI5000`.
 - **The user cancels a prompt.** Escape or the end of input during a prompt also cancels the invocation with `RCLI4000`.
 - **The handler completes anyway.** A handler may return an outcome after a graceful stop, including success. That outcome stands, and its code is the exit code.
 - **The outcome is still written.** When cancellation was requested or the outcome is cancelled, the framework writes the outcome with a token that is not cancelled, so the cancelled outcome's human text or JSON envelope still reaches the output. If cancellation arrives while an outcome is being written and stops the write, the invocation is cancelled.
 - **Exceptions.** Any other exception from the binder, the handler, scope disposal or the outcome writer is a host failure, `RCLI5000`. The exception itself is not written, except as [debug output](#debug-output). Runtime-fatal exceptions, such as running out of memory, are not caught; they end the process (implementation-defined).
 
+### Framework fault messages
+
+The framework creates three faults itself. Their codes are normative. Their messages are presentation text, which a host may translate like other messages: .NET resolves the first two through the text keys `faults.RCLI4000` and `faults.RCLI5000`.
+
+| Fault | English message | When |
+|---|---|---|
+| `RCLI4000` | The command was cancelled. | The invocation was cancelled. |
+| `RCLI5000` | The command could not be completed. | An unexpected exception, or a binder, handler factory or handler that returned nothing. |
+| `RCLI5000` | The command failed unexpectedly. | A writer replaced a fault whose code is not a valid identifier ([Sanitization](protocol/README.md#sanitization)). This text is fixed. |
+
+The protocol example [`examples/host-fault.json`](protocol/examples/host-fault.json) and its writer case carry the message "The command host could not complete the request.". That is a writer input: the example shows that a writer writes the message it is given. It is not the text a host must produce for an unexpected exception.
+
+### Output timing
+
+A handler's output is not held back. In human output, what the handler writes to standard output and standard error goes to those streams as it writes it. In JSON output, standard output carries only the frame, so what the handler writes to standard output goes to standard error instead, also as it writes it. When the application asked for a quiet standard error, the handler's output is discarded in JSON output. The outcome itself is written after the handler returns: the human result, fault, diagnostics and usage line, or the JSON frame. .NET writes through the runtime's console writers, which flush every write (implementation-defined).
+
 ## Debug output
 
 Debug output writes the exceptions that the framework caught during an invocation to standard error, for developers. Only the standalone runner has it.
 
-**Enabling.** Any one of these turns it on:
+These parts are normative: the switch, the stream and its timing, and the sanitization. Everything else in this section is implementation-defined.
 
-- `RUNIC_COMMANDLINE_DEBUG` is exactly `1`;
-- `DOTNET_ENVIRONMENT` is `Development`, compared ignoring ASCII case (.NET's development switch; implementation-defined);
-- a debugger is attached to the process (implementation-defined).
+**The switch.** `RUNIC_COMMANDLINE_DEBUG` with the value exactly `1` turns it on. Any other value, including `true`, leaves it off. The variable is read through the same environment reader as option fallbacks (see [Environment capture](#environment-capture)). An application that gives the runner explicit parse settings without an environment reader therefore cannot turn it on with the variable.
 
-The two variables are read through the same environment reader as option fallbacks (see [Environment capture](#environment-capture)). An application that gives the runner explicit parse settings without an environment reader therefore leaves only the debugger switch.
+Runtime-specific switches are implementation-defined. .NET also turns it on when `DOTNET_ENVIRONMENT` is `Development` (compared ignoring ASCII case; read through the same reader) or when a debugger is attached to the process.
 
-**What it writes.** For each caught exception, in the order caught, it writes a header line `Runic.CommandLine observed an exception (RUNIC_COMMANDLINE_DEBUG/Development output):`, then the exception's full text (in .NET, `Exception.ToString()`: type, message, stack trace and inner exceptions), then a line break. The text is cleaned so that it cannot drive a terminal. It keeps LF and tab; it removes CR and every other C0 and C1 control character, and the formatting characters that reorder or hide text ([Unicode control characters](protocol/README.md#unicode-control-characters) without the line break and tab). It is **not** redacted, so it can contain paths and secrets. Keep both variables unset where standard error is collected, such as in CI. The wording and the exception text are presentation, not a contract.
+**Stream and timing.** It always goes to standard error, never to standard output, so it never mixes with the JSON frame. It is written even when the application asked for a quiet standard error. Exceptions caught so far are written just before the outcome, so the trace comes before the `RCLI5000` line. Any caught later are written when the invocation ends. For a help, version or completion request, they are written after that output. Writing debug output never changes the outcome or the exit code. If writing fails, the failure is ignored.
 
-**Where and when.** It always goes to standard error, never to standard output, so it never mixes with the JSON frame. It is written even when the application asked for a quiet standard error. Exceptions caught so far are written just before the outcome, so the trace comes before the `RCLI5000` line. Any caught later are written when the invocation ends. For a help, version or completion request, they are written after that output. Writing debug output never changes the outcome or the exit code. If writing fails, the failure is ignored.
+**Sanitization.** The text is cleaned so that it cannot drive a terminal. It keeps LF and tab; it removes CR and every other C0 and C1 control character, and the formatting characters that reorder or hide text ([Unicode control characters](protocol/README.md#unicode-control-characters) without the line break and tab). It is **not** redacted, so it can contain paths and secrets. Keep the switch unset where standard error is collected, such as in CI.
+
+**Format.** The format is implementation-defined. .NET writes, for each caught exception in the order caught: the header line `Runic.CommandLine observed an exception (RUNIC_COMMANDLINE_DEBUG/Development output):`, then `Exception.ToString()` (type, message, stack trace and inner exceptions), then a line break.
 
 **Help.** With debug output on, a help request whose application translates its texts also writes a warning line to standard error for each description key the translation does not know: `warning <code> at '<location>': <message>`.
 
-**The hint.** When debug output is off and the application observes no exceptions itself, the human output of a host failure ends with the hint "Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr." (text key `hints.RCLI5000`). It also does this for payload-shaped JSON output, which has no envelope fault for the hint to follow.
+**The hint.** The output of a host failure (`RCLI5000`) may end with the hint "Set RUNIC_COMMANDLINE_DEBUG=1 to write the exception to stderr." (text key `hints.RCLI5000`). Only the standalone runner writes it, and only when all of these hold:
+
+- debug output is off;
+- the application installed no exception observer of its own;
+- the output is human, or JSON with the payload-shaped JSON output alias.
+
+JSON envelope output never carries the hint, and neither does the embedding host.
 
 ## Environment capture
 
