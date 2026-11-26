@@ -1297,10 +1297,16 @@ scripts complete the catalog's output selector (for example `--runic-output`
 after `OutputSelector("--runic-output")`); the hosting adapter and `CommandApp`
 read it from the same catalog, so they agree.
 
-When a global option reuses a command-local definition, its name, arity and alias
-set must match. Alias ordering is irrelevant; mismatches fail catalog validation
-with `RCLI0019`, rather than producing command-dependent parsing behavior. The
-issue names the option ID and both definitions' names and alias sets.
+A global option is a flag or takes exactly one value; another arity fails catalog
+validation with `RCLI0028`. When a global option reuses a command-local definition,
+its name, arity and alias set must match. Alias ordering is irrelevant. The local
+option must also reject repeats and be neither required nor sensitive. An
+environment variable or choices that both declare must agree, and the local option
+may accept negative numbers only when the global option does. Mismatches fail
+catalog validation with `RCLI0019`, rather than producing command-dependent parsing
+behavior. The issue names the option ID and what differs. The local option's help
+and validation metadata win member by member; the global option's help fills in
+the rest.
 
 ## Migrating from 0.2
 

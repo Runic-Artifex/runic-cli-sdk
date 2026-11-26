@@ -8,3 +8,4 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
+RCLI9047 | Runic.CommandLine | Error | Choices on a flag

@@ -409,8 +409,7 @@ internal sealed class TerminalFrame
         // registrations only show the cursor and leave the signal's default action (or another handler's choice) alone.
         foreach (PosixSignal signal in new[] { PosixSignal.SIGINT, PosixSignal.SIGTERM, PosixSignal.SIGQUIT })
         {
-            try { frame._signals.Add(PosixSignalRegistration.Create(signal, _ => frame._restoreOnExit(null, EventArgs.Empty))); }
-            catch (PlatformNotSupportedException) { }
+            if (SignalRegistrations.TryCreate(signal, _ => frame._restoreOnExit(null, EventArgs.Empty)) is { } registration) frame._signals.Add(registration);
         }
 
         try

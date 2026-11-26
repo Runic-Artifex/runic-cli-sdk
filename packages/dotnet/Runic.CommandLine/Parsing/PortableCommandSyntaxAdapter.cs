@@ -97,6 +97,18 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
             return Error(UnknownCommandCode, "unknown-command", 0, outputClassification: initialOutputClassification);
         }
 
+        if (MissingLeadingGlobalValue(catalog, tokens, transport) is { } missing)
+        {
+            return Error(
+                MissingOptionValueCode,
+                "missing-option-value",
+                missing.Index,
+                catalog.DefaultCommand is { } fallback ? new CommandPath([fallback.Name]) : CommandPath.Root,
+                [missing.Option.Name],
+                initialOutputClassification,
+                binding: missing.Option.Id);
+        }
+
         var helpTokens = new List<string>();
         foreach (string token in tokens) helpTokens.Add(token);
         for (int i = 0; i < helpTokens.Count; i++)
@@ -302,7 +314,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 continue;
             }
 
-            bool negativeArgument = ArgumentAt(resolved.Command.Arguments, positionalTokens.Count)?.Help.AcceptsNegativeNumbers == true && token.StartsWith('-') && double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
+            bool negativeArgument = ArgumentAt(resolved.Command.Arguments, positionalTokens.Count)?.Help.AcceptsNegativeNumbers == true && IsNegativeNumber(token);
             if (recognizeOptions && !negativeArgument && TryResolveOption(
                     resolved.Command,
                     token,
@@ -530,14 +542,31 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         return positional;
     }
 
+    // The positional argument that would take the token after `position` positional tokens (grammar, "Negative
+    // numbers"): the one positional binding gives it when it is the last positional token. Tokens that do not cover
+    // the minimums fill them in definition order; otherwise each argument takes as many as its maximum allows while
+    // leaving the minimums of the arguments after it, as BindArguments does.
     private static CommandArgumentDescriptor? ArgumentAt(IReadOnlyList<CommandArgumentDescriptor> arguments, int position)
     {
-        foreach (CommandArgumentDescriptor argument in arguments)
+        IReadOnlyList<CommandArgumentDescriptor> positional = PositionalArguments(arguments);
+        long count = (long)position + 1;
+        long minimums = 0;
+        foreach (CommandArgumentDescriptor argument in positional)
         {
-            if (argument.IsTrailing) break;
-            if (argument.Arity.Maximum is null || position < argument.Arity.Maximum) return argument;
-            position -= argument.Arity.Maximum.Value;
+            minimums += argument.Arity.Minimum;
+            if (minimums > position) return argument;
         }
+
+        long remaining = count;
+        long requiredAfter = minimums;
+        foreach (CommandArgumentDescriptor argument in positional)
+        {
+            requiredAfter -= argument.Arity.Minimum;
+            long taken = Math.Min(remaining - requiredAfter, argument.Arity.Maximum ?? long.MaxValue);
+            if (taken >= remaining) return argument;
+            remaining -= Math.Max(taken, 0);
+        }
+
         return null;
     }
 
@@ -599,8 +628,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         while (values.Count < maximum && index < tokens.Length)
         {
             string candidate = tokens[index];
-            bool negativeNumber = option.Help.AcceptsNegativeNumbers && candidate.StartsWith('-')
-                && double.TryParse(candidate, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
+            bool negativeNumber = option.Help.AcceptsNegativeNumbers && IsNegativeNumber(candidate);
             bool boundary = recognizeOptions && !negativeNumber && IsOptionBoundary(command, candidate, transport);
             if (boundary)
             {
@@ -715,6 +743,41 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         value = null;
         return false;
     }
+
+    // Grammar, "Global options": a leading global option that takes a value and has no inline value takes the next
+    // token as its value unless that token ends option values as it would after the command path, so the help word,
+    // root requests and command lookup never see a token that the command's own parse would refuse as the value.
+    // Before the command path the slash aliases that end a value are those of the global options. Returns the global
+    // option that lacks its value and the index of the token that ended it (the token count at the end).
+    private static (CommandOptionDescriptor Option, int Index)? MissingLeadingGlobalValue(CommandCatalog catalog, string[] tokens, TransportOutput transport)
+    {
+        int index = 0;
+        while (index < tokens.Length && !string.Equals(tokens[index], "--", StringComparison.Ordinal))
+        {
+            if (TrySplitOutput(tokens[index], transport, out string? inline)) { index += inline is null ? 2 : 1; continue; }
+            if (!TryGetGlobalOption(catalog, tokens[index], out CommandOptionDescriptor? global, out string? value)) break;
+            index++;
+            if (global!.Arity.Maximum == 0 || value is not null) continue;
+            if (index >= tokens.Length || EndsLeadingGlobalValue(catalog, global, tokens[index], transport)) return (global, index);
+            index++;
+        }
+
+        return null;
+    }
+
+    private static bool EndsLeadingGlobalValue(CommandCatalog catalog, CommandOptionDescriptor global, string token, TransportOutput transport)
+    {
+        if (global.Help.AcceptsNegativeNumbers && IsNegativeNumber(token)) return false;
+        return string.Equals(token, "--", StringComparison.Ordinal) ||
+            IsHelp(token) ||
+            string.Equals(token, "--version", StringComparison.Ordinal) ||
+            TrySplitOutput(token, transport, out _) ||
+            (token.Length >= 2 && token[0] == '-') ||
+            (token.StartsWith('/') && TryGetGlobalOption(catalog, token, out _, out _));
+    }
+
+    private static bool IsNegativeNumber(string token) =>
+        token.StartsWith('-') && double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
 
     private static int LeadingCommandIndex(CommandCatalog catalog, string[] tokens, TransportOutput transport)
     {

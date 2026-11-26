@@ -68,6 +68,87 @@ internal sealed class CatalogTests
         return ValueTask.CompletedTask;
     }
 
+    [Test, DisplayName("catalog/global-option-arity-is-a-catalog-issue")]
+    public ValueTask GlobalOptionArity()
+    {
+        foreach (CommandArity arity in new[] { CommandArity.ZeroOrOne, CommandArity.OneOrMore, CommandArity.ZeroOrMore, new CommandArity(2, 2) })
+        {
+            var builder = new CommandCatalogBuilder().GlobalOption("level", "--level", arity);
+            ValidCommand(builder, "c");
+            CommandCatalogIssue issue = AssertEx.Throws<CommandCatalogValidationException>(() => builder.Build()).Issues.Single();
+            AssertEx.Equal("RCLI0028", issue.Code);
+            AssertEx.Equal("root", issue.Location);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    [Test, DisplayName("catalog/command-option-restates-the-global-option")]
+    public ValueTask CommandOptionRestatesGlobalOption()
+    {
+        var help = new CommandHelp(choices: ["dev", "prod"], environmentVariable: "APP_PROFILE");
+        foreach ((string label, Action<CommandBuilder<TestOptions, TestHandler, TestResult>> declare) in new (string, Action<CommandBuilder<TestOptions, TestHandler, TestResult>>)[]
+        {
+            ("repeat", command => command.Option("profile", "--profile", CommandArity.ExactlyOne, CommandOptionRepeatPolicy.Append)),
+            ("required", command => command.Option("profile", "--profile", CommandArity.ExactlyOne, isRequired: true)),
+            ("sensitive", command => command.Option("profile", "--profile", CommandArity.ExactlyOne, isSensitive: true)),
+            ("variable", command => command.Option("profile", "--profile", CommandArity.ExactlyOne).ParameterHelp("profile", new CommandHelp(environmentVariable: "OTHER"))),
+            ("choices", command => command.Option("profile", "--profile", CommandArity.ExactlyOne).ParameterHelp("profile", new CommandHelp(choices: ["prod", "dev"]))),
+            ("negative", command => command.Option("profile", "--profile", CommandArity.ExactlyOne).ParameterHelp("profile", new CommandHelp(acceptsNegativeNumbers: true))),
+        })
+        {
+            var builder = new CommandCatalogBuilder().GlobalOption("profile", "--profile", CommandArity.ExactlyOne, help);
+            declare(ValidCommand(builder, "c"));
+            CommandCatalogIssue issue = AssertEx.Throws<CommandCatalogValidationException>(() => builder.Build()).Issues.Single();
+            AssertEx.Equal("RCLI0019", issue.Code, label);
+            AssertEx.Equal("c", issue.Location, label);
+        }
+
+        // A variable or choices that only one of them declares apply to the command.
+        var local = new CommandCatalogBuilder().GlobalOption("verbose", "--verbose", CommandArity.Zero);
+        ValidCommand(local, "c").Option("verbose", "--verbose", CommandArity.Zero).ParameterHelp("verbose", new CommandHelp(environmentVariable: "C_VERBOSE"));
+        AssertEx.Equal("C_VERBOSE", local.Build().Commands.Single().Options.Single().Help.EnvironmentVariable);
+
+        // Restating the settings, or leaving them out, is the same option; the command option's own help and
+        // validation metadata win member by member and the global option's fill in the rest.
+        var merged = new CommandCatalogBuilder().GlobalOption("profile", "--profile", CommandArity.ExactlyOne,
+            new CommandHelp("Global profile.", valueName: "name", choices: ["dev", "prod"], environmentVariable: "APP_PROFILE"));
+        ValidCommand(merged, "c").Option("profile", "--profile", CommandArity.ExactlyOne)
+            .ParameterHelp("profile", new CommandHelp("Profile for c.", environmentVariable: "APP_PROFILE") { PathKind = CommandPathKind.File });
+        ValidCommand(merged, "d");
+        CommandCatalog catalog = merged.Build();
+        CommandHelp c = catalog.Commands.Single(static command => command.Name == "c").Options.Single(static option => option.Id == "profile").Help;
+        AssertEx.Equal("Profile for c.", c.Description);
+        AssertEx.Equal("name", c.ValueName);
+        AssertEx.Equal("APP_PROFILE", c.EnvironmentVariable);
+        AssertEx.SequenceEqual(["dev", "prod"], c.Choices);
+        AssertEx.Equal(CommandPathKind.File, c.PathKind);
+        AssertEx.Equal("Global profile.", catalog.Commands.Single(static command => command.Name == "d").Options.Single(static option => option.Id == "profile").Help.Description);
+        return ValueTask.CompletedTask;
+    }
+
+    [Test, DisplayName("catalog/flag-choices-and-multi-value-fallbacks-are-issues")]
+    public ValueTask FlagChoicesAndMultiValueFallbacks()
+    {
+        var flag = new CommandCatalogBuilder();
+        ValidCommand(flag, "c").Option("quiet", "--quiet", CommandArity.Zero).ParameterHelp("quiet", new CommandHelp(choices: ["yes"]));
+        AssertEx.Equal("RCLI0029", AssertEx.Throws<CommandCatalogValidationException>(() => flag.Build()).Issues.Single().Code);
+
+        var global = new CommandCatalogBuilder().GlobalOption("quiet", "--quiet", CommandArity.Zero, new CommandHelp(choices: ["yes"]));
+        ValidCommand(global, "c");
+        AssertEx.Equal("RCLI0029", AssertEx.Throws<CommandCatalogValidationException>(() => global.Build()).Issues.Single().Code);
+
+        var pair = new CommandCatalogBuilder();
+        ValidCommand(pair, "c").Option("point", "--point", new CommandArity(2, 2)).ParameterHelp("point", new CommandHelp(environmentVariable: "APP_POINT"));
+        AssertEx.Equal("RCLI0030", AssertEx.Throws<CommandCatalogValidationException>(() => pair.Build()).Issues.Single().Code);
+
+        // A fallback can satisfy one value, so an option that needs at most one keeps it.
+        var many = new CommandCatalogBuilder();
+        ValidCommand(many, "c").Option("tag", "--tag", CommandArity.OneOrMore).ParameterHelp("tag", new CommandHelp(environmentVariable: "APP_TAG"));
+        _ = many.Build();
+        return ValueTask.CompletedTask;
+    }
+
     [Test, DisplayName("catalog/default-command-receives-unprefixed-tokens")]
     public ValueTask DefaultCommand()
     {

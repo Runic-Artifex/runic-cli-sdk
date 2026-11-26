@@ -233,8 +233,7 @@ public sealed class CommandApp
 
         private void Register(PosixSignal signal)
         {
-            try { _registrations.Add(PosixSignalRegistration.Create(signal, Handle)); }
-            catch (PlatformNotSupportedException) { }
+            if (SignalRegistrations.TryCreate(signal, Handle) is { } registration) _registrations.Add(registration);
         }
 
         private void Handle(PosixSignalContext context)

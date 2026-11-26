@@ -115,9 +115,11 @@ internal static class CommandDialect
                         continue;
                     }
 
-                    if (IsGlobalOption(catalog, token, slash, out bool globalTakesValue))
+                    if (IsGlobalOption(catalog, token, slash, out bool globalTakesValue, out CommandOptionDescriptor? global))
                     {
-                        if (globalTakesValue) index++;
+                        // A token that ends option values is not the value (grammar, "Global options"): it stays a
+                        // token of its own, so /? still becomes --help and the parser reports the missing value.
+                        if (globalTakesValue && index + 1 < tokens.Length && !EndsGlobalValue(catalog, tokens[index + 1], slash, comparison, global!)) index++;
                         continue;
                     }
                 }
@@ -139,9 +141,20 @@ internal static class CommandDialect
         return token[0] is '-' or '/' or '@' ? null : token;
     }
 
-    private static bool IsGlobalOption(CommandCatalog catalog, string token, bool slash, out bool takesValue)
+    private static bool EndsGlobalValue(CommandCatalog catalog, string token, bool slash, StringComparison comparison, CommandOptionDescriptor global)
+    {
+        if (token is null) return false;
+        if (token.Length >= 2 && token[0] == '-')
+            return !(global.Help.AcceptsNegativeNumbers && double.TryParse(token, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _));
+        return string.Equals(token, "--", StringComparison.Ordinal) ||
+            TryFramework(catalog, token, slash, comparison, out _, out _) ||
+            IsGlobalOption(catalog, token, slash, out _, out _);
+    }
+
+    private static bool IsGlobalOption(CommandCatalog catalog, string token, bool slash, out bool takesValue, out CommandOptionDescriptor? global)
     {
         takesValue = false;
+        global = null;
         if (token.Length < 2 || token[0] is not ('-' or '/')) return false;
         int separator = token.IndexOf('=', StringComparison.Ordinal);
         string name = separator < 0 ? token : token[..separator];
@@ -150,6 +163,7 @@ internal static class CommandDialect
             CommandOptionDescriptor? option = null;
             if ((name[0] == '/' && slash ? command.TryGetSlashOption(name, out option) : command.TryGetOption(name, out option)) && option is { IsGlobal: true })
             {
+                global = option;
                 takesValue = separator < 0 && option.Arity.Maximum != 0;
                 return true;
             }

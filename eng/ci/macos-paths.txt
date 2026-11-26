@@ -35,6 +35,7 @@ packages/dotnet/Runic.CommandLine.Processes/*
 # Windows-only native code cannot behave differently on macOS.
 !packages/dotnet/Runic.CommandLine.Processes/Internal/Windows*
 packages/dotnet/Runic.CommandLine/Application/CommandApp.cs
+packages/dotnet/Runic.CommandLine/Application/SignalRegistrations.cs
 packages/dotnet/Runic.CommandLine/Application/SystemCommandConsole.cs
 packages/dotnet/Runic.CommandLine/Application/PromptEngine.cs
 packages/dotnet/Runic.CommandLine/Application/CommandPresentation.cs

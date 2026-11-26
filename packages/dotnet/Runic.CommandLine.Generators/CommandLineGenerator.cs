@@ -53,6 +53,7 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor NonCamelCaseResultContext = new("RCLI9044", "Command result JSON context does not use camelCase", "Command '{0}' returns '{1}' through JSON context '{2}', which does not use camelCase: payload properties would be serialized PascalCase, while Runic payloads are camelCase; add [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)] to the context", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9044");
     private static readonly DiagnosticDescriptor DefaultOutputSelectorOption = new("RCLI9045", "Option spelled like the output selector", "Option '{0}' of command '{1}' is spelled like the output selector {2}; rename the option, or declare another selector with [assembly: OutputSelector(\"--output-format\")], otherwise catalog validation reports RCLI0026 at run time", Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9045");
     private static readonly DiagnosticDescriptor InvalidOutputSelector = new("RCLI9046", "Invalid output selector", "[assembly: OutputSelector] {0}", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9046");
+    private static readonly DiagnosticDescriptor FlagChoices = new("RCLI9047", "Choices on a flag", "Boolean option '{0}' on command '{1}' is a flag, which binds no value, so it cannot declare Choices; catalog validation would report RCLI0029", Category, DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLinkBase + "rcli9047");
 
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -385,6 +386,12 @@ public sealed class CommandLineGenerator : IIncrementalGenerator
         if (option is not null && parameter.HasExplicitDefaultValue && IsBoolean(parameter.Type) && parameter.ExplicitDefaultValue is true)
         {
             Report(diagnostics, FlagDefaultsToTrue, parameter, parameter.Name, methodName);
+            return null;
+        }
+        if (option is not null && IsBoolean(parameter.Type) &&
+            option.NamedArguments.Any(static named => named.Key == "Choices" && named.Value.Kind == TypedConstantKind.Array && !named.Value.Values.IsDefaultOrEmpty))
+        {
+            Report(diagnostics, FlagChoices, parameter, parameter.Name, methodName);
             return null;
         }
         if (option is not null && parameter.HasExplicitDefaultValue && IsList(parameter.Type))
