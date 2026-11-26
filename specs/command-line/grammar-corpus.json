@@ -76,7 +76,8 @@
           { "id": "level", "long": "--level", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error", "choices": ["debug", "release", "gr\u00f6\u00dfe"] },
           { "id": "offset", "long": "--offset", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error", "acceptsNegativeNumbers": true },
           { "id": "token", "long": "--token", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error", "environmentVariable": "SAMPLE_TOKEN" },
-          { "id": "dry-run", "long": "--dry-run", "aliases": [], "arity": { "minimum": 0, "maximum": 0 }, "repeat": "error", "environmentVariable": "SAMPLE_DRY_RUN" }
+          { "id": "dry-run", "long": "--dry-run", "aliases": [], "arity": { "minimum": 0, "maximum": 0 }, "repeat": "error", "environmentVariable": "SAMPLE_DRY_RUN" },
+          { "id": "strategy", "long": "--strategy", "aliases": [], "arity": { "minimum": 1, "maximum": 1 }, "repeat": "error", "choices": ["fast", "safe"], "environmentVariable": "SAMPLE_STRATEGY" }
         ],
         "arguments": [
           { "id": "count", "arity": { "minimum": 0, "maximum": 1 }, "acceptsNegativeNumbers": true }
@@ -194,6 +195,12 @@
     { "id": "grammar.arguments.echo-control-character", "args": ["n\u0007o"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": ["<invalid>"] }] } },
     { "id": "grammar.option.short-non-ascii", "args": ["status", "-\u00e9"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1, "arguments": ["-\u00e9", "-h"] }] } },
     { "id": "grammar.option.short-supplementary-is-bundle", "args": ["status", "-\ud83d\ude00"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1008", "kind": "unsupported-short-bundle", "tokenIndex": 1, "arguments": [] }] } },
-    { "id": "grammar.option.single-hyphen-is-data", "args": ["echo", "-"], "expected": { "kind": "invocation", "commandPath": ["echo"], "options": [], "arguments": [{ "id": "text", "values": ["-"] }] } }
+    { "id": "grammar.option.single-hyphen-is-data", "args": ["echo", "-"], "expected": { "kind": "invocation", "commandPath": ["echo"], "options": [], "arguments": [{ "id": "text", "values": ["-"] }] } },
+    { "id": "grammar.option.environment-choice-source", "args": ["deploy", "--target", "prod"], "environment": { "SAMPLE_STRATEGY": "slow" }, "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1015", "kind": "invalid-choice", "tokenIndex": 3, "arguments": ["--strategy", "fast, safe"], "binding": "strategy" }, { "code": "RCLI2006", "kind": "environment-value-source", "tokenIndex": 3, "arguments": ["--strategy", "SAMPLE_STRATEGY"], "binding": "strategy" }] } },
+    { "id": "grammar.option.environment-choice-canonical", "args": ["deploy", "--target", "prod"], "environment": { "SAMPLE_STRATEGY": "SAFE" }, "expected": { "kind": "invocation", "commandPath": ["deploy"], "options": [{ "id": "target", "values": ["prod"] }, { "id": "strategy", "values": ["safe"] }], "arguments": [] } },
+    { "id": "grammar.option.global-value-before-command-is-option", "args": ["--profile", "--verbose", "status"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 1, "arguments": ["--profile"], "binding": "profile" }] } },
+    { "id": "grammar.option.global-value-before-command-takes-command", "args": ["--profile", "status"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": [] }] } },
+    { "id": "grammar.option.global-value-before-command-takes-help", "args": ["--profile", "--help"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": [] }] } },
+    { "id": "grammar.number.argument-past-maximum", "args": ["deploy", "--target", "prod", "1", "-3"], "expected": { "kind": "error", "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 4, "arguments": ["-3", "-h"] }] } }
   ]
 }

@@ -18,14 +18,14 @@ A token is a long option when it starts with `--`, and a short option when it is
 
 Every corpus row has an immutable `id`, `args`, and `expected` object. `expected.kind` is one of:
 
-- `invocation`: canonical `commandPath` plus ordered `options` and `arguments`. Each binding has a catalog `id` and an ordered string `values` array. A present flag has an empty values array; absent bindings are omitted. Options are ordered by their first occurrence on the command line; later occurrences of an `append` option add their values to that binding. Options bound from [environment fallbacks](#environment-fallbacks) follow, in catalog order. Arguments are in definition order.
+- `invocation`: canonical `commandPath` plus ordered `options` and `arguments`. Each binding has a catalog `id` and an ordered string `values` array. A present flag has an empty values array; absent bindings are omitted. Options are ordered by their first occurrence on the command line; later occurrences of an `append` option add their values to that binding. Options bound from [environment fallbacks](#environment-fallbacks) follow, in [catalog order](#global-options). Arguments are in definition order.
 - `help`: canonical `commandPath`; the empty path denotes root help.
 - `version`: the reserved root version request.
-- `error`: the ordered diagnostics. Version 1 reports exactly one error diagnostic, for the first error in [Parse order](#parse-order). The one exception is an invalid choice that came from an environment fallback: it adds one `information` diagnostic, `RCLI2006` `environment-value-source`, which names the option and the variable.
+- `error`: the ordered diagnostics. Version 1 reports exactly one error diagnostic, for the first error in [Parse order](#parse-order). The one exception is an invalid choice of an option bound from its environment fallback: the `invalid-choice` diagnostic is followed by one note, `RCLI2006` `environment-value-source`, with phase `parse` and severity `information`. The note has the `tokenIndex` and command path of the `invalid-choice` diagnostic, the option's `id` as its `binding`, and two `arguments`: the option as the `invalid-choice` diagnostic names it, then the variable (`grammar.option.environment-choice-source`). No other diagnostic gets the note; `invalid-environment-value` already names the variable.
 
 A corpus row may also give `environment`, the captured environment variables that [environment fallbacks](#environment-fallbacks) read; a variable it does not list is unset.
 
-Diagnostic `tokenIndex` is zero-based. When input ends before a required token, it equals `args.length`. So do the checks made after the whole command line was read: a missing required option, an invalid environment fallback and an invalid choice. An unknown command is reported at index 0, even when output or global options precede the token. An invalid `RUNIC_COMMANDLINE_OUTPUT` value is also reported at index 0. A corpus diagnostic may also list `arguments`, the diagnostic's ordered arguments; when it does, an implementation must report exactly those. A corpus diagnostic lists `binding`, the catalog `id` of the one declared argument or option it names, exactly when the diagnostic has one: `missing-argument`, `missing-option-value`, `unexpected-option-value` and `duplicate-option` of a declared option do, while `unknown-command`, `unknown-option`, `unexpected-argument` and `unsupported-short-bundle` name no declared binding and have none. Diagnostic messages are presentation text and not part of the grammar. Wave A assigns these stable grammar identities within the registered CLI diagnostic range:
+Diagnostic `tokenIndex` is zero-based. When input ends before a required token, it equals `args.length`. So do the checks made after the whole command line was read: a missing required option, an invalid environment fallback and an invalid choice. An unknown command is reported at index 0, even when output or global options precede the token. An invalid `RUNIC_COMMANDLINE_OUTPUT` value is also reported at index 0. A corpus diagnostic may also list `arguments`, the diagnostic's ordered arguments; when it does, an implementation must report exactly those. A corpus diagnostic lists `binding`, the catalog `id` of the one declared argument or option it names, exactly when the diagnostic has one. These kinds have one: `missing-argument`, `missing-required-option`, `invalid-environment-value` and `environment-value-source`; `invalid-choice` (the option or argument); and `missing-option-value`, `unexpected-option-value` and `duplicate-option` of a declared option. These kinds have none: the same three kinds when they name the output selector, its aliases or the JSON output alias; and `unknown-command`, `unknown-option`, `unexpected-argument`, `unsupported-short-bundle`, `unexpected-root-help-argument`, `invalid-output-mode`, `conflicting-output-selector`, `transport-output-option-collision` and the response-file kinds, which name no declared binding. Diagnostic messages are presentation text and not part of the grammar. Wave A assigns these stable grammar identities within the registered CLI diagnostic range:
 
 | Code | Kind |
 |---|---|
@@ -66,7 +66,8 @@ Each kind has these `arguments`, in order. An option is named by its canonical s
 | `conflicting-output-selector` | the later spelling, then the earlier one |
 | `missing-required-option` | the option, then the command path joined with spaces |
 | `invalid-environment-value` | the option, then the variable |
-| `invalid-choice` | the option or argument, then the choices joined with `, `. When the option is sensitive or the list exceeds 512 UTF-16 code units, the second argument is the help request (`--help`) instead |
+| `invalid-choice` | the option or argument, then the choices joined with `, `. When the option or argument is [sensitive](#catalog-features) or the list exceeds 512 UTF-16 code units, the second argument is the help request (`--help`) instead |
+| `environment-value-source` | the option, then the variable |
 
 A token echoed as an argument becomes `<invalid>` when it is empty, is longer than 128 UTF-16 code units, or contains a control character (General_Category Cc) or a protocol [Unicode control character](protocol/README.md#unicode-control-characters).
 
@@ -100,7 +101,7 @@ A parser reads a command line in this order and reports the first error it finds
 4. **The command path.** The first token after leading output and global options must name a root command. Otherwise the default command applies if there is one, or the result is `unknown-command` at 0. Subcommand names then extend the path while they match.
 5. **The command's tokens**, from left to right: `--`, `--help` or `-h` (help for the path), output tokens, options with their values, and positional tokens. Errors here are reported at their token.
 6. **After the last token**, in this order:
-   1. for each option in catalog order, its environment fallback, then whether it is required;
+   1. for each option in [catalog order](#global-options), its environment fallback, then whether it is required;
    2. for a group, a positional token is `unknown-command` at that token;
    3. positional binding (`missing-argument`, `unexpected-argument`);
    4. an invalid `RUNIC_COMMANDLINE_OUTPUT`;
@@ -116,20 +117,32 @@ A group is a command node without a handler. Invoking a group with no further po
 
 ## Catalog features
 
-The fixture catalog declares the features below with optional members:
+A catalog declares the features below with optional members:
 
 - `globalOptions` on the catalog;
 - `group` on a command;
-- `required`, `choices`, `environmentVariable` and `acceptsNegativeNumbers` on an option;
-- `acceptsNegativeNumbers` on an argument.
+- `required`, `choices`, `environmentVariable`, `acceptsNegativeNumbers` and `sensitive` on an option;
+- `choices`, `acceptsNegativeNumbers` and `sensitive` on an argument.
 
-**Global options** belong to every command and may also precede the command path. They are flags or take exactly one value.
+`sensitive` is a Boolean, false when absent. A sensitive option or argument has values that must not appear in diagnostics, help or suggestions; in this grammar it changes only the second argument of `invalid-choice` (see [Diagnostic arguments](#diagnostic-arguments)). The fixture catalog uses neither `sensitive` nor choices on an argument.
+
+### Global options
+
+Global options belong to every command, including groups and subcommands, and may also precede the command path. Their catalog rules:
+
+- **Arity.** A global option is a flag (arity 0..0) or takes exactly one value (1..1). Runic Command Line rejects any other arity when the application declares the option, with an argument error rather than a catalog issue, so this rule has no `RCLI` code in version 1.
+- **Settings.** A global option rejects a second occurrence (`repeat: error`), and it is never required or sensitive. It may name an environment variable, declare choices and accept negative numbers.
+- **A command option with the same `id`.** It must have the same long spelling, the same arity and the same set of aliases; otherwise the catalog is invalid with `RCLI0019`. When they agree, the command option is the global option for that command: it keeps its own `repeat`, `required` and `sensitive` settings. When the global option declares an environment variable, choices or negative numbers, all three come from the global option and the command option's are dropped.
+
+**Catalog order** is the order of a command's options for [environment fallbacks](#environment-fallbacks) and required options (step 6.1 of [Parse order](#parse-order)), and for the options those fallbacks bind in an invocation. It is the command's own options in declaration order, then the global options in declaration order. A global option that is also a command option keeps the command option's place.
+
+A global option before the command path that takes a value and has no inline value (`--profile=dev`) always takes the next token as its value while the parser looks for the help word, root requests and the command path (steps 3 and 4 of [Parse order](#parse-order)), whatever that token is. So `--profile status` names no command (`unknown-command` at 0 without arguments), and `--profile --help` is not root help but the same `unknown-command`. Once the command is resolved, the value binds by the rules of every option value (step 5). A token that ends an option's values and is not a negative number the option accepts is `missing-option-value` at that token. Those tokens are `--`, `--help`, `-h`, `--version`, an output token, any token that starts with `--`, any other token of two or more UTF-16 code units that starts with `-`, and a slash alias of the resolved command. So `--profile --verbose status` is `missing-option-value` at 1.
 
 **Required options** must be bound, from the command line or an environment fallback; otherwise the result is `missing-required-option`.
 
 ### Environment fallbacks
 
-An option may name an environment variable. When the command line does not give the option and the variable is set, its value binds the option; an empty value counts as set. For a flag, `true`, `yes` and `1` bind it, and `false`, `no` and `0` leave it unbound; the words are compared ignoring ASCII case. Any other value is `invalid-environment-value`. A value from the command line always wins.
+An option may name an environment variable. When the command line does not give the option and the variable is set, its value binds the option; an empty value counts as set. For a flag, `true`, `yes` and `1` bind it, and `false`, `no` and `0` leave it unbound; the words are compared ignoring ASCII case. Any other value is `invalid-environment-value`. For an option that takes values, the variable's whole value binds as exactly one value, whatever the option's arity or `repeat` policy: it is never split, and an option whose arity requires more than one value is not reported as missing a value. A value from the command line always wins. A value from a fallback is checked against the option's choices like any other (`grammar.option.environment-choice-canonical`).
 
 ### Choices
 
@@ -137,9 +150,17 @@ An option or argument may declare choices. A value matches a choice that equals 
 
 Choices are case-insensitive by per-character simple case mapping. ASCII letters always match their other case, and so does a letter with a one-to-one mapping, such as `Ö` and `ö`. Nothing expands: `GRÖSSE` does not match `größe`. Case-insensitive matching of other non-ASCII letters is implementation-defined in version 1, so portable choices use ASCII. A value that matches no choice is `invalid-choice`.
 
+Every value of an option or argument that takes several is checked and bound as its declared spelling. The `invalid-choice` diagnostic names the option or argument, not the value, so an option is reported once however many of its values match no choice. The first option in binding order with such a value is reported, then the first argument in definition order.
+
+An empty list declares no choices, and every value is accepted. Choices on a flag are accepted by the catalog and have no effect, because a flag binds no values.
+
 ### Negative numbers
 
-An option that expects a value, or the positional argument that would take the token, may accept negative numbers. Then a token that is a negative number is a value rather than an option. A negative number is `-` followed by one of:
+An option that expects a value, or the positional argument that would take the token, may accept negative numbers. Then a token that is a negative number is a value rather than an option.
+
+The positional argument that would take a token is found by counting: take the number of positional tokens before it, and walk the command's argument definitions in order, trailing arguments excluded. An unbounded definition takes the token. A bounded definition takes it when the count is below its maximum; otherwise subtract its maximum from the count and go to the next definition. This assumes that every earlier definition took its maximum, unlike [positional binding](#input-model), which leaves the minimums of later definitions. When no definition takes the token, no positional argument accepts it as a negative number, so it keeps its option meaning: `deploy --target prod 1 -3` is `unknown-option` at 4, because `count` takes at most one token (`grammar.number.argument-past-maximum`).
+
+A negative number is `-` followed by one of:
 
 - `[0-9]+(\.[0-9]*)?` or `\.[0-9]+`, then an optional exponent `[eE][+-]?[0-9]+`, then optional trailing whitespace (U+0009–U+000D, U+0020);
 - `Infinity` or `NaN`, in any ASCII case.

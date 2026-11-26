@@ -381,7 +381,16 @@ the same reason for the same frame, also when the frame breaks several rules
 fault message, detail key or value, or diagnostic message or argument is unsafe
 when it contains a [Unicode control character](#unicode-control-characters),
 exceeds its byte limit, has [technical content](#sanitization), or is empty
-where the member must not be. Fault codes must satisfy the identifier rule.
+where the member must not be. Three members must not be empty: a fault
+message, a fault detail key and a diagnostic message. A detail value and a
+diagnostic argument may be empty. Fault codes must satisfy the identifier rule.
+
+Safe text is checked before "only whitespace". So an empty fault message or
+detail key is `unsafe-fault-content`, and an empty diagnostic message is
+`unsafe-diagnostic-content` (`invalid.fault-message-empty`,
+`invalid.fault-detail-key-empty`, `invalid.diagnostic-message-empty`). The
+`invalid-envelope` and `invalid-diagnostic` checks for text that is only
+whitespace therefore see only nonempty text.
 
 **Frame.** On the raw bytes:
 
