@@ -60,21 +60,14 @@ informational success code instead of 0, such as Windows Installer's 3010
 `success: true` (see [`examples/informational-success.json`](examples/informational-success.json)).
 Readers before Runic Command Line 0.12 reject such an envelope. Failure has
 `success: false`, a nonzero `exitCode`, `payloadType: null`, `payload: null`,
-and a fault. The default failure exit codes are 1 expected command failure and
-unavailable resource, 2 usage/parse and validation, 3 unexpected host/software
-failure, and 130 cancelled. Exit code 2 means the command line itself is wrong
-(input-shaped: parse and binding errors, and input a handler rejects whatever
-state it works on); exit code 1 means a well-formed command failed on that state
-(domain failures, including "not found"). A host policy may select another nonzero signed
-32-bit value, for example distinct codes per category, and one outcome may
-select its own documented nonzero code, for example 2, 3 and 4 for three
-failures of one command, without changing the semantic fault. A failure MUST NOT
-report 0, and SHOULD NOT report another multiple of 256, which Linux and macOS
-truncate to zero in the process status. Runic Command Line refuses such a code
-when an outcome selects its own; a host exit-code policy is responsible for the
-codes it maps categories to. A reader checks only that a failure's `exitCode` is
-not 0, so it accepts 256: `exitCode` is the code the producer reports, not the
-status a parent process observes.
+and a fault. A failure MUST NOT report 0, and SHOULD NOT report another
+multiple of 256, which Linux and macOS truncate to zero in the process status.
+The exit-code categories, their default codes (1, 2, 3 and 130), host
+exit-code policies and per-outcome codes are specified in
+[Exit codes](../hosting.md#exit-codes) of the hosting specification. A
+reader checks only that a failure's `exitCode` is not 0, so it accepts 256:
+`exitCode` is the code the producer reports, not the status a parent process
+observes.
 
 The `payload` key being JSON null is not evidence of failure. Clients use
 `success`, `payloadType`, and `fault` together and validate all invariants.
