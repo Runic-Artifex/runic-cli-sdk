@@ -8,13 +8,13 @@ tag of the package you use, so the page always matches your version.
 
 | Codes | Reported by | Where it appears |
 |---|---|---|
-| `RCLI0002`–`RCLI0027` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
+| `RCLI0002`–`RCLI0030` | Catalog validation | `CommandCatalogValidationException` at startup or in tests |
 | `RCLI1001`–`RCLI1021` | Parser and response files | Usage diagnostics (exit code 2) |
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
 | `RCLI6001`–`RCLI6011` | `Runic.CommandLine.Processes` | Process faults returned to the command |
 | `RCLI7001`–`RCLI7003` | Build targets of `Runic.CommandLine` | Build errors (old-name guards) |
-| `RCLI9001`–`RCLI9046` | Source generator | Compiler errors and warnings |
+| `RCLI9001`–`RCLI9047` | Source generator | Compiler errors and warnings |
 
 Parse and binding diagnostics are written for the people who run your
 application, so their output carries no link to this page. Their codes, kinds
@@ -208,9 +208,19 @@ no spelling, so it also cannot have aliases, a display spelling or subcommands.
 ### RCLI0019
 
 Conflicting catalog definitions. Either a global option has the same ID as a
-command's own option with a different spelling, arity or aliases, or more than
-one catalog passed to `CommandCatalog.Combine` defines a default command. Keep
-one definition.
+command's own option that does not match it, or more than one catalog passed to
+`CommandCatalog.Combine` defines a default command. Keep one definition.
+
+A command option with a global option's ID is that global option for its
+command. It must have the same spelling, arity and aliases. Like every global
+option it rejects a second occurrence (`CommandOptionRepeatPolicy.Error`) and is
+neither required nor sensitive. An environment variable or choices that both
+declare must be the same, and it may accept negative numbers only when the
+global option does. A variable or choices that only one of them declares apply
+to the command. For help and validation, each member of the command option's
+`CommandHelp` that it sets wins (description, value name, path kind, bounds,
+`Requires`, `ConflictsWith` and so on), and the global option's help fills in
+the members it leaves unset.
 
 For an option, the issue is located at the command and names the option ID and
 both definitions, with the arity when it differs:
@@ -223,6 +233,9 @@ Use the same name, arity and aliases, or give the options different IDs.
 
 Alias order does not matter. Give both definitions the same aliases, or rename
 the command's option ID if it is a different option.
+
+For one of the other settings, the issue names the first that differs, for
+example `the command-local option is required, while a global option never is`.
 
 ### RCLI0020
 
@@ -299,6 +312,29 @@ Different command-line grammars. Catalogs combined with
 (`CommandCatalogBuilder.HelpOrder`). Each catalog's commands match by the rules
 it was built with, so declare the same ones on every part, for example in a
 shared configuration callback.
+
+### RCLI0028
+
+Invalid global option arity. A global option, declared with
+`CommandCatalogBuilder.GlobalOption`, is a flag (`CommandArity.Zero`) or takes
+exactly one value (`CommandArity.ExactlyOne`), because it may precede the
+command path, where the parser cannot know how many values a later command
+would leave it. The issue is located at `root`. Before 0.15, `GlobalOption`
+threw an `ArgumentException` instead. Declare an option that takes several
+values on each command that needs it.
+
+### RCLI0029
+
+Choices on a flag. A flag (`CommandArity.Zero`) binds no value, so the choices
+in its `CommandHelp` could never apply. Remove them, or give the option one
+value. The generator reports this as `RCLI9047`.
+
+### RCLI0030
+
+Environment fallback on an option that needs several values. An environment
+variable binds exactly one value: it is never split. An option whose arity
+requires two or more values could therefore never be satisfied from it. Remove
+the variable, or lower the option's minimum to one.
 
 ## Parsing
 
@@ -882,3 +918,10 @@ hiddenAliases)]` must be long option spellings (`--`, a lowercase letter, then
 lowercase letters, digits or hyphens) other than `--help` and `--version`, each
 given once, as `CommandCatalogBuilder.OutputSelector` requires. The generated
 catalog does not declare an invalid selector.
+
+### RCLI9047
+
+Choices on a flag. A Boolean option is a presence flag that binds no value, so
+`Choices` in its `[Option]` could never apply, and catalog validation would
+report `RCLI0029` at run time. Remove `Choices`, or use a string or enum
+option.

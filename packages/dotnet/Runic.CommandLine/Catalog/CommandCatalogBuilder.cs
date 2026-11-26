@@ -21,6 +21,7 @@ public sealed class CommandCatalogBuilder
     private CommandHelpOrder _helpOrder;
     private readonly List<string> _declarationOrder = [];
     private readonly List<Action<CommandBuilderNode>> _globalOptions = [];
+    private readonly List<CommandCatalogIssue> _globalOptionIssues = [];
 
     /// <summary>
     /// Declares the dialect in which the catalog's commands, options and framework requests are spelled. Every runner
@@ -137,11 +138,25 @@ public sealed class CommandCatalogBuilder
     private CommandCatalogGrammar Grammar => new(_syntax, _caseInsensitive, _helpOrder);
 
     /// <summary>Adds an option to every command. It may also precede the command path.</summary>
+    /// <remarks>
+    /// <see cref="Build"/> reports <c>RCLI0028</c> unless the arity is <see cref="CommandArity.Zero"/> (a flag) or
+    /// <see cref="CommandArity.ExactlyOne"/>, and <c>RCLI0019</c> for a command option with the same ID that does not
+    /// match the global option: the same spelling, arity and aliases, the repeat policy
+    /// <see cref="CommandOptionRepeatPolicy.Error"/>, neither required nor sensitive, no other environment variable or
+    /// choices where both declare them, and negative numbers only where the global option accepts them. For that
+    /// command, its own help and validation metadata win member by member, and the global option's help fills in the
+    /// members it leaves unset.
+    /// </remarks>
     public CommandCatalogBuilder GlobalOption(string id, string name, CommandArity arity, CommandHelp? help = null, params string[] aliases)
     {
         ArgumentNullException.ThrowIfNull(aliases);
         if (!((arity.Minimum == 0 && arity.Maximum == 0) || (arity.Minimum == 1 && arity.Maximum == 1)))
-            throw new ArgumentException("Global options must be flags or single required values.", nameof(arity));
+        {
+            _globalOptionIssues.Add(new CommandCatalogIssue("RCLI0028", "root",
+                $"Global option '{id}' takes {CommandBuilderNode.DescribeArity(arity)}; a global option must be a flag or take exactly one value."));
+            return this;
+        }
+
         string[] copy = (string[])aliases.Clone();
         _globalOptions.Add(node => node.AddGlobalOption(id, name, arity, help, copy));
         return this;
@@ -497,8 +512,8 @@ public sealed class CommandCatalogBuilder
     /// <summary>Validates and freezes all registered definitions.</summary>
     public CommandCatalog Build()
     {
+        var issues = new List<CommandCatalogIssue>(_globalOptionIssues);
         foreach (CommandBuilderNode command in _commands) AddGlobals(command);
-        var issues = new List<CommandCatalogIssue>();
         CommandCatalogGrammar grammar = Grammar;
         ValidateSiblings(_commands, "root", issues, grammar);
 
@@ -912,15 +927,72 @@ internal abstract class CommandBuilderNode
         _options.Add(new OptionDefinition(id, name, aliasCopy, arity, repeatPolicy, isRequired, isSensitive, descriptionKey));
     }
 
+    // A command option with the global option's ID is that global option for its command (grammar, "Global
+    // options"). It has the global option's spelling, arity, aliases, repeat policy and required and sensitive
+    // settings. Each help member is the command option's where it sets one and the global option's otherwise, so a
+    // generated option keeps its path kind and bounds; an environment variable or choices that both declare must be
+    // the same, and the command option accepts negative numbers only where the global option does.
     internal void AddGlobalOption(string id, string name, CommandArity arity, CommandHelp? help, string[] aliases)
     {
         OptionDefinition? existing = _options.Find(option => option.Id == id);
         if (existing is not null && (existing.Name != name || existing.Arity != arity || !new HashSet<string>(existing.Aliases, StringComparer.Ordinal).SetEquals(aliases)))
             throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0019", Name, GlobalConflictMessage(id, name, arity, aliases, existing))]);
-        if (existing is null) AddOption(id, name, arity, CommandOptionRepeatPolicy.Error, false, null, false, aliases);
+        if (existing is not null)
+        {
+            CommandHelp? local = ParameterHelp.GetValueOrDefault(id);
+            string? setting = GlobalSettingConflict(existing, local, help ?? CommandHelp.Empty);
+            if (setting is not null)
+                throw new CommandCatalogValidationException([new CommandCatalogIssue("RCLI0019", Name,
+                    $"Global option '{id}' conflicts with the command-local option of the same ID: the command-local option {setting}. " +
+                    "Restate the global option's settings or leave them out, or give the options different IDs.")]);
+            if (local is not null && help is not null) help = MergeGlobalHelp(local, help);
+        }
+        else
+        {
+            AddOption(id, name, arity, CommandOptionRepeatPolicy.Error, false, null, false, aliases);
+        }
+
         GlobalOptionIds.Add(id);
         if (help is not null) ParameterHelp[id] = help;
     }
+
+    // The first grammar setting in which the command option differs from the global option, as the issue states it.
+    private static string? GlobalSettingConflict(OptionDefinition local, CommandHelp? localHelp, CommandHelp global)
+    {
+        if (local.RepeatPolicy != CommandOptionRepeatPolicy.Error) return $"has the repeat policy {local.RepeatPolicy}, while a global option rejects a second occurrence";
+        if (local.IsRequired) return "is required, while a global option never is";
+        if (local.IsSensitive) return "is sensitive, while a global option never is";
+        if (localHelp is null) return null;
+        if (localHelp.EnvironmentVariable is { } variable && global.EnvironmentVariable is { } globalVariable && !string.Equals(variable, globalVariable, StringComparison.Ordinal))
+            return $"reads the environment variable '{variable}', while the global option reads '{globalVariable}'";
+        if (localHelp.Choices.Count != 0 && global.Choices.Count != 0 && !localHelp.Choices.SequenceEqual(global.Choices, StringComparer.Ordinal))
+            return "declares other choices than the global option";
+        // Before the command path the global option's own setting decides whether a negative number is its value.
+        if (localHelp.AcceptsNegativeNumbers && !global.AcceptsNegativeNumbers)
+            return "accepts negative numbers, while the global option does not";
+        return null;
+    }
+
+    // Each member from the command option's help where it sets one, otherwise from the global option's.
+    private static CommandHelp MergeGlobalHelp(CommandHelp local, CommandHelp global) =>
+        new(local.Description ?? global.Description,
+            local.ValueName ?? global.ValueName,
+            local.DefaultValue ?? global.DefaultValue,
+            local.Choices.Count != 0 ? local.Choices : global.Choices,
+            local.Examples.Count != 0 ? local.Examples : global.Examples,
+            local.AcceptsNegativeNumbers || global.AcceptsNegativeNumbers,
+            local.EnvironmentVariable ?? global.EnvironmentVariable)
+        {
+            Hidden = local.Hidden || global.Hidden,
+            LongDescription = local.LongDescription ?? global.LongDescription,
+            LongDescriptionKey = local.LongDescriptionKey ?? global.LongDescriptionKey,
+            PathKind = local.PathKind != CommandPathKind.None ? local.PathKind : global.PathKind,
+            MustExist = local.MustExist || global.MustExist,
+            Minimum = local.Minimum ?? global.Minimum,
+            Maximum = local.Maximum ?? global.Maximum,
+            Requires = local.Requires.Count != 0 ? local.Requires : global.Requires,
+            ConflictsWith = local.ConflictsWith.Count != 0 ? local.ConflictsWith : global.ConflictsWith,
+        };
 
     // Names the option and both definitions, so the author can see what to change. The arity appears only when it differs.
     private static string GlobalConflictMessage(string id, string name, CommandArity arity, string[] aliases, OptionDefinition local)
@@ -933,7 +1005,7 @@ internal abstract class CommandBuilderNode
             ". Use the same name, arity and aliases, or give the options different IDs.";
     }
 
-    private static string DescribeArity(CommandArity arity) =>
+    internal static string DescribeArity(CommandArity arity) =>
         arity == CommandArity.Zero ? "a flag" : arity == CommandArity.ExactlyOne ? "one value" :
             arity.Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".." +
             (arity.Maximum?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "*") + " values";
@@ -1079,6 +1151,20 @@ internal abstract class CommandBuilderNode
             if (option.DescriptionKey is not null && string.IsNullOrWhiteSpace(option.DescriptionKey))
             {
                 issues.Add(new CommandCatalogIssue("RCLI0003", path, $"Option '{option.Name}' has an empty description key."));
+            }
+
+            if (ParameterHelp.TryGetValue(option.Id, out CommandHelp? optionHelp))
+            {
+                if (option.Arity.Maximum == 0 && optionHelp.Choices.Count != 0)
+                {
+                    issues.Add(new CommandCatalogIssue("RCLI0029", path, $"Option '{option.Name}' is a flag, which binds no value, but declares choices."));
+                }
+
+                // An environment fallback binds exactly one value, which cannot satisfy a minimum above one.
+                if (optionHelp.EnvironmentVariable is not null && option.Arity.Minimum > 1)
+                {
+                    issues.Add(new CommandCatalogIssue("RCLI0030", path, $"Option '{option.Name}' needs at least {option.Arity.Minimum} values, but its environment variable '{optionHelp.EnvironmentVariable}' supplies one."));
+                }
             }
         }
 

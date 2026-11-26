@@ -133,6 +133,10 @@ internal sealed class GeneratorTests
                 [Command("flag")]
                 public static string Flag([Option("--on")] bool on = true) => "";
 
+                // A flag binds no value, so its choices could never apply (catalog validation RCLI0029).
+                [Command("flag-choices")]
+                public static string FlagChoices([Option("--quiet", Choices = ["yes", "no"])] bool quiet = false) => "";
+
                 [Command("required")]
                 public static string Required([Option("--name", Required = true)] string name = "x") => name;
 
@@ -156,7 +160,7 @@ internal sealed class GeneratorTests
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new CommandLineGenerator()).RunGenerators(compilation);
         ImmutableArray<Diagnostic> diagnostics = driver.GetRunResult().Results.Single().Diagnostics;
         AssertEx.SequenceEqual(
-            ["RCLI9021", "RCLI9024", "RCLI9023", "RCLI9022", "RCLI9029", "RCLI9029"],
+            ["RCLI9021", "RCLI9024", "RCLI9047", "RCLI9023", "RCLI9022", "RCLI9029", "RCLI9029"],
             diagnostics.Select(static diagnostic => diagnostic.Id).ToArray(),
             string.Join("\n", diagnostics));
         AssertEx.True(

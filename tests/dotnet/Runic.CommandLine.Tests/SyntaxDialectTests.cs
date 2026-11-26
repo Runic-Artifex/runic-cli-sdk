@@ -185,6 +185,29 @@ internal sealed class SyntaxDialectTests
         });
     }
 
+    private static readonly string[][] MissingGlobalValues = [["/profile", "/?"], ["/profile", "/version"], ["/profile", "--help"], ["/profile"]];
+
+    [Test, DisplayName("dialect/a-leading-global-option-value-ends-at-a-framework-word")]
+    public async ValueTask LeadingGlobalOptionValue()
+    {
+        await WithCatalog(builder => Slash(builder.GlobalOption("profile", "--profile", CommandArity.ExactlyOne)), catalog =>
+        {
+            // /? is the help request, not the value, as it is after the command path (grammar, "Global options").
+            foreach (string[] args in MissingGlobalValues)
+            {
+                CommandDiagnostic diagnostic = PortableCommandSyntaxAdapter.Instance.Parse(catalog, args, ParseSettings.Default).Diagnostics.Single();
+                AssertEx.Equal("missing-option-value", diagnostic.Kind, string.Join(" ", args));
+                AssertEx.Equal(1, diagnostic.TokenIndex, string.Join(" ", args));
+                AssertEx.Equal("profile", diagnostic.Binding, string.Join(" ", args));
+            }
+
+            ParseOutcome valued = PortableCommandSyntaxAdapter.Instance.Parse(catalog, ["/profile", "dev", "/selftest"], ParseSettings.Default);
+            AssertEx.Equal(ParseOutcomeKind.Invocation, valued.Kind);
+            AssertEx.Equal("dev", valued.Invocation!.Options.Single(static option => option.Id == "profile").Values.Single());
+            return ValueTask.CompletedTask;
+        });
+    }
+
     [Test, DisplayName("dialect/testing-helpers-accept-dialect-catalogs")]
     public async ValueTask Testing()
     {

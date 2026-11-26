@@ -81,6 +81,7 @@ The standalone runner handles three signals by default: SIGINT (Ctrl+C), SIGQUIT
 
   The forced-exit codes are the same values, 130, 131 and 143. Windows may end the process as soon as the shutdown handler returns, so cleanup after SIGTERM is not guaranteed to finish there. These mappings and the timing of Windows termination are implementation-defined.
 - **Elsewhere.** Where the runtime cannot register a signal handler, the runner registers none and the runtime's default applies (implementation-defined).
+- **A failed registration.** When registering the handler for one of the three signals fails, for any reason the runtime reports (.NET: `PlatformNotSupportedException`, an `IOException`, `UnauthorizedAccessException` or `Win32Exception` from `PosixSignalRegistration.Create`), that signal keeps the runtime's default handling. The runner still handles the other two, and the invocation runs. A failed registration is never an invocation error. Runic Command Line applies the same rule to the handlers that a prompt on a terminal registers to show the cursor again.
 
 ### Embedding host
 

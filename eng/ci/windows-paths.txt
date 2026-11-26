@@ -39,6 +39,7 @@ packages/dotnet/Runic.CommandLine.Processes/*
 # Unix-only native code cannot behave differently on Windows.
 !packages/dotnet/Runic.CommandLine.Processes/Internal/Unix*
 packages/dotnet/Runic.CommandLine/Application/CommandApp.cs
+packages/dotnet/Runic.CommandLine/Application/SignalRegistrations.cs
 packages/dotnet/Runic.CommandLine/Application/SystemCommandConsole.cs
 packages/dotnet/Runic.CommandLine/Application/PromptEngine.cs
 packages/dotnet/Runic.CommandLine/Application/CommandPresentation.cs
