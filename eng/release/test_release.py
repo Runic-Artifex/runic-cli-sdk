@@ -31,20 +31,35 @@ def job(text, name):
 
 
 class CiRunSelection(unittest.TestCase):
-    def test_newest_successful_push_run_on_main_for_the_commit(self):
-        self.assertEqual(release.select_ci_run([run(1), run(3), run(2, conclusion='failure')], release.REPOSITORY, SHA)['id'], 3)
-        for other in [{'head_sha': 'b' * 40}, {'event': 'workflow_dispatch'}, {'event': 'pull_request'}, {'head_branch': 'feature'},
+    def test_newest_successful_full_run_on_main_for_the_commit(self):
+        self.assertEqual(release.select_ci_run([run(1), run(3), run(2, conclusion='failure')], release.REPOSITORY, SHA, {1, 2, 3})['id'], 3)
+        # A nightly or dispatched run of the commit is as good as its push run.
+        for event in ['schedule', 'workflow_dispatch']:
+            with self.subTest(event=event):
+                self.assertEqual(release.select_ci_run([run(1), run(4, event=event)], release.REPOSITORY, SHA, {4})['id'], 4)
+        for other in [{'head_sha': 'b' * 40}, {'event': 'pull_request'}, {'head_branch': 'feature'},
                       {'path': '.github/workflows/publish-preview.yml'}, {'head_repository': {'full_name': 'fork/runic-cli-sdk'}}]:
-            with self.assertRaisesRegex(release.ReleaseError, 'No push run'):
-                release.select_ci_run([run(9, **other)], release.REPOSITORY, SHA)
+            with self.assertRaisesRegex(release.ReleaseError, 'No run of .github/workflows/ci.yml on main'):
+                release.select_ci_run([run(9, **other)], release.REPOSITORY, SHA, {9})
+
+    def test_an_ordinary_push_run_that_skipped_the_macos_jobs_is_passed_over(self):
+        # Run 6, the commit's ordinary push run, has no marker; run 7, a later dispatched run, has.
+        self.assertEqual(release.select_ci_run([run(6), run(7, event='workflow_dispatch')], release.REPOSITORY, SHA, {7})['id'], 7)
+        with self.assertRaises(release.ReleaseError) as caught:
+            release.select_ci_run([run(6)], release.REPOSITORY, SHA, set())
+        self.assertIn(f'No full CI run exists for {SHA}: https://example.test/runs/6 succeeded without the macOS jobs', str(caught.exception))
+        self.assertIn(f'gh workflow run ci.yml -R {release.REPOSITORY} --ref main', str(caught.exception))
+        # A full run that is still running is waited for, not reported as missing.
+        with self.assertRaisesRegex(release.ReleaseError, 'still in_progress'):
+            release.select_ci_run([run(6), run(8, event='workflow_dispatch', status='in_progress', conclusion=None)], release.REPOSITORY, SHA, {8})
 
     def test_missing_running_or_failed_ci_fails_clearly(self):
-        with self.assertRaisesRegex(release.ReleaseError, f'No push run of .github/workflows/ci.yml on main exists for {SHA}'):
+        with self.assertRaisesRegex(release.ReleaseError, f'No run of .github/workflows/ci.yml on main exists for {SHA}'):
             release.select_ci_run([], release.REPOSITORY, SHA)
         with self.assertRaisesRegex(release.ReleaseError, 'still in_progress'):
             release.select_ci_run([run(4, status='in_progress', conclusion=None)], release.REPOSITORY, SHA)
         with self.assertRaisesRegex(release.ReleaseError, 'concluded failure'):
-            release.select_ci_run([run(5, conclusion='failure')], release.REPOSITORY, SHA)
+            release.select_ci_run([run(5, conclusion='failure')], release.REPOSITORY, SHA, {5})
 
     def test_single_unexpired_artifact_of_that_run(self):
         artifact = {'id': 70, 'name': release.ARTIFACT, 'expired': False, 'workflow_run': {'id': 7, 'head_sha': SHA}}
@@ -55,19 +70,28 @@ class CiRunSelection(unittest.TestCase):
             with self.assertRaisesRegex(release.ReleaseError, message):
                 release.select_artifact(artifacts, run(7))
 
-    def test_queries_push_runs_of_the_commit(self):
+    def test_queries_the_main_runs_of_the_commit_and_takes_the_full_one(self):
         calls = []
+        # Run 9 is the commit's ordinary push run (no marker); run 8, its nightly, is full.
+        marked = {8}
 
         def api(repository, path, token):
             calls.append(path)
+            identifier = int(re.search(r'runs/(\d+)/artifacts', path).group(1)) if '/artifacts' in path else None
+            if f'name={release.FULL_RUN_ARTIFACT}' in path:
+                return {'artifacts': [{'id': 1, 'name': release.FULL_RUN_ARTIFACT}] if identifier in marked else []}
             if '/artifacts' in path:
-                return {'artifacts': [{'id': 80, 'name': release.ARTIFACT, 'expired': False, 'workflow_run': {'id': 8, 'head_sha': SHA}}]}
-            return {'workflow_runs': [run(8)]}
+                return {'artifacts': [{'id': identifier * 10, 'name': release.ARTIFACT, 'expired': False,
+                                       'workflow_run': {'id': identifier, 'head_sha': SHA}}]}
+            return {'workflow_runs': [run(9), run(8, event='schedule')]}
         found = release.find_ci_packages(release.REPOSITORY, SHA, 't', api)
         self.assertEqual(found['run-id'], '8')
         self.assertEqual(found['artifact'], release.ARTIFACT)
         self.assertEqual(found['artifact-id'], '80')
-        self.assertRegex(calls[0], rf'^actions/workflows/ci.yml/runs\?head_sha={SHA}&event=push&branch=main')
+        self.assertRegex(calls[0], rf'^actions/workflows/ci.yml/runs\?head_sha={SHA}&branch=main&per_page=100$')
+        marked.clear()
+        with self.assertRaisesRegex(release.ReleaseError, 'No full CI run exists'):
+            release.find_ci_packages(release.REPOSITORY, SHA, 't', api)
         with self.assertRaisesRegex(release.ReleaseError, 'full commit SHA'):
             release.find_ci_packages(release.REPOSITORY, 'main', 't', api)
 

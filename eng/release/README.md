@@ -7,7 +7,9 @@ does not have a public package identity.
 
 Record behavior changes that need consumer action in `eng/release/notes/<version>.md`.
 Set the version (`0.y.z` until 1.0, then `1.0.0-rc.N` and `1.0.0`) in `eng/Versions.props`, run `./eng/verify.sh`,
-merge to `main` and wait for that commit's CI push run to succeed. Then dispatch
+merge to `main` and wait for that commit's CI push run to succeed (a push that changes `eng/Versions.props` or
+Publish preview's gate pin runs every job, the macOS jobs included;
+[CONTRIBUTING.md](../../CONTRIBUTING.md#ci-triggers-and-macos-jobs)). Then dispatch
 **Publish preview** on `main` with the same version. Check **dry-run** first to run
 every check without publishing. The workflow keeps the name `publish-preview.yml`
 and the `preview` environment for every release, because NuGet trusted publishing
@@ -16,10 +18,16 @@ is registered for them; see [versioning](#versioning-and-support-from-10).
 The workflow does not test or pack again. Its `candidate` job (`contents: read`,
 `actions: read`, no environment) runs `eng/release/release.py`:
 
-- `find-ci` finds the newest successful `ci.yml` push run on `main` for the
-  dispatched commit and its `command-line-packages` artifact. It fails clearly when
-  there is no such run, the run is still in progress or failed, or the artifact
-  expired (CI keeps it 30 days; rerun all jobs of that CI run to upload it again).
+- `find-ci` finds the newest successful full `ci.yml` run on `main` for the
+  dispatched commit (its push, nightly or dispatched run with the `ci-full-run`
+  artifact: every job ran, the macOS jobs included) and its `command-line-packages`
+  artifact. It fails clearly when there is no such run, the run is still in progress
+  or failed, or the artifact expired (CI keeps it 30 days; rerun all jobs of that CI
+  run to upload it again). When the commit's only green run is an ordinary push run
+  that skipped the macOS jobs, it fails and names the command that starts a full run,
+  `gh workflow run ci.yml -R Runic-Artifex/runic-cli-sdk --ref main`; dispatch
+  Publish preview again after that run succeeds. The job has only `actions: read`,
+  so it never dispatches CI itself.
 - `actions/download-artifact` downloads it by id (`artifact-ids`, `run-id`,
   `github-token`); a re-upload under the same name gets a new id, so it cannot swap the bytes.
 - `prepare` requires exactly the four packages at the requested version, packed from

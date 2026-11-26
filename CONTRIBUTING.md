@@ -90,17 +90,35 @@ execution loop of its own.
 ## CI triggers and macOS jobs
 
 CI runs on pull requests, on pushes to `main`, nightly (03:47 UTC) and when dispatched. A pull request branch runs only
-through its pull request, not a second time as a branch push, and a newer push to it cancels the running CI. Publish
-preview takes a release's packages from the push run on `main` of the version commit, and the runic-sdk train and the
-Translations train feed from a green run on `main`; both always include every job.
+through its pull request, not a second time as a branch push, and a newer push to it cancels the running CI.
 
-macOS runners are shared with runic-sdk and Runic Translations, so the macOS jobs (`managed-macos` and
-`native-aot-macos`) run on pushes to `main`, nightly and dispatched runs, and on a pull request only when it changes a
-path in [`eng/ci/macos-paths.txt`](eng/ci/macos-paths.txt): the shipping packages' sources, the tests, the build, pack
-and CI scripts, the workflow, and the toolchain and dependency pins, including the NuGet lock files. Documentation, the
-examples, specifications and the release tooling do not run them. The `Platform paths` job decides this with
-`eng/ci/macos-changes.sh` against the pull request's base; otherwise the two jobs report as skipped and `verify` accepts
-that. Check a branch locally with `bash eng/ci/macos-changes.sh "$(git merge-base origin/main HEAD)"`, and the rule's
-tests with `python3 -m unittest discover -s eng/ci`. To run the macOS jobs for a pull request that does not need them,
-dispatch CI on its branch (`gh workflow run ci.yml --ref <branch>`). Add a path to the list when a macOS job starts to
-exercise it.
+macOS runners are shared with runic-sdk and Runic Translations (at most 5 macOS jobs at once across the three
+repositories), so the macOS jobs (`managed-macos` and `native-aot-macos`) run only where they test something:
+
+- **Pull requests and ordinary pushes to `main`:** only when the change touches a path in
+  [`eng/ci/macos-paths.txt`](eng/ci/macos-paths.txt): the shipping packages' sources, the tests, the build, pack and CI
+  scripts, the workflow, and the toolchain and dependency pins, including the NuGet lock files. Documentation, the
+  examples, specifications and the release tooling do not run them. A push compares with the previous `main` commit; a
+  push that moved `main` by more than one commit runs them.
+- **Version and release commits on `main`:** always. A push that changes a path in
+  [`eng/ci/full-run-paths.txt`](eng/ci/full-run-paths.txt) runs every job: `eng/Versions.props` (a release that sets
+  a new version, and the post-release pull request) and Publish preview's train gate pin (a train's release pull
+  request).
+- **Nightly and dispatched runs:** always.
+
+The `Platform paths` job decides this with `eng/ci/macos-changes.sh --event <event>`; otherwise the two jobs report as
+skipped and `verify` accepts that. Check a branch locally with
+`bash eng/ci/macos-changes.sh "$(git merge-base origin/main HEAD)"` (the pull request rule), a pushed commit with
+`bash eng/ci/macos-changes.sh --event push <commit>^ <commit>`, and the rule's tests with
+`python3 -m unittest discover -s eng/ci`. To run the macOS jobs for a pull request that does not need them, dispatch CI
+on its branch (`gh workflow run ci.yml --ref <branch>`). Add a path to the list when a macOS job starts to exercise it.
+
+**Full runs.** A run that runs the macOS jobs runs every job, since they are the only jobs a run skips. Outside pull
+requests such a run uploads the `ci-full-run` artifact. Publish preview (`eng/release/release.py find-ci`) takes a
+release's packages only from a green full run on `main` of the dispatched commit: its push run when it is a version or
+release commit, or a nightly or dispatched run of it. The runic-sdk train (gate and train feed, runic-sdk
+`eng/train/README.md`, "Run selection by commit") takes only a green full run at or after its pinned commit. Neither
+dispatches CI itself. When a commit has only an ordinary push run, both fail and name the command that starts a full
+run: `gh workflow run ci.yml -R Runic-Artifex/runic-cli-sdk --ref main` (while `main` is still at that commit). The
+Translations train feed takes the packages of any green push run: `managed-and-pack` packs them on Linux in every
+run, and the macOS jobs upload only test results, so no consumer reads an artifact that an ordinary push run lacks.
