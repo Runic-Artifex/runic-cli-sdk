@@ -42,12 +42,12 @@ class CiRunSelection(unittest.TestCase):
             with self.assertRaisesRegex(release.ReleaseError, 'No run of .github/workflows/ci.yml on main'):
                 release.select_ci_run([run(9, **other)], release.REPOSITORY, SHA, {9})
 
-    def test_an_ordinary_push_run_that_skipped_the_macos_jobs_is_passed_over(self):
+    def test_an_ordinary_push_run_that_skipped_platform_jobs_is_passed_over(self):
         # Run 6, the commit's ordinary push run, has no marker; run 7, a later dispatched run, has.
         self.assertEqual(release.select_ci_run([run(6), run(7, event='workflow_dispatch')], release.REPOSITORY, SHA, {7})['id'], 7)
         with self.assertRaises(release.ReleaseError) as caught:
             release.select_ci_run([run(6)], release.REPOSITORY, SHA, set())
-        self.assertIn(f'No full CI run exists for {SHA}: https://example.test/runs/6 succeeded without the macOS jobs', str(caught.exception))
+        self.assertIn(f'No full CI run exists for {SHA}: https://example.test/runs/6 skipped macOS or Windows jobs', str(caught.exception))
         self.assertIn(f'gh workflow run ci.yml -R {release.REPOSITORY} --ref main', str(caught.exception))
         # A full run that is still running is waited for, not reported as missing.
         with self.assertRaisesRegex(release.ReleaseError, 'still in_progress'):

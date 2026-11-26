@@ -1,0 +1,69 @@
+# The paths whose change can make CI's Windows jobs, `managed-windows` and the win-x64 and win-arm64 legs of
+# `native-aot-windows`, behave differently from the same code on Linux (eng/ci/platform-changes.sh; CONTRIBUTING.md, "CI
+# triggers and platform jobs"). A pull request or a push to main that changes none of them skips them. The nightly run,
+# manual runs and a version or release commit (eng/ci/full-run-paths.txt) always run them. `wpf-example` always runs:
+# WPF exists only on Windows, so no Linux job covers it.
+#
+# List only what can behave differently on Windows: processes (CreateProcess, command-line quoting, job objects), Ctrl+C
+# and console APIs, file system paths (separators, drive letters, case), line endings, NativeAOT with MSVC's linker,
+# toolchain pins. Linux runs every managed suite, the examples and the NativeAOT legs on every change; parsing, binding,
+# help, output envelopes, the catalog, the generator, the spec corpora and the conformance driver have no platform
+# branch. `*` also matches `/`; a line starting with `!` excludes, and exclusions win.
+
+# Documentation and public API baselines never change what the jobs run.
+!*.md
+!*PublicAPI.*.txt
+
+# The job definitions and the scripts these jobs run: the managed suites (eng/test.sh --managed-only) and the NativeAOT
+# smoke (eng/ci/native-aot.ps1).
+.github/workflows/ci.yml
+eng/test.sh
+eng/ci/native-aot.ps1
+
+# Line endings: Windows checks text files out by these attributes.
+.gitattributes
+
+# Toolchain and build: the .NET SDK and runtime, the build and pack settings (NativeAOT, trimming, runtime identifiers,
+# analyzers) and the central package versions (Spectre.Console's console back end, Microsoft.Extensions, TUnit). Lock
+# files follow Directory.Packages.props.
+global.json
+Directory.Build.props
+Directory.Build.targets
+Directory.Packages.props
+eng/build/*
+
+# Processes and signals: starting, waiting for and stopping child processes and process trees (CreateProcess, quoting
+# and job objects on Windows), executable lookup and the environment's case rules, signal and Ctrl handling, prompts on
+# a terminal, the console's width, encoding and redirection, and the Spectre console back end.
+packages/dotnet/Runic.CommandLine.Processes/*
+# Unix-only native code cannot behave differently on Windows.
+!packages/dotnet/Runic.CommandLine.Processes/Internal/Unix*
+packages/dotnet/Runic.CommandLine/Application/CommandApp.cs
+packages/dotnet/Runic.CommandLine/Application/SystemCommandConsole.cs
+packages/dotnet/Runic.CommandLine/Application/PromptEngine.cs
+packages/dotnet/Runic.CommandLine/Application/CommandPresentation.cs
+packages/dotnet/Runic.CommandLine.Spectre/SpectreCommandConsole.cs
+
+# File system paths: response files (@file; case-insensitive on Windows) and file and directory arguments
+# (Path.GetFullPath, existence checks).
+packages/dotnet/Runic.CommandLine/Parsing/CommandResponseFiles.cs
+packages/dotnet/Runic.CommandLine/Execution/CommandInputValidation.cs
+
+# The tests of that behaviour and the child process they start: the Processes suite, signals, the prompt on a
+# pseudo-terminal and in a child process, response files, shell completion run in real shells; the test projects'
+# settings.
+tests/dotnet/Runic.CommandLine.Processes.Tests/*
+tests/dotnet/Runic.CommandLine.Tests/SignalTests.cs
+tests/dotnet/Runic.CommandLine.Tests/PromptTerminalTests.cs
+tests/dotnet/Runic.CommandLine.Tests/PromptProcessTests.cs
+tests/dotnet/Runic.CommandLine.Tests/ResponseFileTests.cs
+tests/dotnet/Runic.CommandLine.Tests/CompletionHelpTests.cs
+tests/dotnet/Runic.CommandLine.Tests/CompletionShellInsertionTests.cs
+tests/dotnet/*.csproj
+tests/fixtures/command-line/CommandLine.Kernel/*
+
+# NativeAOT (native-aot-windows, win-x64 and win-arm64 with MSVC's linker): the platform's ILC target and native linker
+# compile the NativeAOT smoke and the package consumer fixture against the candidate packages. Platform-neutral code
+# fails the Linux legs the same way.
+tests/native/*
+tests/fixtures/command-line/package-consumer/*

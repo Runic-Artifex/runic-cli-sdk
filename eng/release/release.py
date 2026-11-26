@@ -36,9 +36,10 @@ class ReleaseError(Exception):
     pass
 
 
-# A full run ran every job, the macOS jobs included, and its `changes` job uploaded this marker: a nightly or dispatched
-# run, the push run of a version or release commit, or a push that changed a macOS path (CONTRIBUTING.md, "CI triggers
-# and macOS jobs"). An ordinary push run skips the macOS jobs, so its packages are never published.
+# A full run ran every job, the macOS and Windows jobs included, and its `changes` job uploaded this marker: a nightly
+# or dispatched run, the push run of a version or release commit, or a push that changed a path of both platforms
+# (CONTRIBUTING.md, "CI triggers and platform jobs"). An ordinary push run skips the platform jobs its paths don't
+# need, so its packages are never published.
 FULL_RUN_ARTIFACT = 'ci-full-run'
 CI_EVENTS = ('push', 'schedule', 'workflow_dispatch')
 
@@ -69,9 +70,9 @@ def select_ci_run(runs, repository, sha, full=frozenset()):
         raise ReleaseError(f"CI for {sha} is still {latest.get('status')} ({latest.get('html_url')}). Dispatch again after it succeeds.")
     partial = [run.get('html_url') for run in candidates if succeeded(run)]
     if partial:
-        raise ReleaseError(f"No full CI run exists for {sha}: {', '.join(partial)} succeeded without the macOS jobs "
-                           f'(no {FULL_RUN_ARTIFACT} artifact; an ordinary push skips them). Publish takes the packages only from a run of '
-                           f'every job. Dispatch one on main (`gh workflow run ci.yml -R {repository} --ref main`) and dispatch Publish '
+        raise ReleaseError(f"No full CI run exists for {sha}: {', '.join(partial)} skipped macOS or Windows jobs "
+                           f"(no {FULL_RUN_ARTIFACT} artifact; an ordinary push skips the platform jobs its paths don't need). "
+                           f'Publish takes the packages only from a run of every job. Dispatch one on main (`gh workflow run ci.yml -R {repository} --ref main`) and dispatch Publish '
                            'preview again after it succeeds.')
     raise ReleaseError(f"CI for {sha} concluded {latest.get('conclusion')} ({latest.get('html_url')}). Rerun its failed jobs; publish needs a successful run.")
 
