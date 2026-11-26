@@ -463,6 +463,24 @@
       "document": { "protocol": "runic.commandline/1", "requestId": "req-78", "command": "status", "success": false, "exitCode": 2, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "Failed.", "details": {}, "retryable": false }, "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "commandPath": ["status"], "messageKey": "9key", "message": "The option is not known.", "phase": "parse", "severity": "error", "tokenIndex": 1, "arguments": ["--quiet"] }, { "code": "RCLI1001", "kind": "unknown-option", "commandPath": ["status"], "messageKey": "diagnostics.unknown-option", "message": "The option is not known.", "phase": "parse", "severity": "fatal", "tokenIndex": 1, "arguments": ["--quiet"] }] },
       "clientContext": { "supportedPayloadTypes": ["sample.status/1"] },
       "expected": { "kind": "protocol-error", "reason": "invalid-diagnostic-message-key" }
+    },
+    {
+      "id": "invalid.diagnostic-message-empty",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-79", "command": "status", "success": false, "exitCode": 2, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "Failed.", "details": {}, "retryable": false }, "diagnostics": [{ "code": "RCLI1001", "kind": "unknown-option", "commandPath": ["status"], "messageKey": "diagnostics.unknown-option", "message": "", "phase": "parse", "severity": "error", "tokenIndex": 1, "arguments": ["--quiet"] }] },
+      "clientContext": { "supportedPayloadTypes": ["sample.status/1"] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-diagnostic-content" }
+    },
+    {
+      "id": "invalid.fault-message-empty",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-80", "command": "status", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "", "details": {}, "retryable": false }, "diagnostics": [] },
+      "clientContext": { "supportedPayloadTypes": ["sample.status/1"] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
+    },
+    {
+      "id": "invalid.fault-detail-key-empty",
+      "document": { "protocol": "runic.commandline/1", "requestId": "req-81", "command": "status", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "Failed.", "details": { "": "value" }, "retryable": false }, "diagnostics": [] },
+      "clientContext": { "supportedPayloadTypes": ["sample.status/1"] },
+      "expected": { "kind": "protocol-error", "reason": "unsafe-fault-content" }
     }
   ]
 }
