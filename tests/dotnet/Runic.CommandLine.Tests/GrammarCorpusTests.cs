@@ -7,7 +7,7 @@ internal sealed class GrammarCorpusTests
 
     public static IEnumerable<string> CaseIds()
     {
-        AssertEx.Equal(103, Corpus.Cases.Length, "The frozen grammar corpus row count changed.");
+        AssertEx.Equal(109, Corpus.Cases.Length, "The frozen grammar corpus row count changed.");
         return Corpus.Cases.Select(static test => test.Id);
     }
 

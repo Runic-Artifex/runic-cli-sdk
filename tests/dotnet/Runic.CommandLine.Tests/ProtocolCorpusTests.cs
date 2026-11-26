@@ -21,7 +21,7 @@ internal sealed class ProtocolCorpusTests
 
     public static IEnumerable<string> SemanticCaseIds()
     {
-        AssertEx.Equal(77, Semantic.Cases.Length, "The frozen semantic protocol corpus row count changed.");
+        AssertEx.Equal(80, Semantic.Cases.Length, "The frozen semantic protocol corpus row count changed.");
         return Semantic.Cases.Select(static test => test.Id);
     }
 
