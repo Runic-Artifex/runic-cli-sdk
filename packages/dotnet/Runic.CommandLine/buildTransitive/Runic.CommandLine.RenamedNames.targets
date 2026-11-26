@@ -1,0 +1,42 @@
+<Project>
+  <!-- Generated from eng/rename/old-names.json
+       by eng/rename/old-names.mjs: do not edit; change the input and regenerate.
+       Old-name guards (D079.11), shipped through 1.0.x and removed in 2.0:
+       RCLI7001: an old package ID is in the package graph (a PackageReference, or a package that NuGet resolved);
+       RCLI7002: the project sets an old public MSBuild property or item;
+       RCLI7003: an old environment variable is set.
+       Each name is reported once. A root package imports this file once, also when two of the family's packages ship it. -->
+  <PropertyGroup>
+    <_RunicCommandLineRenamedNamesImported>true</_RunicCommandLineRenamedNamesImported>
+  </PropertyGroup>
+  <!-- Old package IDs: none. -->
+  <!-- Old public MSBuild properties and items: none. -->
+  <!-- Old environment variables: none. -->
+
+  <!-- ErrorAndContinue reports every old name, not only the first. -->
+  <Target Name="RunicCommandLineReportRenamedNames" BeforeTargets="PrepareForBuild"
+          Condition="('@(_RunicCommandLineRenamedName)' != '' or '@(_RunicCommandLineRenamedEnvironmentVariable)' != '') and '$(DesignTimeBuild)' != 'true' and '$(_TargetAssemblyProjectName)' == '' and !$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <Error Code="RCLI7002" File="$(MSBuildProjectFullPath)" HelpLink="$(RunicDiagnosticsHelpLinkBase)rcli7002" ContinueOnError="ErrorAndContinue"
+           Condition="'@(_RunicCommandLineRenamedName)' != ''"
+           Text="The Runic Command Line build %(_RunicCommandLineRenamedName.Kind) %(_RunicCommandLineRenamedName.Identity) is renamed to %(_RunicCommandLineRenamedName.NewName). The old name no longer applies; rename it in $(MSBuildProjectFile), its imports or the command line." />
+    <Error Code="RCLI7003" File="$(MSBuildProjectFullPath)" HelpLink="$(RunicDiagnosticsHelpLinkBase)rcli7003" ContinueOnError="ErrorAndContinue"
+           Condition="'@(_RunicCommandLineRenamedEnvironmentVariable)' != ''"
+           Text="The environment variable %(_RunicCommandLineRenamedEnvironmentVariable.Identity) is renamed to %(_RunicCommandLineRenamedEnvironmentVariable.NewName). The old name no longer applies; set %(_RunicCommandLineRenamedEnvironmentVariable.NewName) instead and remove %(_RunicCommandLineRenamedEnvironmentVariable.Identity) from the environment." />
+  </Target>
+
+  <!-- After restore, PackageDependencies lists every package of the graph, the transitive ones too. Package IDs
+       compare without case. -->
+  <Target Name="RunicCommandLineReportRenamedPackages" AfterTargets="ResolvePackageAssets"
+          Condition="'@(_RunicCommandLineRenamedPackage)' != '' and '$(DesignTimeBuild)' != 'true' and '$(_TargetAssemblyProjectName)' == '' and !$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <PropertyGroup>
+      <_RunicCommandLinePackageGraph>;@(PackageReference);@(PackageDependencies);</_RunicCommandLinePackageGraph>
+      <_RunicCommandLinePackageGraph>$(_RunicCommandLinePackageGraph.ToLowerInvariant())</_RunicCommandLinePackageGraph>
+    </PropertyGroup>
+    <ItemGroup>
+      <_RunicCommandLineRenamedPackageInGraph Include="@(_RunicCommandLineRenamedPackage)" Condition="$(_RunicCommandLinePackageGraph.Contains(';%(Identity);'))" />
+    </ItemGroup>
+    <Error Code="RCLI7001" File="$(MSBuildProjectFullPath)" HelpLink="$(RunicDiagnosticsHelpLinkBase)rcli7001" ContinueOnError="ErrorAndContinue"
+           Condition="'@(_RunicCommandLineRenamedPackageInGraph)' != ''"
+           Text="$(MSBuildProjectName) references the package %(_RunicCommandLineRenamedPackageInGraph.Name), directly or through another package. It is renamed to %(_RunicCommandLineRenamedPackageInGraph.NewName), and packages of the old and the new names do not work together. Run rax migrate (dnx RunicArtifex.Tool migrate without a tool manifest) to move the project to the new names." />
+  </Target>
+</Project>

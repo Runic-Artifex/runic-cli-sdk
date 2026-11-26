@@ -13,6 +13,7 @@ tag of the package you use, so the page always matches your version.
 | `RCLI2002`–`RCLI2006` | Binding and validation | Usage diagnostics (exit code 2) |
 | `RCLI4000`, `RCLI4001`, `RCLI5000` | Execution | Cancellation, unanswerable prompts and host faults |
 | `RCLI6001`–`RCLI6011` | `Runic.CommandLine.Processes` | Process faults returned to the command |
+| `RCLI7001`–`RCLI7003` | Build targets of `Runic.CommandLine` | Build errors (old-name guards) |
 | `RCLI9001`–`RCLI9046` | Source generator | Compiler errors and warnings |
 
 Parse and binding diagnostics are written for the people who run your
@@ -566,6 +567,38 @@ runner already terminated the child and its descendants.
 `truncated` when the child wrote more than the capture limit, or `drainTimedOut`
 when a descendant held the pipe open after the child exited. Raise the limit,
 or pass an output handler to process the output as it arrives.
+
+## Build targets
+
+`Runic.CommandLine` ships `buildTransitive/Runic.CommandLine.targets`, which every
+project that references a Runic Command Line package imports. Since 0.15 it
+holds the old-name guards of the Runic Artifex rename (D079.11): build errors
+for names that the rename replaced, each reported once with the new name,
+through 1.0.x. Their list is `Runic.CommandLine.RenamedNames.targets`, generated
+from `eng/rename/old-names.json`. 0.15 lists no name, so nothing reports these
+codes yet.
+
+### RCLI7001
+
+A package whose ID was renamed is in the package graph: the project references
+it by its former ID (`PackageReference`), or another package brings it in.
+Packages of the old and the new IDs do not work together in one application;
+the message names the new ID. Run `rax migrate` (`dnx RunicArtifex.Tool migrate`
+without a tool manifest), or replace the old `PackageReference` by hand. A
+package that another package brings in moves with that package: update it to a
+release of the new names.
+
+### RCLI7002
+
+The project, one of its imports or the command line sets a build property or
+item by a name that the rename replaced. The old name no longer applies; rename
+it as the message says.
+
+### RCLI7003
+
+An environment variable that the build reads was renamed, and the old name is
+set. The old name no longer applies; set the variable by its new name and
+remove the old one from the environment.
 
 ## Source generator
 

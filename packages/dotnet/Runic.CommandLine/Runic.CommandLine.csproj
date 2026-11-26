@@ -13,6 +13,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Catalog validation issues link to their catalog entry at the release tag; see eng/build/release-links.targets. -->
     <RunicGenerateReleaseLinks>true</RunicGenerateReleaseLinks>
+    <!-- buildTransitive/Runic.CommandLine.props gives the targets' errors their help links at the release tag. -->
+    <RunicPackDiagnosticsHelpLinks>true</RunicPackDiagnosticsHelpLinks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +25,9 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
+    <!-- The old-name guards (D079.11); Runic.CommandLine.RenamedNames.targets is generated from eng/rename/old-names.json. -->
+    <None Update="buildTransitive/Runic.CommandLine.targets" Pack="true" PackagePath="buildTransitive/Runic.CommandLine.targets" />
+    <None Update="buildTransitive/Runic.CommandLine.RenamedNames.targets" Pack="true" PackagePath="buildTransitive/Runic.CommandLine.RenamedNames.targets" />
     <None Include="../Runic.CommandLine.Generators/bin/$(Configuration)/$(RunicCommandLineGeneratorTargetFramework)/Runic.CommandLine.Generators.dll"
           Pack="true"
           PackagePath="analyzers/dotnet/cs" />
@@ -31,7 +36,8 @@
   <!-- Framework text catalog. translations/ holds the sources of the runic-command-line catalog (en, de), which the
        Runic.Translations.CommandLine adapter compiles from this package, and text-keys.json, written from
        CommandTextKeys.All after each build. The package carries them as plain data under translations/: no contentFiles
-       and no props, so nothing flows into a consuming project, and this package does not reference Runic.Translations.
+       and no build logic for them, so nothing flows into a consuming project, and this package does not reference
+       Runic.Translations.
        tests/dotnet/Runic.CommandLine.TextCatalog.Tests checks that every key has en and de text. -->
   <ItemGroup>
     <None Update="translations/runic.json;translations/*.rmf2" Pack="true" PackagePath="translations/%(Filename)%(Extension)" />
