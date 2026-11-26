@@ -48,6 +48,12 @@ class PathTests(unittest.TestCase):
              "tests/dotnet/Runic.CommandLine.Tests/CorpusModel.cs", "eng/conformance/core/driver.ts",
              "eng/ci/platform-changes.sh", "eng/ci/macos-paths.txt", "eng/ci/native-musl.sh", "eng/ci/apt-install.sh"],
             ["tests/dotnet/Runic.CommandLine.Tests/packages.lock.json", "NuGet.config", "Runic.CommandLine.slnx", "eng/pack.sh"],
+            # The conformance adapter (G14) and the old-name guards (P3): no platform branch.
+            ["tests/dotnet/Runic.CommandLine.Conformance/Runic.CommandLine.Conformance.csproj",
+             "tests/dotnet/Runic.CommandLine.Conformance/Operations.cs", "eng/conformance/commandline/run.ts",
+             "eng/rename/old-names.mjs", "eng/rename/old-names.json",
+             "packages/dotnet/Runic.CommandLine/buildTransitive/Runic.CommandLine.targets",
+             "tests/dotnet/Runic.CommandLine.Tests/OldNameGuardsTests.cs"],
             [],
         ]:
             with self.subTest(paths=paths):

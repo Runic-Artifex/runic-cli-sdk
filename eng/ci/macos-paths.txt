@@ -56,6 +56,8 @@ tests/dotnet/Runic.CommandLine.Tests/ResponseFileTests.cs
 tests/dotnet/Runic.CommandLine.Tests/CompletionHelpTests.cs
 tests/dotnet/Runic.CommandLine.Tests/CompletionShellInsertionTests.cs
 tests/dotnet/*.csproj
+# The conformance adapter (eng/conformance, R7 G14) runs the platform-neutral spec corpus on Linux only.
+!tests/dotnet/Runic.CommandLine.Conformance/*
 tests/fixtures/command-line/CommandLine.Kernel/*
 
 # NativeAOT (native-aot-macos, osx-arm64): the platform's ILC target and native linker compile the NativeAOT smoke and
