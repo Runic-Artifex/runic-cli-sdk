@@ -181,6 +181,41 @@
       "id": "wire.failure-data-over-limit",
       "wireRecipe": { "kind": "repeat-utf8", "prefix": "{\"protocol\":\"runic.commandline/1\",\"requestId\":\"req-w5\",\"command\":\"status\",\"success\":false,\"exitCode\":1,\"payloadType\":null,\"payload\":null,\"fault\":{\"code\":\"RCLI8001\",\"message\":\"Failed.\",\"details\":{},\"retryable\":false,\"data\":{\"type\":\"sample.recovery/1\",\"payload\":\"", "value": "a", "count": 65535, "suffix": "\"}},\"diagnostics\":[]}\n" },
       "expected": { "kind": "protocol-error", "reason": "failure-data-byte-limit" }
+    },
+    {
+      "id": "wire.lone-surrogate-request-id",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtXHVkODAwIiwiY29tbWFuZCI6InN0YXR1cyIsInN1Y2Nlc3MiOnRydWUsImV4aXRDb2RlIjowLCJwYXlsb2FkVHlwZSI6InNhbXBsZS5zdGF0dXMvMSIsInBheWxvYWQiOnsic3RhdGUiOiJyZWFkeSJ9LCJmYXVsdCI6bnVsbCwiZGlhZ25vc3RpY3MiOltdfQo=",
+      "expected": { "kind": "protocol-error", "reason": "malformed-json" }
+    },
+    {
+      "id": "wire.lone-surrogate-fault-message",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtdzYiLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6ZmFsc2UsImV4aXRDb2RlIjoxLCJwYXlsb2FkVHlwZSI6bnVsbCwicGF5bG9hZCI6bnVsbCwiZmF1bHQiOnsiY29kZSI6IlJDTEk4MDAxIiwibWVzc2FnZSI6IkZhaWxlZC5cdWRjMDAiLCJkZXRhaWxzIjp7fSwicmV0cnlhYmxlIjpmYWxzZX0sImRpYWdub3N0aWNzIjpbXX0K",
+      "expected": { "kind": "protocol-error", "reason": "malformed-json" }
+    },
+    {
+      "id": "wire.lone-surrogate-unknown-member-name",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtdzciLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6dHJ1ZSwiZXhpdENvZGUiOjAsInBheWxvYWRUeXBlIjoic2FtcGxlLnN0YXR1cy8xIiwicGF5bG9hZCI6eyJzdGF0ZSI6InJlYWR5In0sImZhdWx0IjpudWxsLCJkaWFnbm9zdGljcyI6W10sInhcdWQ4M2QiOjF9Cg==",
+      "expected": { "kind": "protocol-error", "reason": "malformed-json" }
+    },
+    {
+      "id": "wire.lone-surrogate-payload-value",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtdzgiLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6dHJ1ZSwiZXhpdENvZGUiOjAsInBheWxvYWRUeXBlIjoic2FtcGxlLnN0YXR1cy8xIiwicGF5bG9hZCI6eyJzdGF0ZSI6Ilx1ZDgzZCJ9LCJmYXVsdCI6bnVsbCwiZGlhZ25vc3RpY3MiOltdfQo=",
+      "expected": { "kind": "protocol-error", "reason": "malformed-json" }
+    },
+    {
+      "id": "wire.reversed-surrogate-pair",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtdzkiLCJjb21tYW5kIjoic3RhdHVzIiwic3VjY2VzcyI6dHJ1ZSwiZXhpdENvZGUiOjAsInBheWxvYWRUeXBlIjoic2FtcGxlLnN0YXR1cy8xIiwicGF5bG9hZCI6eyJzdGF0ZSI6Ilx1ZGUwMFx1ZDgzZCJ9LCJmYXVsdCI6bnVsbCwiZGlhZ25vc3RpY3MiOltdfQo=",
+      "expected": { "kind": "protocol-error", "reason": "malformed-json" }
+    },
+    {
+      "id": "wire.precedence.lone-surrogate-before-duplicate",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtdzEwIiwiY29tbWFuZCI6InN0YXR1cyIsInN1Y2Nlc3MiOnRydWUsImV4aXRDb2RlIjowLCJwYXlsb2FkVHlwZSI6InNhbXBsZS5zdGF0dXMvMSIsInBheWxvYWQiOnsic3RhdGUiOiJyZWFkeSIsInN0YXRlIjoiXHVkODAwIn0sImZhdWx0IjpudWxsLCJkaWFnbm9zdGljcyI6W119Cg==",
+      "expected": { "kind": "protocol-error", "reason": "malformed-json" }
+    },
+    {
+      "id": "wire.escaped-surrogate-pairs-are-accepted",
+      "wireUtf8Base64": "eyJwcm90b2NvbCI6InJ1bmljLmNvbW1hbmRsaW5lLzEiLCJyZXF1ZXN0SWQiOiJyZXEtXHVkODNkXHVkZTAwIiwiY29tbWFuZCI6InN0YXR1cyIsInN1Y2Nlc3MiOnRydWUsImV4aXRDb2RlIjowLCJwYXlsb2FkVHlwZSI6InNhbXBsZS5zdGF0dXMvMSIsInBheWxvYWQiOnsic3RhdGUiOiJcdUQ4M0RcdURFMDAifSwiZmF1bHQiOm51bGwsImRpYWdub3N0aWNzIjpbXSwieFx1ZDgzZFx1ZGUwMCI6MX0K",
+      "expected": { "kind": "accepted", "reason": "escaped-surrogate-pair" }
     }
   ]
 }
