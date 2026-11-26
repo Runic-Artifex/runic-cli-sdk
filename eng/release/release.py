@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Reuse the package artifact of the successful CI push run for a release.
+"""Reuse the package artifact of the successful full CI run of a release's commit.
 
-find-ci        find the green ci.yml push run on main for GITHUB_SHA and its artifact
+find-ci        find the green full ci.yml run on main for GITHUB_SHA and its artifact
 prepare        check the downloaded packages against the version and commit; write an inventory
 describe       write the CycloneDX SBOM of the packages (local, deterministic for a commit)
 verify         check packages against an inventory written by prepare, the version and the CI run
@@ -36,20 +36,44 @@ class ReleaseError(Exception):
     pass
 
 
-def select_ci_run(runs, repository, sha):
-    candidates = [run for run in runs if run.get('head_sha') == sha and run.get('event') == 'push'
+# A full run ran every job, the macOS and Windows jobs included, and its `changes` job uploaded this marker: a nightly
+# or dispatched run, the push run of a version or release commit, or a push that changed a path of both platforms
+# (CONTRIBUTING.md, "CI triggers and platform jobs"). An ordinary push run skips the platform jobs its paths don't
+# need, so its packages are never published.
+FULL_RUN_ARTIFACT = 'ci-full-run'
+CI_EVENTS = ('push', 'schedule', 'workflow_dispatch')
+
+
+def ci_runs_of(runs, repository, sha):
+    """The ci.yml runs on main of exactly this commit, newest first: its push run and any nightly or dispatched run."""
+    candidates = [run for run in runs if run.get('head_sha') == sha and run.get('event') in CI_EVENTS
                   and run.get('head_branch') == 'main' and (run.get('path') or '').split('@')[0] == CI_WORKFLOW
                   and (run.get('repository') or {}).get('full_name') == repository
                   and (run.get('head_repository') or {}).get('full_name') == repository]
-    candidates.sort(key=lambda run: run['id'], reverse=True)
+    return sorted(candidates, key=lambda run: run['id'], reverse=True)
+
+
+def succeeded(run):
+    return run.get('status') == 'completed' and run.get('conclusion') == 'success'
+
+
+def select_ci_run(runs, repository, sha, full=frozenset()):
+    """The newest successful full run of the commit; `full` holds the ids of the runs with the ci-full-run marker."""
+    candidates = ci_runs_of(runs, repository, sha)
     for run in candidates:
-        if run.get('status') == 'completed' and run.get('conclusion') == 'success':
+        if succeeded(run) and run['id'] in full:
             return run
     if not candidates:
-        raise ReleaseError(f'No push run of {CI_WORKFLOW} on main exists for {sha}. Publish only a commit on main whose CI succeeded.')
+        raise ReleaseError(f'No run of {CI_WORKFLOW} on main exists for {sha}. Publish only a commit on main whose CI succeeded.')
     latest = candidates[0]
     if latest.get('status') != 'completed':
         raise ReleaseError(f"CI for {sha} is still {latest.get('status')} ({latest.get('html_url')}). Dispatch again after it succeeds.")
+    partial = [run.get('html_url') for run in candidates if succeeded(run)]
+    if partial:
+        raise ReleaseError(f"No full CI run exists for {sha}: {', '.join(partial)} skipped macOS or Windows jobs "
+                           f"(no {FULL_RUN_ARTIFACT} artifact; an ordinary push skips the platform jobs its paths don't need). "
+                           f'Publish takes the packages only from a run of every job. Dispatch one on main (`gh workflow run ci.yml -R {repository} --ref main`) and dispatch Publish '
+                           'preview again after it succeeds.')
     raise ReleaseError(f"CI for {sha} concluded {latest.get('conclusion')} ({latest.get('html_url')}). Rerun its failed jobs; publish needs a successful run.")
 
 
@@ -81,8 +105,13 @@ def github_api(repository, path, token, opener=urllib.request.urlopen):
 def find_ci_packages(repository, sha, token, api=github_api):
     if not re.fullmatch(r'[0-9a-f]{40}', sha or ''):
         raise ReleaseError('Expected a full commit SHA')
-    query = urllib.parse.urlencode({'head_sha': sha, 'event': 'push', 'branch': 'main', 'per_page': 100})
-    run = select_ci_run(api(repository, f'actions/workflows/ci.yml/runs?{query}', token)['workflow_runs'], repository, sha)
+    # Every event: a nightly or dispatched run of the commit is a full run too.
+    query = urllib.parse.urlencode({'head_sha': sha, 'branch': 'main', 'per_page': 100})
+    runs = api(repository, f'actions/workflows/ci.yml/runs?{query}', token)['workflow_runs']
+    full = {candidate['id'] for candidate in ci_runs_of(runs, repository, sha) if succeeded(candidate)
+            and any(artifact.get('name') == FULL_RUN_ARTIFACT for artifact in
+                    api(repository, f"actions/runs/{candidate['id']}/artifacts?name={FULL_RUN_ARTIFACT}", token)['artifacts'])}
+    run = select_ci_run(runs, repository, sha, full)
     artifact = select_artifact(api(repository, f"actions/runs/{run['id']}/artifacts?name={ARTIFACT}", token)['artifacts'], run)
     # Download by id: re-uploading under the same name creates a new id, so the
     # bytes downloaded later are exactly the artifact selected here.
