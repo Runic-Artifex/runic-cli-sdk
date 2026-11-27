@@ -69,7 +69,9 @@ public static class CommandHelpFormatter
                 (option.Arity.Maximum != 0 ? " <" + (option.Help.ValueName ?? option.Id) + (option.Arity.Maximum != 1 ? "..." : "") + ">" : ""),
                 context.Description(option.Help, option.DescriptionKey), Notes(option.Help, option.IsSensitive, option.IsRequired, context, options, flag: option.Arity.Maximum == 0)));
         rows.Add(new(CommandDialect.HelpTerm(catalog), context.Resolve(CommandTextKeys.HelpShowHelp, "Show help")));
-        rows.Add(new(CommandDialect.Version(catalog), context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
+        // --version is a root request (after a command it is unknown-option), so only root help lists it.
+        if (path.Count == 0)
+            rows.Add(new(CommandDialect.Version(catalog), context.Resolve(CommandTextKeys.HelpShowVersion, "Show version")));
         rows.Add(new(outputOptionName + " <human|json>", context.Resolve(CommandTextKeys.HelpOutputFormat, "Select output format")));
         if (catalog.JsonOutputAlias is { } jsonAlias)
             rows.Add(new(CommandDialect.Option(catalog, jsonAlias), catalog.JsonOutputAliasShape == JsonOutputShape.Payload

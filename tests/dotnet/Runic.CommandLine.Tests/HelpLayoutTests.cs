@@ -61,7 +61,6 @@ internal sealed class HelpLayoutTests
                                      archive. [directory]
               --quiet
               -h, --help             Show help
-              --version              Show version
               --output <human|json>  Select output format
 
             """;
@@ -146,7 +145,6 @@ internal sealed class HelpLayoutTests
             Options:
               --mode <mode>  Mode. [default: fast]
               -h, --help     Show help
-              --version      Show version
               --format <human|json>
                              Select output format
 
@@ -173,7 +171,6 @@ internal sealed class HelpLayoutTests
                              After a blank line
                              [default: fast]
               -h, --help     Show help
-              --version      Show version
               --format <human|json>
                              Select output format
 
@@ -202,7 +199,6 @@ internal sealed class HelpLayoutTests
                           す。{ETE} ＡＢＣ
                           [default: fast]
               -h, --help  Show help
-              --version   Show version
               --format <human|json>
                           Select output
                           format
