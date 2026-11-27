@@ -359,9 +359,35 @@ information. A reader that supports it rejects any other value, including
 address, not presentation text: it is exempt from the technical-content
 redaction above and MUST NOT be built from user input or contain secrets. A
 writer writes the address it was given; the `dotnet` profile writes .NET's
-normalized absolute form (`Uri.AbsoluteUri`, which lowercases the scheme and
-host and writes an empty path as `/`), so the writer cases use addresses that
-are already in that form.
+normalized absolute form, `Uri.AbsoluteUri` (`CommandJsonEnvelopeWriter.cs:241`,
+and `CommandOutputDispatcher.cs:356` for human output). For a valid help link
+that form is the address with these changes, in this order:
+
+1. The scheme and a host that is a registered name are lowercased.
+2. An empty port, and the port 443 also with leading zeros (`:0443`), are left
+   out with their `:`. Another port loses its leading zeros: `:08443` is `:8443`.
+3. In the path, the query and the fragment, a percent-encoded unreserved
+   character (RFC 3986 section 2.3: `ALPHA`, `DIGIT`, `-`, `.`, `_`, `~`) is
+   decoded, whatever the case of its hex digits: `%7e` and `%7E` are `~`.
+4. A percent-encoded well-formed UTF-8 sequence of a character in RFC 3987
+   `ucschar`, or in the query also in `iprivate`, is written with upper-case hex
+   digits: `%c3%a9` is `%C3%A9`. Every other percent-encoding is kept as given,
+   in its hex case: reserved characters (`%2f`, `%3A`), `%25`, and bytes that
+   are no such sequence, such as `%ff`, the C1 control `%c2%85`, the
+   noncharacter `%ef%bf%be`, and the private-use `%ee%80%80` outside the query.
+5. The path's dot segments are removed as RFC 3986 section 5.2.4 says. This
+   follows step 3, so `%2e` and `%2E` are dots here; a `..` above the root is
+   dropped, so `/../../errors` is `/errors`. The query and the fragment keep
+   their dots.
+6. An empty path is written as `/`.
+
+Nothing else changes. A host that .NET reads as an IP address is written in
+its canonical form (`[0:0::1]` is `[::1]`, `127.000.000.001` is `127.0.0.1`).
+Which hosts .NET reads that way, such as `0x7f.1`, is implementation-defined,
+so portable links use a registered name. These steps were measured with .NET 10.
+The writer cases use addresses that are already in that form. The human output
+corpus has a row for each step that changes a link, and a row whose escapes
+stay as given ([Lines](../hosting.md#lines)).
 
 ## Strict reading
 

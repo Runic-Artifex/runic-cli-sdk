@@ -39,6 +39,12 @@
         {"path": ["build"], "aliases": [], "options": [{"id": "mode", "long": "--mode", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "choices": ["Fast", "Safe"]}], "arguments": [{"id": "target", "arity": {"minimum": 0, "maximum": 1}, "choices": ["Debug", "Release"]}]}
       ]
     },
+    "shape-without-alias": {
+      "jsonOutputAliasShape": "payload",
+      "commands": [
+        {"path": ["report"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
     "invalid.default-command-unknown": {
       "defaultCommand": "nosuch",
       "commands": [
@@ -195,10 +201,16 @@
     {"id": "validate.paths-before-conversion", "catalog": "values", "operation": "validate", "requires": ["binding:integer-conversion"], "conversions": {"port": "integer"}, "args": ["serve", "--port", "x", "--cert", "server\u0000.pem"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "invalid-file-path", "tokenIndex": null, "arguments": ["--cert"], "binding": "cert"}]}},
     {"id": "validate.empty-file-path", "catalog": "values", "operation": "validate", "args": ["serve", "--cert", ""], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "invalid-file-path", "tokenIndex": null, "arguments": ["--cert"], "binding": "cert"}]}},
     {"id": "validate.empty-directory-path", "catalog": "values", "operation": "validate", "args": ["serve", "--root="], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "invalid-directory-path", "tokenIndex": null, "arguments": ["--root"], "binding": "root"}]}},
+    {"id": "validate.negative-zero-within-minimum", "catalog": "values", "operation": "validate", "args": ["serve", "--retries=-0", "--ratio", "-0"], "expected": {"kind": "invocation", "commandPath": ["serve"], "options": [{"id": "retries", "values": ["-0"]}, {"id": "ratio", "values": ["-0"]}], "arguments": []}},
+    {"id": "validate.negative-zero-converts", "catalog": "values", "operation": "validate", "requires": ["binding:integer-conversion"], "conversions": {"retries": "integer"}, "args": ["serve", "--retries=-0"], "expected": {"kind": "invocation", "commandPath": ["serve"], "options": [{"id": "retries", "values": ["-0"]}], "arguments": []}},
+    {"id": "validate.converted-negative-below-minimum", "catalog": "values", "operation": "validate", "requires": ["binding:integer-conversion"], "conversions": {"retries": "integer"}, "args": ["serve", "--retries=-1"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "below-minimum", "tokenIndex": null, "arguments": ["--retries", "0"], "binding": "retries"}]}},
+    {"id": "values.negative-zero-is-a-negative-number", "catalog": "values", "args": ["serve", "--retries", "-0"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 2, "arguments": ["--retries"], "binding": "retries"}]}},
     {"id": "catalog.valid.default-command", "catalog": "default-command", "operation": "catalog", "expected": {"kind": "valid"}},
     {"id": "catalog.valid.root-command", "catalog": "root-command", "operation": "catalog", "expected": {"kind": "valid"}},
     {"id": "catalog.valid.root-command-without-arguments", "catalog": "root-command-without-arguments", "operation": "catalog", "expected": {"kind": "valid"}},
+    {"id": "shape-without-alias.json-is-unknown", "catalog": "shape-without-alias", "args": ["report", "--json"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1001", "kind": "unknown-option", "tokenIndex": 1, "arguments": ["--json"]}]}},
     {"id": "catalog.valid.values", "catalog": "values", "operation": "catalog", "expected": {"kind": "valid"}},
+    {"id": "catalog.valid.shape-without-alias", "catalog": "shape-without-alias", "operation": "catalog", "expected": {"kind": "valid"}},
     {"id": "catalog.default-command-unknown", "catalog": "invalid.default-command-unknown", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0018"}},
     {"id": "catalog.default-command-not-root", "catalog": "invalid.default-command-not-root", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0018"}},
     {"id": "catalog.root-command-with-alias", "catalog": "invalid.root-command-with-alias", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0018"}},
