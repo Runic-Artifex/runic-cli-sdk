@@ -133,7 +133,8 @@ The four NuGet package identities release together, independently from the
 Runic SDK. See [the release guide](eng/release/README.md). The latest published
 release is `0.14.0`, part of the 0.23 release train with Runic Translations
 0.15.0 and Runic SDK 0.23.0; see its [upgrade notes](eng/release/notes/0.14.0.md).
-The next release is `0.15.0`.
+The next release is `0.15.0` (its [upgrade notes](eng/release/notes/0.15.0.md)),
+part of the 0.24 release train with Runic Translations 0.16.0 and Runic SDK 0.24.0.
 The `1.0.0-rc.N` release candidates follow once a pull request schedules them;
 they take only fixes, and 1.0.0 follows the last one. The packages keep their
 `Runic.*` identities. Until 1.0 releases use plain

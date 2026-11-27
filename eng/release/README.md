@@ -270,7 +270,10 @@ same policy. For Command Line:
   `--json` for every outcome, and the framework text catalog with a key for
   every text); 0.13.0 makes help and usage texts name what users see; 0.14.0
   retires the `faults.RCLI4001` key and makes the strict reader reject duplicate
-  member names anywhere (0.23 release train); then
+  member names anywhere (0.23 release train); 0.15.0 decides the global option,
+  fallback and choice rules as catalog errors, lists `--version` only in root
+  help and specifies the library for other implementations (0.24 release
+  train); then
   `1.0.0-rc.N` takes fixes only, and 1.0.0 follows the last release candidate.
 - Command Line depends on no other Runic SDK and ships first in the 1.0 release
   train, before Runic Translations and Runic SDK. After 1.0 it releases minors
