@@ -27,7 +27,7 @@ internal sealed class ProtocolCorpusTests
 
     public static IEnumerable<string> WriterCaseIds()
     {
-        AssertEx.Equal(19, Writer.Cases.Length, "The frozen writer corpus row count changed.");
+        AssertEx.Equal(20, Writer.Cases.Length, "The frozen writer corpus row count changed.");
         return Writer.Cases.Select(static test => test.Id);
     }
 
@@ -189,21 +189,30 @@ internal sealed class ProtocolCorpusTests
         return ValueTask.CompletedTask;
     }
 
-    private static byte[] Serialize(WriterInput input)
+    // The doubles of sample.measurement/1 are written through its record, as an application writes its typed result,
+    // so their text is the writer's own (protocol README, "Examples, writer cases and escaping profiles"). Any other
+    // payload is a JSON value, which the writer copies as given.
+    private static byte[] Serialize(WriterInput input) =>
+        input.Success && input.PayloadType == "sample.measurement/1"
+            ? Serialize(input, CorpusJsonContext.Default.MeasurementPayload)
+            : Serialize(input, CorpusJsonContext.Default.JsonElement);
+
+    private static byte[] Serialize<T>(WriterInput input, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> payloadInfo)
     {
         IReadOnlyList<CommandDiagnostic> diagnostics = input.Diagnostics.Select(Diagnostic).ToArray();
         if (input.Success)
         {
-            CommandResponse<JsonElement> success = input.ExitCode == 0
-                ? CommandResponse.Success(input.RequestId, input.Command, input.PayloadType!, input.Payload, diagnostics)
+            T payload = input.Payload.Deserialize(payloadInfo)!;
+            CommandResponse<T> success = input.ExitCode == 0
+                ? CommandResponse.Success(input.RequestId, input.Command, input.PayloadType!, payload, diagnostics)
                 : CommandResponse.FromOutcome(
                     input.RequestId,
                     input.Command,
                     input.ExitCode,
                     input.PayloadType!,
-                    CommandOutcome.Success(input.Payload).WithExitCode(input.ExitCode),
+                    CommandOutcome.Success(payload).WithExitCode(input.ExitCode),
                     diagnostics);
-            return CommandJsonEnvelopeWriter.Serialize(success, CorpusJsonContext.Default.JsonElement);
+            return CommandJsonEnvelopeWriter.Serialize(success, payloadInfo);
         }
 
         WriterFault fault = input.Fault!;
@@ -216,14 +225,14 @@ internal sealed class ProtocolCorpusTests
         CommandFailureData? failureData = input.FailureData is { } data
             ? CommandFailureData.Create(data.Type, data.Payload, CorpusJsonContext.Default.JsonElement)
             : null;
-        CommandResponse<JsonElement> failure = CommandResponse.Failure<JsonElement>(
+        CommandResponse<T> failure = CommandResponse.Failure<T>(
             input.RequestId,
             input.Command,
             input.ExitCode,
             new CommandFault(fault.Code, fault.Message, details, fault.Retryable) { HelpUri = Uri(fault.HelpUri) },
             diagnostics,
             failureData);
-        return CommandJsonEnvelopeWriter.Serialize(failure, CorpusJsonContext.Default.JsonElement);
+        return CommandJsonEnvelopeWriter.Serialize(failure, payloadInfo);
     }
 
     private static CommandDiagnostic Diagnostic(WriterDiagnostic input) =>
@@ -263,9 +272,18 @@ internal sealed class ProtocolCorpusTests
         AssertEx.True(expected.Length > 2 && expected[^1] == (byte)'\n', $"Example {name} is not LF framed.");
         using JsonDocument document = JsonDocument.Parse(expected);
         bool success = document.RootElement.GetProperty("success").GetBoolean();
+        string payloadType = success ? document.RootElement.GetProperty("payloadType").GetString()! : "sample.unused/1";
+        if (payloadType == "sample.measurement/1")
+        {
+            CommandResponse<MeasurementPayload> measurement = CommandJsonEnvelopeReader.Read(expected, payloadType, CorpusJsonContext.Default.MeasurementPayload);
+            AssertEx.Equal(1E+21, measurement.Payload!.Huge);
+            AssertEx.Equal(5E-324, measurement.Payload.Minimum);
+            return ValueTask.CompletedTask;
+        }
+
         CommandResponse<ExportPayload> roundTrip = CommandJsonEnvelopeReader.Read(
             expected,
-            success ? document.RootElement.GetProperty("payloadType").GetString()! : "sample.unused/1",
+            payloadType,
             CorpusJsonContext.Default.ExportPayload);
         AssertEx.Equal(success, roundTrip.Succeeded);
         AssertEx.Equal(document.RootElement.GetProperty("exitCode").GetInt32(), roundTrip.ExitCode);

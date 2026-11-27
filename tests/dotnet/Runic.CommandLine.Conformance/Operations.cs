@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -119,6 +121,124 @@ internal sealed class Operations
         }
     }
 
+    // cl.help {catalog, applicationName, path, width}: the help text for a command path, as the help formatter writes it
+    // for a terminal of `width` cells (help.md).
+    public JsonObject Help(JsonElement arguments)
+    {
+        try
+        {
+            CommandCatalog catalog = _catalogs.Get(arguments.GetProperty("catalog"));
+            string[] path = [.. arguments.GetProperty("path").EnumerateArray().Select(static item => item.GetString()!)];
+            string text = CommandHelpFormatter.Format(
+                catalog,
+                arguments.GetProperty("applicationName").GetString()!,
+                path.Length == 0 ? CommandPath.Root : new CommandPath(path),
+                CommandTextContext.English,
+                arguments.GetProperty("width").GetInt32());
+            return new JsonObject { ["text"] = text };
+        }
+        catch (Exception exception) when (exception is not UnsupportedException)
+        {
+            return Unmapped(exception);
+        }
+    }
+
+    // cl.human {catalog, applicationName, argv, outcome, texts}: what the standalone runner writes in human output when
+    // every command's handler returns `outcome` (hosting.md, "Human output"). The runner parses `argv` without an
+    // environment, handles no signals and resolves text through `texts` when the row gives any.
+    public static JsonObject Human(JsonElement arguments)
+    {
+        try
+        {
+            JsonElement outcome = arguments.GetProperty("outcome");
+            if (!outcome.GetProperty("success").GetBoolean())
+            {
+                return RunHuman(arguments, CommandResultCodecs.String, () => Failure<string>(outcome));
+            }
+
+            string payloadType = outcome.GetProperty("payloadType").GetString()!;
+            CommandDiagnostic[] diagnostics = Diagnostics(outcome);
+            return payloadType switch
+            {
+                "runic.text/1" => RunHuman(arguments, CommandResultCodecs.String,
+                    () => CommandOutcome.Success(outcome.GetProperty("payload").GetString()!, diagnostics)),
+                "runic.unit/1" => RunHuman(arguments, CommandResultCodecs.Unit, () => CommandOutcome.Success(default(CommandUnit), diagnostics)),
+                _ => throw new UnsupportedException($"human output of the payload type {payloadType}"),
+            };
+        }
+        catch (Exception exception) when (exception is not UnsupportedException)
+        {
+            return Unmapped(exception);
+        }
+    }
+
+    private static JsonObject RunHuman<T>(JsonElement arguments, ICommandResultCodec<T> codec, Func<CommandOutcome<T>> outcome)
+    {
+        CommandCatalog catalog = CatalogFactory.Build(arguments.GetProperty("catalog"), codec, outcome);
+        var texts = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (arguments.TryGetProperty("texts", out JsonElement given))
+        {
+            foreach (JsonProperty text in given.EnumerateObject())
+            {
+                texts.Add(text.Name, text.Value.GetString()!);
+            }
+        }
+
+        var console = new CapturingConsole();
+        var app = new CommandApp(catalog)
+        {
+            Name = arguments.GetProperty("applicationName").GetString()!,
+            Console = console,
+            Culture = CultureInfo.GetCultureInfo("en"),
+            TextResolver = texts.Count > 0 ? new CorpusTextResolver(texts) : null,
+            ParseSettings = new ParseSettings { GetEnvironmentVariable = static _ => null },
+            HandleTerminationSignals = false,
+        };
+        int exitCode = app.Run([.. arguments.GetProperty("argv").EnumerateArray().Select(static item => item.GetString()!)]);
+        return new JsonObject { ["exitCode"] = exitCode, ["stdout"] = console.Out.ToString(), ["stderr"] = console.Error.ToString() };
+    }
+
+    private static CommandOutcome<T> Failure<T>(JsonElement outcome)
+    {
+        string category = outcome.GetProperty("category").GetString()!;
+        JsonElement fault = outcome.GetProperty("fault");
+        return CommandOutcome.Failure<T>(
+            category switch
+            {
+                "usage" => CommandExitCategory.Usage,
+                "validation" => CommandExitCategory.Validation,
+                "unavailable" => CommandExitCategory.Unavailable,
+                "command-failure" => CommandExitCategory.CommandFailure,
+                "host-failure" => CommandExitCategory.HostFailure,
+                _ => throw new UnsupportedException($"the failure category {category}"),
+            },
+            Fault(fault),
+            Diagnostics(outcome),
+            outcome.TryGetProperty("humanOutput", out JsonElement human) ? human.GetString() : null);
+    }
+
+    private static CommandDiagnostic[] Diagnostics(JsonElement input) =>
+        input.TryGetProperty("diagnostics", out JsonElement diagnostics) ? [.. diagnostics.EnumerateArray().Select(Diagnostic)] : [];
+
+    private static CommandFault Fault(JsonElement fault)
+    {
+        // The producer's details in the order it gave them: the first of two keys that sanitize alike wins.
+        var details = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (JsonElement detail in fault.GetProperty("details").EnumerateArray())
+        {
+            details.Add(detail[0].GetString()!, detail[1].GetString()!);
+        }
+
+        return new CommandFault(
+            fault.GetProperty("code").GetString()!,
+            fault.GetProperty("message").GetString()!,
+            details,
+            fault.GetProperty("retryable").GetBoolean())
+        {
+            HelpUri = Uri(fault, "helpUri"),
+        };
+    }
+
     // cl.classify {catalog, argv, env}: the output mode and its source, or the diagnostics (grammar.md, "Output
     // classification").
     public JsonObject Classify(JsonElement arguments)
@@ -180,6 +300,8 @@ internal sealed class Operations
                     CommandJsonEnvelopeReader.Read(frame, payloadType, recorder.Wrap(PayloadJsonContext.Default.StatusPayload))),
                 "sample.export-result/1" => Envelope(
                     CommandJsonEnvelopeReader.Read(frame, payloadType, recorder.Wrap(PayloadJsonContext.Default.ExportPayload))),
+                "sample.measurement/1" => Envelope(
+                    CommandJsonEnvelopeReader.Read(frame, payloadType, recorder.Wrap(PayloadJsonContext.Default.MeasurementPayload))),
                 _ => throw new UnsupportedException($"the payload type {payloadType} is not registered in the .NET adapter"),
             };
             return new JsonObject { ["result"] = "accepted", ["envelope"] = envelope, ["payloadDecodeAttempted"] = recorder.Attempted };
@@ -239,17 +361,25 @@ internal sealed class Operations
         return PortableCommandSyntaxAdapter.Instance.Parse(catalog, argv, settings);
     }
 
-    private static byte[] Serialize(JsonElement input)
+    // A payload type the adapter registers a record for is written through that record's metadata, as an application
+    // writes its typed results, so its numbers are the writer's own text. Any other payload is a JSON value, which the
+    // writer copies as given.
+    private static byte[] Serialize(JsonElement input) =>
+        input.GetProperty("success").GetBoolean() && input.GetProperty("payloadType").GetString() == "sample.measurement/1"
+            ? Serialize(input, PayloadJsonContext.Default.MeasurementPayload)
+            : Serialize(input, PayloadJsonContext.Default.JsonElement);
+
+    private static byte[] Serialize<T>(JsonElement input, JsonTypeInfo<T> payloadInfo)
     {
         string requestId = input.GetProperty("requestId").GetString()!;
         string command = input.GetProperty("command").GetString()!;
         int exitCode = input.GetProperty("exitCode").GetInt32();
-        CommandDiagnostic[] diagnostics = [.. input.GetProperty("diagnostics").EnumerateArray().Select(Diagnostic)];
+        CommandDiagnostic[] diagnostics = Diagnostics(input);
         if (input.GetProperty("success").GetBoolean())
         {
             string payloadType = input.GetProperty("payloadType").GetString()!;
-            JsonElement payload = input.GetProperty("payload");
-            CommandResponse<JsonElement> success = exitCode == 0
+            T payload = input.GetProperty("payload").Deserialize(payloadInfo)!;
+            CommandResponse<T> success = exitCode == 0
                 ? CommandResponse.Success(requestId, command, payloadType, payload, diagnostics)
                 : CommandResponse.FromOutcome(
                     requestId,
@@ -258,35 +388,20 @@ internal sealed class Operations
                     payloadType,
                     CommandOutcome.Success(payload).WithExitCode(exitCode),
                     diagnostics);
-            return CommandJsonEnvelopeWriter.Serialize(success, PayloadJsonContext.Default.JsonElement);
-        }
-
-        JsonElement fault = input.GetProperty("fault");
-        // The producer's details in the order it gave them: the first of two keys that sanitize alike wins.
-        var details = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (JsonElement detail in fault.GetProperty("details").EnumerateArray())
-        {
-            details.Add(detail[0].GetString()!, detail[1].GetString()!);
+            return CommandJsonEnvelopeWriter.Serialize(success, payloadInfo);
         }
 
         CommandFailureData? failureData = input.TryGetProperty("failureData", out JsonElement data) && data.ValueKind != JsonValueKind.Null
             ? CommandFailureData.Create(data.GetProperty("type").GetString()!, data.GetProperty("payload"), PayloadJsonContext.Default.JsonElement)
             : null;
-        CommandResponse<JsonElement> failure = CommandResponse.Failure<JsonElement>(
+        CommandResponse<T> failure = CommandResponse.Failure<T>(
             requestId,
             command,
             exitCode,
-            new CommandFault(
-                fault.GetProperty("code").GetString()!,
-                fault.GetProperty("message").GetString()!,
-                details,
-                fault.GetProperty("retryable").GetBoolean())
-            {
-                HelpUri = Uri(fault, "helpUri"),
-            },
+            Fault(input.GetProperty("fault")),
             diagnostics,
             failureData);
-        return CommandJsonEnvelopeWriter.Serialize(failure, PayloadJsonContext.Default.JsonElement);
+        return CommandJsonEnvelopeWriter.Serialize(failure, payloadInfo);
     }
 
     private static CommandDiagnostic Diagnostic(JsonElement input)
@@ -479,4 +594,47 @@ internal sealed class NullConsole : ICommandConsole
     public ValueTask WriteOutBytesAsync(ReadOnlyMemory<byte> value, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
     public ValueTask WriteErrorAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+}
+
+// A console that is never interactive and keeps what each stream receives.
+internal sealed class CapturingConsole : ICommandConsole
+{
+    public StringBuilder Out { get; } = new();
+
+    public StringBuilder Error { get; } = new();
+
+    public bool IsInteractive => false;
+
+    public bool IsInputRedirected => true;
+
+    public bool IsOutputRedirected => true;
+
+    public bool IsErrorRedirected => true;
+
+    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken) => ValueTask.FromResult<string?>(null);
+
+    public ValueTask WriteOutAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken)
+    {
+        Out.Append(value.Span);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask WriteOutBytesAsync(ReadOnlyMemory<byte> value, CancellationToken cancellationToken)
+    {
+        Out.Append(Encoding.UTF8.GetString(value.Span));
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask WriteErrorAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken)
+    {
+        Error.Append(value.Span);
+        return ValueTask.CompletedTask;
+    }
+}
+
+// A row's `texts`: each key's template, with `{0}`, `{1}` … replaced by the key's arguments in order.
+internal sealed class CorpusTextResolver(IReadOnlyDictionary<string, string> texts) : ICommandTextResolver
+{
+    public string? Resolve(string key, CultureInfo culture, IReadOnlyList<string> arguments) =>
+        texts.TryGetValue(key, out string? template) ? string.Format(CultureInfo.InvariantCulture, template, [.. arguments]) : null;
 }

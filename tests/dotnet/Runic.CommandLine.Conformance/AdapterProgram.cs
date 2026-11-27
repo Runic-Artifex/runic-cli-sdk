@@ -72,6 +72,8 @@ internal static class AdapterProgram
         "cl.classify" => operations.Classify(arguments),
         "cl.validate" => operations.Validate(arguments),
         "cl.catalog" => Operations.Catalog(arguments),
+        "cl.help" => operations.Help(arguments),
+        "cl.human" => Operations.Human(arguments),
         "cl.readEnvelope" => Operations.ReadEnvelope(arguments),
         "cl.write" => Operations.Write(arguments),
         _ => throw new UnsupportedException($"the .NET adapter has no operation {operation}"),
@@ -93,8 +95,9 @@ internal static class AdapterProgram
                 ["version"] = version,
             },
             ["corpora"] = new JsonArray("commandline/1"),
-            ["roles"] = new JsonArray("parser", "reader", "writer"),
-            ["features"] = new JsonArray(),
+            ["roles"] = new JsonArray("parser", "reader", "writer", "presenter"),
+            // Root help lists the built-in completion command (help.md, "Commands").
+            ["features"] = new JsonArray("help:completion-command"),
             // Runic.CommandLine's writer is the one the `dotnet` escaping profile describes (protocol README).
             ["capabilities"] = new JsonArray("escaping-profile:dotnet"),
         };

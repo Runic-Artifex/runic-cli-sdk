@@ -11,9 +11,27 @@ internal sealed record StatusPayload(string? State);
 
 internal sealed record ExportPayload(int Written, string OutputPath);
 
+// Doubles, which the writer writes as .NET's Utf8JsonWriter does (protocol README, "Examples, writer cases and escaping
+// profiles"). The members are in the order of the example.
+internal sealed record MeasurementPayload(
+    double One,
+    double Fraction,
+    double Negative,
+    double Tenth,
+    double Small,
+    double Smaller,
+    double Tiny,
+    double Large,
+    double Larger,
+    double Huge,
+    double Precise,
+    double Maximum,
+    double Minimum);
+
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(StatusPayload))]
 [JsonSerializable(typeof(ExportPayload))]
+[JsonSerializable(typeof(MeasurementPayload))]
 [JsonSerializable(typeof(AdapterResult))]
 [JsonSerializable(typeof(JsonElement))]
 internal sealed partial class PayloadJsonContext : JsonSerializerContext;

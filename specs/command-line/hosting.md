@@ -1,6 +1,6 @@
 # Command Line hosting, version 1
 
-This document specifies what a host process does around one invocation: the exit code it returns, how it handles termination signals, how a handler's cancellation ends, what debug output it writes, and how it captures the environment that [environment fallbacks](grammar.md#environment-fallbacks) read. The grammar ([grammar.md](grammar.md)) and the machine protocol ([protocol/README.md](protocol/README.md)) say what an invocation means and what it writes; this document says how the process runs it.
+This document specifies what a host process does around one invocation: the exit code it returns, how it handles termination signals, how a handler's cancellation ends, what it writes in human output, what debug output it writes, and how it captures the environment that [environment fallbacks](grammar.md#environment-fallbacks) read. The grammar ([grammar.md](grammar.md)) and the machine protocol ([protocol/README.md](protocol/README.md)) say what an invocation means and what it writes; this document says how the process runs it.
 
 The rules come from the shipped .NET library, `Runic.CommandLine`. It has two hosts:
 
@@ -113,6 +113,43 @@ The protocol example [`examples/host-fault.json`](protocol/examples/host-fault.j
 ### Output timing
 
 A handler's output is not held back. In human output, what the handler writes to standard output and standard error goes to those streams as it writes it. In JSON output, standard output carries only the frame, so what the handler writes to standard output goes to standard error instead, also as it writes it. When the application asked for a quiet standard error, the handler's output is discarded in JSON output. The outcome itself is written after the handler returns: the human result, fault, diagnostics and usage line, or the JSON frame. .NET writes through the runtime's console writers, which flush every write (implementation-defined).
+
+## Human output
+
+In human output (the output mode `human` of [Output classification](grammar.md#output-classification)) an outcome is written as text for people: a success's result goes to standard output, and everything else to standard error. JSON output writes the [envelope](protocol/README.md#envelope) instead. The rules come from `Output/CommandOutputDispatcher.cs` (cited as `:<line>`), and the [human output corpus](#corpus) checks them. Both hosts write the same text; only the standalone runner adds the `RCLI5000` hint ([Debug output](#debug-output)).
+
+### Success
+
+1. Each diagnostic of the outcome (warnings and information; a success has no error diagnostic) is written to standard error as a [line](#lines), in order, before the result (`:288-291`; `human.success-diagnostics`).
+2. The result's codec writes the payload to standard output (`:291`). The framework's payload types ([Framework payload types](protocol/README.md#framework-payload-types)) write:
+   - `runic.text/1`: the text, followed by LF unless it already ends with LF. So empty text writes one LF, `"\n"` (`human.text-empty`), and text that ends with LF is written as it is (`CommandResultCodecs.cs:27-28`). Help and version are successes of this type.
+   - `runic.unit/1`: nothing (`CommandResultCodecs.cs:34`). A unit success without diagnostics writes no byte at all (`human.unit`).
+
+   An application's own payload type writes what its codec writes.
+
+### Failure
+
+Everything goes to standard error, as one write, in this order (`:295-317`):
+
+1. Each diagnostic as a [line](#lines), in order (`human.failure-diagnostics`).
+2. The **fault line**: the fault message, then LF. It keeps the line breaks the producer wrote, sanitized as a diagnostic line is, unless a translation replaced it or it was redacted (`human.failure-multiline-fault`). It is left out when a diagnostic with the fault's code has the same sanitized message, or when both the fault message and that diagnostic's message were redacted, because that diagnostic already reported it (`:391-421`; `human.failure-diagnostic-describes-fault`). The `RCLI5000` hint, when it applies, follows the message after one space ([Debug output](#debug-output); `human.host-failure-hint`).
+3. The fault's [help link line](#lines), when the fault has a `helpUri`, unless a diagnostic with the fault's code already wrote the same link, compared as the full text including its fragment (`:310-314`, `:376-389`; `human.failure-help-link-once`).
+4. For a usage failure (the usage category: a parse error, or a binder's or handler's usage outcome), the **usage hint**: the [usage line](help.md#usage-line) of the command the failure belongs to, at the help width ([Width](help.md#width)), then `Run "<application> <command path> --help" for more information.` and LF (text key `hints.usage`, with the help command as its argument; `--help` is the dialect's help spelling). For a parse error the command is the first diagnostic's command path, the root for an error before any command (`human.parse-error`, `human.parse-error-at-root`); for an outcome it is the invoked command (`human.usage-failure`). A translated `hints.usage` with technical content gives way to the English text (`CommandUsageHint.cs:16-27`, `CommandPresentation.cs:93-101`, `:68-71`).
+
+### A failure's own human output
+
+A failure outcome may carry the application's own human text (.NET: `CommandOutcome.Failure(..., humanOutput)`), at most 1,048,576 UTF-8 bytes of valid Unicode (`CommandOutcome.cs:168-202`). In human output that text goes to standard output first, exactly as given, without sanitization and without an added LF. The failure is then written to standard error as above, without the usage hint (`:86-96`, `:184-202`; `human.failure-own-output`, `human.usage-failure-own-output`). An `RCLI5000` failure that gets the hint is written without its own text (`:80-84`). The text never appears in the JSON envelope; with a payload-shaped JSON output alias it goes to standard error in place of the fault line (`:149-155`; [protocol](protocol/README.md)).
+
+### Lines
+
+- **A diagnostic line** is the diagnostic's message alone, then LF (`:332-349`). The code is for programs, which read it from JSON output. The message is sanitized as [Sanitization](protocol/README.md#sanitization) says, except that it keeps its line breaks: LF and CR LF become LF, and a line does not end with the space that replaced a control character or with the author's own trailing space; a lone CR, like every other control character, becomes a space; leading and trailing line breaks are dropped (`CommandFaultSanitizer.cs:98-112`, `:164-235`; `human.diagnostic-line-breaks`). Only the message is checked for technical content, since human output shows no arguments: a message with technical content becomes the diagnostic content redaction note, and a message that is only white space after sanitizing the diagnostic message note (`CommandFaultSanitizer.cs:85-90`).
+- **A help link line** follows the line it documents: `Help for <code>: <link>` and LF, where the link is the `helpUri` in .NET's normalized absolute form (`Uri.AbsoluteUri`) and is never redacted (`:351-374`; `human.success-diagnostic-help-link`, `human.failure-fault-help-link`). With a text resolver, the text key `hints.help-link`, whose arguments are the code and the link, replaces the English line when its text contains the link exactly once and the text before and after the link has no technical content; that text is sanitized, the link is not (`human.failure-help-link-translated`). Otherwise the English line stands (`human.failure-help-link-translation-without-link`, `human.failure-help-link-translation-technical`).
+
+### Corpus
+
+`human-output-corpus.json` has the application name, named `catalogs` in the format of the [catalog features corpus](grammar.md#normalized-results) and `cases`. A case runs its command line `args` through the standalone runner in human output, with an empty environment, where every command's handler returns the case's `outcome`; `texts`, when given, translates text keys, each with `{0}`, `{1}` … standing for the key's arguments. The runner's exit code, standard output and standard error must equal `expected` exactly. The conformance driver runs a case with `cl.human` ([conformance driver](../../eng/conformance/README.md#command-line)).
+
+An `outcome` is a success, `{success: true, payloadType, payload, diagnostics}` with the payload type `runic.text/1` or `runic.unit/1` (which has no `payload`), or a failure, `{success: false, category, fault, diagnostics, humanOutput}`, whose `category` is one of `usage`, `validation`, `unavailable`, `command-failure` and `host-failure`, and whose `fault` and diagnostics have the form of a [writer case](protocol/README.md#corpus-layout)'s input; `humanOutput` is optional. The corpus compares the English framework texts (diagnostic messages, the usage hint, the `RCLI5000` hint); an implementation whose English differs reports those rows as a deviation.
 
 ## Debug output
 

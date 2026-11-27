@@ -53,6 +53,11 @@
       "expected": { "example": "examples/fault-details.json" }
     },
     {
+      "id": "writer.number-text",
+      "input": { "requestId": "req-measure-0010", "command": "measure", "success": true, "exitCode": 0, "payloadType": "sample.measurement/1", "payload": { "one": 1.0, "fraction": 1.5, "negative": -2.25, "tenth": 0.1, "small": 0.0001, "smaller": 0.00001, "tiny": 0.000000125, "large": 10000000000000000, "larger": 100000000000000000, "huge": 1000000000000000000000, "precise": 123456789012345678, "maximum": 1.7976931348623157e308, "minimum": 5e-324 }, "diagnostics": [] },
+      "expected": { "example": "examples/number-text.json" }
+    },
+    {
       "id": "writer.sanitize.control-run",
       "input": { "requestId": "req-10", "command": "pack", "success": false, "exitCode": 1, "fault": { "code": "RCLI8001", "message": "Packing\u0001\u0002failed \u0007for\u202eatlas.", "details": [], "retryable": false }, "diagnostics": [] },
       "expected": { "document": { "protocol": "runic.commandline/1", "requestId": "req-10", "command": "pack", "success": false, "exitCode": 1, "payloadType": null, "payload": null, "fault": { "code": "RCLI8001", "message": "Packing failed for atlas.", "details": {}, "retryable": false }, "diagnostics": [] } }

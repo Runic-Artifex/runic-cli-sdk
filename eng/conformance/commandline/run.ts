@@ -29,6 +29,10 @@ export async function runCommandLineCase(adapter: Adapter, c: Case, { supports, 
         return await catalog(adapter, c.body);
       case "classify":
         return await classify(adapter, c.body);
+      case "help":
+        return await help(adapter, c.body);
+      case "human":
+        return await human(adapter, c.body);
       case "read-wire":
         return await readWire(adapter, c.body);
       case "read-document":
@@ -115,6 +119,37 @@ async function classify(adapter: Adapter, { catalog, row }: any): Promise<Outcom
   if (e.kind === "error") return diagnostics(r.diagnostics, e.diagnostics ?? []);
   if (r.diagnostics?.length) return fail(`output mode ${r.mode} with diagnostics ${abbreviate(r.diagnostics)}`);
   return r.mode === e.mode && r.source === e.source ? pass : fail(`mode ${r.mode} from ${r.source}, expected ${e.mode} from ${e.source}`);
+}
+
+// --- Help text (help.md) ---
+
+// The text must equal the row's lines, each followed by LF, exactly.
+async function help(adapter: Adapter, { catalog, applicationName, row }: any): Promise<Outcome> {
+  const r = await adapter.call("cl.help", { catalog, applicationName, path: row.path, width: row.width });
+  if (r.error) return fail(`the help formatter failed: ${r.error}`);
+  return sameText("help", r.text, row.expected.lines.map((line: string) => line + "\n").join(""));
+}
+
+// --- Human output (hosting.md, "Human output") ---
+
+// The runner's exit code, standard output and standard error must equal the row's exactly.
+async function human(adapter: Adapter, { catalog, applicationName, row }: any): Promise<Outcome> {
+  const r = await adapter.call("cl.human", { catalog, applicationName, argv: row.args, outcome: row.outcome, texts: row.texts ?? {} });
+  if (r.error) return fail(`the runner failed: ${r.error}`);
+  const e = row.expected;
+  if (r.exitCode !== e.exitCode) return fail(`exit code ${r.exitCode}, expected ${e.exitCode} (stdout ${abbreviate(r.stdout)}, stderr ${abbreviate(r.stderr)})`);
+  const out = sameText("stdout", r.stdout, e.stdout);
+  return out.outcome === "pass" ? sameText("stderr", r.stderr, e.stderr) : out;
+}
+
+// Names the first line that differs.
+function sameText(what: string, actual: unknown, expected: string): Outcome {
+  if (actual === expected) return pass;
+  if (typeof actual !== "string") return fail(`${what} is ${abbreviate(actual)}, not text`);
+  const a = actual.split("\n"), e = expected.split("\n");
+  let k = 0;
+  while (k < a.length && k < e.length && a[k] === e[k]) k++;
+  return fail(`${what} differs at line ${k + 1}: ${abbreviate(a[k] ?? "(end)")}, expected ${abbreviate(e[k] ?? "(end)")} (${abbreviate(actual, 600)})`);
 }
 
 // --- Strict reading (protocol README, "Strict reading") ---
