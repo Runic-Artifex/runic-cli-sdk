@@ -136,6 +136,24 @@ internal sealed class UsageErrorTests
             console.StandardError);
     }
 
+    [Test, DisplayName("usage-errors/the-root-command-hint-is-the-application-usage")]
+    public async ValueTask RootCommandHint()
+    {
+        // The root command's name is no command spelling, so its hint is root help's usage line and help command.
+        var builder = new CommandCatalogBuilder();
+        CatalogTests.ValidCommand(builder, "run").Argument("target", "target", CommandArity.ExactlyOne);
+        CatalogTests.ValidCommand(builder, "status");
+        CommandCatalog catalog = builder.RootCommand("run").Build();
+        var console = new TestCommandConsole();
+        var app = new CommandApp(catalog) { Name = "storyline", Console = console, HandleTerminationSignals = false, ParseSettings = ParseSettings.Default };
+        AssertEx.Equal(CommandExitCodes.Usage, await app.RunAsync([]));
+        AssertEx.Equal(
+            "The <target> argument is missing.\n" +
+            "Usage: storyline [command] <target> [options]\n" +
+            "Run \"storyline --help\" for more information.\n",
+            console.StandardError);
+    }
+
     [Test, DisplayName("usage-errors/json-output-keeps-codes-and-adds-no-hint")]
     public async ValueTask JsonOutput()
     {

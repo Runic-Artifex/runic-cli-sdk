@@ -53,10 +53,10 @@ internal sealed class Operations
         return result;
     }
 
-    // cl.validate {catalog, argv, env}: the normalized result after input validation (grammar.md, "Input
+    // cl.validate {catalog, argv, env, conversions}: the normalized result after input validation (grammar.md, "Input
     // validation"). A parse result other than an invocation is the result. An invocation runs through the executor with
-    // a binder that accepts everything, so the outcome's diagnostics are the framework's own checks: relations and paths
-    // before binding, bounds after it.
+    // a binder that accepts everything but converts the values that `conversions` names, so the outcome's diagnostics
+    // are the framework's own checks and the binder's: relations and paths before binding, bounds after conversion.
     public JsonObject Validate(JsonElement arguments)
     {
         ParseOutcome outcome;
@@ -75,6 +75,16 @@ internal sealed class Operations
         }
 
         var sink = new DiagnosticSink();
+        var conversions = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (arguments.TryGetProperty("conversions", out JsonElement given))
+        {
+            foreach (JsonProperty conversion in given.EnumerateObject())
+            {
+                conversions.Add(conversion.Name, conversion.Value.GetString()!);
+            }
+        }
+
+        AdapterBinder.Conversions = conversions;
         try
         {
             var executor = new CommandExecutor(CommandScopes.FromServices(EmptyServices.Instance));
@@ -89,6 +99,10 @@ internal sealed class Operations
         catch (Exception exception) when (exception is not UnsupportedException)
         {
             return Unmapped(exception);
+        }
+        finally
+        {
+            AdapterBinder.Conversions = null;
         }
 
         return Parse(arguments);

@@ -14,7 +14,8 @@ namespace Runic.CommandLine.Conformance;
 // the case is unsupported rather than run against a catalog that lacks it.
 internal sealed class CatalogFactory
 {
-    private static readonly HashSet<string> CatalogMembers = ["jsonOutputAlias", "globalOptions", "commands", "defaultCommand", "rootCommand"];
+    private static readonly HashSet<string> CatalogMembers =
+        ["jsonOutputAlias", "jsonOutputAliasShape", "dialect", "globalOptions", "commands", "defaultCommand", "rootCommand"];
     private static readonly HashSet<string> CommandMembers = ["path", "aliases", "options", "arguments", "group", "help"];
     private static readonly HashSet<string> OptionMembers =
         ["id", "long", "aliases", "arity", "repeat", "required", "choices", "environmentVariable", "acceptsNegativeNumbers", "sensitive",
@@ -50,9 +51,26 @@ internal sealed class CatalogFactory
         var commandFactory = new Commands<TResult>(codec, new ScriptedHandlerFactory<TResult>(outcome));
         RequireKnown(catalog, CatalogMembers, "catalog");
         var builder = new CommandCatalogBuilder();
+        if (catalog.TryGetProperty("dialect", out JsonElement dialect))
+        {
+            builder.Syntax(dialect.GetString() switch
+            {
+                "portable" => CommandSyntaxDialect.Portable,
+                "windows-slash" => CommandSyntaxDialect.WindowsSlash,
+                string other => throw new UnsupportedException($"the dialect {other}"),
+                null => throw new UnsupportedException("a dialect that is not a string"),
+            });
+        }
+
         if (catalog.TryGetProperty("jsonOutputAlias", out JsonElement alias))
         {
-            builder.JsonOutputAlias(alias.GetString()!);
+            string shape = catalog.TryGetProperty("jsonOutputAliasShape", out JsonElement given) ? given.GetString()! : "envelope";
+            builder.JsonOutputAlias(alias.GetString()!, shape switch
+            {
+                "envelope" => JsonOutputShape.Envelope,
+                "payload" => JsonOutputShape.Payload,
+                _ => throw new UnsupportedException($"the JSON output alias shape {shape}"),
+            });
         }
 
         if (catalog.TryGetProperty("globalOptions", out JsonElement globals))
@@ -318,12 +336,59 @@ internal sealed record AdapterOptions;
 
 internal sealed record AdapterResult;
 
+// Accepts every invocation, unless a cl.validate row names `conversions` (grammar.md, "Typed values"): it then converts
+// those options and arguments as a generated binder converts an `int` parameter that declares bounds, one parameter
+// at a time, options in catalog order and then arguments: the values, then the bounds of the converted parameter.
 internal sealed class AdapterBinder : ICommandOptionsBinder<AdapterOptions>
 {
     public static readonly AdapterBinder Instance = new();
 
-    public ValueTask<CommandOutcome<AdapterOptions>> BindAsync(ParsedInvocation invocation, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(CommandOutcome.Success(new AdapterOptions()));
+    private static readonly AsyncLocal<IReadOnlyDictionary<string, string>?> CurrentConversions = new();
+
+    // The conversions of the row being validated, by option or argument id.
+    public static IReadOnlyDictionary<string, string>? Conversions
+    {
+        get => CurrentConversions.Value;
+        set => CurrentConversions.Value = value;
+    }
+
+    public ValueTask<CommandOutcome<AdapterOptions>> BindAsync(ParsedInvocation invocation, CancellationToken cancellationToken)
+    {
+        if (Conversions is { Count: > 0 } conversions)
+        {
+            try
+            {
+                foreach (string id in invocation.Command.Options.Select(static option => option.Id)
+                    .Concat(invocation.Command.Arguments.Select(static argument => argument.Id)))
+                {
+                    if (!conversions.TryGetValue(id, out string? kind))
+                    {
+                        continue;
+                    }
+
+                    if (kind != "integer")
+                    {
+                        throw new UnsupportedException($"the conversion {kind}");
+                    }
+
+                    bool option = invocation.Command.Options.Any(candidate => candidate.Id == id);
+                    IReadOnlyList<string> values = option
+                        ? Generated.GeneratedCommandBinding.Options(invocation, id)
+                        : Generated.GeneratedCommandBinding.Arguments(invocation, id);
+                    _ = Generated.GeneratedCommandBinding.CheckRange(
+                        Generated.GeneratedCommandBinding.ParseValues(values, value => Generated.GeneratedCommandBinding.ParseInt32(value, id)),
+                        invocation,
+                        id);
+                }
+            }
+            catch (Generated.GeneratedCommandBindingException exception)
+            {
+                return ValueTask.FromResult(Generated.GeneratedCommandBinding.Failure<AdapterOptions>(invocation, exception));
+            }
+        }
+
+        return ValueTask.FromResult(CommandOutcome.Success(new AdapterOptions()));
+    }
 }
 
 internal sealed class ScriptedHandler<TResult>(Func<CommandOutcome<TResult>> outcome) : ICommandHandler<AdapterOptions, TResult>

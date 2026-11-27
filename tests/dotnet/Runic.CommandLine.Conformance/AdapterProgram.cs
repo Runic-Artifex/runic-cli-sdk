@@ -96,8 +96,10 @@ internal static class AdapterProgram
             },
             ["corpora"] = new JsonArray("commandline/1"),
             ["roles"] = new JsonArray("parser", "reader", "writer", "presenter"),
-            // Root help lists the built-in completion command (help.md, "Commands").
-            ["features"] = new JsonArray("help:completion-command"),
+            // Root help lists the built-in completion command (help.md, "Commands"); generated binders convert
+            // integers before their bounds (grammar.md, "Typed values"); the catalog may declare the Windows slash
+            // dialect (grammar.md, "Windows slash dialect").
+            ["features"] = new JsonArray("help:completion-command", "binding:integer-conversion", "dialect:windows-slash"),
             // Runic.CommandLine's writer is the one the `dotnet` escaping profile describes (protocol README).
             ["capabilities"] = new JsonArray("escaping-profile:dotnet"),
         };
