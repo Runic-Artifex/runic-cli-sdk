@@ -175,6 +175,22 @@ internal sealed record WriterExpected(string? Example, JsonElement? Document);
 
 internal sealed record ExportPayload(int Written, string OutputPath);
 
+// The doubles of sample.measurement/1, in the order of examples/number-text.json.
+internal sealed record MeasurementPayload(
+    double One,
+    double Fraction,
+    double Negative,
+    double Tenth,
+    double Small,
+    double Smaller,
+    double Tiny,
+    double Large,
+    double Larger,
+    double Huge,
+    double Precise,
+    double Maximum,
+    double Minimum);
+
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(GrammarCorpus))]
 [JsonSerializable(typeof(OutputClassificationCorpus))]
@@ -185,4 +201,5 @@ internal sealed record ExportPayload(int Written, string OutputPath);
 [JsonSerializable(typeof(StatusPayload))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(ExportPayload))]
+[JsonSerializable(typeof(MeasurementPayload))]
 internal sealed partial class CorpusJsonContext : JsonSerializerContext;
