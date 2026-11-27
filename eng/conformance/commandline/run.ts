@@ -17,10 +17,16 @@ const utf8 = (text: string) => new TextEncoder().encode(text);
 export async function runCommandLineCase(adapter: Adapter, c: Case, { supports, roles }: RunContext): Promise<Outcome> {
   const role = c.roles[0];
   if (!roles.has(role)) return { outcome: "excluded", detail: `role:${role}` };
+  const missing = c.requires.filter((feature) => !supports.has(feature));
+  if (missing.length) return { outcome: "unsupported", detail: `requires ${missing.join(", ")}` };
   try {
     switch (c.kind) {
       case "parse":
         return await parse(adapter, c.body);
+      case "validate":
+        return await parse(adapter, c.body, "cl.validate");
+      case "catalog":
+        return await catalog(adapter, c.body);
       case "classify":
         return await classify(adapter, c.body);
       case "read-wire":
@@ -42,8 +48,10 @@ export async function runCommandLineCase(adapter: Adapter, c: Case, { supports, 
 
 // --- Grammar (grammar.md, "Normalized results") ---
 
-async function parse(adapter: Adapter, { catalog, row }: any): Promise<Outcome> {
-  const r = await adapter.call("cl.parse", { catalog, argv: row.args, env: row.environment ?? {} });
+// `cl.validate` gives the same normalized result after input validation (grammar.md, "Input validation"), whose
+// diagnostics have no token index (`tokenIndex: null` in the corpus).
+async function parse(adapter: Adapter, { catalog, row }: any, op = "cl.parse"): Promise<Outcome> {
+  const r = await adapter.call(op, { catalog, argv: row.args, env: row.environment ?? {} });
   if (r.error) return fail(`the parser failed: ${r.error}`);
   const e = row.expected;
   if (r.kind !== e.kind) return fail(`${r.kind} ${abbreviate(r)}, expected ${e.kind} ${abbreviate(e)}`);
@@ -64,6 +72,22 @@ async function parse(adapter: Adapter, { catalog, row }: any): Promise<Outcome> 
     default:
       return fail(`unknown expected kind ${e.kind}`);
   }
+}
+
+// --- Catalog validity (grammar.md, "Catalog validity") ---
+
+// A valid catalog builds. An invalid one is rejected with at least one issue; how many an implementation reports is
+// implementation-defined, and each corpus catalog breaks one rule, so every reported issue has the expected code.
+async function catalog(adapter: Adapter, { catalog, row }: any): Promise<Outcome> {
+  const r = await adapter.call("cl.catalog", { catalog });
+  if (r.error) return fail(`the catalog builder failed: ${r.error}`);
+  const e = row.expected;
+  if (r.kind !== e.kind) return fail(`${r.kind} ${abbreviate(r)}, expected ${e.kind}${e.code ? ` with ${e.code}` : ""}`);
+  if (e.kind === "valid") return pass;
+  const issues: any[] = r.issues ?? [];
+  if (!issues.length) return fail("invalid without an issue");
+  const other = issues.find((issue) => issue.code !== e.code);
+  return other ? fail(`issue ${abbreviate(other)}, expected only ${e.code}`) : pass;
 }
 
 // A corpus diagnostic: code, kind and token index; `arguments` exactly when the corpus lists them; `binding` exactly,

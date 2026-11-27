@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Runic.CommandLine;
 
@@ -31,6 +32,7 @@ public sealed class CommandCatalog
         CompletionOption = completionOption;
         DefaultCommand = defaultCommand;
         RootCommand = defaultCommandIsRoot ? defaultCommand : null;
+        SpelledCommands = RootCommand is null ? commands : [.. commands.Where(command => !ReferenceEquals(command, RootCommand))];
         JsonOutputAlias = jsonOutputAlias;
         JsonOutputAliasShape = jsonOutputAliasShape;
         _commandsByName = new Dictionary<string, CommandDescriptor>(Grammar.Comparer);
@@ -83,6 +85,10 @@ public sealed class CommandCatalog
 
     /// <summary>Gets root commands in registration order.</summary>
     public IReadOnlyList<CommandDescriptor> Commands { get; }
+
+    // The root commands a command line can name: every one but the unnamed root command, whose name is no spelling.
+    // Command suggestions at the root choose among these.
+    internal IReadOnlyList<CommandDescriptor> SpelledCommands { get; }
 
     /// <summary>Gets the command selected when the first token is not a root command.</summary>
     public CommandDescriptor? DefaultCommand { get; }

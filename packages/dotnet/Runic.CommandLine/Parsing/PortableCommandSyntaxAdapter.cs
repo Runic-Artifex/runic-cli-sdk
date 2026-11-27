@@ -175,7 +175,7 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
                 arguments: commandIndex < tokens.Length ? [SafeUnknownCommand(tokens[commandIndex])] : null,
                 outputClassification: initialOutputClassification,
                 suggestion: commandIndex < tokens.Length
-                    ? FormerSelectorSuggestion(tokens, commandIndex, transport) ?? CommandSuggestions.Commands(tokens[commandIndex], catalog.Commands)
+                    ? FormerSelectorSuggestion(tokens, commandIndex, transport) ?? CommandSuggestions.Commands(tokens[commandIndex], catalog.SpelledCommands)
                     : null);
         }
 
@@ -465,10 +465,10 @@ public sealed class PortableCommandSyntaxAdapter : ICommandSyntaxAdapter
         if (argumentError is not null)
         {
             // A default command swallows a mistyped command name as its first argument; when that
-            // token resembles a root command, report the command typo instead.
+            // token resembles a root command that has a spelling, report the command typo instead.
             if (resolved.Consumed == 0 && catalog.DefaultCommand is not null && positionalTokens.Count > 0 &&
                 argumentError.Diagnostics[0].Code == UnexpectedArgumentCode && argumentError.Diagnostics[0].TokenIndex == positionalTokens[0].Index &&
-                CommandSuggestions.Commands(positionalTokens[0].Value, catalog.Commands) is { } suggestion)
+                CommandSuggestions.Commands(positionalTokens[0].Value, catalog.SpelledCommands) is { } suggestion)
             {
                 return Error(UnknownCommandCode, "unknown-command", positionalTokens[0].Index,
                     arguments: [SafeUnknownCommand(positionalTokens[0].Value)], outputClassification: CurrentOutputClassification(), suggestion: suggestion);

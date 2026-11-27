@@ -25,7 +25,9 @@ Every corpus row has an immutable `id`, `args`, and `expected` object. `expected
 
 A corpus row may also give `environment`, the captured environment variables that [environment fallbacks](#environment-fallbacks) read; a variable it does not list is unset.
 
-Diagnostic `tokenIndex` is zero-based. When input ends before a required token, it equals `args.length`. So do the checks made after the whole command line was read: a missing required option, an invalid environment fallback and an invalid choice. An unknown command is reported at index 0, even when output or global options precede the token. An invalid `RUNIC_COMMANDLINE_OUTPUT` value is also reported at index 0. A corpus diagnostic may also list `arguments`, the diagnostic's ordered arguments; when it does, an implementation must report exactly those. A corpus diagnostic lists `binding`, the catalog `id` of the one declared argument or option it names, exactly when the diagnostic has one. These kinds have one: `missing-argument`, `missing-required-option`, `invalid-environment-value` and `environment-value-source`; `invalid-choice` (the option or argument); and `missing-option-value`, `unexpected-option-value` and `duplicate-option` of a declared option. These kinds have none: the same three kinds when they name the output selector, its aliases or the JSON output alias; and `unknown-command`, `unknown-option`, `unexpected-argument`, `unsupported-short-bundle`, `unexpected-root-help-argument`, `invalid-output-mode`, `conflicting-output-selector`, `transport-output-option-collision` and the response-file kinds, which name no declared binding. Diagnostic messages are presentation text and not part of the grammar. Wave A assigns these stable grammar identities within the registered CLI diagnostic range:
+The catalog features corpus, `catalog-features-corpus.json`, has several named `catalogs` instead of one, and each row names its `catalog`. Its row's `operation` says what the row checks: `parse` (the default) is the normalized result above; `validate` is the normalized result after [input validation](#input-validation), whose diagnostics have no token index (`tokenIndex: null`); and `catalog` only builds the catalog, which is `valid` or `invalid` with the code of the rule it breaks ([Catalog validity](#catalog-validity)). A row may list `requires`, catalog features an implementation must be able to declare to run it; an implementation that cannot declare them reports the row unsupported.
+
+Diagnostic `tokenIndex` is zero-based. When input ends before a required token, it equals `args.length`. So do the checks made after the whole command line was read: a missing required option, an invalid environment fallback and an invalid choice. An unknown command is reported at index 0, even when output or global options precede the token; the one exception is a [mistyped command](#default-and-root-commands) that a default command would take, reported at its token. An invalid `RUNIC_COMMANDLINE_OUTPUT` value is also reported at index 0. A corpus diagnostic may also list `arguments`, the diagnostic's ordered arguments; when it does, an implementation must report exactly those. A corpus diagnostic lists `binding`, the catalog `id` of the one declared argument or option it names, exactly when the diagnostic has one. These kinds have one: `missing-argument`, `missing-required-option`, `invalid-environment-value` and `environment-value-source`; `invalid-choice` (the option or argument); and `missing-option-value`, `unexpected-option-value` and `duplicate-option` of a declared option. These kinds have none: the same three kinds when they name the output selector, its aliases or the JSON output alias; and `unknown-command`, `unknown-option`, `unexpected-argument`, `unsupported-short-bundle`, `unexpected-root-help-argument`, `invalid-output-mode`, `conflicting-output-selector`, `transport-output-option-collision` and the response-file kinds, which name no declared binding. Diagnostic messages are presentation text and not part of the grammar. Wave A assigns these stable grammar identities within the registered CLI diagnostic range:
 
 | Code | Kind |
 |---|---|
@@ -99,12 +101,12 @@ A parser reads a command line in this order and reports the first error it finds
 2. **Empty input** is `unknown-command` at 0 without arguments, unless the catalog has a default command.
    1. **Leading global option values.** Walk the leading output and global options. The first global option that takes a value, has no inline value, and is not followed by its value (see [Global options](#global-options)) is `missing-option-value` at the token after it. Its command path is the default command's when the catalog has one, and otherwise empty.
 3. **The help word and root requests**, after skipping leading output and global options: see [Help, version and groups](#help-version-and-groups).
-4. **The command path.** The first token after leading output and global options must name a root command. Otherwise the default command applies if there is one, or the result is `unknown-command` at 0. Subcommand names then extend the path while they match.
+4. **The command path.** The first token after leading output and global options must name a root command. Otherwise the [default command](#default-and-root-commands) applies if there is one, or the result is `unknown-command` at 0. Subcommand names then extend the path while they match.
 5. **The command's tokens**, from left to right: `--`, `--help` or `-h` (help for the path), output tokens, options with their values, and positional tokens. Errors here are reported at their token.
 6. **After the last token**, in this order:
    1. for each option in [catalog order](#global-options), its environment fallback, then whether it is required;
    2. for a group, a positional token is `unknown-command` at that token;
-   3. positional binding (`missing-argument`, `unexpected-argument`);
+   3. positional binding (`missing-argument`, `unexpected-argument`), where the default command reports a [mistyped command](#default-and-root-commands) instead;
    4. an invalid `RUNIC_COMMANDLINE_OUTPUT`;
    5. choices: options in binding order, then arguments.
 
@@ -120,19 +122,37 @@ A group is a command node without a handler. Invoking a group with no further po
 
 A catalog declares the features below with optional members:
 
-- `globalOptions` on the catalog;
+- `globalOptions`, and `defaultCommand` or `rootCommand`, on the catalog;
 - `group` on a command;
-- `required`, `choices`, `environmentVariable`, `acceptsNegativeNumbers` and `sensitive` on an option;
-- `choices`, `acceptsNegativeNumbers` and `sensitive` on an argument.
+- `required`, `choices`, `environmentVariable`, `acceptsNegativeNumbers` and `sensitive` on an option, and its [input validation](#input-validation) members `requires`, `conflictsWith`, `minimum`, `maximum`, `pathKind` and `mustExist`;
+- `choices`, `acceptsNegativeNumbers` and `sensitive` on an argument, and `minimum`, `maximum`, `pathKind` and `mustExist`.
 
-`sensitive` is a Boolean, false when absent. A sensitive option or argument has values that must not appear in diagnostics, help or suggestions; in this grammar it changes only the second argument of `invalid-choice` (see [Diagnostic arguments](#diagnostic-arguments)). The fixture catalog uses neither `sensitive` nor choices on an argument.
+`sensitive` is a Boolean, false when absent. A sensitive option or argument has values that must not appear in diagnostics, help or suggestions; in this grammar it changes only the second argument of `invalid-choice` (see [Diagnostic arguments](#diagnostic-arguments)). The grammar corpus's fixture catalog uses neither `sensitive` nor choices on an argument, and none of the members of default and root commands or input validation; the catalog features corpus covers those.
+
+### Default and root commands
+
+A catalog may name one of its root commands as its **default command** (`defaultCommand`). It receives every command line whose first token, after leading output and global options, names no root command (steps 2 and 4 of [Parse order](#parse-order)), the empty command line included: with the default command `list`, `tool` is `tool list` and `tool --all` is `tool list --all` (`default.empty-input`, `default.options-only`). A command line that names a root command, by its name or an alias, runs that command (`default.alias-wins`), and the default command can be named too (`default.explicit-name`). The help word, and `--help` or `-h` as the first token, are root help (`default.help-word`); `--help` after one of the default command's options is that command's help, for its path (`default.help-after-default-option`). A global option whose value is missing before the command path is reported with the default command's path (step 2.1).
+
+**A mistyped command.** A default command would take a mistyped command name as a positional token. So when positional binding (step 6.3) reports `unexpected-argument` at the first positional token of a command line that did not name its command, and that token has a [suggestion](#diagnostic-arguments) among the visible spellings and aliases of the root commands, the result is `unknown-command` at that token instead, with the token and the suggestion as its arguments. Its command path is empty. With a default command that takes no positional tokens, `tool stauts` is `unknown-command` at 0 suggesting `status` (`default.mistyped-command`), and `tool --all cpoy` is `unknown-command` at 1 suggesting `copy` (`default.mistyped-command-after-option`). A token without a suggestion stays `unexpected-argument` (`default.unrelated-word-is-an-argument`), and so does one after the command's own name (`default.mistyped-command-is-not-first-positional`). Runic Command Line: `PortableCommandSyntaxAdapter.cs:467-477`.
+
+**The root command.** A catalog may instead name one of its root commands as its unnamed **root command** (`rootCommand`), for an application whose grammar is that command. A catalog declares at most one of `defaultCommand` and `rootCommand`. The root command is a default command whose name is no command spelling:
+
+- The command line cannot name it. `tool run`, with the root command `run`, passes `run` to it as a positional token (`root.name-is-an-argument`), and `tool help run` is `unexpected-root-help-argument` at 1 (`root.help-word-with-root-name`).
+- Its name remains its identity: an invocation's command path is the name (`["run"]`), and so is the JSON envelope's `command`.
+- Its help is the application's help, for the empty path: `--help`, `-h` and `help` as the first token, and `--help` after its own options or positional tokens (`root.help-option`, `root.help-after-option`).
+- Its name is never a suggestion, also not for a mistyped command (`root.without-arguments.root-name-not-suggested`).
+- It has no aliases, display spelling or subcommands; a catalog that gives it any is invalid with `RCLI0018`.
+
+The other root commands are named as usual (`root.other-command`, `root.help-for-other-command`). A default or root command that names no root command of the catalog is also `RCLI0018`.
+
+Runic Command Line declares them with `CommandCatalogBuilder.DefaultCommand(name)` and `RootCommand(name)`, of which the later call wins (`CommandCatalogBuilder.cs:165-197`, checked at `:540-555`), or with the generator's `[DefaultCommand]` and `[RootCommand]` attributes. The parser resolves them in `PortableCommandSyntaxAdapter.TryResolveCommand` (`PortableCommandSyntaxAdapter.cs:817-834`), and the catalog leaves the root command's name out of its spellings (`CommandCatalog.cs:40-50`).
 
 ### Global options
 
 Global options belong to every command, including groups and subcommands, and may also precede the command path. Their catalog rules:
 
 - **Arity.** A global option is a flag (arity 0..0) or takes exactly one value (1..1). Any other arity makes the catalog invalid with `RCLI0028`.
-- **Settings.** A global option rejects a second occurrence (`repeat: error`), and it is never required or sensitive. It may name an environment variable, declare choices and accept negative numbers.
+- **Settings.** A global option rejects a second occurrence (`repeat: error`), and it is never required or sensitive; a catalog that declares one otherwise is also invalid with `RCLI0028` ([Catalog validity](#catalog-validity)). It may name an environment variable, declare choices and accept negative numbers.
 - **A command option with the same `id`** is the global option for that command, so it must agree with it; otherwise the catalog is invalid with `RCLI0019`. It has the same long spelling, the same arity and the same set of aliases, `repeat: error`, and is neither required nor sensitive. When both declare an environment variable, or both declare choices, they are the same variable, or the same choices in the same order. It accepts negative numbers only when the global option does. For that command, the option has the environment variable and the choices that either of them declares, and accepts negative numbers when the global option does. Help text is presentation and not part of the grammar. Runic Command Line takes each help member from the command option where it sets one, and from the global option otherwise.
 
 **Catalog order** is the order of a command's options for [environment fallbacks](#environment-fallbacks) and required options (step 6.1 of [Parse order](#parse-order)), and for the options those fallbacks bind in an invocation. It is the command's own options in declaration order, then the global options in declaration order. A global option that is also a command option keeps the command option's place.
@@ -148,6 +168,8 @@ An option may name an environment variable. When the command line does not give 
 ### Choices
 
 An option or argument may declare choices. A value matches a choice that equals it exactly. Otherwise it matches the first choice that equals it ignoring case, and binds as the declared spelling.
+
+**Declared spellings.** A value binds as the spelling the catalog declares, and `invalid-choice` lists the choices as declared. Choices may use any case: with the choices `Fast` and `Safe`, `--mode fast` binds `Fast`, and `--mode slow` lists `Fast, Safe` (`choices.declared-spelling`, `choices.invalid-option-lists-declared-spellings`). Runic Command Line's generator declares the members of an enum type as its choices when a parameter declares none, by their names as written and in declaration order (`CommandLineGenerator.cs:574`): an enum `Mode { Fast, Safe }` gives `Fast, Safe`, not `fast, safe`. An application that wants lowercase names on the command line declares them as `Choices`.
 
 Choices are case-insensitive by per-character simple case mapping. ASCII letters always match their other case, and so does a letter with a one-to-one mapping, such as `Ö` and `ö`. Nothing expands: `GRÖSSE` does not match `größe`. Case-insensitive matching of other non-ASCII letters is implementation-defined in version 1, so portable choices use ASCII. A value that matches no choice is `invalid-choice`.
 
@@ -167,6 +189,59 @@ A negative number is `-` followed by one of:
 - `Infinity` or `NaN`, in any ASCII case.
 
 Other tokens that start with `-` keep their option meaning, so `--offset -x` is `missing-option-value`.
+
+## Input validation
+
+After a command line parses to an invocation, and before the command's handler runs, an implementation checks the invocation against the input validation members of its command: relations between options, path kinds and numeric bounds. A failure is one diagnostic with the code `RCLI2002`, phase `binding` and severity `error`. It has no token index, because the value may come from an environment fallback, and it is a usage error like the parse diagnostics. The result is the first failure in this order:
+
+1. Each option of the command, in [catalog order](#global-options), that the invocation binds, from the command line or its environment fallback: each option its `requires` lists that is not bound is `option-requires`, in list order; then each option its `conflictsWith` lists that is bound is `option-conflict`; then, when it has a `pathKind`, each of its values in order is checked as a path.
+2. Each argument, in definition order, that has a `pathKind`: each of its values in order is checked as a path.
+3. Each option in catalog order, then each argument in definition order, that has a `minimum` or a `maximum`: each of its values in order is checked against the bounds.
+
+So relations are reported before bounds whatever the order of the tokens (`validate.relations-before-bounds`), and a parse error comes first of all (`validate.parse-error-first`). Runic Command Line checks steps 1 and 2 before its binder runs and step 3 after it (`CommandRegistration.cs:116-127`, `CommandInputValidation.cs:13-93`). Its generated binders convert values to their declared types first, so a value that is not of the type, such as `1.5` for an integer, is `RCLI2005` from the binder rather than a bound diagnostic; types are not catalog members of this grammar.
+
+| Kind | Arguments | `binding` |
+|---|---|---|
+| `option-requires` | the option, then the option it requires | none |
+| `option-conflict` | the option, then the option it conflicts with | none |
+| `invalid-file-path`, `invalid-directory-path` | the option or argument | its `id` |
+| `file-not-found`, `directory-not-found` | the option or argument | its `id` |
+| `invalid-number` | the option or argument | its `id` |
+| `out-of-range` | the option or argument, the minimum, the maximum | its `id` |
+| `below-minimum` | the option or argument, the minimum | its `id` |
+| `above-maximum` | the option or argument, the maximum | its `id` |
+
+Options and arguments are named as under [Diagnostic arguments](#diagnostic-arguments). When the option a diagnostic names first was bound from its environment fallback, the diagnostic is followed by the `environment-value-source` note, as after `invalid-choice`: `RCLI2006`, phase `binding`, severity `information`, no token index, the option's `id` as its `binding`, and the option and the variable as its arguments (`validate.option-conflict-from-environment`). The message keys are `diagnostics.<kind>`.
+
+**Relations.** `requires` and `conflictsWith` list the `id`s of other options of the same command. They are options' members only. An option bound from its environment fallback counts as given, on either side of a relation.
+
+**Path kinds.** `pathKind` is `file` or `directory`. Each value must be a well-formed path, or the result is `invalid-file-path` or `invalid-directory-path`. A value containing U+0000 is malformed everywhere (`validate.invalid-file-path`, `validate.invalid-directory-path`); which other values are malformed follows the platform and is implementation-defined (Runic Command Line asks .NET `Path.GetFullPath`, which rejects more on Windows). With `mustExist` true, a well-formed value must also name an existing file or directory, relative to the current directory, or the result is `file-not-found` or `directory-not-found`; the corpus has no such case, since it would depend on the file system. Without `mustExist` the path need not exist (`validate.path-need-not-exist`).
+
+**Bounds.** `minimum` and `maximum` are finite numbers, and both are inclusive (`validate.bounds-inclusive`). Each value must be a finite number, or the result is `invalid-number` (`validate.not-a-number`, `validate.infinity-is-not-a-number`). A number is read in the invariant culture: optional leading and trailing white space, an optional sign, digits with an optional `.` and fraction, and an optional exponent, so ` 1e1 ` and `.5` are numbers (`validate.number-forms`). Runic Command Line also accepts `,` group separators in the integer digits (`8,080` is 8080; .NET `NumberStyles.Float | NumberStyles.AllowThousands`, `CommandInputValidation.cs:62`); other forms are implementation-defined. A value outside the bounds is `out-of-range` when both bounds are declared, and otherwise `below-minimum` or `above-maximum`. The bounds are written as the shortest text that reads back as the same number, with `.` as the decimal point and no group separators: `1`, `65535`, `0.5`, `-3` (`validate.out-of-range`). Runic Command Line writes them with `double.ToString(CultureInfo.InvariantCulture)` (`CommandValueDiagnostics.cs:104`), which switches to an exponent for a very large or very small magnitude (`1E+15`); that form is implementation-defined, so portable bounds stay within it.
+
+Bounds apply to every value of an option or argument, also one bound from an environment fallback.
+
+## Catalog validity
+
+A catalog that breaks a rule of this grammar is invalid: an implementation rejects it before it parses any command line, with one or more issues, each with a code and the location it concerns (`root` or a command path). The codes this grammar names:
+
+| Code | Rule |
+|---|---|
+| `RCLI0018` | A default or root command names no root command of the catalog, or the root command has aliases, a display spelling or subcommands ([Default and root commands](#default-and-root-commands)). |
+| `RCLI0019` | A command option with a global option's `id` does not agree with it ([Global options](#global-options)). |
+| `RCLI0021` | A bound is not finite, `minimum` exceeds `maximum`, or `mustExist` is given without a `pathKind` ([Input validation](#input-validation)). |
+| `RCLI0022` | `requires` or `conflictsWith` names the option itself, or no option of the command. |
+| `RCLI0028` | A global option is neither a flag nor takes exactly one value, repeats, is required or is sensitive ([Global options](#global-options)). |
+| `RCLI0029` | A flag declares choices ([Choices](#choices)). |
+| `RCLI0030` | An option whose arity needs two or more values names an environment variable ([Environment fallbacks](#environment-fallbacks)). |
+
+The catalog features corpus has one `catalog` row for each valid catalog and for each of these rules (`catalog.minimum-above-maximum`). Runic Command Line's other catalog codes, for spellings, IDs and the arity of arguments among others, are listed with `CommandCatalogBuilder` (`CommandCatalogBuilder.cs`), and are not yet part of this grammar.
+
+**Global option settings.** `RCLI0028` covers every setting [Global options](#global-options) forbids, so a catalog that declares a global option with `repeat: append`, `required` or `sensitive` is invalid with it (`catalog.global-option-repeats`). Runic Command Line cannot declare such a global option: `CommandCatalogBuilder.GlobalOption` has no repeat, required or sensitive setting (`CommandCatalogBuilder.cs:150-163`), so these rows require the catalog feature `catalog:global-option-settings`, which its adapter does not list.
+
+**Issue lists.** An invalid catalog has at least one issue. Whether an implementation reports every issue it finds or stops at the first is implementation-defined, and so is their order; each corpus catalog breaks one rule, and every issue reported for it must have that rule's code. Runic Command Line collects the issues of one validation stage and throws `CommandCatalogValidationException` with all of them at its end (`CommandCatalogBuilder.cs:513-556`): the global option arities and every command's own rules first, then the spellings of the framework options, then the default command. A command option that disagrees with a global option (`RCLI0019`) is reported alone, at the first command where it is found (`CommandCatalogBuilder.cs:929-947`).
+
+**Text keys.** Description keys and the other application text keys are presentation, not catalog members of this grammar. Runic Command Line's builder rejects an empty or white-space key with `RCLI0003` (`CommandCatalogBuilder.cs:1038-1046`, and `:1151-1154` and `:1207-1210` for options and arguments), and its source generator also rejects a key longer than 128 UTF-16 code units or containing a control character, with `RCLI9005` (`CommandLineGenerator.cs:489-501`). Those are Runic Command Line's own rules. The protocol's rule for a diagnostic's `messageKey` ([Diagnostic object](protocol/README.md#diagnostic-object)) applies to the keys an envelope carries.
 
 ## Output classification
 

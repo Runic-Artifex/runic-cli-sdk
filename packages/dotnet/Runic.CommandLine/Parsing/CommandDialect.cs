@@ -301,7 +301,7 @@ internal static class CommandDialect
 
     private static string? SuggestCommand(CommandCatalog catalog, CommandPath path, string token)
     {
-        IReadOnlyList<CommandDescriptor> siblings = catalog.Commands;
+        IReadOnlyList<CommandDescriptor> siblings = catalog.SpelledCommands;
         if (path.Count > 0)
         {
             CommandDescriptor? command = null;
