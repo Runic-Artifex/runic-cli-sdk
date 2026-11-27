@@ -54,8 +54,8 @@ commit with `--sdk <dir>`.
 ## Command Line
 
 The module `commandline/1` runs the corpus of [`specs/command-line`](../../specs/command-line/README.md): the grammar
-corpus, output classification, the catalog features corpus, and the protocol's wire inputs, semantic structures, writer
-cases and examples. Its
+corpus, output classification, the catalog features corpus, help text, human output, and the protocol's wire inputs,
+semantic structures, writer cases and examples. Its
 committed files are in [`specs/command-line/conformance`](../../specs/command-line/conformance):
 
 - `cases.json`: one line per case, keyed `<file>/<id>` with the corpus file relative to `specs/command-line` and without
@@ -85,6 +85,8 @@ corpus's terms comes back as `unmapped:<type>`, and the case fails.
 | `cl.classify` | parser | `{catalog, argv, env}` | `{kind: "output-mode", mode, source, diagnostics}` or `{kind: "error", diagnostics}`; or `{error}` |
 | `cl.readEnvelope` | reader | `{input, payloadType, contract}` | `{result: "accepted", envelope, payloadDecodeAttempted}` or `{result: "rejected", reason, payloadDecodeAttempted}` |
 | `cl.write` | writer | `{input}` | `{output}`, the framed response as base64; or `{error}` |
+| `cl.help` | presenter | `{catalog, applicationName, path, width}` | `{text}`, the help text for the command path at that width (help.md); or `{error}` |
+| `cl.human` | presenter | `{catalog, applicationName, argv, outcome, texts}` | `{exitCode, stdout, stderr}`: what the standalone runner writes in human output when every command's handler returns `outcome` (hosting.md, "Human output"); or `{error}` |
 
 - **Grammar and classification.** `catalog` is the grammar corpus's fixture catalog, or for a row of the catalog
   features corpus the catalog the row names, and `env` the row's captured environment (a variable it does not list, or
@@ -102,10 +104,18 @@ corpus's terms comes back as `unmapped:<type>`, and the case fails.
   (with `helpUri`, and of `data` only its `type`) and each diagnostic's.
 - **Writing.** `input` is the writer case's input. The output must be one compact JSON object and LF, strict UTF-8 and
   strict JSON (no duplicate member), whose value equals the expected example or document. An adapter that lists the
-  capability `escaping-profile:dotnet` must also match each example byte for byte.
+  capability `escaping-profile:dotnet` must also match each example byte for byte. The payload of
+  `sample.measurement/1` holds doubles: an adapter writes it through a registered type of its own, so that the number
+  text is its writer's (protocol README, "Examples, writer cases and escaping profiles").
+- **Help and human output.** A help case calls `cl.help` with its catalog, the corpus's application name, the path and
+  the width, and the text must equal the case's lines, each followed by LF. A human output case calls `cl.human` with
+  its catalog, its `args` as `argv`, its `outcome` and its `texts` (`{}` when it has none); the exit code, standard
+  output and standard error must equal the case's exactly. The adapter runs the standalone runner in human output with
+  an empty environment and without signal handling, every command's handler returning the outcome. A help case that
+  `requires` `help:completion-command` runs only for an adapter that lists that feature.
 
-**Roles.** An implementation lists the roles it has: `parser`, `reader` and `writer`. A case of another role is
-`excluded` (`role:writer`).
+**Roles.** An implementation lists the roles it has: `parser`, `reader`, `writer` and `presenter` (help and human
+output). A case of another role is `excluded` (`role:writer`).
 
 **The .NET adapter** is [`tests/dotnet/Runic.CommandLine.Conformance`](../../tests/dotnet/Runic.CommandLine.Conformance),
 a plain program on the shipped library's public API, never packed. The solution build compiles it. CI checks the case

@@ -1,8 +1,8 @@
 // The Command Line corpus (specs/command-line, `runic.commandline/1`) as a list of cases, one per corpus row, keyed
 // `<file>/<id>`: the corpus file relative to specs/command-line without `.json`, then the row id. An example has no row
 // id, so its key is its file alone (`protocol/examples/success`). The order is stable: the grammar corpus, output
-// classification, the catalog features corpus, then the protocol's wire inputs, semantic structures, writer cases and
-// examples.
+// classification, the catalog features corpus, help text, human output, then the protocol's wire inputs, semantic
+// structures, writer cases and examples.
 //
 // A case's body carries everything the run compares against, including the shared parts its row uses (the fixture
 // catalog, the client context, the sample payload contract, the example bytes), so a change to any of them changes the
@@ -14,8 +14,8 @@ import { caseHash, type Case } from "../core/index";
 export const CORPUS_ID = "commandline/1";
 
 // The roles an implementation may claim: parsing a command line (grammar and output classification), reading
-// envelopes strictly, and writing them.
-export type Role = "parser" | "reader" | "writer";
+// envelopes strictly, writing them, and presenting help and human output.
+export type Role = "parser" | "reader" | "writer" | "presenter";
 
 const readJson = (path: string) => JSON.parse(readFileSync(path, "utf8"));
 
@@ -49,6 +49,22 @@ export function loadCommandLineCorpus(root: string): Case[] {
     const kind = row.operation ?? "parse";
     if (!["parse", "validate", "catalog"].includes(kind)) throw new Error(`catalog-features-corpus.json ${row.id}: unknown operation ${kind}`);
     add("catalog-features-corpus.json", row.id, kind, "parser", { catalog, row }, row.requires ?? []);
+  }
+
+  // Help text (help.md) and human output (hosting.md, "Human output") have named catalogs, as the catalog features
+  // corpus has, and the application name the usage line starts with.
+  const help = readJson(join(spec, "help-corpus.json"));
+  for (const row of help.cases) {
+    const catalog = help.catalogs[row.catalog];
+    if (catalog === undefined) throw new Error(`help-corpus.json ${row.id}: no catalog ${row.catalog}`);
+    add("help-corpus.json", row.id, "help", "presenter", { catalog, applicationName: help.applicationName, row }, row.requires ?? []);
+  }
+
+  const human = readJson(join(spec, "human-output-corpus.json"));
+  for (const row of human.cases) {
+    const catalog = human.catalogs[row.catalog];
+    if (catalog === undefined) throw new Error(`human-output-corpus.json ${row.id}: no catalog ${row.catalog}`);
+    add("human-output-corpus.json", row.id, "human", "presenter", { catalog, applicationName: human.applicationName, row }, row.requires ?? []);
   }
 
   const manifest = readJson(join(spec, "protocol/manifest.json"));

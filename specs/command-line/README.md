@@ -5,7 +5,9 @@ This directory contains the Wave A, language-neutral command-line grammar and ou
 - `grammar.md` defines token recognition, binding, diagnostics, and normalized results.
 - `grammar-corpus.json` supplies a fixed neutral catalog and parser fixtures.
 - `catalog-features-corpus.json` supplies named catalogs for default and root commands, declared choice spellings, input validation and catalog validity, with fixtures that parse, validate or only build a catalog.
-- `hosting.md` defines what a host process does around one invocation: exit codes and exit-code policies, termination signals, cancellation, debug output and environment capture.
+- `hosting.md` defines what a host process does around one invocation: exit codes and exit-code policies, termination signals, cancellation, human output, debug output and environment capture.
+- `human-output-corpus.json` supplies outcomes and the exact standard output and standard error that human output writes for them.
+- `help.md` defines the layout of help text, and `help-corpus.json` supplies catalogs with help text and the exact help for command paths and widths.
 - `output-classification-corpus.json` supplies output selector (`--format`), `--json` alias and `RUNIC_COMMANDLINE_OUTPUT` precedence fixtures.
 - `protocol/` defines the `runic.commandline/1` machine response protocol: value-normative examples, writer cases with their inputs, the strict reader's rejection reasons in check order, and the reader corpora (`invalid-structures.json`, `wire-inputs.json`).
 

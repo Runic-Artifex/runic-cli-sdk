@@ -488,11 +488,35 @@ escaping profile. The protocol names one, `dotnet`: what Runic Command Line's
   diagnostic members in the orders given above, optional members only when
   present; fault details sorted in UTF-16 code-unit order;
 - integers in their shortest decimal form;
+- a binary64 floating-point number (a .NET `double`) as the shortest decimal
+  text that reads back as the same value, as .NET's `Utf8JsonWriter` writes it
+  (`CommandJsonEnvelopeWriter.cs:107` serializes the payload with it): the
+  digits without a trailing `.0` (`1`, `1.5`, `0.1`), and exponent form when the
+  decimal point would move more than max(17, number of digits) places right or
+  more than three places left. Exponent form is the first digit, the other
+  digits after a `.`, `E`, the sign and at least two exponent digits:
+  `0.0001`, but `1E-05` and `1.25E-07`; `10000000000000000` (10^16), but
+  `1E+17` and `1.2345678901234568E+17`; `5E-324` and
+  `1.7976931348623157E+308` at the ends of the range. Negative zero is `-0`. A
+  value that is not finite has no JSON text: .NET's writer refuses it with an
+  `ArgumentException`, which is an exception from the outcome writer
+  ([Cancellation and async
+  handlers](../hosting.md#cancellation-and-async-handlers));
 - in strings, `\` as `\\`, U+0008, U+0009, U+000A, U+000C and U+000D as `\b`,
   `\t`, `\n`, `\f` and `\r`, and `/` unescaped; every other escaped scalar as
   `\uXXXX` with upper-case hex digits, and a scalar above U+FFFF as its escaped
   UTF-16 surrogate pair (`😀`);
 - help links in .NET's normalized absolute form ([Help links](#help-links)).
+
+A number's text shows only in bytes, so value equality cannot check it: the
+example [`examples/number-text.json`](examples/number-text.json) and its writer
+case `writer.number-text` hold doubles of the sample type
+`sample.measurement/1`, whose writer input gives each one as a plain JSON
+number. A writer that claims the profile writes the payload through that type's
+own metadata, as an application writes its typed results, and so matches the
+example's number text byte for byte; .NET's writer copies a payload that is
+already a JSON value as given. Negative zero has no case: the adapter protocol
+carries the writer input as JSON, where `-0` and `0` are one value.
 
 The `dotnet` profile escapes exactly these scalars and writes every other one
 as UTF-8:
@@ -550,5 +574,5 @@ tells whether the client must have tried to decode the payload before the
 failure. The manifest's `samplePayloads` give each sample type's contract: a
 payload decodes when it is null and the type is `nullable`, or when it has the
 type's `jsonKind` and each listed member that is present has the listed JSON
-type (`string`, or `integer` for a number without fraction or exponent). Other
-members are unknown and ignored.
+type (`string`, `integer` for a number without fraction or exponent, or
+`number` for any JSON number). Other members are unknown and ignored.

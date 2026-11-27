@@ -40,7 +40,8 @@
   "samplePayloads": {
     "sample.status/1": { "jsonKind": "object", "nullable": true, "members": { "state": "string" } },
     "sample.optional-status/1": { "jsonKind": "object", "nullable": true, "members": { "state": "string" } },
-    "sample.export-result/1": { "jsonKind": "object", "nullable": false, "members": { "written": "integer", "outputPath": "string" } }
+    "sample.export-result/1": { "jsonKind": "object", "nullable": false, "members": { "written": "integer", "outputPath": "string" } },
+    "sample.measurement/1": { "jsonKind": "object", "nullable": false, "members": { "one": "number", "fraction": "number", "negative": "number", "tenth": "number", "small": "number", "smaller": "number", "tiny": "number", "large": "number", "larger": "number", "huge": "number", "precise": "number", "maximum": "number", "minimum": "number" } }
   },
   "fixtures": [
     { "id": "protocol.success", "class": "valid", "path": "examples/success.json", "outcome": "success" },
@@ -53,8 +54,9 @@
     { "id": "protocol.informational-success", "class": "valid", "path": "examples/informational-success.json", "outcome": "success" },
     { "id": "protocol.missing-argument", "class": "valid", "path": "examples/missing-argument.json", "outcome": "validation" },
     { "id": "protocol.fault-details", "class": "valid", "path": "examples/fault-details.json", "outcome": "command-failure" },
+    { "id": "protocol.number-text", "class": "valid", "path": "examples/number-text.json", "outcome": "success" },
     { "id": "protocol.invalid-structures", "class": "semantic-corpus", "path": "invalid-structures.json", "caseCount": 80 },
     { "id": "protocol.wire-inputs", "class": "malformed-or-hostile", "path": "wire-inputs.json", "caseCount": 41 },
-    { "id": "protocol.writer-cases", "class": "writer-corpus", "path": "writer-cases.json", "caseCount": 19 }
+    { "id": "protocol.writer-cases", "class": "writer-corpus", "path": "writer-cases.json", "caseCount": 20 }
   ]
 }
