@@ -59,6 +59,10 @@ internal sealed partial class ApplicationTests
                 AssertEx.True(console.StandardError.Contains("requires", StringComparison.Ordinal) || console.StandardError.Contains("cannot", StringComparison.Ordinal));
                 AssertEx.True(!console.StandardError.Contains(directory, StringComparison.Ordinal));
             }
+            // The generated binder converts a value before it checks the bounds (grammar.md, "Typed values").
+            console = new();
+            AssertEx.Equal(2, await App(console).RunAsync(["inspect-path", "--source", source, "--target", directory, "--count", "99.5"]));
+            AssertEx.True(console.StandardError.StartsWith("--count requires a whole number.\n", StringComparison.Ordinal), console.StandardError);
             console = new();
             AssertEx.Equal(0, await App(console).RunAsync(["relations", "--apply", "--confirm"]));
             var catalog = GeneratedCommandCatalog.Create();

@@ -29,7 +29,7 @@ The text is these blocks in order, each one that is present preceded by one empt
 
 The line is `Usage: `, then the application name, then (`:124-141`):
 
-- for a command path, the path as the catalog spells it, separated by single spaces;
+- for a command path, the path as the catalog spells it, separated by single spaces, and in the catalog's dialect: `/cache /clear` under the [Windows slash dialect](grammar.md#windows-slash-dialect) (`help.slash.subcommand`);
 - for root help, ` [command]` when the catalog has a root command and at least one other command that help lists, or ` <command>` when it has no root command and has any command, hidden ones included;
 - each argument of the command that help does not hide: trailing arguments as `[-- name...]`, any other argument as `<name>` when its minimum is at least 1 and `[name]` when it is 0, with `...` before the closing bracket when its maximum is not 1. The name is the argument's value name, or else its name;
 - ` [options]`.
@@ -61,7 +61,7 @@ The sections, in order:
    | `@<file>` | Read more arguments from a file | the application opted in to response files |
    | the completion option, then ` <shell>` | Generate bash, zsh, fish or PowerShell completions | root help, when the application declares one |
 
-   Under the [Windows slash dialect](grammar.md#windows-slash-dialect) every spelling is the dialect's, and the help row is `/?, /help`.
+   Under the [Windows slash dialect](grammar.md#windows-slash-dialect) every spelling is the dialect's: commands and their aliases (`/deploy (/dp)`), options and their aliases (`/target, /t <name>`), the related options of `[requires: …]` and `[conflicts: …]`, and the framework's rows, `/?, /help`, `/version`, `/format <human|json>` and the JSON output alias (`/json`, "Same as /format json"), whatever spelling the catalog declared (`help.slash.root`, `help.slash.command`).
 4. **Exit codes** (`:84-87`): the exit codes the command documents, in their order. The term is the code in decimal, the description its meaning.
 5. **Examples** (`:88-93`): the command's examples, each as two spaces and the example, never wrapped, since they are copied into a shell.
 
@@ -99,5 +99,7 @@ A corpus catalog declares help text with an optional `help` object on a command,
 An argument may be `trailing` ([Input model](grammar.md#input-model)); its arity is then 0 to unbounded.
 
 The catalogs give no command `completion` a description except a hidden one, which replaces .NET's built-in completion command, so their root help has no completion row. The case `help.completion.root` shows that row; it `requires` the feature `help:completion-command`, which an implementation lists when it has the built-in command.
+
+The rows of the catalog `slash` declare the Windows slash dialect (`dialect`, [Catalog features](grammar.md#catalog-features)) and require the feature `dialect:windows-slash`, which an implementation lists when it has that dialect.
 
 The rows of the catalogs `reference` and `reference-default-command` are the .NET reference snapshots that the Rust producer also tests against (`native/crates/command-line/tests/help-reference` on the Rust branch), byte for byte. The corpus compares the English texts of the text keys above; an implementation whose English differs reports its rows as a deviation.

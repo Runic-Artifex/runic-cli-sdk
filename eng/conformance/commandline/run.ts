@@ -53,9 +53,11 @@ export async function runCommandLineCase(adapter: Adapter, c: Case, { supports, 
 // --- Grammar (grammar.md, "Normalized results") ---
 
 // `cl.validate` gives the same normalized result after input validation (grammar.md, "Input validation"), whose
-// diagnostics have no token index (`tokenIndex: null` in the corpus).
+// diagnostics have no token index (`tokenIndex: null` in the corpus). Its `conversions` are the row's typed values
+// ("Typed values"), `{}` when it has none.
 async function parse(adapter: Adapter, { catalog, row }: any, op = "cl.parse"): Promise<Outcome> {
-  const r = await adapter.call(op, { catalog, argv: row.args, env: row.environment ?? {} });
+  const args = { catalog, argv: row.args, env: row.environment ?? {} };
+  const r = await adapter.call(op, op === "cl.validate" ? { ...args, conversions: row.conversions ?? {} } : args);
   if (r.error) return fail(`the parser failed: ${r.error}`);
   const e = row.expected;
   if (r.kind !== e.kind) return fail(`${r.kind} ${abbreviate(r)}, expected ${e.kind} ${abbreviate(e)}`);

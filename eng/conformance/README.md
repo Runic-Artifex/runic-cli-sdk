@@ -80,7 +80,7 @@ corpus's terms comes back as `unmapped:<type>`, and the case fails.
 | Op | Role | args | ok |
 | --- | --- | --- | --- |
 | `cl.parse` | parser | `{catalog, argv, env}` | the normalized result of grammar.md: `{kind: "invocation", commandPath, options, arguments}`, `{kind: "help", commandPath}`, `{kind: "version"}` or `{kind: "error"}`, each with `diagnostics: [{code, kind, tokenIndex, arguments, binding}]`; or `{error}` |
-| `cl.validate` | parser | `{catalog, argv, env}` | the normalized result after input validation (grammar.md, "Input validation"): as `cl.parse`, and an error's diagnostics may be validation diagnostics, whose `tokenIndex` is null |
+| `cl.validate` | parser | `{catalog, argv, env, conversions}` | the normalized result after input validation (grammar.md, "Input validation"): as `cl.parse`, and an error's diagnostics may be validation or conversion diagnostics, whose `tokenIndex` is null; `conversions` maps option and argument IDs to the type the command's binder converts them to (`integer`; "Typed values"), `{}` for most rows |
 | `cl.catalog` | parser | `{catalog}` | `{kind: "valid"}`, or `{kind: "invalid", issues: [{code, location}]}` for a catalog the implementation rejects (grammar.md, "Catalog validity"); or `{error}` |
 | `cl.classify` | parser | `{catalog, argv, env}` | `{kind: "output-mode", mode, source, diagnostics}` or `{kind: "error", diagnostics}`; or `{error}` |
 | `cl.readEnvelope` | reader | `{input, payloadType, contract}` | `{result: "accepted", envelope, payloadDecodeAttempted}` or `{result: "rejected", reason, payloadDecodeAttempted}` |
@@ -93,7 +93,10 @@ corpus's terms comes back as `unmapped:<type>`, and the case fails.
   lists as `null`, is unset). A catalog features row runs `cl.parse`, `cl.validate` or `cl.catalog` as its `operation`
   says. For `cl.catalog` the driver compares the kind, and that every issue of an invalid catalog has the row's code;
   how many issues an implementation reports is not compared. A row's `requires` are the case's: an implementation
-  that does not list one of them among its `describe` features gets `unsupported` without a call. The driver compares the kind, the path and
+  that does not list one of them among its `describe` features or capabilities gets `unsupported` without a call. The
+  features are `catalog:global-option-settings`, `binding:integer-conversion` (a binder that converts the
+  `conversions` of a `cl.validate` row), `dialect:windows-slash` (the catalog member `dialect`) and
+  `help:completion-command`; a human output row may also require the capability `escaping-profile:dotnet`. The driver compares the kind, the path and
   the ordered bindings; for each diagnostic the code, kind and token index, `arguments` when the corpus lists them, and
   `binding` exactly. A result other than an error has no diagnostics.
 - **Reading.** `input` is the frame as base64: a wire case's bytes or recipe, a semantic document as compact JSON and
@@ -111,7 +114,8 @@ corpus's terms comes back as `unmapped:<type>`, and the case fails.
   the width, and the text must equal the case's lines, each followed by LF. A human output case calls `cl.human` with
   its catalog, its `args` as `argv`, its `outcome` and its `texts` (`{}` when it has none); the exit code, standard
   output and standard error must equal the case's exactly. The adapter runs the standalone runner in human output with
-  an empty environment and without signal handling, every command's handler returning the outcome. A help case that
+  an empty environment and without signal handling, every command's handler returning the outcome; a row of the
+  catalog `payload-alias` gives that alias, so its outcome is written for JSON output with the payload shape. A help case that
   `requires` `help:completion-command` runs only for an adapter that lists that feature.
 
 **Roles.** An implementation lists the roles it has: `parser`, `reader`, `writer` and `presenter` (help and human

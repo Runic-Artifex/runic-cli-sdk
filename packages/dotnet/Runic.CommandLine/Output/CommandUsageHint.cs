@@ -15,6 +15,12 @@ internal sealed class CommandUsageHint
 
     internal string Format(CommandPath path, CommandTextContext context, ICommandConsole console)
     {
+        // The root command's name is no command spelling: its usage and its help are the application's.
+        if (_catalog.RootCommand is { } root && path.Count == 1 && string.Equals(path.Segments[0], root.Name, System.StringComparison.Ordinal))
+        {
+            path = CommandPath.Root;
+        }
+
         string usage = CommandHelpFormatter.FormatUsage(_catalog, _applicationName, path, context,
             CommandPresentation.HelpWidth(console, CommandOutputMode.Human));
         string help = _applicationName + (path.Count > 0 ? " " + CommandDialect.Path(_catalog, path) : "") + " " + CommandDialect.Help(_catalog);

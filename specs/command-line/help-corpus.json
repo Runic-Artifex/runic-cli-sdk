@@ -50,6 +50,17 @@
       "commands": [
         {"path": ["build"], "aliases": [], "options": [], "arguments": [], "help": {"description": "Build the project."}}
       ]
+    },
+    "slash": {
+      "dialect": "windows-slash",
+      "jsonOutputAlias": "--json",
+      "globalOptions": [{"id": "verbose", "long": "--verbose", "aliases": ["-v"], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error", "help": {"description": "Write more detail."}}],
+      "commands": [
+        {"path": ["deploy"], "aliases": ["dp"], "options": [{"id": "target", "long": "--target", "aliases": ["-t"], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "requires": ["force"], "help": {"description": "Where to deploy.", "valueName": "name"}}, {"id": "force", "long": "--force", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error", "help": {"description": "Skip the checks."}}], "arguments": [{"id": "package", "arity": {"minimum": 1, "maximum": 1}, "help": {"description": "The package to deploy."}}], "help": {"description": "Deploy a package."}},
+        {"path": ["cache"], "aliases": [], "options": [], "arguments": [], "group": true, "help": {"description": "Manage the cache."}},
+        {"path": ["cache", "clear"], "aliases": [], "options": [], "arguments": [], "help": {"description": "Remove cached entries."}},
+        {"path": ["completion"], "aliases": [], "options": [], "arguments": [], "help": {"hidden": true}}
+      ]
     }
   },
   "cases": [
@@ -68,6 +79,9 @@
     {"id": "help.notes.minimum-width", "catalog": "notes", "path": ["greet"], "width": 20, "expected": {"lines": ["Usage: tool greet", "       [options]", "", "\u65e5\u672c\u8a9e\u306e\u8aac\u660e\u6587\u3067\u3059\u3002", "\u3068\u3066\u3082\u9577\u3044\u8aac\u660e\u306a\u306e", "\u3067\u3001\u6298\u308a\u8fd4\u3055\u308c\u307e\u3059\u3002", "", "Options:", "  -h, --help", "            Show", "            help", "  --version", "            Show", "            version", "  --format <human|json>", "            Select", "            output", "            format"]}},
     {"id": "help.root-command.root", "catalog": "root-command", "path": [], "width": 80, "expected": {"lines": ["Usage: tool [command] <script> [options]", "", "Run a script.", "", "Commands:", "  init  Create a project.", "", "Arguments:", "  <script>  The script to run. [required]", "", "Options:", "  --watch                Run again on every change.", "  -h, --help             Show help", "  --version              Show version", "  --format <human|json>  Select output format", "  --json                 Same as --format json"]}},
     {"id": "help.root-command.other-command", "catalog": "root-command", "path": ["init"], "width": 80, "expected": {"lines": ["Usage: tool init [options]", "", "Create a project.", "", "Options:", "  -h, --help             Show help", "  --version              Show version", "  --format <human|json>  Select output format", "  --json                 Same as --format json"]}},
-    {"id": "help.completion.root", "catalog": "with-completion", "requires": ["help:completion-command"], "path": [], "width": 80, "expected": {"lines": ["Usage: tool <command> [options]", "", "Commands:", "  build               Build the project.", "  completion <shell>  Generate bash, zsh, fish or PowerShell completions", "", "Options:", "  -h, --help             Show help", "  --version              Show version", "  --format <human|json>  Select output format"]}}
+    {"id": "help.completion.root", "catalog": "with-completion", "requires": ["help:completion-command"], "path": [], "width": 80, "expected": {"lines": ["Usage: tool <command> [options]", "", "Commands:", "  build               Build the project.", "  completion <shell>  Generate bash, zsh, fish or PowerShell completions", "", "Options:", "  -h, --help             Show help", "  --version              Show version", "  --format <human|json>  Select output format"]}},
+    {"id": "help.slash.root", "catalog": "slash", "requires": ["dialect:windows-slash"], "path": [], "width": 80, "expected": {"lines": ["Usage: tool <command> [options]", "", "Commands:", "  /deploy (/dp)  Deploy a package.", "  /cache         Manage the cache.", "", "Options:", "  /verbose, /v          Write more detail.", "  /?, /help             Show help", "  /version              Show version", "  /format <human|json>  Select output format", "  /json                 Same as /format json"]}},
+    {"id": "help.slash.command", "catalog": "slash", "requires": ["dialect:windows-slash"], "path": ["deploy"], "width": 80, "expected": {"lines": ["Usage: tool /deploy <package> [options]", "", "Deploy a package.", "", "Arguments:", "  <package>  The package to deploy. [required]", "", "Options:", "  /target, /t <name>    Where to deploy. [requires: /force]", "  /force                Skip the checks.", "  /verbose, /v          Write more detail.", "  /?, /help             Show help", "  /version              Show version", "  /format <human|json>  Select output format", "  /json                 Same as /format json"]}},
+    {"id": "help.slash.subcommand", "catalog": "slash", "requires": ["dialect:windows-slash"], "path": ["cache", "clear"], "width": 80, "expected": {"lines": ["Usage: tool /cache /clear [options]", "", "Remove cached entries.", "", "Options:", "  /verbose, /v          Write more detail.", "  /?, /help             Show help", "  /version              Show version", "  /format <human|json>  Select output format", "  /json                 Same as /format json"]}}
   ]
 }
