@@ -50,12 +50,12 @@ The sections, in order:
 
    Root help of .NET also lists `completion <shell>`, "Generate bash, zsh, fish or PowerShell completions", for its built-in completion command, unless the application declares a command named `completion` or a completion option of its own (`:56-57`, `CommandCatalog.cs:146`; with a completion option, that option's row in Options takes its place, `:80-81`). Completion is not part of this specification: an implementation without it has no such row.
 2. **Arguments** (`:60-64`): each argument of the command that help does not hide, in definition order. The term is the name or value name in angle brackets (`<target>`), whatever its arity. The notes are those below, with `[required]` for an argument whose minimum is at least 1.
-3. **Options** (`:66-82`): the options of the command that help does not hide, its own in definition order and then the [global options](grammar.md#global-options); for root help without a root command, the global options. The term is the option's spelling, then its aliases, separated by `, `, then for an option whose maximum is not 0 a space and `<value>`: its value name, or else its `id`, with `...` before the `>` when its maximum is not 1 (`--tag <name...>`). Then, in every help, the framework's rows:
+3. **Options** (`:66-82`): the options of the command that help does not hide, its own in definition order and then the [global options](grammar.md#global-options); for root help without a root command, the global options. The term is the option's spelling, then its aliases, separated by `, `, then for an option whose maximum is not 0 a space and `<value>`: its value name, or else its `id`, with `...` before the `>` when its maximum is not 1 (`--tag <name...>`). Then the framework's rows, each in every help unless its row says otherwise:
 
    | Term | Description | When |
    |---|---|---|
    | `-h, --help` | Show help | always |
-   | `--version` | Show version | always, also in a command's help, although `--version` after a command is `unknown-option` (`grammar.version.not-command-built-in`) |
+   | `--version` | Show version | root help only: after a command `--version` is `unknown-option` (`grammar.version.not-command-built-in`), so a command's help, a group's included, does not list it (`help.reference.command`, `help.reference.group`) |
    | `--format <human|json>` (the output selector's spelling) | Select output format | always |
    | the JSON output alias, such as `--json` | Same as --format json | the catalog has one; "Write the result as JSON" for a payload-shaped alias |
    | `@<file>` | Read more arguments from a file | the application opted in to response files |
