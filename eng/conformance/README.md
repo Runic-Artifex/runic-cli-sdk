@@ -54,7 +54,8 @@ commit with `--sdk <dir>`.
 ## Command Line
 
 The module `commandline/1` runs the corpus of [`specs/command-line`](../../specs/command-line/README.md): the grammar
-corpus, output classification, and the protocol's wire inputs, semantic structures, writer cases and examples. Its
+corpus, output classification, the catalog features corpus, and the protocol's wire inputs, semantic structures, writer
+cases and examples. Its
 committed files are in [`specs/command-line/conformance`](../../specs/command-line/conformance):
 
 - `cases.json`: one line per case, keyed `<file>/<id>` with the corpus file relative to `specs/command-line` and without
@@ -79,12 +80,18 @@ corpus's terms comes back as `unmapped:<type>`, and the case fails.
 | Op | Role | args | ok |
 | --- | --- | --- | --- |
 | `cl.parse` | parser | `{catalog, argv, env}` | the normalized result of grammar.md: `{kind: "invocation", commandPath, options, arguments}`, `{kind: "help", commandPath}`, `{kind: "version"}` or `{kind: "error"}`, each with `diagnostics: [{code, kind, tokenIndex, arguments, binding}]`; or `{error}` |
+| `cl.validate` | parser | `{catalog, argv, env}` | the normalized result after input validation (grammar.md, "Input validation"): as `cl.parse`, and an error's diagnostics may be validation diagnostics, whose `tokenIndex` is null |
+| `cl.catalog` | parser | `{catalog}` | `{kind: "valid"}`, or `{kind: "invalid", issues: [{code, location}]}` for a catalog the implementation rejects (grammar.md, "Catalog validity"); or `{error}` |
 | `cl.classify` | parser | `{catalog, argv, env}` | `{kind: "output-mode", mode, source, diagnostics}` or `{kind: "error", diagnostics}`; or `{error}` |
 | `cl.readEnvelope` | reader | `{input, payloadType, contract}` | `{result: "accepted", envelope, payloadDecodeAttempted}` or `{result: "rejected", reason, payloadDecodeAttempted}` |
 | `cl.write` | writer | `{input}` | `{output}`, the framed response as base64; or `{error}` |
 
-- **Grammar and classification.** `catalog` is the grammar corpus's fixture catalog and `env` the row's captured
-  environment (a variable it does not list, or lists as `null`, is unset). The driver compares the kind, the path and
+- **Grammar and classification.** `catalog` is the grammar corpus's fixture catalog, or for a row of the catalog
+  features corpus the catalog the row names, and `env` the row's captured environment (a variable it does not list, or
+  lists as `null`, is unset). A catalog features row runs `cl.parse`, `cl.validate` or `cl.catalog` as its `operation`
+  says. For `cl.catalog` the driver compares the kind, and that every issue of an invalid catalog has the row's code;
+  how many issues an implementation reports is not compared. A row's `requires` are the case's: an implementation
+  that does not list one of them among its `describe` features gets `unsupported` without a call. The driver compares the kind, the path and
   the ordered bindings; for each diagnostic the code, kind and token index, `arguments` when the corpus lists them, and
   `binding` exactly. A result other than an error has no diagnostics.
 - **Reading.** `input` is the frame as base64: a wire case's bytes or recipe, a semantic document as compact JSON and

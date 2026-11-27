@@ -70,6 +70,8 @@ internal static class AdapterProgram
         "shutdown" => new JsonObject(),
         "cl.parse" => operations.Parse(arguments),
         "cl.classify" => operations.Classify(arguments),
+        "cl.validate" => operations.Validate(arguments),
+        "cl.catalog" => Operations.Catalog(arguments),
         "cl.readEnvelope" => Operations.ReadEnvelope(arguments),
         "cl.write" => Operations.Write(arguments),
         _ => throw new UnsupportedException($"the .NET adapter has no operation {operation}"),

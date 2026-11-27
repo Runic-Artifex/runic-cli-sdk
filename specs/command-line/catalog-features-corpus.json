@@ -1,0 +1,209 @@
+{
+  "formatVersion": 1,
+  "protocol": "runic.commandline/1",
+  "tokenModel": "pre-tokenized-string-array",
+  "catalogs": {
+    "default-command": {
+      "jsonOutputAlias": "--json",
+      "defaultCommand": "list",
+      "globalOptions": [
+        {"id": "profile", "long": "--profile", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error"}
+      ],
+      "commands": [
+        {"path": ["list"], "aliases": [], "options": [{"id": "all", "long": "--all", "aliases": ["-a"], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error"}, {"id": "limit", "long": "--limit", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error"}], "arguments": []},
+        {"path": ["copy"], "aliases": ["cp"], "options": [], "arguments": [{"id": "source", "arity": {"minimum": 1, "maximum": 1}}, {"id": "destination", "arity": {"minimum": 1, "maximum": 1}}]},
+        {"path": ["status"], "aliases": [], "options": [{"id": "verbose", "long": "--verbose", "aliases": ["-v"], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error"}], "arguments": []}
+      ]
+    },
+    "root-command": {
+      "jsonOutputAlias": "--json",
+      "rootCommand": "run",
+      "globalOptions": [
+        {"id": "profile", "long": "--profile", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error"}
+      ],
+      "commands": [
+        {"path": ["run"], "aliases": [], "options": [{"id": "dry-run", "long": "--dry-run", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error"}], "arguments": [{"id": "action", "arity": {"minimum": 0, "maximum": 1}}]},
+        {"path": ["status"], "aliases": [], "options": [{"id": "verbose", "long": "--verbose", "aliases": ["-v"], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error"}], "arguments": []}
+      ]
+    },
+    "root-command-without-arguments": {
+      "rootCommand": "run",
+      "commands": [
+        {"path": ["run"], "aliases": [], "options": [{"id": "dry-run", "long": "--dry-run", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error"}], "arguments": []},
+        {"path": ["status"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
+    "values": {
+      "commands": [
+        {"path": ["serve"], "aliases": [], "options": [{"id": "port", "long": "--port", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "minimum": 1, "maximum": 65535}, {"id": "retries", "long": "--retries", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "minimum": 0}, {"id": "ratio", "long": "--ratio", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "maximum": 1, "acceptsNegativeNumbers": true}, {"id": "tls", "long": "--tls", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error", "requires": ["cert"]}, {"id": "cert", "long": "--cert", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "pathKind": "file"}, {"id": "insecure", "long": "--insecure", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error", "conflictsWith": ["tls"], "environmentVariable": "SAMPLE_INSECURE"}, {"id": "root", "long": "--root", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "pathKind": "directory"}], "arguments": [{"id": "workers", "arity": {"minimum": 0, "maximum": 1}, "minimum": 1, "maximum": 16}]},
+        {"path": ["build"], "aliases": [], "options": [{"id": "mode", "long": "--mode", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "choices": ["Fast", "Safe"]}], "arguments": [{"id": "target", "arity": {"minimum": 0, "maximum": 1}, "choices": ["Debug", "Release"]}]}
+      ]
+    },
+    "invalid.default-command-unknown": {
+      "defaultCommand": "nosuch",
+      "commands": [
+        {"path": ["status"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
+    "invalid.default-command-not-root": {
+      "defaultCommand": "clear",
+      "commands": [
+        {"path": ["cache"], "aliases": [], "options": [], "arguments": []},
+        {"path": ["cache", "clear"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
+    "invalid.root-command-with-alias": {
+      "rootCommand": "run",
+      "commands": [
+        {"path": ["run"], "aliases": ["r"], "options": [], "arguments": []}
+      ]
+    },
+    "invalid.root-command-with-subcommand": {
+      "rootCommand": "run",
+      "commands": [
+        {"path": ["run"], "aliases": [], "options": [], "arguments": []},
+        {"path": ["run", "fast"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
+    "invalid.global-option-arity": {
+      "globalOptions": [
+        {"id": "tags", "long": "--tags", "aliases": [], "arity": {"minimum": 0, "maximum": 2}, "repeat": "error"}
+      ],
+      "commands": [
+        {"path": ["status"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
+    "invalid.global-option-repeats": {
+      "globalOptions": [
+        {"id": "tag", "long": "--tag", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "append"}
+      ],
+      "commands": [
+        {"path": ["status"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
+    "invalid.global-option-required": {
+      "globalOptions": [
+        {"id": "profile", "long": "--profile", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "required": true}
+      ],
+      "commands": [
+        {"path": ["status"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
+    "invalid.global-option-sensitive": {
+      "globalOptions": [
+        {"id": "token", "long": "--token", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "sensitive": true}
+      ],
+      "commands": [
+        {"path": ["status"], "aliases": [], "options": [], "arguments": []}
+      ]
+    },
+    "invalid.global-option-disagrees": {
+      "globalOptions": [
+        {"id": "profile", "long": "--profile", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error"}
+      ],
+      "commands": [
+        {"path": ["status"], "aliases": [], "options": [{"id": "profile", "long": "--profile", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error"}], "arguments": []}
+      ]
+    },
+    "invalid.choices-on-a-flag": {
+      "commands": [
+        {"path": ["status"], "aliases": [], "options": [{"id": "verbose", "long": "--verbose", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error", "choices": ["yes"]}], "arguments": []}
+      ]
+    },
+    "invalid.environment-variable-for-several-values": {
+      "commands": [
+        {"path": ["status"], "aliases": [], "options": [{"id": "pair", "long": "--pair", "aliases": [], "arity": {"minimum": 2, "maximum": 2}, "repeat": "error", "environmentVariable": "SAMPLE_PAIR"}], "arguments": []}
+      ]
+    },
+    "invalid.relation-to-unknown-option": {
+      "commands": [
+        {"path": ["serve"], "aliases": [], "options": [{"id": "tls", "long": "--tls", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error", "requires": ["cert"]}], "arguments": []}
+      ]
+    },
+    "invalid.relation-to-itself": {
+      "commands": [
+        {"path": ["serve"], "aliases": [], "options": [{"id": "tls", "long": "--tls", "aliases": [], "arity": {"minimum": 0, "maximum": 0}, "repeat": "error", "conflictsWith": ["tls"]}], "arguments": []}
+      ]
+    },
+    "invalid.minimum-above-maximum": {
+      "commands": [
+        {"path": ["serve"], "aliases": [], "options": [{"id": "port", "long": "--port", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "minimum": 10, "maximum": 1}], "arguments": []}
+      ]
+    },
+    "invalid.must-exist-without-path-kind": {
+      "commands": [
+        {"path": ["serve"], "aliases": [], "options": [{"id": "cert", "long": "--cert", "aliases": [], "arity": {"minimum": 1, "maximum": 1}, "repeat": "error", "mustExist": true}], "arguments": []}
+      ]
+    }
+  },
+  "cases": [
+    {"id": "default.empty-input", "catalog": "default-command", "args": [], "expected": {"kind": "invocation", "commandPath": ["list"], "options": [], "arguments": []}},
+    {"id": "default.options-only", "catalog": "default-command", "args": ["--all"], "expected": {"kind": "invocation", "commandPath": ["list"], "options": [{"id": "all", "values": []}], "arguments": []}},
+    {"id": "default.after-output-and-global-options", "catalog": "default-command", "args": ["--json", "--profile", "p", "-a"], "expected": {"kind": "invocation", "commandPath": ["list"], "options": [{"id": "profile", "values": ["p"]}, {"id": "all", "values": []}], "arguments": []}},
+    {"id": "default.named-command-wins", "catalog": "default-command", "args": ["copy", "a", "b"], "expected": {"kind": "invocation", "commandPath": ["copy"], "options": [], "arguments": [{"id": "source", "values": ["a"]}, {"id": "destination", "values": ["b"]}]}},
+    {"id": "default.alias-wins", "catalog": "default-command", "args": ["cp", "a", "b"], "expected": {"kind": "invocation", "commandPath": ["copy"], "options": [], "arguments": [{"id": "source", "values": ["a"]}, {"id": "destination", "values": ["b"]}]}},
+    {"id": "default.explicit-name", "catalog": "default-command", "args": ["list", "--limit", "5"], "expected": {"kind": "invocation", "commandPath": ["list"], "options": [{"id": "limit", "values": ["5"]}], "arguments": []}},
+    {"id": "default.unrelated-word-is-an-argument", "catalog": "default-command", "args": ["xyz"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1006", "kind": "unexpected-argument", "tokenIndex": 0}]}},
+    {"id": "default.mistyped-command", "catalog": "default-command", "args": ["stauts"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": ["stauts", "status"]}]}},
+    {"id": "default.mistyped-command-after-option", "catalog": "default-command", "args": ["--all", "cpoy"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 1, "arguments": ["cpoy", "copy"]}]}},
+    {"id": "default.mistyped-command-is-not-first-positional", "catalog": "default-command", "args": ["list", "stauts"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1006", "kind": "unexpected-argument", "tokenIndex": 1}]}},
+    {"id": "default.help-option", "catalog": "default-command", "args": ["--help"], "expected": {"kind": "help", "commandPath": []}},
+    {"id": "default.help-word", "catalog": "default-command", "args": ["help"], "expected": {"kind": "help", "commandPath": []}},
+    {"id": "default.help-after-default-option", "catalog": "default-command", "args": ["--all", "--help"], "expected": {"kind": "help", "commandPath": ["list"]}},
+    {"id": "default.leading-global-value-missing", "catalog": "default-command", "args": ["--profile"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 1, "arguments": ["--profile"], "binding": "profile"}]}},
+    {"id": "root.empty-input", "catalog": "root-command", "args": [], "expected": {"kind": "invocation", "commandPath": ["run"], "options": [], "arguments": []}},
+    {"id": "root.name-is-an-argument", "catalog": "root-command", "args": ["run"], "expected": {"kind": "invocation", "commandPath": ["run"], "options": [], "arguments": [{"id": "action", "values": ["run"]}]}},
+    {"id": "root.option-and-argument", "catalog": "root-command", "args": ["--dry-run", "switch"], "expected": {"kind": "invocation", "commandPath": ["run"], "options": [{"id": "dry-run", "values": []}], "arguments": [{"id": "action", "values": ["switch"]}]}},
+    {"id": "root.other-command", "catalog": "root-command", "args": ["status", "-v"], "expected": {"kind": "invocation", "commandPath": ["status"], "options": [{"id": "verbose", "values": []}], "arguments": []}},
+    {"id": "root.extra-argument", "catalog": "root-command", "args": ["home", "switch"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1006", "kind": "unexpected-argument", "tokenIndex": 1}]}},
+    {"id": "root.help-option", "catalog": "root-command", "args": ["--help"], "expected": {"kind": "help", "commandPath": []}},
+    {"id": "root.help-word", "catalog": "root-command", "args": ["help"], "expected": {"kind": "help", "commandPath": []}},
+    {"id": "root.help-after-option", "catalog": "root-command", "args": ["--dry-run", "--help"], "expected": {"kind": "help", "commandPath": []}},
+    {"id": "root.help-for-other-command", "catalog": "root-command", "args": ["help", "status"], "expected": {"kind": "help", "commandPath": ["status"]}},
+    {"id": "root.help-word-with-root-name", "catalog": "root-command", "args": ["help", "run"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1013", "kind": "unexpected-root-help-argument", "tokenIndex": 1}]}},
+    {"id": "root.without-arguments.name-is-no-command", "catalog": "root-command-without-arguments", "args": ["run"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1006", "kind": "unexpected-argument", "tokenIndex": 0}]}},
+    {"id": "root.without-arguments.mistyped-other-command", "catalog": "root-command-without-arguments", "args": ["stauts"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1002", "kind": "unknown-command", "tokenIndex": 0, "arguments": ["stauts", "status"]}]}},
+    {"id": "root.without-arguments.root-name-not-suggested", "catalog": "root-command-without-arguments", "args": ["rnu"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1006", "kind": "unexpected-argument", "tokenIndex": 0}]}},
+    {"id": "choices.declared-spelling", "catalog": "values", "args": ["build", "--mode", "fast", "release"], "expected": {"kind": "invocation", "commandPath": ["build"], "options": [{"id": "mode", "values": ["Fast"]}], "arguments": [{"id": "target", "values": ["Release"]}]}},
+    {"id": "choices.exact-spelling", "catalog": "values", "args": ["build", "--mode", "Safe", "Debug"], "expected": {"kind": "invocation", "commandPath": ["build"], "options": [{"id": "mode", "values": ["Safe"]}], "arguments": [{"id": "target", "values": ["Debug"]}]}},
+    {"id": "choices.invalid-argument", "catalog": "values", "args": ["build", "beta"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1015", "kind": "invalid-choice", "tokenIndex": 2, "arguments": ["<target>", "Debug, Release"], "binding": "target"}]}},
+    {"id": "choices.invalid-option-lists-declared-spellings", "catalog": "values", "args": ["build", "--mode", "slow"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1015", "kind": "invalid-choice", "tokenIndex": 3, "arguments": ["--mode", "Fast, Safe"], "binding": "mode"}]}},
+    {"id": "validate.within-bounds", "catalog": "values", "operation": "validate", "args": ["serve", "--port", "8080", "--ratio", "-0.5", "4"], "expected": {"kind": "invocation", "commandPath": ["serve"], "options": [{"id": "port", "values": ["8080"]}, {"id": "ratio", "values": ["-0.5"]}], "arguments": [{"id": "workers", "values": ["4"]}]}},
+    {"id": "validate.bounds-inclusive", "catalog": "values", "operation": "validate", "args": ["serve", "--port", "65535", "--retries", "0", "16"], "expected": {"kind": "invocation", "commandPath": ["serve"], "options": [{"id": "port", "values": ["65535"]}, {"id": "retries", "values": ["0"]}], "arguments": [{"id": "workers", "values": ["16"]}]}},
+    {"id": "validate.out-of-range", "catalog": "values", "operation": "validate", "args": ["serve", "--port", "0"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "out-of-range", "tokenIndex": null, "arguments": ["--port", "1", "65535"], "binding": "port"}]}},
+    {"id": "validate.below-minimum", "catalog": "values", "operation": "validate", "args": ["serve", "--retries=-1"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "below-minimum", "tokenIndex": null, "arguments": ["--retries", "0"], "binding": "retries"}]}},
+    {"id": "validate.above-maximum", "catalog": "values", "operation": "validate", "args": ["serve", "--ratio", "1.5"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "above-maximum", "tokenIndex": null, "arguments": ["--ratio", "1"], "binding": "ratio"}]}},
+    {"id": "validate.argument-out-of-range", "catalog": "values", "operation": "validate", "args": ["serve", "17"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "out-of-range", "tokenIndex": null, "arguments": ["<workers>", "1", "16"], "binding": "workers"}]}},
+    {"id": "validate.not-a-number", "catalog": "values", "operation": "validate", "args": ["serve", "--port", "http"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "invalid-number", "tokenIndex": null, "arguments": ["--port"], "binding": "port"}]}},
+    {"id": "validate.infinity-is-not-a-number", "catalog": "values", "operation": "validate", "args": ["serve", "--ratio", "-Infinity"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "invalid-number", "tokenIndex": null, "arguments": ["--ratio"], "binding": "ratio"}]}},
+    {"id": "validate.number-forms", "catalog": "values", "operation": "validate", "args": ["serve", "--port", "8,080", "--retries", " 1e1 ", "--ratio", ".5"], "expected": {"kind": "invocation", "commandPath": ["serve"], "options": [{"id": "port", "values": ["8,080"]}, {"id": "retries", "values": [" 1e1 "]}, {"id": "ratio", "values": [".5"]}], "arguments": []}},
+    {"id": "validate.option-requires", "catalog": "values", "operation": "validate", "args": ["serve", "--tls"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "option-requires", "tokenIndex": null, "arguments": ["--tls", "--cert"]}]}},
+    {"id": "validate.option-requires-met", "catalog": "values", "operation": "validate", "args": ["serve", "--tls", "--cert", "server.pem"], "expected": {"kind": "invocation", "commandPath": ["serve"], "options": [{"id": "tls", "values": []}, {"id": "cert", "values": ["server.pem"]}], "arguments": []}},
+    {"id": "validate.option-conflict", "catalog": "values", "operation": "validate", "args": ["serve", "--insecure", "--tls", "--cert", "server.pem"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "option-conflict", "tokenIndex": null, "arguments": ["--insecure", "--tls"]}]}},
+    {"id": "validate.option-conflict-from-environment", "catalog": "values", "operation": "validate", "args": ["serve", "--tls", "--cert", "server.pem"], "environment": {"SAMPLE_INSECURE": "1"}, "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "option-conflict", "tokenIndex": null, "arguments": ["--insecure", "--tls"]}, {"code": "RCLI2006", "kind": "environment-value-source", "tokenIndex": null, "arguments": ["--insecure", "SAMPLE_INSECURE"], "binding": "insecure"}]}},
+    {"id": "validate.relations-before-bounds", "catalog": "values", "operation": "validate", "args": ["serve", "--port", "0", "--tls"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "option-requires", "tokenIndex": null, "arguments": ["--tls", "--cert"]}]}},
+    {"id": "validate.invalid-file-path", "catalog": "values", "operation": "validate", "args": ["serve", "--cert", "server\u0000.pem"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "invalid-file-path", "tokenIndex": null, "arguments": ["--cert"], "binding": "cert"}]}},
+    {"id": "validate.invalid-directory-path", "catalog": "values", "operation": "validate", "args": ["serve", "--root", "www\u0000"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI2002", "kind": "invalid-directory-path", "tokenIndex": null, "arguments": ["--root"], "binding": "root"}]}},
+    {"id": "validate.path-need-not-exist", "catalog": "values", "operation": "validate", "args": ["serve", "--cert", "no-such-directory/server.pem", "--root", "no-such-directory"], "expected": {"kind": "invocation", "commandPath": ["serve"], "options": [{"id": "cert", "values": ["no-such-directory/server.pem"]}, {"id": "root", "values": ["no-such-directory"]}], "arguments": []}},
+    {"id": "validate.parse-error-first", "catalog": "values", "operation": "validate", "args": ["serve", "--port"], "expected": {"kind": "error", "diagnostics": [{"code": "RCLI1003", "kind": "missing-option-value", "tokenIndex": 2, "arguments": ["--port"], "binding": "port"}]}},
+    {"id": "catalog.valid.default-command", "catalog": "default-command", "operation": "catalog", "expected": {"kind": "valid"}},
+    {"id": "catalog.valid.root-command", "catalog": "root-command", "operation": "catalog", "expected": {"kind": "valid"}},
+    {"id": "catalog.valid.root-command-without-arguments", "catalog": "root-command-without-arguments", "operation": "catalog", "expected": {"kind": "valid"}},
+    {"id": "catalog.valid.values", "catalog": "values", "operation": "catalog", "expected": {"kind": "valid"}},
+    {"id": "catalog.default-command-unknown", "catalog": "invalid.default-command-unknown", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0018"}},
+    {"id": "catalog.default-command-not-root", "catalog": "invalid.default-command-not-root", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0018"}},
+    {"id": "catalog.root-command-with-alias", "catalog": "invalid.root-command-with-alias", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0018"}},
+    {"id": "catalog.root-command-with-subcommand", "catalog": "invalid.root-command-with-subcommand", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0018"}},
+    {"id": "catalog.global-option-arity", "catalog": "invalid.global-option-arity", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0028"}},
+    {"id": "catalog.global-option-repeats", "catalog": "invalid.global-option-repeats", "operation": "catalog", "requires": ["catalog:global-option-settings"], "expected": {"kind": "invalid", "code": "RCLI0028"}},
+    {"id": "catalog.global-option-required", "catalog": "invalid.global-option-required", "operation": "catalog", "requires": ["catalog:global-option-settings"], "expected": {"kind": "invalid", "code": "RCLI0028"}},
+    {"id": "catalog.global-option-sensitive", "catalog": "invalid.global-option-sensitive", "operation": "catalog", "requires": ["catalog:global-option-settings"], "expected": {"kind": "invalid", "code": "RCLI0028"}},
+    {"id": "catalog.global-option-disagrees", "catalog": "invalid.global-option-disagrees", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0019"}},
+    {"id": "catalog.choices-on-a-flag", "catalog": "invalid.choices-on-a-flag", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0029"}},
+    {"id": "catalog.environment-variable-for-several-values", "catalog": "invalid.environment-variable-for-several-values", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0030"}},
+    {"id": "catalog.relation-to-unknown-option", "catalog": "invalid.relation-to-unknown-option", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0022"}},
+    {"id": "catalog.relation-to-itself", "catalog": "invalid.relation-to-itself", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0022"}},
+    {"id": "catalog.minimum-above-maximum", "catalog": "invalid.minimum-above-maximum", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0021"}},
+    {"id": "catalog.must-exist-without-path-kind", "catalog": "invalid.must-exist-without-path-kind", "operation": "catalog", "expected": {"kind": "invalid", "code": "RCLI0021"}}
+  ]
+}

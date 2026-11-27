@@ -1,7 +1,8 @@
 // The Command Line corpus (specs/command-line, `runic.commandline/1`) as a list of cases, one per corpus row, keyed
 // `<file>/<id>`: the corpus file relative to specs/command-line without `.json`, then the row id. An example has no row
 // id, so its key is its file alone (`protocol/examples/success`). The order is stable: the grammar corpus, output
-// classification, then the protocol's wire inputs, semantic structures, writer cases and examples.
+// classification, the catalog features corpus, then the protocol's wire inputs, semantic structures, writer cases and
+// examples.
 //
 // A case's body carries everything the run compares against, including the shared parts its row uses (the fixture
 // catalog, the client context, the sample payload contract, the example bytes), so a change to any of them changes the
@@ -22,11 +23,11 @@ const readJson = (path: string) => JSON.parse(readFileSync(path, "utf8"));
 export function loadCommandLineCorpus(root: string): Case[] {
   const spec = dirname(root);
   const cases: Case[] = [];
-  const add = (file: string, id: string | undefined, kind: string, role: Role, body: any) => {
+  const add = (file: string, id: string | undefined, kind: string, role: Role, body: any, requires: string[] = []) => {
     const stem = file.replace(/\.json$/, "");
     // The set is the corpus file; the examples are one set.
     const set = id === undefined ? dirname(stem) : stem;
-    cases.push({ id: id === undefined ? stem : `${stem}/${id}`, kind, set, file, roles: [role], requires: [], sha256: caseHash(body), body });
+    cases.push({ id: id === undefined ? stem : `${stem}/${id}`, kind, set, file, roles: [role], requires, sha256: caseHash(body), body });
   };
 
   const grammar = readJson(join(spec, "grammar-corpus.json"));
@@ -37,6 +38,18 @@ export function loadCommandLineCorpus(root: string): Case[] {
   const classification = readJson(join(spec, "output-classification-corpus.json"));
   for (const row of classification.cases)
     add("output-classification-corpus.json", row.id, "classify", "parser", { catalog: grammar.catalog, environmentVariable: classification.environmentVariable, row });
+
+  // The catalog features corpus has named catalogs, and each row names its own. A row parses (grammar.md, "Normalized
+  // results"), validates the input after parsing ("Input validation"), or only builds its catalog ("Catalog
+  // validity"). A row's `requires` lists the catalog features an implementation must be able to declare to run it.
+  const features = readJson(join(spec, "catalog-features-corpus.json"));
+  for (const row of features.cases) {
+    const catalog = features.catalogs[row.catalog];
+    if (catalog === undefined) throw new Error(`catalog-features-corpus.json ${row.id}: no catalog ${row.catalog}`);
+    const kind = row.operation ?? "parse";
+    if (!["parse", "validate", "catalog"].includes(kind)) throw new Error(`catalog-features-corpus.json ${row.id}: unknown operation ${kind}`);
+    add("catalog-features-corpus.json", row.id, kind, "parser", { catalog, row }, row.requires ?? []);
+  }
 
   const manifest = readJson(join(spec, "protocol/manifest.json"));
   const contract = (type: string) => ({ type, contract: manifest.samplePayloads[type] ?? null });

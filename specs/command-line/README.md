@@ -4,10 +4,11 @@ This directory contains the Wave A, language-neutral command-line grammar and ou
 
 - `grammar.md` defines token recognition, binding, diagnostics, and normalized results.
 - `grammar-corpus.json` supplies a fixed neutral catalog and parser fixtures.
+- `catalog-features-corpus.json` supplies named catalogs for default and root commands, declared choice spellings, input validation and catalog validity, with fixtures that parse, validate or only build a catalog.
 - `hosting.md` defines what a host process does around one invocation: exit codes and exit-code policies, termination signals, cancellation, debug output and environment capture.
 - `output-classification-corpus.json` supplies output selector (`--format`), `--json` alias and `RUNIC_COMMANDLINE_OUTPUT` precedence fixtures.
 - `protocol/` defines the `runic.commandline/1` machine response protocol: value-normative examples, writer cases with their inputs, the strict reader's rejection reasons in check order, and the reader corpora (`invalid-structures.json`, `wire-inputs.json`).
 
 The JSON `protocol` field is the registered machine protocol identity `runic.commandline/1`; `formatVersion` versions the corpus container independently. Arrays are ordered. Consumers must preserve argument strings exactly, including empty strings, Unicode scalar sequences, slash-prefixed paths, and duplicate values. No fixture requires shell parsing, network access, environment mutation, locale data, or an external service.
 
-Parse each JSON file with comments and trailing commas disabled. A conforming adapter executes every fixture against the catalog in `grammar-corpus.json` and compares the normalized `expected` result defined in `grammar.md`.
+Parse each JSON file with comments and trailing commas disabled. A conforming adapter executes every fixture against the catalog in `grammar-corpus.json`, and every fixture of `catalog-features-corpus.json` against the catalog it names, and compares the normalized `expected` result defined in `grammar.md`.

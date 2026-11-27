@@ -14,11 +14,13 @@ namespace Runic.CommandLine.Conformance;
 // the case is unsupported rather than run against a catalog that lacks it.
 internal sealed class CatalogFactory
 {
-    private static readonly HashSet<string> CatalogMembers = ["jsonOutputAlias", "globalOptions", "commands"];
+    private static readonly HashSet<string> CatalogMembers = ["jsonOutputAlias", "globalOptions", "commands", "defaultCommand", "rootCommand"];
     private static readonly HashSet<string> CommandMembers = ["path", "aliases", "options", "arguments", "group"];
     private static readonly HashSet<string> OptionMembers =
-        ["id", "long", "aliases", "arity", "repeat", "required", "choices", "environmentVariable", "acceptsNegativeNumbers", "sensitive"];
-    private static readonly HashSet<string> ArgumentMembers = ["id", "arity", "choices", "acceptsNegativeNumbers", "sensitive"];
+        ["id", "long", "aliases", "arity", "repeat", "required", "choices", "environmentVariable", "acceptsNegativeNumbers", "sensitive",
+            "requires", "conflictsWith", "minimum", "maximum", "pathKind", "mustExist"];
+    private static readonly HashSet<string> ArgumentMembers =
+        ["id", "arity", "choices", "acceptsNegativeNumbers", "sensitive", "minimum", "maximum", "pathKind", "mustExist"];
 
     private readonly Dictionary<string, CommandCatalog> _built = new(StringComparer.Ordinal);
 
@@ -35,7 +37,7 @@ internal sealed class CatalogFactory
         return built;
     }
 
-    private static CommandCatalog Build(JsonElement catalog)
+    public static CommandCatalog Build(JsonElement catalog)
     {
         RequireKnown(catalog, CatalogMembers, "catalog");
         var builder = new CommandCatalogBuilder();
@@ -84,6 +86,24 @@ internal sealed class CatalogFactory
             }
 
             builder.Command<AdapterOptions, AdapterHandler, AdapterResult>(name, command => Configure(command, root, commands));
+        }
+
+        // grammar.md "Default and root commands": a catalog names at most one of them.
+        bool hasDefault = catalog.TryGetProperty("defaultCommand", out JsonElement defaultCommand);
+        bool hasRoot = catalog.TryGetProperty("rootCommand", out JsonElement rootCommand);
+        if (hasDefault && hasRoot)
+        {
+            throw new UnsupportedException("a catalog with both a default and a root command");
+        }
+
+        if (hasDefault)
+        {
+            builder.DefaultCommand(defaultCommand.GetString()!);
+        }
+
+        if (hasRoot)
+        {
+            builder.RootCommand(rootCommand.GetString()!);
         }
 
         return builder.Build();
@@ -147,17 +167,38 @@ internal sealed class CatalogFactory
         }
     }
 
-    // Choices, an environment fallback and negative numbers are declared as an option's or argument's help, or null when
-    // it declares none of them.
+    // Choices, an environment fallback, negative numbers, relations, bounds and a path kind are declared as an option's
+    // or argument's help, or null when it declares none of them.
+    private static readonly string[] HelpMembers =
+        ["choices", "environmentVariable", "acceptsNegativeNumbers", "requires", "conflictsWith", "minimum", "maximum", "pathKind", "mustExist"];
+
     private static CommandHelp? Help(JsonElement definition)
     {
+        if (!HelpMembers.Any(member => definition.TryGetProperty(member, out _)))
+        {
+            return null;
+        }
+
         string[]? choices = definition.TryGetProperty("choices", out _) ? Texts(definition, "choices") : null;
         string? variable = definition.TryGetProperty("environmentVariable", out JsonElement name) ? name.GetString() : null;
-        bool negative = Flag(definition, "acceptsNegativeNumbers");
-        return choices is null && variable is null && !negative
-            ? null
-            : new CommandHelp(choices: choices, acceptsNegativeNumbers: negative, environmentVariable: variable);
+        return new CommandHelp(choices: choices, acceptsNegativeNumbers: Flag(definition, "acceptsNegativeNumbers"), environmentVariable: variable)
+        {
+            Requires = Texts(definition, "requires"),
+            ConflictsWith = Texts(definition, "conflictsWith"),
+            Minimum = Number(definition, "minimum"),
+            Maximum = Number(definition, "maximum"),
+            PathKind = definition.TryGetProperty("pathKind", out JsonElement kind) ? kind.GetString() switch
+            {
+                "file" => CommandPathKind.File,
+                "directory" => CommandPathKind.Directory,
+                var other => throw new UnsupportedException($"the path kind {other}"),
+            } : CommandPathKind.None,
+            MustExist = Flag(definition, "mustExist"),
+        };
     }
+
+    private static double? Number(JsonElement element, string name) =>
+        element.TryGetProperty(name, out JsonElement value) ? value.GetDouble() : null;
 
     private static void RequireKnown(JsonElement element, HashSet<string> known, string what)
     {

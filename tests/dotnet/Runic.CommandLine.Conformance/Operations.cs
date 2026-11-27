@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Runic.CommandLine.Conformance;
 
@@ -46,6 +49,74 @@ internal sealed class Operations
         };
         result["diagnostics"] = Diagnostics(outcome.Diagnostics);
         return result;
+    }
+
+    // cl.validate {catalog, argv, env}: the normalized result after input validation (grammar.md, "Input
+    // validation"). A parse result other than an invocation is the result. An invocation runs through the executor with
+    // a binder that accepts everything, so the outcome's diagnostics are the framework's own checks: relations and paths
+    // before binding, bounds after it.
+    public JsonObject Validate(JsonElement arguments)
+    {
+        ParseOutcome outcome;
+        try
+        {
+            outcome = RunParser(arguments);
+        }
+        catch (Exception exception) when (exception is not UnsupportedException)
+        {
+            return Unmapped(exception);
+        }
+
+        if (outcome.Kind != ParseOutcomeKind.Invocation)
+        {
+            return Parse(arguments);
+        }
+
+        var sink = new DiagnosticSink();
+        try
+        {
+            var executor = new CommandExecutor(CommandScopes.FromServices(EmptyServices.Instance));
+            CommandExecutionResult result = executor
+                .ExecuteAsync(new CommandExecutionRequest(outcome.Invocation!, NullConsole.Instance, CultureInfo.InvariantCulture, "conformance"), sink)
+                .AsTask().GetAwaiter().GetResult();
+            if (!result.Succeeded)
+            {
+                return new JsonObject { ["kind"] = "error", ["diagnostics"] = Diagnostics(sink.Diagnostics) };
+            }
+        }
+        catch (Exception exception) when (exception is not UnsupportedException)
+        {
+            return Unmapped(exception);
+        }
+
+        return Parse(arguments);
+    }
+
+    // cl.catalog {catalog}: whether the catalog builds, and the codes of the issues that reject it (grammar.md,
+    // "Catalog validity").
+    public static JsonObject Catalog(JsonElement arguments)
+    {
+        try
+        {
+            _ = CatalogFactory.Build(arguments.GetProperty("catalog"));
+            return new JsonObject { ["kind"] = "valid" };
+        }
+        catch (CommandCatalogValidationException exception)
+        {
+            return new JsonObject
+            {
+                ["kind"] = "invalid",
+                ["issues"] = new JsonArray([.. exception.Issues.Select(static issue => (JsonNode)new JsonObject
+                {
+                    ["code"] = issue.Code,
+                    ["location"] = issue.Location,
+                })]),
+            };
+        }
+        catch (Exception exception) when (exception is not UnsupportedException)
+        {
+            return Unmapped(exception);
+        }
     }
 
     // cl.classify {catalog, argv, env}: the output mode and its source, or the diagnostics (grammar.md, "Output
@@ -359,4 +430,53 @@ internal sealed class Operations
         Console.Error.WriteLine(exception);
         return new JsonObject { ["error"] = $"unmapped:{exception.GetType().Name}: {exception.Message}" };
     }
+}
+
+// Records the diagnostics of the one outcome the executor writes.
+internal sealed class DiagnosticSink : ICommandOutcomeSink
+{
+    public IReadOnlyList<CommandDiagnostic> Diagnostics { get; private set; } = [];
+
+    public ValueTask WriteAsync<TResult>(
+        CommandDescriptor command,
+        CommandExecutionContext context,
+        CommandOutcome<TResult> outcome,
+        ICommandResultCodec<TResult> codec,
+        int exitCode,
+        IReadOnlyList<CommandDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        Diagnostics = diagnostics;
+        return ValueTask.CompletedTask;
+    }
+}
+
+internal sealed class EmptyServices : IServiceProvider
+{
+    public static readonly EmptyServices Instance = new();
+
+    public object? GetService(Type serviceType) => null;
+}
+
+
+// A console that is never interactive and discards everything: validation writes nothing the adapter reports.
+internal sealed class NullConsole : ICommandConsole
+{
+    public static readonly NullConsole Instance = new();
+
+    public bool IsInteractive => false;
+
+    public bool IsInputRedirected => true;
+
+    public bool IsOutputRedirected => true;
+
+    public bool IsErrorRedirected => true;
+
+    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken) => ValueTask.FromResult<string?>(null);
+
+    public ValueTask WriteOutAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+    public ValueTask WriteOutBytesAsync(ReadOnlyMemory<byte> value, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+    public ValueTask WriteErrorAsync(ReadOnlyMemory<char> value, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 }
